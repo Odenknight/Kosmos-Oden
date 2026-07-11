@@ -1,0 +1,339 @@
+import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { KOSMOS_HTML_B64 } from "./kosmos-html";
+import { AgentApiServer, AgentSettings, DEFAULT_AGENT_SETTINGS, KosmosSettingTab, buildAgentGuide, buildEpisodes, makeToken } from "./agent-api";
+
+const VIEW_TYPE = "vault-kosmos-view";
+
+/** Decode the self-contained constellation page (Three.js + core + renderer). */
+function kosmosHtml(): string {
+  const bin = atob(KOSMOS_HTML_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+/** Fast non-cryptographic content hash (FNV-1a, 32-bit) for change detection. */
+function hashContent(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+function folderListFrom(md: any[]): string[] {
+  const folders = new Set<string>();
+  for (const f of md) {
+    const parts = String(f.path).split("/");
+    parts.pop();
+    let acc = "";
+    for (const p of parts) { acc = acc ? `${acc}/${p}` : p; folders.add(acc); }
+  }
+  return Array.from(folders);
+}
+
+const ATTACH_EXT = new Set(["png","jpg","jpeg","gif","bmp","webp","avif","svg","tif","tiff","pdf","mp4","mov","webm","mkv","avi","m4v","mp3","wav","ogg","m4a","flac","aac","zip","rar","7z","gz","doc","docx","xls","xlsx","ppt","pptx","csv","tsv","json","canvas","excalidraw","psd","ai","fig","heic"]);
+// All linked-or-not attachment files in the vault; buildCosmos resolves which are actually referenced (Oort objects).
+function attachmentListFrom(all: any[]): string[] {
+  const out: string[] = [];
+  for (const f of all) { const ext = String(f.extension || "").toLowerCase(); if (ext && ext !== "md" && ATTACH_EXT.has(ext)) out.push(f.path); }
+  return out;
+}
+
+class KosmosView extends ItemView {
+  private frame: HTMLIFrameElement | null = null;
+  private ready = false;                       // iframe loaded + initial snapshot sent
+  private hashes = new Map<string, string>();  // path -> last-sent content hash
+  private dirty = new Set<string>();           // changed/created paths awaiting a flush
+  private removed = new Set<string>();
+  private renames: { from: string; to: string }[] = [];
+  private structural = false;                  // create/delete/rename happened
+  private fileCount = 0;
+  private trailing = 0;
+  private maxwaitId = 0;
+  private deferred = false;                     // a flush was skipped because the view was hidden
+
+  constructor(leaf: WorkspaceLeaf) { super(leaf); }
+  getViewType(): string { return VIEW_TYPE; }
+  getDisplayText(): string { return "Vault Kosmos"; }
+  getIcon(): string { return "orbit"; }
+
+  async onOpen(): Promise<void> {
+    const root = this.contentEl;
+    root.empty();
+    root.addClass("vault-kosmos-root");
+    const frame = document.createElement("iframe");
+    frame.setAttribute("title", "Vault Kosmos");
+    frame.addEventListener("load", () => { void this.sendFull(); });
+    frame.srcdoc = kosmosHtml();
+    root.appendChild(frame);
+    this.frame = frame;
+    // open-note requests coming back from the 3D view (right-click -> "Go to Note")
+    this.registerDomEvent(window, "message", (ev: MessageEvent) => this.onMessage(ev));
+  }
+
+  private onMessage(ev: MessageEvent): void {
+    if (!this.frame || ev.source !== this.frame.contentWindow) return;     // only our own iframe
+    const data: any = ev.data;
+    if (!data || typeof data.path !== "string") return;
+    if (data.type === "kosmos:folder") { this.revealFolder(data.path); return; }   // folders: expand in the explorer, never open a note
+    if (data.type !== "kosmos:open") return;
+    const file = this.app.vault.getAbstractFileByPath(data.path);
+    if (file instanceof TFile) {
+      void this.app.workspace.getLeaf("tab").openFile(file);               // open the note in a NEW tab
+    } else if (file instanceof TFolder) {
+      this.revealFolder(data.path);                                        // defense in depth: a folder must never become a new note
+    } else {
+      void this.app.workspace.openLinkText(data.path, "", "tab");          // fall back to link resolution
+    }
+  }
+
+  /** Reveal + expand a folder in Obsidian's file explorer; silently do nothing if that is unavailable. */
+  private revealFolder(path: string): void {
+    const folder = this.app.vault.getAbstractFileByPath(path);
+    if (!(folder instanceof TFolder)) return;
+    try {
+      const internal: any = (this.app as any).internalPlugins;
+      const fe = internal?.getEnabledPluginById?.("file-explorer") ?? internal?.getPluginById?.("file-explorer")?.instance;
+      if (fe && typeof fe.revealInFolder === "function") { fe.revealInFolder(folder); return; }
+    } catch (e) { /* ignore */ }
+    try {
+      const leaf = this.app.workspace.getLeavesOfType("file-explorer")[0];
+      const view: any = leaf?.view;
+      if (view && typeof view.revealInFolder === "function") view.revealInFolder(folder);
+    } catch (e) { /* ignore */ }
+  }
+
+  private post(msg: any): void {
+    if (this.frame && this.frame.contentWindow) this.frame.contentWindow.postMessage(msg, "*");
+  }
+
+  /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
+  async sendFull(): Promise<void> {
+    if (!this.frame || !this.frame.contentWindow) return;
+    const md = this.app.vault.getMarkdownFiles();
+    const files: { relativePath: string; content: string }[] = [];
+    this.hashes.clear();
+    for (const f of md) {
+      const c = await this.app.vault.cachedRead(f);
+      files.push({ relativePath: f.path, content: c });
+      this.hashes.set(f.path, hashContent(c));
+    }
+    this.fileCount = md.length;
+    this.post({ type: "kosmos:files", files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault" });
+    this.ready = true;
+    this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
+    this.syncVisibility();
+  }
+
+  // --- change notifications from the plugin's event handlers ---
+  noteChanged(path: string): void { if (!this.ready) return; this.dirty.add(path); this.schedule(); }
+  noteCreated(path: string): void { if (!this.ready) return; this.dirty.add(path); this.structural = true; this.fileCount++; this.schedule(); }
+  noteDeleted(path: string): void { if (!this.ready) return; this.removed.add(path); this.dirty.delete(path); this.structural = true; this.fileCount = Math.max(0, this.fileCount - 1); this.schedule(); }
+  noteRenamed(path: string, oldPath: string): void { if (!this.ready) return; this.renames.push({ from: oldPath, to: path }); this.dirty.add(path); this.structural = true; this.schedule(); }
+
+  /** Debounce + max-wait, both scaled to vault size so large vaults coalesce more but still update. */
+  private delays(): { trailing: number; maxWait: number } {
+    const n = this.fileCount;
+    const trailing = n > 8000 ? 2500 : n > 3000 ? 1600 : n > 800 ? 1000 : 550;
+    return { trailing, maxWait: Math.min(trailing * 5, 12000) };
+  }
+  private schedule(): void {
+    const { trailing, maxWait } = this.delays();
+    window.clearTimeout(this.trailing);
+    this.trailing = window.setTimeout(() => void this.flush(), trailing);
+    if (!this.maxwaitId) this.maxwaitId = window.setTimeout(() => void this.flush(), maxWait);
+  }
+
+  private isVisible(): boolean {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+    const el = this.containerEl as HTMLElement;
+    return !!el && !!el.offsetParent;          // background tabs have no offsetParent
+  }
+  /** Called when a view becomes active/visible again. */
+  flushIfDeferred(): void { if (this.deferred) void this.flush(); }
+
+  /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
+  syncVisibility(): void { this.post({ type: "kosmos:visible", visible: this.isVisible() }); }
+
+  /** Live AI-agent traversal (Agent API): light up visited bodies and extend the emerald trail. */
+  agentTraversal(paths: string[], tool: string): void { if (this.ready) this.post({ type: "kosmos:agent", paths, tool }); }
+
+  private async flush(): Promise<void> {
+    window.clearTimeout(this.trailing); window.clearTimeout(this.maxwaitId);
+    this.trailing = 0; this.maxwaitId = 0;
+    if (!this.ready || !this.frame || !this.frame.contentWindow) return;
+    if (!this.isVisible()) { this.deferred = true; return; }   // do no work while hidden
+    this.deferred = false;
+
+    const md = this.app.vault.getMarkdownFiles();
+    this.fileCount = md.length;
+
+    // A big structural change (bulk import/delete, sync) is cheaper to rebuild than to diff.
+    if (this.structural && (this.removed.size + this.dirty.size) > Math.max(500, md.length * 0.25)) {
+      await this.sendFull();
+      return;
+    }
+
+    const byPath = new Map<string, any>();
+    for (const f of md) byPath.set(f.path, f);
+
+    const changed: { relativePath: string; content: string }[] = [];
+    for (const p of this.dirty) {
+      const f = byPath.get(p);
+      if (!f) continue;                          // deleted or non-markdown
+      const c = await this.app.vault.cachedRead(f);
+      const h = hashContent(c);
+      if (this.hashes.get(p) !== h) { this.hashes.set(p, h); changed.push({ relativePath: p, content: c }); }
+    }
+    const removed = Array.from(this.removed);
+    for (const p of removed) this.hashes.delete(p);
+    const renames = this.renames.map((r) => ({ from: r.from, to: r.to }));
+    for (const r of renames) { const h = this.hashes.get(r.from); if (h != null) { this.hashes.delete(r.from); this.hashes.set(r.to, h); } }
+
+    const wasStructural = this.structural;
+    this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false;
+
+    if (!changed.length && !removed.length && !renames.length) return;   // content hashes proved nothing real changed
+
+    const folders = (wasStructural || renames.length) ? folderListFrom(md) : undefined;
+    const attachments = attachmentListFrom(this.app.vault.getFiles());
+    this.post({ type: "kosmos:update", changed, removed, renames, folders, attachments, label: "Vault" });
+  }
+
+  async onClose(): Promise<void> {
+    window.clearTimeout(this.trailing); window.clearTimeout(this.maxwaitId);
+    if (this.frame) { try { this.frame.srcdoc = "about:blank"; } catch (e) { /* ignore */ } this.frame = null; }
+    this.ready = false;
+    this.contentEl.empty();
+  }
+}
+
+export default class VaultKosmosPlugin extends Plugin {
+  agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
+  agentApi!: AgentApiServer;
+
+  private eventsLive = false;
+
+  async onload(): Promise<void> {
+    this.agentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, (await this.loadData()) || {});
+    if (!this.agentSettings.agentToken) { this.agentSettings.agentToken = makeToken(); await this.saveAgentSettings(); }
+    this.agentApi = new AgentApiServer(this);
+    this.addSettingTab(new KosmosSettingTab(this.app, this));
+    if (this.agentSettings.agentEnabled) this.agentApi.start();
+    this.addCommand({ id: "write-agent-api-guide", name: "Write Agent API guide (AGENT-API.md) to vault", callback: () => void this.writeAgentGuide() });
+
+    this.registerView(VIEW_TYPE, (leaf) => new KosmosView(leaf));
+    this.addRibbonIcon("orbit", "Open Vault Kosmos", () => void this.activate());
+    this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
+    this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });
+
+    // Don't react to the startup metadata-resolve storm; the view's initial load already
+    // captures the fully-resolved vault. Only go live once the workspace has settled.
+    this.app.workspace.onLayoutReady(() => { this.eventsLive = true; });
+
+    const views = (): KosmosView[] =>
+      this.app.workspace.getLeavesOfType(VIEW_TYPE)
+        .map((l) => l.view)
+        .filter((v): v is KosmosView => v instanceof KosmosView);
+
+    // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
+    this.agentApi.onTraversal = (paths, tool) => { for (const v of views()) v.agentTraversal(paths, tool); };
+
+    this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
+      this.agentApi?.markDirty();
+      if (!this.eventsLive) return;
+      for (const v of views()) v.noteChanged(file.path);
+    }));
+    this.registerEvent(this.app.vault.on("create", (file: any) => {
+      this.agentApi?.markDirty();
+      if (!this.eventsLive || file.extension !== "md") return;
+      for (const v of views()) v.noteCreated(file.path);
+    }));
+    this.registerEvent(this.app.vault.on("delete", (file: any) => {
+      this.agentApi?.markDirty();
+      if (!this.eventsLive) return;
+      for (const v of views()) v.noteDeleted(file.path);
+    }));
+    this.registerEvent(this.app.vault.on("rename", (file: any, oldPath: string) => {
+      this.agentApi?.markDirty();
+      if (!this.eventsLive) return;
+      for (const v of views()) v.noteRenamed(file.path, oldPath);
+    }));
+
+    // When a Kosmos view becomes visible again, flush anything that was deferred while hidden.
+    const onShow = () => { for (const v of views()) { v.flushIfDeferred(); v.syncVisibility(); } };
+    this.registerEvent(this.app.workspace.on("active-leaf-change", onShow));
+    this.registerEvent(this.app.workspace.on("layout-change", onShow));
+  }
+
+  async activate(): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = ws.getLeaf(true);
+      await leaf.setViewState({ type: VIEW_TYPE, active: true });
+    }
+    ws.revealLeaf(leaf);
+  }
+
+  async saveAgentSettings(): Promise<void> { await this.saveData(this.agentSettings); }
+
+  async writeAgentGuide(): Promise<void> {
+    const md = buildAgentGuide(this.agentSettings.agentPort, this.agentSettings.agentToken || "<enable the API to generate a token>", this.agentSettings.agentBindMode, this.agentApi.lanUrls);
+    await this.app.vault.adapter.write("AGENT-API.md", md);
+    new Notice("Vault Kosmos: wrote AGENT-API.md to your vault root (with your address + token filled in)");
+  }
+
+  onunload(): void { this.agentApi?.stop(); }
+
+  /** Export every Markdown note as a Graphiti-ingestable episode (getzep/graphiti).
+   *  OKF+ frontmatter (type/timestamp/supersedes/superseded_by) + the footer **Related:** links
+   *  ride along inside EpisodeType.json bodies, so Graphiti inherits the knowledge chains. — OdenKnight */
+  async exportGraphitiEpisodes(): Promise<void> {
+    const episodes = await buildEpisodes(this.app);
+    await this.app.vault.adapter.write("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
+    await this.app.vault.adapter.write("graphiti-ingest-sample.py", SAMPLE_INGEST_PY);
+    new Notice(`Vault Kosmos: exported ${episodes.length} Graphiti episodes \u2192 graphiti-episodes.json (+ sample ingest script)`);
+  }
+}
+
+
+/** Sample Graphiti ingestion script written next to the export. — OdenKnight */
+const SAMPLE_INGEST_PY = `#!/usr/bin/env python3
+# Ingest an Obsidian vault (exported by Vault Kosmos v0.5.1, OKF+) into Graphiti.
+# Author: OdenKnight \u00b7 Graphiti: https://github.com/getzep/graphiti
+#
+#   pip install "graphiti-core>=0.28.2"   # needs Python 3.10+; >=0.28.2 includes upstream security hardening
+#   export OPENAI_API_KEY=...          # or configure another LLM per the Graphiti docs
+#   export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=password
+#   python graphiti-ingest-sample.py graphiti-episodes.json
+import asyncio, json, os, sys
+from datetime import datetime
+from graphiti_core import Graphiti
+from graphiti_core.nodes import EpisodeType
+
+async def main(path: str) -> None:
+    episodes = json.load(open(path, encoding="utf-8"))
+    g = Graphiti(os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+                 os.environ.get("NEO4J_USER", "neo4j"),
+                 os.environ.get("NEO4J_PASSWORD", "password"))
+    await g.build_indices_and_constraints()
+    try:
+        for e in episodes:  # chronological order preserves OKF+ knowledge chains
+            await g.add_episode(
+                name=e["name"],
+                episode_body=e["episode_body"],
+                source=EpisodeType.json,
+                source_description=e["source_description"],
+                reference_time=datetime.fromisoformat(e["reference_time"].replace("Z", "+00:00")),
+                group_id=e.get("group_id"),   # one group per vault keeps multi-vault graphs separable
+            )
+            print("ingested:", e["name"])
+    finally:
+        await g.close()
+
+if __name__ == "__main__":
+    asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "graphiti-episodes.json"))
+`;

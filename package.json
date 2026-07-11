@@ -1,0 +1,19 @@
+{
+  "name": "vault-kosmos",
+  "version": "0.5.1",
+  "description": "A 3D constellation view of your notes for Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs --production",
+    "dev": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.21.5",
+    "obsidian": "latest",
+    "typescript": "^5.4.5"
+  },
+  "author": "OdenKnight"
+}
