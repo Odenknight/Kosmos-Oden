@@ -3,7 +3,7 @@
 ## Version 0.5.1 — Written by OdenKnight — 
 
 **An Obsidian plugin adaptation of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) by H4R7W16.**
-The core renderer and visualization metaphor are from the original project. This adaptation adds an AI Agent API, live traversal trails, Saturn rings for well-connected notes, and Obsidian-native integration makes this an independent improvement of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+The core renderer and visualization metaphor are from the original project. This adaptation adds an AI Agent API, live traversal trails, Saturn rings for well-connected notes, and Obsidian-native integration makes this an additive improvement of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 My thanks to [H4R7W16](https://github.com/H4R7W16/) for creating the original vault-kosmos project, which provided the foundation for this Obsidian plugin adaptation.
 I also want to thank [H4R7W16] for inspiring me to do this, and getting me started on a new age of agentic development.
