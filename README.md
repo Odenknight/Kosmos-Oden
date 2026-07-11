@@ -1,4 +1,4 @@
-# Vault Kosmos (Obsidian Edition)
+# Vault Kosmos (Oden Obsidian Edition)
 
 **Version 0.5.1** — An Obsidian plugin adaptation of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) by H4R7W16.
 
