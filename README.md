@@ -1,6 +1,6 @@
 # Vault Kosmos
 
-**Version 0.5.1 — Written by OdenKnight — a fork and improvement of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).**
+**Version 0.5.1 — Written by OdenKnight — an independent improvement of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).**
 
 ## What is this?
 
@@ -8,13 +8,13 @@ Vault Kosmos turns your Obsidian notes into a night sky you can fly through.
 
 Every note you write becomes a glowing body in a 3D universe: your most important, most-connected notes shine as **stars**, the notes linked to them orbit as **planets** and **moons**, stray notes drift by as **asteroids**, and each of your top-level folders becomes its own **galaxy**. Images, PDFs and other attached files float in a faint outer shell (the "Oort cloud"), just like the icy debris at the edge of a real solar system.
 
-Nothing is changed or moved — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it.
+Nothing is changed or moved — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Everything is local. A .html file can be used on your collection of notes without Obsidian.
 
 ## Why would I want it?
 
 A folder list shows you your notes one at a time. A cosmos shows you **the shape of everything you know, all at once**:
 
-- **See what matters.** Big, bright bodies are your hub notes — the ideas everything else connects to. If something you care about is a lonely asteroid, that tells you it needs linking up.
+- **See what matters.** Big, bright bodies are your hub notes — the ideas everything else connects to. If something you care about is a lonely asteroid, that tells you it needs linking up... or not...
 - **Spot the clusters.** Related notes physically gather together, so themes and projects become visible neighborhoods instead of scattered filenames.
 - **Travel through time.** Press one button and watch your vault grow note by note, or scrub a timeline to see exactly what you knew — and what you'd already revised — on any past date.
 - **Find things by flying.** Tap any body to light up everything connected to it, then hop from neighbor to neighbor. It's search for people who think visually.
@@ -99,3 +99,5 @@ node esbuild.config.mjs --production   # bundle -> main.js
 ```
 
 The 3D viewer (Three.js + the parser/layout/renderer) is bundled and embedded in `main.js`, so the plugin is self-contained and offline.
+
+### LICENSE - MIT
