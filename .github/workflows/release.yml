@@ -1,0 +1,26 @@
+# Creates a GitHub Release with the Obsidian plugin assets whenever a v* tag is pushed.
+# Manual runs (workflow_dispatch) derive the tag from manifest.json.
+# First-party tooling only: actions/checkout + the runner's gh CLI. — OdenKnight
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release with plugin assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          case "$TAG" in v*) : ;; *) TAG="v$(jq -r .version manifest.json)" ;; esac
+          NOTES=".github/release-notes-${TAG#v}.md"
+          [ -f "$NOTES" ] || NOTES="README.md"
+          gh release create "$TAG" manifest.json main.js styles.css \
+            --title "Vault Kosmos $TAG" --notes-file "$NOTES" \
+          || gh release upload "$TAG" manifest.json main.js styles.css --clobber
