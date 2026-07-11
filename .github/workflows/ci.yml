@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (clean)
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build (plugin + embed + standalone + node bundles)
+        run: npm run build
+
+      - name: Build standalone artifact
+        run: npm run build:standalone
+
+      - name: Tests
+        run: npm test
+
+      - name: Version synchronization (§29)
+        run: npm run check:versions
+
+      - name: Artifact checks (main.js, vault-kosmos.html, self-containment)
+        run: npm run check:artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kosmos-oden-${{ github.sha }}
+          path: |
+            main.js
+            manifest.json
+            styles.css
+            vault-kosmos.html

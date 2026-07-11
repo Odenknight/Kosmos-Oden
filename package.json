@@ -1,0 +1,26 @@
+{
+  "name": "kosmos-oden",
+  "version": "0.5.5",
+  "description": "Kosmos-Oden (Vault Kosmos v0.5.5) — a 3D Local Cluster view of a Markdown knowledge base, with a shared Kosmos Core powering the Obsidian plugin, the standalone HTML viewer, the Agent API (REST + MCP), the Graphiti exporter, and the kosmos-build CLI.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "build:standalone": "node scripts/build.mjs --standalone-only",
+    "dev": "node scripts/build.mjs --dev",
+    "pretest": "node scripts/build.mjs --for-tests",
+    "test": "node --test \"test/*.test.mjs\"",
+    "bench": "node benchmarks/bench.mjs",
+    "check:artifacts": "node scripts/check-artifacts.mjs",
+    "check:versions": "node scripts/check-versions.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "esbuild": "^0.21.5",
+    "obsidian": "latest",
+    "typescript": "^5.4.5"
+  },
+  "author": "OdenKnight"
+}

@@ -1,0 +1,215 @@
+/** Agent API tests (§15–§18, §24): auth, Host/Origin, byte limits, REST, MCP negotiation. */
+import test from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
+import { buildGraph, stripFrontmatter } from "../dist/kosmos-core.mjs";
+import {
+  KosmosAgentServer,
+  LATEST_MCP_PROTOCOL_VERSION,
+  MAX_BODY_BYTES,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  makeToken,
+} from "../dist/kosmos-agent-server.mjs";
+
+const FILES = [
+  { relativePath: "Home.md", content: "# Home\n[[Engine v2]]" },
+  { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\ntimestamp: 2026-01-01T00:00:00Z\n---\nOld engine." },
+  { relativePath: "Ideas/Engine v2.md", content: "---\ntype: idea\ntimestamp: 2026-03-01T00:00:00Z\nsupersedes:\n  - Engine v1\n---\nNew engine.\n\n**Related:** [[Home]]" },
+];
+
+function fixtureProvider() {
+  const graph = buildGraph(FILES, ["Ideas"]);
+  const contents = new Map(FILES.map((f) => [f.relativePath, stripFrontmatter(f.content)]));
+  return {
+    getGraph: async () => graph,
+    getNoteContent: async (p) => contents.get(p) ?? null,
+    vaultName: () => "TestVault",
+    lanAddresses: () => [],
+  };
+}
+
+const TOKEN = "test-token-1234567890";
+
+function startServer(overrides = {}) {
+  const server = new KosmosAgentServer(http, {
+    agentEnabled: true,
+    agentPort: 0, // ephemeral
+    agentToken: TOKEN,
+    agentRequireToken: true,
+    agentBindMode: "localhost",
+    ...overrides,
+  }, fixtureProvider());
+  return new Promise((resolve) => {
+    server.start();
+    server.server.on("listening", () => resolve({ server, port: server.server.address().port }));
+  });
+}
+
+/** Raw request helper (fetch forbids overriding Host, so use http.request). */
+function request(port, { method = "GET", path = "/", headers = {}, body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port, method, path, headers, setHost: !headers.Host }, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => resolve({ status: res.statusCode, body: data, json: () => JSON.parse(data || "null") }));
+    });
+    req.on("error", reject);
+    if (body != null) req.write(body);
+    req.end();
+  });
+}
+
+const auth = { Authorization: `Bearer ${TOKEN}` };
+
+test("agent api", async (t) => {
+  const { server, port } = await startServer();
+  t.after(() => server.stop());
+
+  await t.test("no token -> 401", async () => {
+    const r = await request(port, { path: "/overview" });
+    assert.equal(r.status, 401);
+  });
+
+  await t.test("wrong token -> 401", async () => {
+    const r = await request(port, { path: "/overview", headers: { Authorization: "Bearer nope" } });
+    assert.equal(r.status, 401);
+  });
+
+  await t.test("Bearer token -> 200", async () => {
+    const r = await request(port, { path: "/overview", headers: auth });
+    assert.equal(r.status, 200);
+    assert.equal(r.json().vault, "TestVault");
+  });
+
+  await t.test("x-api-key -> 200", async () => {
+    const r = await request(port, { path: "/health", headers: { "x-api-key": TOKEN } });
+    assert.equal(r.status, 200);
+  });
+
+  await t.test("?token= query -> 200", async () => {
+    const r = await request(port, { path: `/health?token=${TOKEN}` });
+    assert.equal(r.status, 200);
+  });
+
+  await t.test("Host rejection (DNS rebinding defence) -> 403", async () => {
+    const r = await request(port, { path: `/health?token=${TOKEN}`, headers: { Host: "evil.example.com" } });
+    assert.equal(r.status, 403);
+  });
+
+  await t.test("cross-site Origin rejection -> 403; local Origin allowed", async () => {
+    const bad = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: "https://evil.example.com" } });
+    assert.equal(bad.status, 403);
+    const nul = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: "null" } });
+    assert.equal(nul.status, 403);
+    const good = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: `http://127.0.0.1:${port}` } });
+    assert.equal(good.status, 200);
+  });
+
+  await t.test("request-size rejection: > 4 MiB body -> 413 (byte-accurate)", async () => {
+    const big = "x".repeat(MAX_BODY_BYTES + 1024);
+    const r = await request(port, { method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json" }, body: big });
+    assert.equal(r.status, 413);
+  });
+
+  await t.test("REST GET routes respond", async () => {
+    for (const p of ["/", "/health", "/overview", "/diagnostics", "/graph", "/notes?q=engine", "/note?title=Engine%20v2", "/lineage?title=Engine%20v2", "/related?title=Engine%20v2", "/at?time=2026-02-01", "/episodes"]) {
+      const r = await request(port, { path: p, headers: auth });
+      assert.equal(r.status, 200, `route ${p}`);
+    }
+  });
+
+  await t.test("REST write rejection: POST/PUT/DELETE -> 405 (read-only, §18)", async () => {
+    for (const method of ["POST", "PUT", "DELETE"]) {
+      const r = await request(port, { method, path: "/notes", headers: auth });
+      assert.equal(r.status, 405, method);
+    }
+  });
+
+  await t.test("lineage matches viewer semantics: v1 superseded, v2 HEAD (§33)", async () => {
+    const r = await request(port, { path: "/lineage?title=Engine%20v1", headers: auth });
+    const j = r.json();
+    assert.equal(j.chainLength, 2);
+    const [v1, v2] = j.chain;
+    assert.equal(v1.title, "Engine v1");
+    assert.equal(v1.superseded, true);
+    assert.equal(v1.invalidAt, "2026-03-01T00:00:00.000Z");
+    assert.equal(v2.title, "Engine v2");
+    assert.equal(v2.head, true);
+  });
+
+  await t.test("graph_at_time uses the shared projector (§4.1)", async () => {
+    const mid = (await request(port, { path: "/at?time=2026-02-01", headers: auth })).json();
+    assert.deepEqual(mid.valid.map((n) => n.title), ["Engine v1"]);
+    assert.equal(mid.counts.notYetCreated >= 1, true); // Engine v2 not written yet
+    const late = (await request(port, { path: "/at?time=2026-06-01", headers: auth })).json();
+    assert.ok(late.valid.some((n) => n.title === "Engine v2"));
+    assert.deepEqual(late.superseded.map((n) => n.title), ["Engine v1"]);
+  });
+
+  const mcp = async (msg) => request(port, {
+    method: "POST", path: "/mcp",
+    headers: { ...auth, "Content-Type": "application/json" },
+    body: JSON.stringify(msg),
+  });
+
+  await t.test("MCP initialize: supported version is echoed", async () => {
+    for (const v of SUPPORTED_MCP_PROTOCOL_VERSIONS) {
+      const r = await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: v } });
+      assert.equal(r.json().result.protocolVersion, v);
+    }
+  });
+
+  await t.test("MCP initialize: unsupported version -> server's latest, never echoed (§15)", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "9999-12-31" } });
+    assert.equal(r.json().result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
+  });
+
+  await t.test("MCP initialize: missing version -> server's latest", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 3, method: "initialize", params: {} });
+    assert.equal(r.json().result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
+  });
+
+  await t.test("MCP initialized notification (no id) -> 202 accepted silently", async () => {
+    const r = await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
+    assert.equal(r.status, 202);
+  });
+
+  await t.test("MCP tools/list exposes the seven read-only tools", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list" });
+    const names = r.json().result.tools.map((x) => x.name);
+    assert.deepEqual(names.sort(), [
+      "export_graphiti_episodes", "get_lineage", "get_note", "get_related",
+      "graph_at_time", "search_notes", "vault_overview",
+    ]);
+  });
+
+  await t.test("MCP tools/call get_lineage returns the canonical chain", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "get_lineage", arguments: { title: "Engine v2" } } });
+    const payload = JSON.parse(r.json().result.content[0].text);
+    assert.equal(payload.chainLength, 2);
+    assert.equal(payload.chain[1].head, true);
+  });
+
+  await t.test("MCP unknown method -> -32601", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 6, method: "does/not/exist" });
+    assert.equal(r.json().error.code, -32601);
+  });
+});
+
+test("auth disabled + empty token: requireToken(on)+empty token fails closed (§16)", async () => {
+  const server = new KosmosAgentServer(http, {
+    agentEnabled: true, agentPort: 0, agentToken: "", agentRequireToken: true, agentBindMode: "localhost",
+  }, fixtureProvider());
+  await new Promise((resolve) => { server.start(); server.server.on("listening", resolve); });
+  const port = server.server.address().port;
+  const r = await request(port, { path: "/health" });
+  assert.equal(r.status, 401);
+  server.stop();
+});
+
+test("makeToken: 32 bytes of secure randomness, base64url, no fallback (§16)", () => {
+  const t1 = makeToken();
+  const t2 = makeToken();
+  assert.notEqual(t1, t2);
+  assert.match(t1, /^[A-Za-z0-9_-]{43}$/); // 32 bytes -> 43 base64url chars, no padding
+});

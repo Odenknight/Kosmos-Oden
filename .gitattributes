@@ -1,0 +1,5 @@
+# Normalize to LF in the repo; the build and tests are line-ending sensitive in artifacts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary

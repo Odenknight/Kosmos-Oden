@@ -1,0 +1,15 @@
+node_modules/
+*.map
+*.tgz
+.DS_Store
+
+# Obsidian plugin runtime data (contains the local Agent API token — never commit)
+data.json
+
+# local working material, not part of the release
+vault-kosmos_v0.5.0/
+0001-*.patch
+.claude/
+
+# benchmark scratch fixtures (generated on demand)
+benchmarks/fixtures/

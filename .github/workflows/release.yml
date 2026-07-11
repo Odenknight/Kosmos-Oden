@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The release ships only if the full validation pipeline passes (§28).
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run build:standalone
+      - run: npm test
+      - run: npm run check:versions
+      - run: npm run check:artifacts
+
+      - name: Verify tag matches manifest version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER=$(node -p "require('./manifest.json').version")
+          if [ "$TAG" != "$VER" ]; then
+            echo "tag v$TAG does not match manifest version $VER" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            main.js
+            manifest.json
+            styles.css
+            versions.json
+            vault-kosmos.html
+          generate_release_notes: true
