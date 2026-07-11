@@ -95,7 +95,17 @@ Updates are incremental and scale with vault size: editing one note re-reads jus
 
 ### Agent API — let agents query this vault (HTTP + MCP) — OdenKnight
 
-Settings → **Vault Kosmos** → toggle **Enable local Agent API**. A read-only, token-protected server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it), exposing the OKF+ temporal knowledge graph to agents: MCP tools (`get_lineage`, `graph_at_time`, `search_notes`, `get_note`, `get_related`, `vault_overview`, `export_graphiti_episodes`) at `/mcp`, plus plain REST mirrors. Hardened with constant-time token auth, Host/Origin validation against DNS rebinding, and a 4 MB request cap. One-click **Copy** buttons generate the exact Claude Code command / Claude Desktop config, and a command writes **AGENT-API.md** into your vault with your address and token pre-filled. Every query an agent makes is mirrored live in the Kosmos view as a traversal trail. Full guide: [AGENT-API.md](AGENT-API.md). Desktop only; the server never modifies notes.
+Settings → **Vault Kosmos** → toggle **Enable local Agent API**:
+Connecting Claude to your vault (no typing required) - 
+Once the Agent API is on, connecting it to Claude Code or Claude Desktop takes two clicks:
+1. Click Copy Claude Code Config or Copy Claude Desktop Config in the plugin settings.
+2. Paste it into Claude.
+
+That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong.
+Want a reference for later? Run "Write Agent API guide" from the command palette and the plugin will drop a ready-to-read AGENT-API.md file into your vault, with your connection details already filled in.
+
+Technical:
+A read-only, token-protected server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it), exposing the OKF+ temporal knowledge graph to agents: MCP tools (`get_lineage`, `graph_at_time`, `search_notes`, `get_note`, `get_related`, `vault_overview`, `export_graphiti_episodes`) at `/mcp`, plus plain REST mirrors. Hardened with constant-time token auth, Host/Origin validation against DNS rebinding, and a 4 MB request cap. One-click **Copy** buttons generate the exact Claude Code command / Claude Desktop config, and a command writes **AGENT-API.md** into your vault with your address and token pre-filled. Every query an agent makes is mirrored live in the Kosmos view as a traversal trail. Full guide: [AGENT-API.md](AGENT-API.md). Desktop only; the server never modifies notes.
 
 ### Graphiti + OKF+ (temporal knowledge graph) — OdenKnight
 
