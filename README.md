@@ -1,13 +1,29 @@
-# Vault Kosmos
+# Vault Kosmos (Obsidian Edition)
 
-## Version 0.5.1 — Written by OdenKnight — 
+**Version 0.5.1** — An Obsidian plugin adaptation of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) by H4R7W16.
 
-**An Obsidian plugin adaptation of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) by H4R7W16.**
-The core renderer and visualization metaphor are from the original project. This adaptation adds an AI Agent API, live traversal trails, Saturn rings for well-connected notes, and Obsidian-native integration makes this an additive improvement of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+The original project is a local-first 3D space for flying through Markdown vaults. This adaptation wraps the renderer in an Obsidian plugin, implements gravitational orbital mechanics for accurate hierarchy mapping, adds an AI Agent API with MCP support, and significantly optimizes rendering performance.
 
-My thanks to [H4R7W16](https://github.com/H4R7W16/) for creating the original vault-kosmos project, which provided the foundation for this Obsidian plugin adaptation.
-I also want to thank [H4R7W16] for inspiring me to do this, and getting me started on a new age of agentic development.
-Thank you!
+## Attribution & Lineage
+
+### What comes from H4R7W16/vault-kosmos (original):
+- The basic Three.js rendering framework and initial scene setup
+- Foundational spatial metaphor concepts (notes as celestial bodies)
+
+### What is new in this Obsidian plugin adaptation:
+- **Complete visualization layer redesign** with accurate folder/file hierarchy mapping to celestial objects
+- **Gravitational orbital mechanics** - notes orbit major "gravitational" focal points based on connection strength  
+- **Performance optimizations** - significantly reduced CPU/GPU utilization through hidden-view suspension and idle work trimming
+- **Saturn-style rings** for well-connected notes with multiple moons
+- **AI Agent API server** with MCP support and live traversal visualization
+- **Graphiti episode export** functionality
+- **Obsidian plugin host architecture** (`main.ts`, `agent-api.ts`)
+- **Constant-time token comparison** and DNS-rebinding protection for security
+- **Dynamic clustering algorithms** that physically gather related notes into visible neighborhoods
+
+The core rendering framework was adapted from the original project; the visualization logic, performance optimizations, and all new features are original implementations.
+
+Both projects use the MIT License. See [LICENSE](./LICENSE) for full terms. The original code remains copyrighted by H4R7W16; new contributions are copyrighted by OdenKnight.
 
 ## What is this?
 
