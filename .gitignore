@@ -10,6 +10,8 @@ data.json
 # local working material, not part of the release (v0.5.x baselines live in git history)
 vault-kosmos_v0.5.0/
 vault-kosmos_v0.5.1/
+vault-kosmos_v0.5.5/
+vault-kosmos_v0.6.0/
 0001-*.patch
 .claude/
 

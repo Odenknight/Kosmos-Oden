@@ -1482,16 +1482,44 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const t = target.clone ? target.clone() : new THREE.Vector3(target[0], target[1], target[2]);
     return { target: t, radius, phi, thetaOff, dur, spin };
   }
+  // Galaxy centers = first-level folders. Framed largest-first so the tour reads
+  // as "here is your whole vault, biggest neighbourhoods first."
+  function trailerGalaxyCenters(): any[] {
+    return (G.galaxies || [])
+      .map((g: any) => G.nodeById.get(g.center))
+      .filter((n: any) => n && n.position && !n.__hidden)
+      .sort((a: any, b: any) => (b.__extent || b.__r || 0) - (a.__extent || a.__r || 0));
+  }
   function buildTrailerSegs() {
     const segs: any[] = [], O = new THREE.Vector3(0, 4, 0);
     const SR = (isFinite(sceneRadius) && sceneRadius > 1) ? sceneRadius : 60;
-    const stars = topBodies("star", 1), planets = topBodies("planet", 3);
-    const anchor = stars[0] || topBodies("galaxy", 1)[0] || topBodies("cluster", 1)[0] || null;
-    const focus = anchor ? VEC.fromArray(anchor.position).clone() : O;
+    // Opening: wide establishing shot of the whole Local Cluster.
     segs.push(wp(O, SR * 2.9, 0.62, 0.0, 3.6, 0.05));
-    segs.push(wp(focus, Math.max(22, (anchor ? anchor.__r : 8) * 9), 1.12, 1.4, 3.2, 0.10));
-    for (const p of planets) segs.push(wp(VEC.fromArray(p.position).clone(), Math.max(14, (p.__r || 2) * 7), 1.0, 2.0, 2.4, 0.14));
-    segs.push(wp(centroidOfBusiestArea(), Math.max(SR * 0.9, 28), 1.28, 1.2, 3.0, 0.18));
+
+    const centers = trailerGalaxyCenters();
+    if (centers.length) {
+      // Tour: fly nearby each first-level-folder galaxy so the viewer gets an
+      // overview of their entire vault (cap pathological vaults, biggest first).
+      const MAX_TOUR = 16;
+      centers.slice(0, MAX_TOUR).forEach((c: any) => {
+        const ext = c.__extent || (c.__r || 2) * 6;
+        const j = hashUnitLocal(c.id + ":trailer");     // per-galaxy variation so approaches aren't mechanical
+        const radius = Math.max(24, ext * 2.2);          // frame the galaxy + its solar systems
+        const phi = 0.90 + j * 0.5;                      // 0.90 .. 1.40
+        const thetaOff = 0.8 + j * 2.4;                  // varied approach angle
+        segs.push(wp(VEC.fromArray(c.position).clone(), radius, phi, thetaOff, 2.4, 0.10 + j * 0.08));
+      });
+    } else {
+      // Legacy / non-cosmos layout (no galaxies): fall back to the star+planets tour.
+      const stars = topBodies("star", 1), planets = topBodies("planet", 3);
+      const anchor = stars[0] || topBodies("galaxy", 1)[0] || topBodies("cluster", 1)[0] || null;
+      const focus = anchor ? VEC.fromArray(anchor.position).clone() : O;
+      segs.push(wp(focus, Math.max(22, (anchor ? anchor.__r : 8) * 9), 1.12, 1.4, 3.2, 0.10));
+      for (const p of planets) segs.push(wp(VEC.fromArray(p.position).clone(), Math.max(14, (p.__r || 2) * 7), 1.0, 2.0, 2.4, 0.14));
+      segs.push(wp(centroidOfBusiestArea(), Math.max(SR * 0.9, 28), 1.28, 1.2, 3.0, 0.18));
+    }
+
+    // Closing: pull back to the whole cluster.
     segs.push(wp(O, SR * 2.5, 0.7, 0.0, 4.0, 0.06));
     return segs;
   }
