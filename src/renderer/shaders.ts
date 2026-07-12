@@ -6,7 +6,7 @@
  */
 
 export function bodyMaterial(THREE: any, o: any): any {
-  o = Object.assign({ SPIN: 0, TUMBLE: 0, STAR: 0, ATMO: 0, PLANET: 0, SURF: 0, AMBIENT: 0.16, DIFF: 0.95, SPIN_SPEED: 0.12, EXPOSURE: 1.05 }, o);
+  o = Object.assign({ SPIN: 0, TUMBLE: 0, STAR: 0, ATMO: 0, PLANET: 0, SURF: 0, ROCK: 0, AMBIENT: 0.16, DIFF: 0.95, SPIN_SPEED: 0.12, EXPOSURE: 1.05 }, o);
   const ACES = `vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0);}
 vec3 toSRGB(vec3 c){return pow(max(c,0.0),vec3(0.4545));}`;
   const ROT = `mat3 rotAxis(vec3 a,float an){float c=cos(an),s=sin(an),t=1.0-c;
@@ -14,7 +14,7 @@ vec3 toSRGB(vec3 c){return pow(max(c,0.0),vec3(0.4545));}`;
              t*a.x*a.y+s*a.z,t*a.y*a.y+c,t*a.y*a.z-s*a.x,
              t*a.x*a.z-s*a.y,t*a.y*a.z+s*a.x,t*a.z*a.z+c);}
 mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);}`;
-  const D = `${o.STAR ? "#define STAR\n" : ""}${o.ATMO ? "#define ATMO\n" : ""}${o.SPIN ? "#define SPIN\n" : ""}${o.TUMBLE ? "#define TUMBLE\n" : ""}${o.PLANET ? "#define PLANET\n" : ""}${o.SURF ? "#define SURF\n" : ""}`;
+  const D = `${o.STAR ? "#define STAR\n" : ""}${o.ATMO ? "#define ATMO\n" : ""}${o.SPIN ? "#define SPIN\n" : ""}${o.TUMBLE ? "#define TUMBLE\n" : ""}${o.PLANET ? "#define PLANET\n" : ""}${o.SURF ? "#define SURF\n" : ""}${o.ROCK ? "#define ROCK\n" : ""}`;
   return new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
@@ -23,6 +23,9 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
       varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand;
+      #ifdef ROCK
+      float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
+      #endif
       void main(){
         vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vBand=aBand;
         vec3 p=position; vec3 nrm=normal;
@@ -33,6 +36,9 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
           float ta=uTime*(0.18+aSeed*0.5);
           vec3 ax=normalize(vec3(aSeed-0.5,fract(aSeed*7.3)-0.5,fract(aSeed*3.1)-0.5)+0.001);
           mat3 RT=rotAxis(ax,ta); p=RT*p; nrm=RT*nrm;
+        #endif
+        #ifdef ROCK
+          p*=0.76+0.24*hrock(position+aSeed*19.0);   // carve-only per-vertex displacement: irregular rock, never exceeds the collision radius
         #endif
         float boost=1.0+aLive*(0.16+0.12*sin(uTime*4.0+aSeed*6.28))+aEmerge*0.6;
         p*=boost; vObjNRM=normalize(nrm);
@@ -63,10 +69,22 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
         #else
           float diff=max(dot(N,L),0.0); float wrap=diff*0.9+0.1;
           vec3 base=vColor;
+          #ifdef ROCK
+            base*=0.82+0.36*fract(vSeed*5.7);                        // per-rock albedo variation
+            base=mix(base,base*vec3(1.06,0.98,0.90),fract(vSeed*3.3));   // warm/cool mineral tint
+          #endif
           #ifdef SURF
             float m=fbm(vObjNRM*3.2+vSeed*7.0);
             base*=mix(0.78,1.18,m);
             base+=vColor*0.20*smoothstep(0.58,0.9,m);
+            #ifdef PLANET
+              base=mix(base,base*vec3(0.74,0.87,1.05),smoothstep(0.30,0.62,m)*0.35);       // land/sea two-tone (reuses m)
+              float cap=smoothstep(0.74,0.92,abs(vObjNRM.y)+(m-0.5)*0.18)*(1.0-step(0.5,vBand));
+              base=mix(base,vec3(0.93,0.97,1.0),cap*0.6);                                  // fbm-jittered polar ice caps (rocky planets only)
+            #else
+              base*=1.0-0.28*smoothstep(0.60,0.80,m);                                      // lunar maria patches
+              base+=vec3(0.05)*smoothstep(0.84,0.96,m);                                    // bright ejecta flecks
+            #endif
           #endif
           col=base*(${o.AMBIENT.toFixed(3)}+wrap*${o.DIFF.toFixed(3)});
           vec3 H=normalize(L+V); col+=vec3(1.0)*pow(max(dot(N,H),0.0),30.0)*diff*0.20;
@@ -90,9 +108,9 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
 
 /** Low-power variant: same vertex motion, cheaper fragment path. */
 export function bodyMaterialLite(THREE: any, o: any): any {
-  o = Object.assign({ SPIN: 0, TUMBLE: 0, STAR: 0, ATMO: 0, AMBIENT: 0.18, DIFF: 0.95, SPIN_SPEED: 0.12, EXPOSURE: 1.0 }, o);
+  o = Object.assign({ SPIN: 0, TUMBLE: 0, STAR: 0, ATMO: 0, ROCK: 0, AMBIENT: 0.18, DIFF: 0.95, SPIN_SPEED: 0.12, EXPOSURE: 1.0 }, o);
   const ROT = `mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);}`;
-  const D = `${o.STAR ? "#define STAR\n" : ""}${o.SPIN ? "#define SPIN\n" : ""}${o.TUMBLE ? "#define TUMBLE\n" : ""}`;
+  const D = `${o.STAR ? "#define STAR\n" : ""}${o.SPIN ? "#define SPIN\n" : ""}${o.TUMBLE ? "#define TUMBLE\n" : ""}${o.ROCK ? "#define ROCK\n" : ""}`;
   return new THREE.ShaderMaterial({
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
@@ -100,6 +118,9 @@ export function bodyMaterialLite(THREE: any, o: any): any {
       attribute float aHi; attribute float aLive; attribute float aEmerge;
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed;
+      #ifdef ROCK
+      float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
+      #endif
       void main(){
         vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed;
         vec3 p=position; vec3 nrm=normal;
@@ -108,6 +129,9 @@ export function bodyMaterialLite(THREE: any, o: any): any {
         #endif
         #ifdef TUMBLE
           float ta=uTime*(0.18+aSeed*0.5); mat3 RT=rotY(ta); p=RT*p; nrm=RT*nrm;
+        #endif
+        #ifdef ROCK
+          p*=0.76+0.24*hrock(position+aSeed*19.0);   // carve-only rock displacement (vertex-side, mobile-safe)
         #endif
         float boost=1.0+aLive*0.18+aEmerge*0.5; p*=boost;
         mat4 toWorld=modelMatrix*instanceMatrix; vec4 wp=toWorld*vec4(p,1.0);
@@ -127,7 +151,11 @@ export function bodyMaterialLite(THREE: any, o: any): any {
           col=mix(col, vec3(1.0,0.96,0.88), pow(1.0-NV,2.2)*0.5);
         #else
           float diff=max(dot(N,normalize(uLightDir)),0.0);
-          col=vColor*(${o.AMBIENT.toFixed(3)}+(diff*0.9+0.1)*${o.DIFF.toFixed(3)});
+          vec3 vc=vColor;
+          #ifdef ROCK
+            vc*=0.82+0.36*fract(vSeed*5.7);                          // per-rock albedo variation
+          #endif
+          col=vc*(${o.AMBIENT.toFixed(3)}+(diff*0.9+0.1)*${o.DIFF.toFixed(3)});
           col+=vColor*pow(1.0-NV,3.0)*0.35*(0.4+0.6*diff);
         #endif
         col+=vColor*vHi*1.5; col+=vColor*pow(1.0-NV,2.0)*vHi*1.3; col=mix(col,vec3(1.0),vHi*0.28);

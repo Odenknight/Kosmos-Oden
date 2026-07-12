@@ -126,12 +126,36 @@ var KosmosAgentServer = class {
     this.status = "stopped";
     this.inFlight = 0;
     this.hits = /* @__PURE__ */ new Map();
+    // client -> recent request timestamps
+    this.lanCache = { at: 0, ips: [] };
     this.http = http;
     this.settings = settings;
     this.provider = provider;
   }
-  reportTraversal(tool, paths) {
-    if (this.onTraversal && paths.length) this.onTraversal(paths, tool);
+  /** Paths a query result touched, for the live traversal overlay (best-effort, capped). */
+  traversalPaths(tool, r) {
+    try {
+      const cap = (a, n) => a.slice(0, n).map((x) => x && x.path).filter(Boolean);
+      if (!r || r.error) return [];
+      if (tool === "get_note") return r.path ? [r.path] : [];
+      if (tool === "get_lineage") return cap(r.chain || [], 12);
+      if (tool === "get_related") return [r.for, ...cap([...r.semantic || [], ...r.outgoing || [], ...r.backlinks || []], 10)].filter(Boolean);
+      if (tool === "search_notes") return cap(r.results || [], 8);
+      if (tool === "graph_at_time") return cap(r.valid || [], 6);
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+  emitTraversal(tool, r) {
+    if (!this.onTraversal) return;
+    const paths = this.traversalPaths(tool, r);
+    if (paths.length) {
+      try {
+        this.onTraversal(paths, tool);
+      } catch (_) {
+      }
+    }
   }
   get bindHost() {
     return this.settings.agentBindMode === "lan" ? "0.0.0.0" : "127.0.0.1";
@@ -216,7 +240,9 @@ var KosmosAgentServer = class {
   allowedHostnames() {
     const allowed = new Set(LOCAL_HOSTNAMES);
     if (this.settings.agentBindMode === "lan") {
-      for (const ip of this.provider.lanAddresses()) allowed.add(ip.toLowerCase());
+      const now = Date.now();
+      if (now - this.lanCache.at > 6e4) this.lanCache = { at: now, ips: this.provider.lanAddresses() };
+      for (const ip of this.lanCache.ips) allowed.add(ip.toLowerCase());
     }
     return allowed;
   }
@@ -367,13 +393,11 @@ var KosmosAgentServer = class {
       if (s >= 0) scored.push([s, n]);
     }
     scored.sort((a, b) => b[0] - a[0] || (Date.parse(b[1].validAt || "") || 0) - (Date.parse(a[1].validAt || "") || 0));
-    const top = scored.slice(0, lim).map(([, n]) => n);
-    this.reportTraversal("search_notes", top.map((n) => n.path));
     return {
       query,
       method: "lexical (title/alias/tag/path substring; no embeddings)",
       total: scored.length,
-      results: top.map((n) => this.brief(n))
+      results: scored.slice(0, lim).map(([, n]) => this.brief(n))
     };
   }
   async qNote(sel) {
@@ -385,7 +409,6 @@ var KosmosAgentServer = class {
     const backlinks = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
     const semantic = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => l.target);
     const content = await this.provider.getNoteContent(n.path);
-    this.reportTraversal("get_note", [n.path]);
     return {
       ...this.brief(n),
       aliases: n.aliases,
@@ -426,7 +449,6 @@ var KosmosAgentServer = class {
     };
     walk(n.id);
     chain.sort((a, b) => (Date.parse(a.validAt || "") || 0) - (Date.parse(b.validAt || "") || 0));
-    this.reportTraversal("get_lineage", chain.map((x) => x.path));
     return {
       for: n.path,
       chainLength: chain.length,
@@ -442,12 +464,10 @@ var KosmosAgentServer = class {
       const x = byId.get(id);
       return x ? this.brief(x) : { path: id };
     };
-    const semanticIds = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => l.target);
-    const outgoingIds = graph.links.filter((l) => l.source === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
-    const backlinkIds = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
-    const touched = [n.id, ...semanticIds, ...outgoingIds, ...backlinkIds].map((id) => byId.get(id)?.path).filter(Boolean);
-    this.reportTraversal("get_related", touched);
-    return { for: n.path, semantic: semanticIds.map(b), outgoing: outgoingIds.map(b), backlinks: backlinkIds.map(b) };
+    const semantic = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => b(l.target));
+    const outgoing = graph.links.filter((l) => l.source === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
+    const backlinks = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
+    return { for: n.path, semantic, outgoing, backlinks };
   }
   /** Point-in-time snapshot — the ONE shared projector (§4.1, §33). */
   async qAtTime(time, limit = 50) {
@@ -506,19 +526,23 @@ var KosmosAgentServer = class {
   }
   async callTool(name, args) {
     args = args || {};
+    const done = (r) => {
+      this.emitTraversal(name, r);
+      return r;
+    };
     switch (name) {
       case "vault_overview":
         return this.qOverview();
       case "search_notes":
-        return this.qSearch(args.query, args);
+        return done(await this.qSearch(args.query, args));
       case "get_note":
-        return this.qNote(args);
+        return done(await this.qNote(args));
       case "get_lineage":
-        return this.qLineage(args);
+        return done(await this.qLineage(args));
       case "get_related":
-        return this.qRelated(args);
+        return done(await this.qRelated(args));
       case "graph_at_time":
-        return this.qAtTime(args.time, args.limit);
+        return done(await this.qAtTime(args.time, args.limit));
       case "export_graphiti_episodes":
         return this.qEpisodes(args.limit);
       default:
@@ -676,21 +700,36 @@ var KosmosAgentServer = class {
       case "/graph":
         this.json(res, 200, await this.qGraph());
         return;
-      case "/notes":
-        this.json(res, 200, await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : void 0 }));
+      case "/notes": {
+        const r = await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : void 0 });
+        this.emitTraversal("search_notes", r);
+        this.json(res, 200, r);
         return;
-      case "/note":
-        this.json(res, 200, await this.qNote({ path: q("path"), title: q("title") }));
+      }
+      case "/note": {
+        const r = await this.qNote({ path: q("path"), title: q("title") });
+        this.emitTraversal("get_note", r);
+        this.json(res, 200, r);
         return;
-      case "/lineage":
-        this.json(res, 200, await this.qLineage({ path: q("path"), title: q("title") }));
+      }
+      case "/lineage": {
+        const r = await this.qLineage({ path: q("path"), title: q("title") });
+        this.emitTraversal("get_lineage", r);
+        this.json(res, 200, r);
         return;
-      case "/related":
-        this.json(res, 200, await this.qRelated({ path: q("path"), title: q("title") }));
+      }
+      case "/related": {
+        const r = await this.qRelated({ path: q("path"), title: q("title") });
+        this.emitTraversal("get_related", r);
+        this.json(res, 200, r);
         return;
-      case "/at":
-        this.json(res, 200, await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50));
+      }
+      case "/at": {
+        const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50);
+        this.emitTraversal("graph_at_time", r);
+        this.json(res, 200, r);
         return;
+      }
       case "/episodes":
         this.json(res, 200, await this.qEpisodes());
         return;

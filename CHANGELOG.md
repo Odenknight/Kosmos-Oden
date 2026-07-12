@@ -22,10 +22,14 @@ engineering assessments (`docs/assessments/`).
 - Reproducibility double-build CI job; `SHA256SUMS` + `BUILD-INFO.json` release provenance; `kosmos-invariants.yml` policy with `check:invariants`; Dependabot; pinned toolchain + committed `package-lock.json`.
 - Versioned host↔renderer message protocol with structural validation; the plugin iframe is now sandboxed (`allow-scripts allow-pointer-lock allow-downloads`, no `allow-same-origin`).
 - Governance docs: `SECURITY.md`, `CONTRIBUTING.md`, `THREAT-MODEL.md`, `ARCHITECTURE.md`, `RELEASE-PROCESS.md`, `RENDERER-PROTOCOL.md`, `THIRD-PARTY-NOTICES.md`.
-- **Folder-safe context menu restored** — right-clicking a folder-only galaxy (no manifest note) now offers **Expand Folder** (reveals it in Obsidian's file explorer) instead of attempting to open or create a note; carried over via a versioned `open-folder` renderer→host message.
-- **Live agent-traversal trail restored** — `search_notes` / `get_note` / `get_lineage` / `get_related` queries report their touched note paths, which glow with a fading emerald halo in the open Kosmos view (broad queries like `vault_overview` and `graph_at_time` intentionally do not light up the whole vault).
-- 105-test suite (added protocol validation and traversal-reporting coverage).
+- **Folder-safe context menu restored** — right-clicking a folder-only galaxy (no manifest note) now offers **Expand Folder** (reveals it in Obsidian's file explorer and flies the camera to the galaxy) instead of attempting to open or create a note; carried over via a versioned `open-folder` renderer→host message.
+- **Live agent-traversal breadcrumb restored (full v0.5.1 behavior)** — visited notes pulse with emerald halos (8 s window) and consecutive hops connect into a fading emerald line trail (last 24 hops, 30 s fade), with a throttled "Agent traversal: *tool*" hint. Emission is post-hoc from result objects and capped per tool (lineage 12, related 11, search 8, `graph_at_time` 6); whole-vault queries report no trail.
+- **v0.5.1 visual pack restored** — irregular tumbling rock asteroids (carve-only vertex displacement + per-rock albedo/mineral tint, mobile-safe), rocky-planet land/sea tones + fbm-jittered polar ice caps, lunar maria + ejecta flecks on moons, and fine planetary ring grooves — all in-shader, both quality tiers.
+- **Host-driven render gate restored** — the plugin posts a versioned `visibility` message on leaf/layout changes, so the render loop fully stops when the Kosmos tab is hidden *inside* a visible Obsidian window (not just when the window itself hides), and resumes instantly.
+- **v0.5.1 idle/perf trims restored** — `updateHalos` idle fast-path (skips all writes/uploads when nothing is selected or live), per-layer instanced-matrix dirty flags, direct label-slot references (no per-frame array scans), and a 60 s LAN-IP cache for per-request Host validation.
+- 108-test suite (protocol validation incl. `visibility`, traversal caps, REST-vs-MCP emission parity).
 - README rewritten to fold in the prior release's narrative sections (attribution lineage, "why would I want it", friendly Agent API onboarding) alongside the v0.5.5 architecture and hardening documentation.
+- Ingest sample pins `graphiti-core>=0.28.2` (upstream security fixes).
 
 ### Changed
 - Renderer extracted from the v0.5.0 base64 monolith into reviewable modules (`src/renderer/`); the single-file artifacts are now deterministically generated at build time.

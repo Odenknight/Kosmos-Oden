@@ -128,6 +128,9 @@ class KosmosView extends ItemView {
   /** Live AI-agent traversal (Agent API): light up visited bodies with the emerald trail. */
   agentTraversal(paths: string[], tool: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool })); }
 
+  /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
+  syncVisibility(): void { this.post(wrap("visibility", { visible: this.isVisible() })); }
+
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
     if (!this.frame || !this.frame.contentWindow) return;
@@ -143,6 +146,7 @@ class KosmosView extends ItemView {
     this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault" }));
     this.ready = true;
     this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
+    this.syncVisibility();
   }
 
   // --- change notifications from the plugin's event handlers ---
@@ -297,8 +301,8 @@ export default class VaultKosmosPlugin extends Plugin {
       for (const v of views()) v.noteRenamed(file.path, oldPath);
     }));
 
-    // When a Kosmos view becomes visible again, flush anything that was deferred while hidden.
-    const onShow = () => { for (const v of views()) v.flushIfDeferred(); };
+    // When leaf visibility changes: flush deferred data AND gate the iframe's render loop.
+    const onShow = () => { for (const v of views()) { v.flushIfDeferred(); v.syncVisibility(); } };
     this.registerEvent(this.app.workspace.on("active-leaf-change", onShow));
     this.registerEvent(this.app.workspace.on("layout-change", onShow));
   }
@@ -339,7 +343,7 @@ const SAMPLE_INGEST_PY = `#!/usr/bin/env python3
 # Ingest an Obsidian vault (exported by Vault Kosmos v${KOSMOS_VERSION}, OKF+) into Graphiti.
 # Graphiti: https://github.com/getzep/graphiti
 #
-#   pip install graphiti-core          # needs Python 3.10+
+#   pip install "graphiti-core>=0.28.2"   # needs Python 3.10+; >=0.28.2 includes upstream security hardening
 #   export OPENAI_API_KEY=...          # or configure another LLM per the Graphiti docs
 #   export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=password
 #   python graphiti-ingest-sample.py graphiti-episodes.json

@@ -57,14 +57,25 @@ versions/types instead of acting on arbitrary `postMessage` data.
 
 { protocol: "vault-kosmos", version: 1, type: "agent-traversal",
   payload: { paths: string[], tool: string } }
+
+{ protocol: "vault-kosmos", version: 1, type: "visibility",
+  payload: { visible: boolean } }
 ```
 
-`agent-traversal` carries the note paths one Agent API query touched, so the
-renderer can light them up with a fading emerald trail (restored from the
-real v0.5.1 behavior). Only per-note queries report a trail (`search_notes`,
-`get_note`, `get_lineage`, `get_related`); broad queries (`vault_overview`,
-`graph_at_time`, `export_graphiti_episodes`) intentionally do not, since
-lighting up the entire vault isn't a meaningful trail.
+`agent-traversal` carries the note paths one Agent API query touched. The
+renderer keeps a breadcrumb of the last 24 hops for 30 seconds, draws fading
+emerald line segments between consecutive hops, and pulses recently visited
+notes (8 s window) with emerald halos (v0.5.1 behavior). Emission is post-hoc
+from result objects and **capped per tool** (lineage 12, related 11, search 8,
+`graph_at_time` 6) so a broad result never floods the halo budget; whole-vault
+queries (`vault_overview`, `export_graphiti_episodes`, diagnostics) do not
+report a trail at all.
+
+`visibility` carries the hosting Obsidian leaf's visibility. Inside Obsidian,
+`document.visibilitychange` fires only when the whole window hides — the host
+posts this message on leaf/layout changes so the renderer can fully stop its
+rAF loop (CPU/GPU → ~0) when the Kosmos tab is backgrounded, and resume
+instantly when it is revealed.
 
 ### Renderer → host
 

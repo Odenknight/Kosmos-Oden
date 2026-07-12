@@ -66,6 +66,14 @@ test("malformed payloads rejected", () => {
   assert.match(validateHostMessage({ protocol: KOSMOS_PROTOCOL, version: 1, type: "vault-snapshot" }).reason, /missing payload/);
 });
 
+test("visibility (host->renderer): boolean accepted, non-boolean rejected", () => {
+  assert.equal(validateHostMessage(wrap("visibility", { visible: false })).ok, true);
+  assert.equal(validateHostMessage(wrap("visibility", { visible: true })).ok, true);
+  const bad = validateHostMessage(wrap("visibility", { visible: "yes" }));
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason, /must be a boolean/);
+});
+
 test("agent-traversal (host->renderer): valid accepted, unsafe paths rejected", () => {
   const ok = validateHostMessage(wrap("agent-traversal", { paths: ["Ideas/Engine v2.md"], tool: "get_note" }));
   assert.equal(ok.ok, true);

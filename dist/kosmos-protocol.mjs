@@ -40,6 +40,10 @@ function validateHostMessage(data) {
     if (!isStr(p.tool)) return { ok: false, reason: "agent-traversal payload.tool must be a string" };
     return { ok: true, message: m };
   }
+  if (m.type === "visibility") {
+    if (typeof p.visible !== "boolean") return { ok: false, reason: "visibility payload.visible must be a boolean" };
+    return { ok: true, message: m };
+  }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };
 }
 function validateRendererMessage(data) {

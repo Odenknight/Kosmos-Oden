@@ -45,6 +45,8 @@ export interface KosmosApp {
   notifyLiveEvent(ev: { path: string; type?: string }): void;
   /** Highlight the notes touched by one Agent API query with a fading emerald trail. */
   notifyAgentTraversal(paths: string[], tool: string): void;
+  /** Host-side leaf visibility: false fully stops the render loop, true resumes it. */
+  setHostVisible(visible: boolean): void;
   getDiagnostics(): any;
   getRenderStats(): { frames: number; running: boolean };
   showError(msg: string): void;
@@ -57,7 +59,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {},
+    renderGraph() {}, showDemo() {}, setConn() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -141,6 +143,13 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
 
   let __attach: string[] = [];
   let chainLines: any = null, thinLines: any = null;
+  /* Live AI-agent traversal overlay (Agent API): breadcrumb of the last hops,
+     drawn as fading emerald line segments (v0.5.1 behavior, ported). */
+  let agentTrail: any = null;
+  let agentSteps: Array<{ id: string; t: number }> = [];
+  let __agentLive = new Set<string>();
+  let __agentHintT = 0;
+  const AGENT_MAX = 24;
   let lastFocusIds: Set<string> | null = null;
   let showAllConnections = false, showAllObjects = false;
 
@@ -177,6 +186,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function buildScene(positioned: any) {
     disposeAll(); clearGroup(world); matsWithTime.length = 0;
     layers = glow = rings = ambientLines = focusLines = backdropGroup = nebula = null;
+    agentTrail = null; // geometry/material were registered in disposables; steps survive the rebuild
     nodeRender = []; idToRender.clear();
 
     G = positioned;
@@ -204,7 +214,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const matPlanet = keep(mk({ ATMO: 1, SPIN: 1, PLANET: 1, SURF: 1, SPIN_SPEED: 0.1, AMBIENT: 0.13, DIFF: 1.05 }));
     const matMoon = keep(mk({ SPIN: 1, SURF: 1, SPIN_SPEED: 0.06, AMBIENT: 0.11, DIFF: 0.95 }));
     const matMoonlet = keep(mk({ SURF: 1, AMBIENT: 0.11, DIFF: 0.9 }));
-    const matAster = keep(mk({ TUMBLE: 1, AMBIENT: 0.1, DIFF: 0.7 }));
+    const matAster = keep(mk({ TUMBLE: 1, ROCK: 1, AMBIENT: 0.1, DIFF: 0.7 }));
     const matOort = keep(mk({ AMBIENT: 0.2, DIFF: 0.55 }));
     matsWithTime.push(matCluster, matGalaxy, matStar, matPlanet, matMoon, matMoonlet, matAster, matOort);
 
@@ -290,8 +300,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       void main(){ vColor=aColor; vR=(length(position.xy)-1.45)/0.9; gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.0);}`,
       fragmentShader: `varying vec3 vColor; varying float vR;
       void main(){ float a=smoothstep(0.0,0.18,vR)*smoothstep(1.0,0.5,vR);
-        float gap=smoothstep(0.42,0.46,vR)*smoothstep(0.56,0.52,vR);
-        a*=(1.0-0.7*gap); gl_FragColor=vec4(vColor*0.7,a*0.42);}`,
+        float gap=smoothstep(0.42,0.46,vR)*smoothstep(0.56,0.52,vR);  // Cassini-like gap
+        a*=(1.0-0.7*gap); a*=0.86+0.14*sin(vR*34.0+vColor.g*7.0);    // fine ring grooves
+        gl_FragColor=vec4(vColor*0.7,a*0.42);}`,
     }));
     const mesh = new THREE.InstancedMesh(geo, mat, big.length);
     const aColor = new THREE.InstancedBufferAttribute(new Float32Array(big.length * 3), 3); geo.setAttribute("aColor", aColor);
@@ -396,9 +407,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (!layers) return;
     for (const rec of nodeRender) {
       const n = rec.node; if (n.__hidden) continue; const r = n.__r || 0.4;
-      MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(r, r, r)); rec.layer.mesh.setMatrixAt(rec.idx, MAT);
+      MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(r, r, r)); rec.layer.mesh.setMatrixAt(rec.idx, MAT); rec.layer.__dirty = 1;
     }
-    for (const bb in layers) layers[bb].mesh.instanceMatrix.needsUpdate = true;
+    for (const bb in layers) { const L = layers[bb]; if (L.__dirty) { L.__dirty = 0; L.mesh.instanceMatrix.needsUpdate = true; } }   // skip GPU uploads for untouched layers
     if (glow && lumNodes.length) {
       for (const n of lumNodes) {
         if (n.__glow == null) continue;
@@ -519,7 +530,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const a of areaLabels) {
       if (a.node.__hidden) continue;
       const sp = projectToScreen(a.node.position); if (!sp) continue;
-      cands.push({ el: a.el, node: a.node, isArea: true, prio: 1, dist: camera.position.distanceTo(VEC.fromArray(a.node.position)), sx: sp.x, sy: sp.y, focus: false, key: "a:" + a.node.id });
+      cands.push({ el: a.el, ref: a, node: a.node, isArea: true, prio: 1, dist: camera.position.distanceTo(VEC.fromArray(a.node.position)), sx: sp.x, sy: sp.y, focus: false, key: "a:" + a.node.id });
     }
     for (const r of nodeRender) {
       const n = r.node; if (n.__hidden) continue;
@@ -552,10 +563,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       for (const r of rects) { if (x0 < r.x1 + 3 && x1 > r.x0 - 3 && y0 < r.y1 + 3 && y1 > r.y0 - 3) { hit = true; break; } }
       if (hit) continue;
       rects.push({ x0, y0, x1, y1 });
-      let el: any;
-      if (c.isArea) { el = c.el; }
+      let el: any, ref: any = null;
+      if (c.isArea) { el = c.el; ref = c.ref; }
       else {
-        const slot = labelPool[pool++]; if (!slot) break; el = slot.el;
+        const slot = labelPool[pool++]; if (!slot) break; el = slot.el; ref = slot;
         if (slot.id !== c.key) {
           el.innerHTML = escapeHtml(c.node.label) + (c.focus ? `<small>${escapeHtml(prettyArea(c.node.area))}</small>` : "");
           el.style.color = (c.node.id === selectedId ? "#ffffff" : c.node.color);
@@ -563,7 +574,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
           slot.id = c.key;
         }
       }
-      np.push({ el, node: c.node, isArea: c.isArea, focus: c.focus });
+      np.push({ el, ref, node: c.node, isArea: c.isArea, focus: c.focus });
     }
     for (const a of areaLabels) { if (!np.some((p) => p.isArea && p.el === a.el)) { a.el.style.opacity = "0"; a.shown = false; } }
     for (let i = pool; i < labelPool.length; i++) { const sl = labelPool[i]; if (sl.shown) { sl.el.style.opacity = "0"; sl.shown = false; sl.id = null; } }
@@ -579,13 +590,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (selHovChanged || t - labelScanT > (navMode === "fly" ? 0.18 : 0.14)) { labelScanT = t; _lastSel = selectedId; _lastHov = hoveredId; rescanLabels(); }
     for (const p of placedLabels) {
       const sp = projectToScreen(p.node.position);
-      if (!sp) { p.el.style.opacity = "0"; if (p.isArea) p.shown = false; continue; }
+      if (!sp) { p.el.style.opacity = "0"; if (p.ref) p.ref.shown = false; continue; }
       const d = camera.position.distanceTo(VEC.fromArray(p.node.position));
       const op = p.focus ? 1 : THREE.MathUtils.clamp(1.25 - d / (p.isArea ? 440 : 320), 0, p.isArea ? 0.95 : 0.92);
       p.el.style.transform = `translate(-50%,-50%) translate(${sp.x.toFixed(1)}px,${(sp.y - 12).toFixed(1)}px)`;
       p.el.style.opacity = op.toFixed(2);
-      if (p.isArea) { const a = areaLabels.find((x) => x.el === p.el); if (a) a.shown = op > 0.02; }
-      else { const sl = labelPool.find((x) => x.el === p.el); if (sl) sl.shown = op > 0.02; }
+      if (p.ref) p.ref.shown = op > 0.02;   // direct slot ref — no per-frame array scans
     }
   }
   function prettyArea(a: string) { return a === "Vault" ? "Vault" : a === "Unresolved" ? "Unresolved" : a.replace(/^\d+_/, ""); }
@@ -705,8 +715,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const go = () => {
         if (performance.now() - menuShownAt < 350) return;
         try {
-          if (isFolderTarget) opts.onOpenFolder && opts.onOpenFolder(n.path);
-          else opts.onOpenNote && opts.onOpenNote(n.path, n.label);
+          if (isFolderTarget) {
+            // Folders are places, not notes: ask the host to expand the folder
+            // AND fly the camera to the galaxy here (v0.5.1 behavior).
+            opts.onOpenFolder && opts.onOpenFolder(n.path);
+            if (navMode !== "fly") startFlight(navMode === "overview" ? "focus" : navMode);
+          } else {
+            opts.onOpenNote && opts.onOpenNote(n.path, n.label);
+          }
         } catch (_) { /* host callback errors are not ours */ }
         hideKosmosMenu();
       };
@@ -849,10 +865,13 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const b in layers) { layers[b].attrs.aLive.needsUpdate = true; layers[b].attrs.aEmerge.needsUpdate = true; }
   }
   const AGENT_TRAIL_COLOR = "#34d399"; // emerald — visually distinct from the edit-live pulse
+  let __halosActive = false;
   function updateHalos() {
     if (!glow) return;
     // agent-traversal ids first so a busy trail is never truncated ahead of the plain edit-live set
     const ids = new Set<string>(); for (const id of agentIds) ids.add(id); if (selectedId) ids.add(selectedId); for (const id of liveIds) ids.add(id);
+    if (!ids.size && !__halosActive) return;   // idle fast-path: nothing selected/live now or last frame -> skip all writes+uploads
+    __halosActive = ids.size > 0;
     let i = 0;
     for (const id of ids) {
       if (i >= HALO_CAP) break;
@@ -1261,16 +1280,66 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     liveIds.add(id); primaryLiveId = id; if (ev.type === "add") emergingIds.add(id); applyLive(); updateHalos();
     setTimeout(() => { liveIds.delete(id); emergingIds.delete(id); applyLive(); updateHalos(); }, 9000);
   }
-  /** Live AI-agent traversal: light up the notes one Agent API query touched with a fading emerald trail. */
-  function notifyAgentTraversal(paths: string[], _tool: string): void {
-    const ids = (paths || []).map((p) => "file:" + p).filter((id) => idToRender.has(id));
-    if (!ids.length) return;
-    for (const id of ids) { liveIds.add(id); agentIds.add(id); }
+  /* ---- live AI-agent traversal overlay (breadcrumb + emerald glow) ---- */
+  function ensureAgentTrail() {
+    if (agentTrail) return agentTrail;
+    const cap = AGENT_MAX;
+    const geo = keep(new THREE.BufferGeometry());
+    const pos = new Float32Array(cap * 6), col = new Float32Array(cap * 6);
+    const pa = new THREE.BufferAttribute(pos, 3); pa.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("position", pa);
+    const ca = new THREE.BufferAttribute(col, 3); ca.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("color", ca);
+    geo.setDrawRange(0, 0);
+    const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3;
+    world.add(mesh);
+    agentTrail = { geo, pos, col, cap, mesh };
+    return agentTrail;
+  }
+  /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
+  function updateAgentTrail(): void {
+    if (!agentSteps.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); return; }
+    const now = performance.now();
+    agentSteps = agentSteps.filter((s) => now - s.t < 30000 && idToRender.has(s.id));
+    refreshAgentLive(now);
+    if (agentSteps.length < 2) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); return; }
+    const T = ensureAgentTrail(); let v = 0;
+    for (let i = 1; i < agentSteps.length && v < T.cap; i++) {
+      const a = idToRender.get(agentSteps[i - 1].id), b = idToRender.get(agentSteps[i].id);
+      if (!a || !b) continue;
+      const f = 1 - Math.min(1, (now - agentSteps[i].t) / 30000) * 0.85, o = v * 6, pa = a.node.position, pb = b.node.position;
+      T.pos[o] = pa[0]; T.pos[o + 1] = pa[1]; T.pos[o + 2] = pa[2]; T.pos[o + 3] = pb[0]; T.pos[o + 4] = pb[1]; T.pos[o + 5] = pb[2];
+      T.col[o] = 0.16 * f; T.col[o + 1] = 0.95 * f; T.col[o + 2] = 0.62 * f; T.col[o + 3] = 0.16 * f; T.col[o + 4] = 0.95 * f; T.col[o + 5] = 0.62 * f;
+      v++;
+    }
+    T.geo.attributes.position.needsUpdate = true; T.geo.attributes.color.needsUpdate = true; T.geo.setDrawRange(0, v * 2);
+  }
+  /** Notes visited in the last 8 s pulse live (emerald halos via agentIds); diffed to skip redundant uploads. */
+  function refreshAgentLive(now: number): void {
+    const want = new Set<string>();
+    for (const s of agentSteps) if (now - s.t < 8000) want.add(s.id);
+    let same = want.size === __agentLive.size;
+    if (same) for (const id of want) if (!__agentLive.has(id)) { same = false; break; }
+    if (same) { let ok = true; for (const id of want) if (!liveIds.has(id)) { ok = false; break; } if (ok) return; }
+    for (const id of __agentLive) { liveIds.delete(id); agentIds.delete(id); }
+    __agentLive = want;
+    for (const id of want) { liveIds.add(id); agentIds.add(id); }
     applyLive(); updateHalos();
-    setTimeout(() => {
-      for (const id of ids) { liveIds.delete(id); agentIds.delete(id); }
-      applyLive(); updateHalos();
-    }, 9000);
+  }
+  /** Entry point: the host posts agent-traversal whenever the Agent API serves a query. */
+  function notifyAgentTraversal(paths: string[], tool: string): void {
+    if (!Array.isArray(paths) || !G) return;
+    const now = performance.now(); let touched = false;
+    for (const p of paths) {
+      const id = "file:" + String(p || "").replace(/\\/g, "/");
+      if (!idToRender.has(id)) continue;
+      const last = agentSteps[agentSteps.length - 1];
+      if (last && last.id === id) { last.t = now; touched = true; continue; }
+      agentSteps.push({ id, t: now }); touched = true;
+      if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
+    }
+    if (!touched) return;
+    refreshAgentLive(now); updateAgentTrail();
+    if (now - __agentHintT > 4000) { __agentHintT = now; showHint("Agent traversal: " + (tool || "query")); }
   }
   function runCapture() {
     const cap = params.get("capture"); if (!cap) return; document.body.classList.add("capture");
@@ -1476,7 +1545,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
     if (G && G.__cosmos) {
       animateOrbits(t); updateInstancePositions(); updateHalos();
-      if ((linkFrame = (linkFrame + 1) & 1) === 0) updateCosmosLinks();
+      if ((linkFrame = (linkFrame + 1) & 1) === 0) { updateCosmosLinks(); updateAgentTrail(); }   // link + agent-trail refresh every other frame (perf)
       if (selectedId) {
         const sr = idToRender.get(selectedId), sn = sr && sr.node;
         if (sn && sn.position) {
@@ -1514,12 +1583,21 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     renderStats.running = false;
     cancelAnimationFrame(raf);
   }
-  // §27: the render loop is suspended while the view is hidden and resumes on visibility.
-  const onVisibility = () => {
-    if (document.visibilityState === "hidden") stopLoop();
+  // §27: the render loop fully stops while the view is hidden — either the
+  // document (tab/window) or the hosting Obsidian LEAF. Inside Obsidian,
+  // document.visibilitychange only fires for the whole window, so the host
+  // posts a `visibility` message on leaf/layout changes (v0.5.1 behavior).
+  let hostHidden = false;
+  function syncPaused(): void {
+    if (document.visibilityState === "hidden" || hostHidden) stopLoop();
     else if (__framed) startLoop();
-  };
+  }
+  const onVisibility = () => syncPaused();
   document.addEventListener("visibilitychange", onVisibility);
+  function setHostVisible(visible: boolean): void {
+    hostHidden = visible === false;
+    syncPaused();
+  }
   (window as any).__kosmosRenderStats = renderStats;
 
   function teardown() {
@@ -1626,6 +1704,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setAttachments(paths: string[]) { __attach = (paths || []).slice(); },
     notifyLiveEvent: onLiveEvent,
     notifyAgentTraversal,
+    setHostVisible,
     getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0 } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running }; },
     showError: showFatal,

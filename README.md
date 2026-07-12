@@ -73,7 +73,7 @@ The same vault produces materially the same nodes, links, lineage, HEAD status, 
 | Loose or barely-linked notes | **Asteroids**, tumbling near the galaxy they're gravitationally bound to. |
 | Images, PDFs, other attachments | The **Oort cloud** — a faint outer shell around the system that references them. |
 
-Notes with more than three linked moons get Saturn-style rings. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
+Notes with more than three linked moons get Saturn-style rings with fine grooves and a Cassini-like gap. Rocky planets show land/sea tones and polar ice caps; moons carry dark maria patches and bright ejecta flecks; asteroids are irregular tumbling rocks with varied mineral coloring — all of it runs inside the existing shader passes (mobile keeps its dedicated lightweight path), so nothing got slower. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
 
 ---
 
@@ -105,7 +105,9 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
 3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
 
-**Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden, and the render loop itself is suspended while the Kosmos view is hidden — so big vaults stay smooth and battery-friendly.
+**Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden.
+
+**Battery-friendly:** the 3D view fully stops rendering the moment its tab is hidden or Obsidian is minimized — the plugin tells the iframe about leaf visibility, so even a background Kosmos tab inside a visible Obsidian window costs ~zero CPU/GPU — and resumes instantly when you come back. Idle bookkeeping (highlight halos, GPU uploads, label scans) is skipped when nothing is selected or pulsing.
 
 ## Flying around
 
@@ -141,7 +143,7 @@ Settings → **Vault Kosmos** → toggle **Enable local Agent API**.
 
 That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong. Want a reference for later? Run **"Write Agent API guide"** from the command palette and the plugin drops a ready-to-read `AGENT-API.md` into your vault with your connection details already filled in. Full guide: [AGENT-API.md](AGENT-API.md).
 
-**Watch it work:** every query an agent makes is mirrored live in the Kosmos view — the touched notes glow with a fading emerald trail, so you can see exactly which notes your agent walked through.
+**Watch it work:** every query an agent makes is mirrored live in the Kosmos view — visited notes pulse with emerald halos and connect into a fading emerald breadcrumb trail (the last ~24 hops, fading over 30 seconds), so you can see exactly which notes your agent walked through and in what order.
 
 **Technical:** a read-only server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it) exposing the same normalized graph the viewer renders: `vault_overview`, `search_notes`, `get_note`, `get_lineage`, `get_related`, `graph_at_time`, `export_graphiti_episodes` over MCP (`/mcp`, Streamable HTTP) plus plain REST mirrors and a `/diagnostics` route.
 

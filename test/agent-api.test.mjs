@@ -292,32 +292,69 @@ test("Origin validation: absent allowed, null and cross-site rejected", () => {
   assert.equal(s.originAllowed("https://evil.example.com"), false);
 });
 
-test("onTraversal: get_note/get_lineage/get_related/search_notes report touched paths for the live agent trail", async () => {
+test("onTraversal: per-note tools report touched paths (post-hoc, via callTool) for the live agent trail", async () => {
   const server = new KosmosAgentServer(http, settings(), fixtureProvider());
   const seen = [];
   server.onTraversal = (paths, tool) => seen.push({ tool, paths });
 
-  await server.qNote({ title: "Engine v2" });
-  await server.qLineage({ title: "Engine v1" });
-  await server.qRelated({ title: "Engine v2" });
-  await server.qSearch("engine");
+  await server.callTool("get_note", { title: "Engine v2" });
+  await server.callTool("get_lineage", { title: "Engine v1" });
+  await server.callTool("get_related", { title: "Engine v2" });
+  await server.callTool("search_notes", { query: "engine" });
+  await server.callTool("graph_at_time", { time: "2026-06-01" });
 
   const byTool = Object.fromEntries(seen.map((s) => [s.tool, s.paths]));
   assert.deepEqual(byTool.get_note, ["Ideas/Engine v2.md"]);
   assert.deepEqual(new Set(byTool.get_lineage), new Set(["Ideas/Engine v1.md", "Ideas/Engine v2.md"]));
   assert.ok(byTool.get_related.includes("Ideas/Engine v2.md"));
   assert.ok(byTool.search_notes.length >= 1);
+  assert.ok(byTool.graph_at_time.length >= 1, "graph_at_time samples valid notes for the trail");
 });
 
-test("onTraversal: broad queries (overview/graph_at_time/episodes/diagnostics) do NOT report a trail", async () => {
+test("onTraversal: paths are CAPPED per tool so broad results never flood the halo budget", async () => {
+  // 30 interlinked notes -> uncapped search/lineage results would exceed the caps.
+  const files = [];
+  for (let i = 0; i < 30; i++) {
+    const sup = i > 0 ? `supersedes:\n  - Note ${i - 1}\n` : "";
+    files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\n${sup}---\nnote body ${i}` });
+  }
+  const graph = buildGraph(files, []);
+  const provider = { getGraph: async () => graph, getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [] };
+  const server = new KosmosAgentServer(http, settings(), provider);
+  const seen = [];
+  server.onTraversal = (paths, tool) => seen.push({ tool, paths });
+
+  await server.callTool("search_notes", { query: "note", limit: 50 });
+  await server.callTool("get_lineage", { title: "Note 29" });
+  await server.callTool("graph_at_time", { time: "2026-06-01", limit: 50 });
+
+  const byTool = Object.fromEntries(seen.map((s) => [s.tool, s.paths]));
+  assert.ok(byTool.search_notes.length <= 8, `search cap: ${byTool.search_notes.length}`);
+  assert.ok(byTool.get_lineage.length <= 12, `lineage cap: ${byTool.get_lineage.length}`);
+  assert.ok(byTool.graph_at_time.length <= 6, `at-time cap: ${byTool.graph_at_time.length}`);
+});
+
+test("onTraversal: whole-vault queries (overview/episodes/diagnostics) do NOT report a trail", async () => {
   const server = new KosmosAgentServer(http, settings(), fixtureProvider());
   let fired = false;
   server.onTraversal = () => { fired = true; };
-  await server.qOverview();
-  await server.qAtTime("2026-02-01");
+  await server.callTool("vault_overview", {});
+  await server.callTool("export_graphiti_episodes", {});
   await server.qDiagnostics();
-  await server.qEpisodes();
   assert.equal(fired, false);
+});
+
+test("onTraversal: REST routes emit the same events as MCP tools", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  const seen = [];
+  server.onTraversal = (paths, tool) => seen.push({ tool, paths });
+  await new Promise((resolve) => { server.start(); server.server.on("listening", resolve); });
+  const port = server.server.address().port;
+  await request(port, { path: "/note?title=Engine%20v2", headers: auth });
+  await request(port, { path: "/at?time=2026-06-01", headers: auth });
+  server.stop();
+  assert.ok(seen.some((s) => s.tool === "get_note" && s.paths.includes("Ideas/Engine v2.md")));
+  assert.ok(seen.some((s) => s.tool === "graph_at_time"));
 });
 
 test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
