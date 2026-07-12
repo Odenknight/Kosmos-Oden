@@ -7,7 +7,10 @@ import {
   KosmosAgentServer,
   LATEST_MCP_PROTOCOL_VERSION,
   MAX_BODY_BYTES,
+  MAX_NOTE_CONTENT_CHARS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  DEFAULT_AGENT_SETTINGS,
+  migrateAgentSettings,
   makeToken,
 } from "../dist/kosmos-agent-server.mjs";
 
@@ -30,15 +33,20 @@ function fixtureProvider() {
 
 const TOKEN = "test-token-1234567890";
 
-function startServer(overrides = {}) {
-  const server = new KosmosAgentServer(http, {
+function settings(overrides = {}) {
+  return {
+    schemaVersion: 2,
     agentEnabled: true,
     agentPort: 0, // ephemeral
     agentToken: TOKEN,
     agentRequireToken: true,
     agentBindMode: "localhost",
+    agentAllowQueryToken: false,
     ...overrides,
-  }, fixtureProvider());
+  };
+}
+function startServer(overrides = {}) {
+  const server = new KosmosAgentServer(http, settings(overrides), fixtureProvider());
   return new Promise((resolve) => {
     server.start();
     server.server.on("listening", () => resolve({ server, port: server.server.address().port }));
@@ -51,7 +59,7 @@ function request(port, { method = "GET", path = "/", headers = {}, body = null }
     const req = http.request({ host: "127.0.0.1", port, method, path, headers, setHost: !headers.Host }, (res) => {
       let data = "";
       res.on("data", (c) => (data += c));
-      res.on("end", () => resolve({ status: res.statusCode, body: data, json: () => JSON.parse(data || "null") }));
+      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: data, json: () => JSON.parse(data || "null") }));
     });
     req.on("error", reject);
     if (body != null) req.write(body);
@@ -86,22 +94,27 @@ test("agent api", async (t) => {
     assert.equal(r.status, 200);
   });
 
-  await t.test("?token= query -> 200", async () => {
+  await t.test("?token= query rejected by default (deprecated, off) -> 401", async () => {
     const r = await request(port, { path: `/health?token=${TOKEN}` });
-    assert.equal(r.status, 200);
+    assert.equal(r.status, 401);
+  });
+
+  await t.test("responses set Cache-Control: no-store", async () => {
+    const r = await request(port, { path: "/health", headers: auth });
+    assert.match(r.headers["cache-control"] || "", /no-store/);
   });
 
   await t.test("Host rejection (DNS rebinding defence) -> 403", async () => {
-    const r = await request(port, { path: `/health?token=${TOKEN}`, headers: { Host: "evil.example.com" } });
+    const r = await request(port, { path: "/health", headers: { ...auth, Host: "evil.example.com" } });
     assert.equal(r.status, 403);
   });
 
   await t.test("cross-site Origin rejection -> 403; local Origin allowed", async () => {
-    const bad = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: "https://evil.example.com" } });
+    const bad = await request(port, { path: "/health", headers: { ...auth, Origin: "https://evil.example.com" } });
     assert.equal(bad.status, 403);
-    const nul = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: "null" } });
+    const nul = await request(port, { path: "/health", headers: { ...auth, Origin: "null" } });
     assert.equal(nul.status, 403);
-    const good = await request(port, { path: `/health?token=${TOKEN}`, headers: { Origin: `http://127.0.0.1:${port}` } });
+    const good = await request(port, { path: "/health", headers: { ...auth, Origin: `http://127.0.0.1:${port}` } });
     assert.equal(good.status, 200);
   });
 
@@ -212,4 +225,80 @@ test("makeToken: 32 bytes of secure randomness, base64url, no fallback (§16)", 
   const t2 = makeToken();
   assert.notEqual(t1, t2);
   assert.match(t1, /^[A-Za-z0-9_-]{43}$/); // 32 bytes -> 43 base64url chars, no padding
+});
+
+test("query-token auth works ONLY when explicitly enabled (Doc1 §3.6)", async () => {
+  const { server, port } = await startServer({ agentAllowQueryToken: true });
+  const r = await request(port, { path: `/health?token=${TOKEN}` });
+  assert.equal(r.status, 200);
+  server.stop();
+});
+
+test("LAN mode refuses to start without a token, fails closed (Doc1 §3.8)", () => {
+  const noAuth = new KosmosAgentServer(http, settings({ agentBindMode: "lan", agentRequireToken: false }), fixtureProvider());
+  noAuth.start();
+  assert.match(noAuth.status, /LAN mode requires an auth token/);
+  assert.equal(noAuth.server, null);
+  noAuth.stop();
+
+  const emptyToken = new KosmosAgentServer(http, settings({ agentBindMode: "lan", agentToken: "" }), fixtureProvider());
+  emptyToken.start();
+  assert.match(emptyToken.status, /LAN mode requires an auth token/);
+  emptyToken.stop();
+});
+
+test("query-token is rejected in LAN mode even when allowed (Doc1 §3.6)", async () => {
+  // Bind to loopback so the test can connect, but exercise the LAN gate directly.
+  const server = new KosmosAgentServer(http, settings({ agentAllowQueryToken: true, agentBindMode: "lan" }), {
+    getGraph: async () => buildGraph(FILES, ["Ideas"]), getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
+  });
+  // authorized() must not accept a query token in LAN mode regardless of the flag.
+  const u = new URL(`http://127.0.0.1/health?token=${TOKEN}`);
+  assert.equal(server.authorized({ headers: {} }, u), false);
+  const u2 = new URL("http://127.0.0.1/health");
+  assert.equal(server.authorized({ headers: { authorization: `Bearer ${TOKEN}` } }, u2), true);
+});
+
+test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
+  const big = "x".repeat(MAX_NOTE_CONTENT_CHARS + 5000);
+  const provider = {
+    getGraph: async () => buildGraph([{ relativePath: "Big.md", content: "# Big\n" + big }], []),
+    getNoteContent: async () => big,
+    vaultName: () => "V", lanAddresses: () => [],
+  };
+  const server = new KosmosAgentServer(http, settings(), provider);
+  const note = await server.qNote({ title: "Big" });
+  assert.ok(note.content.length <= MAX_NOTE_CONTENT_CHARS + 100);
+  assert.match(note.content, /truncated/);
+});
+
+test("Host validation: loopback forms accepted, foreign/trailing-dot rejected", async () => {
+  const s = new KosmosAgentServer(http, settings(), fixtureProvider());
+  assert.equal(s.hostAllowed("127.0.0.1:4816"), true);
+  assert.equal(s.hostAllowed("localhost"), true);
+  assert.equal(s.hostAllowed("[::1]:4816"), true);
+  assert.equal(s.hostAllowed("LOCALHOST:4816"), true);
+  assert.equal(s.hostAllowed("evil.example.com"), false);
+  assert.equal(s.hostAllowed("localhost."), false); // trailing dot is not in the allow-set
+  assert.equal(s.hostAllowed(undefined), false);
+});
+
+test("Origin validation: absent allowed, null and cross-site rejected", () => {
+  const s = new KosmosAgentServer(http, settings(), fixtureProvider());
+  assert.equal(s.originAllowed(undefined), true);   // non-browser client
+  assert.equal(s.originAllowed(""), true);
+  assert.equal(s.originAllowed("null"), false);
+  assert.equal(s.originAllowed("http://127.0.0.1:4816"), true);
+  assert.equal(s.originAllowed("https://evil.example.com"), false);
+});
+
+test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
+  const migrated = migrateAgentSettings({ agentEnabled: true, agentPort: 5000, agentToken: "keepme" });
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.agentAllowQueryToken, false); // security default on upgrade
+  assert.equal(migrated.agentToken, "keepme");        // existing token preserved
+  assert.equal(migrated.agentPort, 5000);
+  // defaults fill in for a null load
+  const fresh = migrateAgentSettings(null);
+  assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);
 });

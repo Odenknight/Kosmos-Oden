@@ -33,21 +33,52 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 export type AgentBindMode = "localhost" | "lan";
 
+/** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
+export const AGENT_SETTINGS_SCHEMA = 2;
+
 export interface AgentSettings {
+  /** Settings schema version for migration on load. */
+  schemaVersion?: number;
   agentEnabled: boolean;
   agentPort: number;
   agentToken: string;
   agentRequireToken: boolean;
   agentBindMode: AgentBindMode;
+  /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
+   *  always rejected in LAN mode regardless of this flag. */
+  agentAllowQueryToken: boolean;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  schemaVersion: AGENT_SETTINGS_SCHEMA,
   agentEnabled: false,
   agentPort: 4816,
   agentToken: "",
   agentRequireToken: true,
   agentBindMode: "localhost",
+  agentAllowQueryToken: false,
 };
+
+/** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
+export function migrateAgentSettings(raw: any): AgentSettings {
+  const s: AgentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, raw || {});
+  // v1 had no agentAllowQueryToken and accepted query tokens implicitly. Migrating
+  // to v2 turns that OFF by default; the user can re-enable it explicitly.
+  if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
+  s.schemaVersion = AGENT_SETTINGS_SCHEMA;
+  return s;
+}
+
+/** Output caps returned by the read-only API (Doc2 §5.6). */
+export const MAX_NOTE_CONTENT_CHARS = 200_000;
+export const MAX_SEARCH_RESULTS = 200;
+export const MAX_EPISODES = 50_000;
+
+/** Rate + concurrency limits per client (Doc2 §5.4). Enforced in LAN mode; loopback is exempt. */
+export const RATE_WINDOW_MS = 10_000;
+export const RATE_MAX_REQUESTS = 240;      // ~24 req/s sustained per client
+export const MAX_CONCURRENT_REQUESTS = 24;
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Generate an auth token from a cryptographically secure source (§16).
@@ -89,6 +120,8 @@ export class KosmosAgentServer {
   private http: any;
   server: any = null;
   status = "stopped";
+  private inFlight = 0;
+  private hits = new Map<string, number[]>(); // client -> recent request timestamps
 
   constructor(http: any, settings: AgentSettings, provider: AgentDataProvider) {
     this.http = http;
@@ -99,17 +132,32 @@ export class KosmosAgentServer {
   get bindHost(): string { return this.settings.agentBindMode === "lan" ? "0.0.0.0" : "127.0.0.1"; }
   get url(): string { return `http://127.0.0.1:${this.settings.agentPort}`; }
 
+  /** LAN mode must never run without authentication (Doc1 §3.8, Doc2 §5.3). */
+  private lanNeedsAuthButHasNone(): boolean {
+    if (this.settings.agentBindMode !== "lan") return false;
+    return !this.settings.agentRequireToken || !this.settings.agentToken;
+  }
+
   start(onError?: (msg: string) => void): void {
     if (this.server) this.stop();
     if (!this.http) { this.status = "unavailable (no http module)"; return; }
+    if (this.lanNeedsAuthButHasNone()) {
+      this.status = "error: LAN mode requires an auth token — enable 'Require auth token' and generate one before binding to the network";
+      onError?.(this.status);
+      return; // fail closed: never expose the vault to the LAN without auth
+    }
+    this.inFlight = 0;
+    this.hits.clear();
     const srv = this.http.createServer((req: any, res: any) => {
       this.handle(req, res).catch((e: any) => {
         try {
-          res.writeHead(500, { "Content-Type": "application/json" });
+          res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" });
           res.end(JSON.stringify({ error: String(e?.message || e) }));
         } catch (_) { /* response already closed */ }
       });
     });
+    // Per-connection socket timeout backstops slow-loris style stalls (Doc2 §5.4).
+    if (typeof srv.setTimeout === "function") srv.setTimeout(REQUEST_TIMEOUT_MS);
     srv.on("error", (e: any) => {
       this.status = "error: " + (e?.code === "EADDRINUSE" ? `port ${this.settings.agentPort} is busy — pick another port in settings` : (e?.message || e));
       onError?.(this.status);
@@ -123,6 +171,33 @@ export class KosmosAgentServer {
     try { this.server && this.server.close(); } catch (_) { /* already closed */ }
     this.server = null;
     this.status = "stopped";
+    this.inFlight = 0;
+    this.hits.clear();
+  }
+
+  /** Constant-time string comparison — no early return on first mismatch (Doc1 §3.6). */
+  private timingSafeEqual(a: string, b: string): boolean {
+    const abuf = Buffer.from(String(a), "utf8");
+    const bbuf = Buffer.from(String(b), "utf8");
+    // Compare against a fixed-length digest so length itself does not leak via timing.
+    const pad = Math.max(abuf.length, bbuf.length, 1);
+    let diff = abuf.length ^ bbuf.length;
+    for (let i = 0; i < pad; i++) diff |= (abuf[i] ?? 0) ^ (bbuf[i] ?? 0);
+    return diff === 0;
+  }
+
+  /** Sliding-window rate limit + concurrency cap, applied to non-loopback clients. */
+  private rateLimited(req: any): { limited: boolean; reason?: string } {
+    const remote = String(req.socket?.remoteAddress || "");
+    const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1" || remote === "";
+    if (isLoopback) return { limited: false }; // local agents are trusted for throughput
+    if (this.inFlight >= MAX_CONCURRENT_REQUESTS) return { limited: true, reason: "too many concurrent requests" };
+    const now = performance.now();
+    const arr = (this.hits.get(remote) || []).filter((t) => now - t < RATE_WINDOW_MS);
+    if (arr.length >= RATE_MAX_REQUESTS) { this.hits.set(remote, arr); return { limited: true, reason: "rate limit exceeded" }; }
+    arr.push(now);
+    this.hits.set(remote, arr);
+    return { limited: false };
   }
 
   /* ---------------- security gates ---------------- */
@@ -163,10 +238,17 @@ export class KosmosAgentServer {
     const s = this.settings;
     if (!s.agentRequireToken) return true;
     if (!s.agentToken) return false;
+    const token = s.agentToken;
+    // Header auth is the documented default (Doc1 §3.6). Constant-time compare.
     const h = String(req.headers["authorization"] || "");
-    if (h.toLowerCase().startsWith("bearer ") && h.slice(7).trim() === s.agentToken) return true;
-    if (String(req.headers["x-api-key"] || "") === s.agentToken) return true;
-    if (urlObj.searchParams.get("token") === s.agentToken) return true;
+    if (h.toLowerCase().startsWith("bearer ") && this.timingSafeEqual(h.slice(7).trim(), token)) return true;
+    if (this.timingSafeEqual(String(req.headers["x-api-key"] || ""), token)) return true;
+    // Query-string tokens are deprecated: opt-in only, and NEVER accepted in LAN
+    // mode (query strings leak through history/proxies/logs, Doc1 §3.6).
+    if (s.agentAllowQueryToken && s.agentBindMode !== "lan") {
+      const q = urlObj.searchParams.get("token");
+      if (q != null && this.timingSafeEqual(q, token)) return true;
+    }
     return false;
   }
 
@@ -277,7 +359,7 @@ export class KosmosAgentServer {
   async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number } = {}): Promise<any> {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
-    const lim = Math.max(1, Math.min(200, opts.limit || 20));
+    const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
     const scored: Array<[number, KosmosNode]> = [];
     for (const n of this.fileNodes(graph)) {
       if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
@@ -319,8 +401,14 @@ export class KosmosAgentServer {
         related: n.okf.related,
       } : null,
       links: { outgoing, backlinks, semantic },
-      content: content ?? "",
+      content: this.capContent(content ?? ""),
     };
+  }
+
+  /** Cap a returned note body so one huge note cannot flood a client (Doc2 §5.6). */
+  private capContent(s: string): string {
+    if (s.length <= MAX_NOTE_CONTENT_CHARS) return s;
+    return s.slice(0, MAX_NOTE_CONTENT_CHARS) + `\n\n…[truncated: note exceeds ${MAX_NOTE_CONTENT_CHARS} characters]`;
   }
 
   /** Canonical lineage chain — identical to what the viewer displays (§33). */
@@ -392,7 +480,8 @@ export class KosmosAgentServer {
       if (c != null) contents.set(n.path, c);
     }
     const episodes = buildGraphitiEpisodesWithContent(graph, contents, { vault: this.provider.vaultName() });
-    return limit ? episodes.slice(0, limit) : episodes;
+    const cap = Math.min(limit ?? MAX_EPISODES, MAX_EPISODES);
+    return episodes.slice(0, cap);
   }
 
   async qGraph(): Promise<any> {
@@ -478,7 +567,23 @@ export class KosmosAgentServer {
 
   /* ---------------- HTTP dispatch ---------------- */
 
+  /** Public entry: enforce rate/concurrency limits, then dispatch. */
   async handle(req: any, res: any): Promise<void> {
+    const rl = this.rateLimited(req);
+    if (rl.limited) {
+      res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "5" });
+      res.end(JSON.stringify({ error: "too many requests", hint: rl.reason }));
+      return;
+    }
+    this.inFlight++;
+    try {
+      await this.dispatch(req, res);
+    } finally {
+      this.inFlight = Math.max(0, this.inFlight - 1);
+    }
+  }
+
+  private async dispatch(req: any, res: any): Promise<void> {
     // Host validation first (DNS-rebinding defence).
     if (!this.hostAllowed(req.headers["host"])) {
       this.json(res, 403, { error: "forbidden host", hint: "the Host header does not match an allowed address for this bind mode" });
@@ -490,15 +595,16 @@ export class KosmosAgentServer {
     }
     const u = new URL(req.url || "/", "http://127.0.0.1");
     const path = u.pathname.replace(/\/+$/, "") || "/";
-    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
+    if (req.method === "OPTIONS") { res.writeHead(204, { "Cache-Control": "no-store" }); res.end(); return; }
     if (!this.authorized(req, u)) {
-      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token>, x-api-key, or ?token=" });
+      // Generic message — does not distinguish missing from incorrect token (Doc1 §3.6).
+      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token> or x-api-key: <token>" });
       return;
     }
 
     if (path === "/mcp") {
-      if (req.method === "GET") { res.writeHead(405, { Allow: "POST, DELETE" }); res.end(); return; }
-      if (req.method === "DELETE") { res.writeHead(200); res.end(); return; } // stateless: nothing to terminate
+      if (req.method === "GET") { res.writeHead(405, { Allow: "POST, DELETE", "Cache-Control": "no-store" }); res.end(); return; }
+      if (req.method === "DELETE") { res.writeHead(200, { "Cache-Control": "no-store" }); res.end(); return; } // stateless: nothing to terminate
       let body: string;
       try {
         body = await this.readBody(req);
@@ -532,6 +638,7 @@ export class KosmosAgentServer {
           name: "Vault Kosmos Agent API",
           version: KOSMOS_VERSION,
           readOnly: true,
+          auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "streamable-http (stateless JSON responses)", supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes"],
         });

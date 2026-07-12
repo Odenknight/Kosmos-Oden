@@ -31,7 +31,7 @@ Desktop only: Obsidian on iPhone/Android can't run local servers, so this featur
 
 ### Claude Code (terminal)
 \`\`\`bash
-claude mcp add --transport http vault-kosmos "${URLB}/mcp?token=${token}"
+claude mcp add --transport http vault-kosmos "${URLB}/mcp" --header "Authorization: Bearer ${token}"
 \`\`\`
 
 Then ask Claude Code things like *"use vault-kosmos to show the lineage of Engine v2"*.
@@ -44,7 +44,7 @@ Settings → Developer → **Edit Config**, then add (needs Node.js installed on
   "mcpServers": {
     "vault-kosmos": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "${URLB}/mcp?token=${token}"]
+      "args": ["-y", "mcp-remote", "${URLB}/mcp", "--header", "Authorization: Bearer ${token}"]
     }
   }
 }
@@ -53,14 +53,16 @@ Settings → Developer → **Edit Config**, then add (needs Node.js installed on
 Restart Claude Desktop; **vault-kosmos** appears under tools.
 
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
-Add a remote/HTTP MCP server with URL \`${URLB}/mcp\` and header \`Authorization: Bearer ${token}\` (or append \`?token=${token}\`).
+Add a remote/HTTP MCP server with URL \`${URLB}/mcp\` and header \`Authorization: Bearer ${token}\`.
 
 ### No MCP? Plain HTTP works too
 \`\`\`bash
-curl "${URLB}/health?token=${token}"
-curl "${URLB}/lineage?title=Engine%20v2&token=${token}"
-curl "${URLB}/at?time=2026-04-01&token=${token}"
+curl -H "Authorization: Bearer ${token}" "${URLB}/health"
+curl -H "Authorization: Bearer ${token}" "${URLB}/lineage?title=Engine%20v2"
+curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 \`\`\`
+
+> \`?token=\` query authentication is deprecated and off by default; enable it in settings only if a client cannot send headers, and never in LAN mode.
 
 ## 3 · What agents can ask (MCP tools)
 
@@ -151,8 +153,16 @@ export class KosmosSettingTab extends PluginSettingTab {
         }));
     refreshNet();
 
-    new Setting(containerEl).setName("Require auth token").setDesc("Recommended. Agents must present the token below.")
-      .addToggle((t) => t.setValue(s.agentRequireToken).onChange(async (v) => { s.agentRequireToken = v; await this.plugin.saveAgentSettings(); }));
+    new Setting(containerEl).setName("Require auth token").setDesc("Recommended. Agents must present the token below. Always required in LAN mode — the server refuses to bind to the network without it.")
+      .addToggle((t) => t.setValue(s.agentRequireToken).onChange(async (v) => {
+        s.agentRequireToken = v;
+        await this.plugin.saveAgentSettings();
+        if (s.agentEnabled) { this.plugin.startAgentApi(); setTimeout(refresh, 150); }
+      }));
+
+    new Setting(containerEl).setName("Allow ?token= query authentication")
+      .setDesc("Deprecated and off by default. Query strings leak through browser history, proxy logs and screenshots. Header auth (Bearer / x-api-key) is preferred. Query tokens are always rejected in LAN mode.")
+      .addToggle((t) => t.setValue(s.agentAllowQueryToken).onChange(async (v) => { s.agentAllowQueryToken = v; await this.plugin.saveAgentSettings(); }));
 
     new Setting(containerEl).setName("Auth token").setDesc(s.agentToken || "(none)")
       .addButton((b) => b.setButtonText("Copy").onClick(() => { navigator.clipboard.writeText(s.agentToken); new Notice("Token copied"); }))
@@ -176,19 +186,19 @@ export class KosmosSettingTab extends PluginSettingTab {
       return `http://127.0.0.1:${s.agentPort}`;
     };
     if (s.agentBindMode === "lan") containerEl.createEl("p", { text: "Copy buttons below use your LAN address so remote agents can reach this vault.", cls: "setting-item-description" });
-    new Setting(containerEl).setName("Claude Code").setDesc("Copies a one-line terminal command.")
+    new Setting(containerEl).setName("Claude Code").setDesc("Copies a one-line terminal command (header auth).")
       .addButton((b) => b.setButtonText("Copy command").onClick(() => {
-        navigator.clipboard.writeText(`claude mcp add --transport http vault-kosmos "${url()}/mcp?token=${s.agentToken}"`);
+        navigator.clipboard.writeText(`claude mcp add --transport http vault-kosmos "${url()}/mcp" --header "Authorization: Bearer ${s.agentToken}"`);
         new Notice("Claude Code command copied — paste it in a terminal");
       }));
     new Setting(containerEl).setName("Claude Desktop / stdio MCP apps").setDesc("Copies JSON for claude_desktop_config.json (uses npx mcp-remote; needs Node.js).")
       .addButton((b) => b.setButtonText("Copy config").onClick(() => {
-        navigator.clipboard.writeText(JSON.stringify({ mcpServers: { "vault-kosmos": { command: "npx", args: ["-y", "mcp-remote", `${url()}/mcp?token=${s.agentToken}`] } } }, null, 2));
+        navigator.clipboard.writeText(JSON.stringify({ mcpServers: { "vault-kosmos": { command: "npx", args: ["-y", "mcp-remote", `${url()}/mcp`, "--header", `Authorization: Bearer ${s.agentToken}`] } } }, null, 2));
         new Notice("Claude Desktop config copied");
       }));
-    new Setting(containerEl).setName("Quick test").setDesc("Copies a cURL health check.")
+    new Setting(containerEl).setName("Quick test").setDesc("Copies a cURL health check (header auth).")
       .addButton((b) => b.setButtonText("Copy cURL").onClick(() => {
-        navigator.clipboard.writeText(`curl "${url()}/health?token=${s.agentToken}"`);
+        navigator.clipboard.writeText(`curl -H "Authorization: Bearer ${s.agentToken}" "${url()}/health"`);
         new Notice("cURL test copied");
       }));
     new Setting(containerEl).setName("Step-by-step guide").setDesc("Writes AGENT-API.md into your vault with YOUR address and token filled in.")

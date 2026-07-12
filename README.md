@@ -119,17 +119,27 @@ Uses the same bundled Kosmos Core as the plugin and the standalone page — not 
 ## Build from source
 
 ```bash
-npm ci
+nvm use                  # Node 22 (see .nvmrc); engines pinned in package.json
+npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
 npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
 npm run build:standalone # just vault-kosmos.html
-npm test                 # 84 unit/API/artifact tests (node --test)
+npm test                 # 90 unit/API/artifact tests (node --test)
+npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
 ```
 
-A clean checkout builds and tests with exactly these commands — no manually generated files required. CI (GitHub Actions) runs typecheck, both builds, the test suite, version-synchronization and artifact self-containment checks on every push and pull request; releases are gated on all of them.
+A clean checkout builds and tests with exactly these commands — no manually generated files required. Toolchain and dependencies are pinned (no `"latest"`), so repeated clean builds produce the **same** executable artifacts; a CI job proves it by building twice and diffing the hashes. CI (GitHub Actions, minimal `contents: read` permissions) runs typecheck, both builds, the test suite, version-synchronization, artifact self-containment, and the `kosmos-invariants.yml` policy on every push and pull request. Releases are built **from the tag** with `SHA256SUMS` + `BUILD-INFO.json` provenance and are gated on the full pipeline.
 
 Performance: see [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for measured numbers (100 → 50,000 notes) — no claims beyond what the benchmark reproduces.
+
+## Security, assurance & governance
+
+- [SECURITY.md](SECURITY.md) — reporting, and the enforced security invariants.
+- [kosmos-invariants.yml](kosmos-invariants.yml) — machine-readable policy, checked in CI.
+- [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/RENDERER-PROTOCOL.md](docs/RENDERER-PROTOCOL.md) (incl. the iframe sandbox experiment) · [docs/RELEASE-PROCESS.md](docs/RELEASE-PROCESS.md).
+- [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- The two upstream engineering assessments this build was hardened against live in [docs/assessments/](docs/assessments/).
 
 ## Repository layout
 

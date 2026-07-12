@@ -82,13 +82,29 @@ var KOSMOS_VERSION = "0.5.5";
 var SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"];
 var LATEST_MCP_PROTOCOL_VERSION = SUPPORTED_MCP_PROTOCOL_VERSIONS[0];
 var MAX_BODY_BYTES = 4 * 1024 * 1024;
+var AGENT_SETTINGS_SCHEMA = 2;
 var DEFAULT_AGENT_SETTINGS = {
+  schemaVersion: AGENT_SETTINGS_SCHEMA,
   agentEnabled: false,
   agentPort: 4816,
   agentToken: "",
   agentRequireToken: true,
-  agentBindMode: "localhost"
+  agentBindMode: "localhost",
+  agentAllowQueryToken: false
 };
+function migrateAgentSettings(raw) {
+  const s = Object.assign({}, DEFAULT_AGENT_SETTINGS, raw || {});
+  if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
+  s.schemaVersion = AGENT_SETTINGS_SCHEMA;
+  return s;
+}
+var MAX_NOTE_CONTENT_CHARS = 2e5;
+var MAX_SEARCH_RESULTS = 200;
+var MAX_EPISODES = 5e4;
+var RATE_WINDOW_MS = 1e4;
+var RATE_MAX_REQUESTS = 240;
+var MAX_CONCURRENT_REQUESTS = 24;
+var REQUEST_TIMEOUT_MS = 3e4;
 function makeToken() {
   const c = globalThis.crypto;
   if (!c || typeof c.getRandomValues !== "function") {
@@ -105,9 +121,12 @@ function makeToken() {
 }
 var LOCAL_HOSTNAMES = /* @__PURE__ */ new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]);
 var KosmosAgentServer = class {
+  // client -> recent request timestamps
   constructor(http, settings, provider) {
     this.server = null;
     this.status = "stopped";
+    this.inFlight = 0;
+    this.hits = /* @__PURE__ */ new Map();
     this.http = http;
     this.settings = settings;
     this.provider = provider;
@@ -118,21 +137,34 @@ var KosmosAgentServer = class {
   get url() {
     return `http://127.0.0.1:${this.settings.agentPort}`;
   }
+  /** LAN mode must never run without authentication (Doc1 §3.8, Doc2 §5.3). */
+  lanNeedsAuthButHasNone() {
+    if (this.settings.agentBindMode !== "lan") return false;
+    return !this.settings.agentRequireToken || !this.settings.agentToken;
+  }
   start(onError) {
     if (this.server) this.stop();
     if (!this.http) {
       this.status = "unavailable (no http module)";
       return;
     }
+    if (this.lanNeedsAuthButHasNone()) {
+      this.status = "error: LAN mode requires an auth token \u2014 enable 'Require auth token' and generate one before binding to the network";
+      onError?.(this.status);
+      return;
+    }
+    this.inFlight = 0;
+    this.hits.clear();
     const srv = this.http.createServer((req, res) => {
       this.handle(req, res).catch((e) => {
         try {
-          res.writeHead(500, { "Content-Type": "application/json" });
+          res.writeHead(500, { "Content-Type": "application/json", "Cache-Control": "no-store" });
           res.end(JSON.stringify({ error: String(e?.message || e) }));
         } catch (_) {
         }
       });
     });
+    if (typeof srv.setTimeout === "function") srv.setTimeout(REQUEST_TIMEOUT_MS);
     srv.on("error", (e) => {
       this.status = "error: " + (e?.code === "EADDRINUSE" ? `port ${this.settings.agentPort} is busy \u2014 pick another port in settings` : e?.message || e);
       onError?.(this.status);
@@ -150,6 +182,33 @@ var KosmosAgentServer = class {
     }
     this.server = null;
     this.status = "stopped";
+    this.inFlight = 0;
+    this.hits.clear();
+  }
+  /** Constant-time string comparison — no early return on first mismatch (Doc1 §3.6). */
+  timingSafeEqual(a, b) {
+    const abuf = Buffer.from(String(a), "utf8");
+    const bbuf = Buffer.from(String(b), "utf8");
+    const pad = Math.max(abuf.length, bbuf.length, 1);
+    let diff = abuf.length ^ bbuf.length;
+    for (let i = 0; i < pad; i++) diff |= (abuf[i] ?? 0) ^ (bbuf[i] ?? 0);
+    return diff === 0;
+  }
+  /** Sliding-window rate limit + concurrency cap, applied to non-loopback clients. */
+  rateLimited(req) {
+    const remote = String(req.socket?.remoteAddress || "");
+    const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1" || remote === "";
+    if (isLoopback) return { limited: false };
+    if (this.inFlight >= MAX_CONCURRENT_REQUESTS) return { limited: true, reason: "too many concurrent requests" };
+    const now = performance.now();
+    const arr = (this.hits.get(remote) || []).filter((t) => now - t < RATE_WINDOW_MS);
+    if (arr.length >= RATE_MAX_REQUESTS) {
+      this.hits.set(remote, arr);
+      return { limited: true, reason: "rate limit exceeded" };
+    }
+    arr.push(now);
+    this.hits.set(remote, arr);
+    return { limited: false };
   }
   /* ---------------- security gates ---------------- */
   allowedHostnames() {
@@ -184,10 +243,14 @@ var KosmosAgentServer = class {
     const s = this.settings;
     if (!s.agentRequireToken) return true;
     if (!s.agentToken) return false;
+    const token = s.agentToken;
     const h = String(req.headers["authorization"] || "");
-    if (h.toLowerCase().startsWith("bearer ") && h.slice(7).trim() === s.agentToken) return true;
-    if (String(req.headers["x-api-key"] || "") === s.agentToken) return true;
-    if (urlObj.searchParams.get("token") === s.agentToken) return true;
+    if (h.toLowerCase().startsWith("bearer ") && this.timingSafeEqual(h.slice(7).trim(), token)) return true;
+    if (this.timingSafeEqual(String(req.headers["x-api-key"] || ""), token)) return true;
+    if (s.agentAllowQueryToken && s.agentBindMode !== "lan") {
+      const q = urlObj.searchParams.get("token");
+      if (q != null && this.timingSafeEqual(q, token)) return true;
+    }
     return false;
   }
   /** Read the body with a BYTE limit (§17): received_bytes > limit -> reject.
@@ -288,7 +351,7 @@ var KosmosAgentServer = class {
   async qSearch(query, opts = {}) {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
-    const lim = Math.max(1, Math.min(200, opts.limit || 20));
+    const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
     const scored = [];
     for (const n of this.fileNodes(graph)) {
       if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
@@ -329,8 +392,15 @@ var KosmosAgentServer = class {
         related: n.okf.related
       } : null,
       links: { outgoing, backlinks, semantic },
-      content: content ?? ""
+      content: this.capContent(content ?? "")
     };
+  }
+  /** Cap a returned note body so one huge note cannot flood a client (Doc2 §5.6). */
+  capContent(s) {
+    if (s.length <= MAX_NOTE_CONTENT_CHARS) return s;
+    return s.slice(0, MAX_NOTE_CONTENT_CHARS) + `
+
+\u2026[truncated: note exceeds ${MAX_NOTE_CONTENT_CHARS} characters]`;
   }
   /** Canonical lineage chain — identical to what the viewer displays (§33). */
   async qLineage(sel) {
@@ -397,7 +467,8 @@ var KosmosAgentServer = class {
       if (c != null) contents.set(n.path, c);
     }
     const episodes = buildGraphitiEpisodesWithContent(graph, contents, { vault: this.provider.vaultName() });
-    return limit ? episodes.slice(0, limit) : episodes;
+    const cap = Math.min(limit ?? MAX_EPISODES, MAX_EPISODES);
+    return episodes.slice(0, cap);
   }
   async qGraph() {
     const graph = await this.provider.getGraph();
@@ -483,7 +554,22 @@ var KosmosAgentServer = class {
     }
   }
   /* ---------------- HTTP dispatch ---------------- */
+  /** Public entry: enforce rate/concurrency limits, then dispatch. */
   async handle(req, res) {
+    const rl = this.rateLimited(req);
+    if (rl.limited) {
+      res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "5" });
+      res.end(JSON.stringify({ error: "too many requests", hint: rl.reason }));
+      return;
+    }
+    this.inFlight++;
+    try {
+      await this.dispatch(req, res);
+    } finally {
+      this.inFlight = Math.max(0, this.inFlight - 1);
+    }
+  }
+  async dispatch(req, res) {
     if (!this.hostAllowed(req.headers["host"])) {
       this.json(res, 403, { error: "forbidden host", hint: "the Host header does not match an allowed address for this bind mode" });
       return;
@@ -495,22 +581,22 @@ var KosmosAgentServer = class {
     const u = new URL(req.url || "/", "http://127.0.0.1");
     const path = u.pathname.replace(/\/+$/, "") || "/";
     if (req.method === "OPTIONS") {
-      res.writeHead(204);
+      res.writeHead(204, { "Cache-Control": "no-store" });
       res.end();
       return;
     }
     if (!this.authorized(req, u)) {
-      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token>, x-api-key, or ?token=" });
+      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token> or x-api-key: <token>" });
       return;
     }
     if (path === "/mcp") {
       if (req.method === "GET") {
-        res.writeHead(405, { Allow: "POST, DELETE" });
+        res.writeHead(405, { Allow: "POST, DELETE", "Cache-Control": "no-store" });
         res.end();
         return;
       }
       if (req.method === "DELETE") {
-        res.writeHead(200);
+        res.writeHead(200, { "Cache-Control": "no-store" });
         res.end();
         return;
       }
@@ -565,6 +651,7 @@ var KosmosAgentServer = class {
           name: "Vault Kosmos Agent API",
           version: KOSMOS_VERSION,
           readOnly: true,
+          auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "streamable-http (stateless JSON responses)", supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes"]
         });
@@ -605,10 +692,19 @@ var KosmosAgentServer = class {
   }
 };
 export {
+  AGENT_SETTINGS_SCHEMA,
   DEFAULT_AGENT_SETTINGS,
   KosmosAgentServer,
   LATEST_MCP_PROTOCOL_VERSION,
   MAX_BODY_BYTES,
+  MAX_CONCURRENT_REQUESTS,
+  MAX_EPISODES,
+  MAX_NOTE_CONTENT_CHARS,
+  MAX_SEARCH_RESULTS,
+  RATE_MAX_REQUESTS,
+  RATE_WINDOW_MS,
+  REQUEST_TIMEOUT_MS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
-  makeToken
+  makeToken,
+  migrateAgentSettings
 };

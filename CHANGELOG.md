@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to Kosmos-Oden are documented here. Format based on
+[Keep a Changelog](https://keepachangelog.com/); versioning is
+[SemVer](https://semver.org/) (pre-1.0: minor versions may include breaking
+changes, called out under **Compatibility**).
+
+## [0.5.5] — 2026-07-11
+
+Full rebuild on a shared **Kosmos Core**, then hardened per the two v0.5.1
+engineering assessments (`docs/assessments/`).
+
+### Added
+- **Shared Kosmos Core** (`src/core/`) — one parsing / resolution / canonical-lineage / temporal / graph / Graphiti implementation consumed by the plugin, the standalone viewer, the Agent API, the Graphiti exporter and the `kosmos-build` CLI.
+- **Canonical lineage** — `supersedes` / `superseded_by` normalized bidirectionally; one-sided declarations invalidate predecessors; cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps, duplicates and ambiguous resolution detected and surfaced through diagnostics.
+- **Single temporal projector** shared by Chrono, the Agent API `graph_at_time` and the tests.
+- **True incremental index** — one edited note costs one parse (test-verified); rename moves the cache without reparsing; documented structural-rebuild threshold.
+- **Genuine standalone single-file viewer** (`vault-kosmos.html`) — `showDirectoryPicker` + `webkitdirectory` snapshot fallback, IndexedDB handle persistence, rescan-and-diff monitoring, status panel, in-page errors, browser-download exports.
+- **`kosmos-build.mjs` CLI** on the shared core (`--episodes`, `--watch`).
+- **84-test suite** (parser, resolver, lineage, temporal, incremental, Graphiti, Agent API, standalone artifact), reproducible benchmarks (100–50,000 notes).
+- **CI + release workflows**, version-sync + artifact self-containment checks.
+- Reproducibility double-build CI job; `SHA256SUMS` + `BUILD-INFO.json` release provenance; `kosmos-invariants.yml` policy with `check:invariants`; Dependabot; pinned toolchain + committed `package-lock.json`.
+- Versioned host↔renderer message protocol with structural validation; the plugin iframe is now sandboxed (`allow-scripts allow-pointer-lock allow-downloads`, no `allow-same-origin`).
+- Governance docs: `SECURITY.md`, `CONTRIBUTING.md`, `THREAT-MODEL.md`, `ARCHITECTURE.md`, `RELEASE-PROCESS.md`, `RENDERER-PROTOCOL.md`, `THIRD-PARTY-NOTICES.md`.
+
+### Changed
+- Renderer extracted from the v0.5.0 base64 monolith into reviewable modules (`src/renderer/`); the single-file artifacts are now deterministically generated at build time.
+- README/AGENT-API rewritten to match what the code proves (no universal no-overlap claim, temporal-validity-intervals instead of "bitemporal", explicit list of file-producing commands).
+- Removed a quadratic orphan scan from graph assembly (50k-note build 75.7 s → 2.2 s).
+
+### Fixed
+- Frontmatter parsing broke on a UTF-8 BOM and on the CRLF-terminated last header line (both present in v0.5.0).
+- Agent API token generation no longer has a `Math.random()` fallback (fails closed without a CSPRNG).
+- Request-size limit now counts bytes, not JS string length.
+
+### Security
+- MCP protocol-version negotiation against an explicit supported list (no echo of unknown versions).
+- `Host` and `Origin` validation (DNS-rebinding / cross-site defence).
+- LAN mode refuses to start without a token; query-string token auth deprecated, off by default, always rejected in LAN mode.
+- Constant-time token comparison; `Cache-Control: no-store` on all responses.
+- Per-client rate limit + concurrency cap + request timeout; output caps on note bodies, search results and episode exports.
+
+### Compatibility
+- Settings schema migrated to v2 on load; existing tokens preserved. Query-token auth defaults OFF — clients using `?token=` must switch to `Authorization: Bearer` / `x-api-key`, or re-enable the deprecated option in settings (removal targeted for the next breaking release).
+- Legacy flat `kosmos:files` / `kosmos:update` / `kosmos:open` postMessage shapes are still accepted alongside the new versioned envelope.
+- Upstream MIT attribution and bundled Three.js (MIT) notices retained (`THIRD-PARTY-NOTICES.md`).
+
+## [0.5.0]
+
+Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, OKF+
+temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
+base64-embedded single HTML string.

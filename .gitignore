@@ -2,6 +2,7 @@ node_modules/
 *.map
 *.tgz
 .DS_Store
+release/
 
 # Obsidian plugin runtime data (contains the local Agent API token — never commit)
 data.json

@@ -22,7 +22,7 @@ Desktop only: Obsidian on iPhone/Android can't run local servers (the 3D view st
 
 ### Claude Code (terminal)
 ```bash
-claude mcp add --transport http vault-kosmos "http://127.0.0.1:4816/mcp?token=<TOKEN>"
+claude mcp add --transport http vault-kosmos "http://127.0.0.1:4816/mcp" --header "Authorization: Bearer <TOKEN>"
 ```
 
 ### Claude Desktop (and other stdio-only MCP apps)
@@ -33,21 +33,23 @@ Settings → Developer → **Edit Config** (needs Node.js once, from nodejs.org)
   "mcpServers": {
     "vault-kosmos": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:4816/mcp?token=<TOKEN>"]
+      "args": ["-y", "mcp-remote", "http://127.0.0.1:4816/mcp", "--header", "Authorization: Bearer <TOKEN>"]
     }
   }
 }
 ```
 
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
-URL `http://127.0.0.1:4816/mcp` with header `Authorization: Bearer <TOKEN>` (or append `?token=<TOKEN>`).
+URL `http://127.0.0.1:4816/mcp` with header `Authorization: Bearer <TOKEN>`.
 
 ### No MCP? Plain HTTP works too
 ```bash
-curl "http://127.0.0.1:4816/health?token=<TOKEN>"
-curl "http://127.0.0.1:4816/lineage?title=Engine%20v2&token=<TOKEN>"
-curl "http://127.0.0.1:4816/at?time=2026-04-01&token=<TOKEN>"
+curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/health"
+curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/lineage?title=Engine%20v2"
+curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/at?time=2026-04-01"
 ```
+
+> `?token=` query authentication is **deprecated and off by default** (query strings leak through history, proxy logs and screenshots). Enable it in settings only if a client cannot send headers — it is always rejected in LAN mode.
 
 ## 3 · What agents can ask (MCP tools)
 
@@ -71,7 +73,9 @@ REST mirrors: `/overview /diagnostics /graph /notes /note /lineage /related /at 
 ## 5 · Safety & troubleshooting
 
 - Read-only by design; REST is GET-only and MCP exposes query tools only — there are no write endpoints.
-- Request bodies are capped at **4 MiB, measured in bytes** (HTTP 413 beyond that).
-- The server validates `Host` and `Origin` headers against the bind mode, blocking DNS-rebinding and cross-site browser requests.
-- Tokens are generated from a cryptographically secure source (32 random bytes, base64url); there is no insecure fallback. **Regenerate** in settings invalidates old tokens instantly.
-- **401 unauthorized** → token missing/stale; re-copy from settings. **403 forbidden host/origin** → the request came through a hostname the server doesn't serve; use `127.0.0.1`. **Port busy** → change the port in settings. **Tools not appearing** → restart the agent app after editing its config.
+- Request bodies are capped at **4 MiB, measured in bytes** (HTTP 413 beyond that). Note bodies, search results and episode exports are also capped.
+- Non-loopback clients are **rate-limited** (per-IP sliding window) with a concurrency cap; loopback is exempt for throughput.
+- The server validates `Host` and `Origin` headers against the bind mode, blocking DNS-rebinding and cross-site browser requests. All responses set `Cache-Control: no-store`.
+- **LAN mode cannot start without a token** — the server fails closed rather than exposing the vault unauthenticated.
+- Tokens are generated from a cryptographically secure source (32 random bytes, base64url); there is no insecure fallback, and comparison is constant-time. **Regenerate** in settings invalidates old tokens instantly.
+- **401 unauthorized** → token missing/stale, or you used `?token=` while it's disabled; use a header. **403 forbidden host/origin** → the request came through a hostname the server doesn't serve; use `127.0.0.1`. **429 too many requests** → back off (LAN clients). **Port busy** → change the port in settings.

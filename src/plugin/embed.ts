@@ -10,11 +10,12 @@
 import { KosmosIndex, type IndexChanges } from "../core/incremental";
 import type { SourceFile } from "../core/types";
 import { createKosmosApp } from "../renderer/renderer";
+import { validateHostMessage, wrap } from "./protocol";
 
 const app = createKosmosApp({
   autoStart: "wait",
   onOpenNote: (path, label) => {
-    try { window.parent.postMessage({ type: "kosmos:open", path, label }, "*"); } catch (_) { /* sandboxed */ }
+    try { window.parent.postMessage(wrap("open-note", { path, label }), "*"); } catch (_) { /* sandboxed */ }
   },
 });
 const index = new KosmosIndex();
@@ -40,34 +41,45 @@ function toSourceFiles(files: Array<{ relativePath: string; content: string }>):
   return (files || []).map((f) => ({ relativePath: f.relativePath, content: f.content, kind: "note" as const }));
 }
 
+function applySnapshot(msg: FilesMessage): void {
+  const update = index.setFiles(toSourceFiles(msg.files), msg.folders || [], msg.attachments || []);
+  app.setAttachments(msg.attachments || []);
+  app.renderGraph(update.graph, msg.label || "Vault");
+  for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
+}
+function applyDelta(msg: UpdateMessage): void {
+  const changes: IndexChanges = {
+    changed: toSourceFiles(msg.changed || []),
+    removed: msg.removed || [],
+    renames: msg.renames || [],
+    folders: msg.folders,
+    attachments: msg.attachments,
+  };
+  const update = index.applyChanges(changes);
+  if (msg.attachments) app.setAttachments(msg.attachments);
+  app.renderGraph(update.graph, msg.label || "Vault");
+  for (const p of [...(msg.changed || []).map((c) => c.relativePath)]) {
+    app.notifyLiveEvent({ path: p, type: update.delta.addedNodes.includes(`file:${p}`) ? "add" : "change" });
+  }
+}
+
 window.addEventListener("message", (ev: MessageEvent) => {
-  const m: any = ev && ev.data;
-  if (!m || !m.type) return;
+  const raw: any = ev && ev.data;
+  if (!raw || typeof raw !== "object") return;
   try {
-    if (m.type === "kosmos:files") {
-      const msg = m as FilesMessage;
-      const update = index.setFiles(toSourceFiles(msg.files), msg.folders || [], msg.attachments || []);
-      app.setAttachments(msg.attachments || []);
-      app.renderGraph(update.graph, msg.label || "Vault");
-      for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
-    } else if (m.type === "kosmos:update") {
-      const msg = m as UpdateMessage;
-      const changes: IndexChanges = {
-        changed: toSourceFiles(msg.changed || []),
-        removed: msg.removed || [],
-        renames: msg.renames || [],
-        folders: msg.folders,
-        attachments: msg.attachments,
-      };
-      const update = index.applyChanges(changes);
-      if (msg.attachments) app.setAttachments(msg.attachments);
-      app.renderGraph(update.graph, msg.label || "Vault");
-      for (const p of [...(msg.changed || []).map((c) => c.relativePath)]) {
-        app.notifyLiveEvent({ path: p, type: update.delta.addedNodes.includes(`file:${p}`) ? "add" : "change" });
-      }
-    } else if (m.type === "kosmos:graph") {
-      app.renderGraph(m.graph, m.label);
+    // Preferred path: versioned, structurally validated envelope (§3.4).
+    if (raw.protocol === "vault-kosmos") {
+      const v = validateHostMessage(raw);
+      if (!v.ok) { if (v.reason) console.warn("Vault Kosmos: rejected host message —", v.reason); return; }
+      const msg = v.message!;
+      if (msg.type === "vault-snapshot") applySnapshot(msg.payload as FilesMessage);
+      else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
+      return;
     }
+    // Backward-compatible path: legacy flat messages (older host builds).
+    if (raw.type === "kosmos:files") applySnapshot(raw as FilesMessage);
+    else if (raw.type === "kosmos:update") applyDelta(raw as UpdateMessage);
+    else if (raw.type === "kosmos:graph") app.renderGraph(raw.graph, raw.label);
   } catch (e) {
     console.error("Vault Kosmos:", e);
     app.showError("Could not render this vault.");

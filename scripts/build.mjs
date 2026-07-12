@@ -63,7 +63,10 @@ async function buildNodeBundles() {
   // cosmology + layout are DOM-free, so the classification/packing pipeline is testable in Node
   const layout = await bundle("src/renderer/layout.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-layout.mjs"), layout);
-  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs");
+  // host<->renderer protocol validation is DOM-free and unit-testable
+  const protocol = await bundle("src/plugin/protocol.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-protocol.mjs"), protocol);
+  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs");
 }
 
 function composePage(title, appJs) {

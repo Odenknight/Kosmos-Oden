@@ -13,8 +13,9 @@
 import { ItemView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../core/version";
-import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, type AgentSettings } from "./agent-server";
+import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide } from "./settings";
+import { KOSMOS_PROTOCOL, KOSMOS_PROTOCOL_VERSION, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 
 const VIEW_TYPE = "vault-kosmos-view";
@@ -61,6 +62,12 @@ class KosmosView extends ItemView {
     root.addClass("vault-kosmos-root");
     const frame = document.createElement("iframe");
     frame.setAttribute("title", "Vault Kosmos");
+    // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
+    // context. It needs scripts (WebGL/Three.js), pointer lock (fly mode) and
+    // downloads (exports); it does NOT get allow-same-origin, so it cannot reach
+    // this window's storage/DOM. Note opening is mediated purely via postMessage.
+    // See docs/RENDERER-PROTOCOL.md for the bounded sandbox compatibility result.
+    frame.setAttribute("sandbox", "allow-scripts allow-pointer-lock allow-downloads");
     frame.addEventListener("load", () => { void this.sendFull(); });
     frame.srcdoc = kosmosHtml();
     root.appendChild(frame);
@@ -72,12 +79,19 @@ class KosmosView extends ItemView {
   private onMessage(ev: MessageEvent): void {
     if (!this.frame || ev.source !== this.frame.contentWindow) return;     // only our own iframe
     const data: any = ev.data;
-    if (!data || data.type !== "kosmos:open" || typeof data.path !== "string") return;
-    const file = this.app.vault.getAbstractFileByPath(data.path);
+    // Accept the versioned open-note envelope; fall back to the legacy shape.
+    let path: string | undefined;
+    if (data && data.protocol === KOSMOS_PROTOCOL && data.version === KOSMOS_PROTOCOL_VERSION && data.type === "open-note") {
+      path = typeof data.payload?.path === "string" ? data.payload.path : undefined;
+    } else if (data && data.type === "kosmos:open" && typeof data.path === "string") {
+      path = data.path;
+    }
+    if (!path) return;
+    const file = this.app.vault.getAbstractFileByPath(path);
     if (file instanceof TFile) {
       void this.app.workspace.getLeaf("tab").openFile(file);               // open the note in a NEW tab
     } else {
-      void this.app.workspace.openLinkText(data.path, "", "tab");          // fall back to link resolution
+      void this.app.workspace.openLinkText(path, "", "tab");               // fall back to link resolution
     }
   }
 
@@ -97,7 +111,7 @@ class KosmosView extends ItemView {
       this.hashes.set(f.path, hashContent(c));
     }
     this.fileCount = md.length;
-    this.post({ type: "kosmos:files", files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault" });
+    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault" }));
     this.ready = true;
     this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
   }
@@ -168,7 +182,7 @@ class KosmosView extends ItemView {
 
     const folders = (wasStructural || renames.length) ? folderListFrom(md) : undefined;
     const attachments = attachmentListFrom(this.app.vault.getFiles());
-    this.post({ type: "kosmos:update", changed, removed, renames, folders, attachments, label: "Vault" });
+    this.post(wrap("vault-delta", { changed, removed, renames, folders, attachments, label: "Vault" }));
   }
 
   async onClose(): Promise<void> {
@@ -198,7 +212,7 @@ export default class VaultKosmosPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
-    this.agentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, (await this.loadData()) || {});
+    this.agentSettings = migrateAgentSettings(await this.loadData());
     if (!this.agentSettings.agentToken) {
       try {
         this.agentSettings.agentToken = makeToken();
