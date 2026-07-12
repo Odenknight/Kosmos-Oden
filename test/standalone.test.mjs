@@ -41,8 +41,11 @@ test("no external runtime URL dependencies (§2.1)", () => {
   for (const f of fetches) assert.ok(!/^https?:/i.test(f), `network fetch: ${f}`);
 });
 
-test("Three.js, core and both folder-access paths are inlined", () => {
-  assert.ok(html.includes("Three.js"), "Three.js banner");
+test("bundled renderer + core + both folder-access paths are inlined", () => {
+  // Three.js is now an esbuild-bundled ESM module (no vendored global banner);
+  // the page carries the renderer build marker instead.
+  assert.ok(/kosmos-renderer" content="three r\d+ WebGLRenderer webgl2"/.test(html), "renderer build marker present");
+  assert.ok(html.includes("REVISION"), "Three.js runtime bundled");
   assert.ok(html.includes("showDirectoryPicker"), "persistent directory picker (§6.1)");
   assert.ok(html.includes("webkitdirectory"), "snapshot fallback input (§6.2)");
   assert.ok(html.includes("__kosmosStandalone"), "test/diagnostic hook");

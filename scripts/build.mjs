@@ -11,8 +11,9 @@
  *   vault-kosmos.html             single-file STANDALONE viewer (repo root)
  *   main.js                       Obsidian plugin bundle (embeds the iframe page)
  *
- * Every artifact inlines Three.js (vendor/three.min.js), all JS and all CSS.
- * No CDN, no external runtime URL, works from file:// (§2.1).
+ * Every artifact bundles Three.js (exact-pinned ESM `three`, esbuild-bundled
+ * into the app), all JS and all CSS. No CDN, no external runtime URL, works
+ * from file:// (§2.1). Renderer provenance is recorded in renderer-provenance.json.
  *
  * Usage:
  *   node scripts/build.mjs                  full build
@@ -69,25 +70,28 @@ async function buildNodeBundles() {
   console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs");
 }
 
+const RENDERER_PROVENANCE = JSON.parse(readFileSync(resolve(root, "renderer-provenance.json"), "utf8"));
+
 function composePage(title, appJs) {
   const css = readFileSync(resolve(root, "src/renderer/kosmos.css"), "utf8");
   const body = readFileSync(resolve(root, "src/renderer/kosmos-body.html"), "utf8");
-  const three = readFileSync(resolve(root, "vendor/three.min.js"), "utf8");
+  // Three.js is now an ESM dependency bundled into appJs by esbuild — no separate
+  // vendored <script> and no CDN. A diagnostic build marker records the renderer.
+  const marker = `three r${RENDERER_PROVENANCE.threeRevision} ${RENDERER_PROVENANCE.stableBackend} webgl${RENDERER_PROVENANCE.webglVersion}`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="kosmos-renderer" content="${marker}" />
 <title>${title}</title>
 <style>
 ${css}
 </style>
 </head>
 <body>
+<!-- Kosmos renderer: ${marker} (Three.js bundled from the exact-pinned npm module; no CDN, no runtime fetch) -->
 ${body}
-<script>
-${escapeInline(three)}
-</script>
 <script>
 ${escapeInline(appJs)}
 </script>

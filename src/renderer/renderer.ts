@@ -20,11 +20,26 @@
  * topology/visual change -> warm relayout; metadata-only -> in-place refresh;
  * identical -> no-op (§11).
  */
+import * as THREE from "three";
 import { createDemoVaultEvents, createDemoVaultGraph } from "../core/demo";
 import { KOSMOS_VERSION } from "../core/version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";
+
+/** Renderer descriptor exposed for browser tests / diagnostics (§7.4). */
+export const RENDERER_BACKEND = "webgl2";
+export const RENDERER_THREE_REVISION = THREE.REVISION;
+
+/** WebGL2 capability probe — modern Three.js WebGLRenderer is WebGL2-only. */
+function hasWebGL2(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!c.getContext("webgl2");
+  } catch {
+    return false;
+  }
+}
 
 export interface KosmosAppOptions {
   /** Called when the user picks "Go to Note" (embed posts to the plugin). */
@@ -63,23 +78,56 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
-  const THREE = (window as any).THREE;
-  if (!THREE) {
+  const fail = (msg: string) => {
     if (bootRing) (bootRing as HTMLElement).style.display = "none";
-    if (bootMsg) { bootMsg.className = "err"; bootMsg.textContent = "The bundled 3D engine (Three.js) failed to initialize."; }
+    if (bootMsg) { bootMsg.className = "err"; (bootMsg as HTMLElement).style.color = "#fb7185"; bootMsg.textContent = msg; }
     return noopApp;
+  };
+  // Modern Three.js WebGLRenderer requires WebGL2 (WebGL1 was removed). Fail with a
+  // clear, actionable message rather than a blank canvas (§8). No silent downgrade.
+  if (!hasWebGL2()) {
+    return fail("This Kosmos build requires WebGL2. Update your browser/OS, enable hardware acceleration, or use the legacy compatibility build.");
   }
+
   const MOBILE = matchMedia("(max-width:760px), (pointer:coarse)").matches;
   const _q0 = new URLSearchParams(location.search);
-  const LOWPOWER = (_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : (MOBILE || ((navigator as any).hardwareConcurrency && (navigator as any).hardwareConcurrency <= 4) || ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4)));
+  // Deterministic capture mode for visual-regression screenshots (§5, build-instructions §3.3):
+  //   ?capture=1&seed=<int>&time=<sec>&dpr=<n>&quality=high|lite&camera=<preset>&animation=off
+  // Freezes shader time, camera, DPR and quality tier so a browser can take a
+  // stable, comparable screenshot. quality/dpr feed the LOWPOWER/dpr choices below.
+  const CAPTURE = {
+    on: _q0.has("capture"),
+    time: Number(_q0.get("time") || 0) || 0,
+    dpr: _q0.has("dpr") ? Number(_q0.get("dpr")) || 1 : null,
+    quality: _q0.get("quality") || null,           // "high" | "lite"
+    camera: _q0.get("camera") || "overview",
+    frozen: _q0.get("animation") === "off" || _q0.has("capture"),
+    seed: Number(_q0.get("seed") || 0) || 0,
+  };
+  const LOWPOWER = CAPTURE.quality === "lite" ? true : CAPTURE.quality === "high" ? false
+    : ((_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : (MOBILE || ((navigator as any).hardwareConcurrency && (navigator as any).hardwareConcurrency <= 4) || ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4))));
 
   /* ---- renderer / scene / camera ---- */
   const stage = document.getElementById("stage");
-  const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: false, powerPreference: "high-performance", stencil: false });
+  let renderer: any;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: false, powerPreference: "high-performance", stencil: false });
+  } catch (error) {
+    return fail(`Kosmos could not initialize WebGL2. ${String(error)}`);
+  }
   renderer.setClearColor(0x03060f, 1);
   renderer.toneMapping = THREE.NoToneMapping; // we tonemap inside the body shaders
+  // Color-management policy (Strategy A — the shader owns output; §9): disable
+  // Three's modern color management and output transfer so the pipeline matches
+  // the r128 baseline exactly. Colors are set raw + explicitly converted to
+  // linear (lin() below); lighting is linear; the fragment shaders apply the
+  // ACES-like curve and manual sRGB encoding and write gl_FragColor. With
+  // outputColorSpace = LinearSRGBColorSpace, Three applies NO second output
+  // transform, so there is no double conversion.
+  THREE.ColorManagement.enabled = false;
+  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
   const MAXDPR = MOBILE ? 1.6 : 2;
-  let dpr = Math.min(window.devicePixelRatio || 1, MAXDPR);
+  let dpr = CAPTURE.dpr != null ? CAPTURE.dpr : Math.min(window.devicePixelRatio || 1, MAXDPR);
   renderer.setPixelRatio(dpr);
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x03060f, 0.0016);
@@ -1356,10 +1404,21 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   function runCapture() {
     const cap = params.get("capture"); if (!cap) return; document.body.classList.add("capture");
-    if (cap === "focus") { if (primaryLiveId) selectNode(primaryLiveId, true); setTimeout(() => setMode("focus"), 320); }
-    else if (cap === "timeline") { startTimeline(); }
-    else if (cap === "trailer") { startTrailer(true); }
-    else setMode("overview");
+    // Legacy cinematic capture presets.
+    if (cap === "focus") { if (primaryLiveId) selectNode(primaryLiveId, true); setTimeout(() => setMode("focus"), 320); return; }
+    if (cap === "timeline") { startTimeline(); return; }
+    if (cap === "trailer") { startTrailer(true); return; }
+    // Deterministic visual-regression capture (capture=1 or a named camera preset):
+    // freeze the camera to a preset, kill auto-rotate/flight so the frame is static.
+    cam.autoRotate = false; cam.flight = null;
+    const preset = CAPTURE.camera;
+    if (preset === "focus" || preset === "deep") {
+      const star = topBodies("star", 1)[0] || topBodies("galaxy", 1)[0];
+      if (star) { selectedId = star.id; applyHighlight(); showInspector(star.id); cam.target.set(star.position[0], star.position[1], star.position[2]); cam.tTarget.copy(cam.target); cam.radius = cam.tRadius = preset === "deep" ? 20 : 44; }
+    } else {
+      cam.target.set(0, 4, 0); cam.tTarget.set(0, 4, 0); cam.radius = cam.tRadius = overviewRadius;
+    }
+    applyCamera();
   }
 
   /* ---- mobile fly pad (translate) + drag-to-look ---- */
@@ -1549,7 +1608,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function frame() {
     raf = requestAnimationFrame(frame);
     renderStats.frames++;
-    const dt = Math.min(clock.getDelta(), 0.05); const t = clock.elapsedTime;
+    // Capture mode freezes shader time (uTime) and suppresses per-frame drift so
+    // screenshots are deterministic; otherwise use the real elapsed clock.
+    const dt = CAPTURE.frozen ? 0 : Math.min(clock.getDelta(), 0.05);
+    const t = CAPTURE.frozen ? CAPTURE.time : clock.elapsedTime;
     for (const m of matsWithTime) {
       if (m.uniforms) {
         if (m.uniforms.uTime) m.uniforms.uTime.value = t;
@@ -1611,7 +1673,32 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     hostHidden = visible === false;
     syncPaused();
   }
+
+  // WebGL2 context loss/restore (§11): stop cleanly and rebuild GPU resources on
+  // restore rather than leaving a frozen canvas. GL context loss can happen on
+  // GPU reset, tab backgrounding on mobile, or driver hiccups.
+  let contextLost = false;
+  const onContextLost = (e: Event) => {
+    e.preventDefault(); // required so the browser will fire 'restored'
+    contextLost = true;
+    stopLoop();
+    if (bootMsg && boot) { boot.classList.remove("gone"); if (bootRing) (bootRing as HTMLElement).style.display = "none"; bootMsg.className = ""; bootMsg.textContent = "Graphics context lost — recovering…"; }
+  };
+  const onContextRestored = () => {
+    contextLost = false;
+    try {
+      if (G) buildScene(G);            // re-upload geometries/materials/instanced buffers
+      if (boot) boot.classList.add("gone");
+      if (__framed) startLoop();
+    } catch (err) {
+      showFatal("Could not recover the 3D view after a graphics context loss — reload the view.");
+    }
+  };
+  dom.addEventListener("webglcontextlost", onContextLost, false);
+  dom.addEventListener("webglcontextrestored", onContextRestored, false);
+
   (window as any).__kosmosRenderStats = renderStats;
+  (window as any).__kosmosRenderer = { backend: RENDERER_BACKEND, threeRevision: RENDERER_THREE_REVISION };
 
   function teardown() {
     stopLoop();
@@ -1621,6 +1708,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     window.removeEventListener("pointerup", onUp); dom.removeEventListener("pointercancel", onUp);
     dom.removeEventListener("wheel", onWheel); dom.removeEventListener("click", onClick);
     dom.removeEventListener("contextmenu", onCtxMenu);
+    dom.removeEventListener("webglcontextlost", onContextLost);
+    dom.removeEventListener("webglcontextrestored", onContextRestored);
     window.removeEventListener("click", onWinClick); window.removeEventListener("keydown", onEscMenu);
     window.removeEventListener("keydown", onKeyDown); window.removeEventListener("keyup", onKeyUp);
     disposeAll(); renderer.dispose();
@@ -1700,9 +1789,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
 
   applyI18n();
-  if (opts.autoStart === "demo") {
+  // Deterministic capture always boots the demo scene (even in "wait" mode) so a
+  // browser test has a stable, self-contained target with no folder picker.
+  if (opts.autoStart === "demo" || CAPTURE.on) {
     try { buildDemo(); ensureFrame(); runCapture(); } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
-    if (!params.get("capture")) setTimeout(() => { showHint(MOBILE ? "Drag to orbit · pinch to zoom · tap a body" : "Drag to orbit · scroll to zoom · click a body to focus"); }, 900);
+    if (!CAPTURE.on) setTimeout(() => { showHint(MOBILE ? "Drag to orbit · pinch to zoom · tap a body" : "Drag to orbit · scroll to zoom · click a body to focus"); }, 900);
   } else {
     showHint(LANG === "de" ? "Warte auf Vault…" : "Waiting for vault…");
   }

@@ -245,6 +245,9 @@ async function tryLocalGraphJson(): Promise<boolean> {
 }
 
 async function boot(): Promise<void> {
+  // Deterministic visual-regression capture: the renderer boots the demo scene
+  // itself, so suppress the startup overlay and leave the canvas clear.
+  if (new URLSearchParams(location.search).has("capture")) { ui.hideStartup(); return; }
   if (await tryLocalGraphJson()) return;
   const canPicker = supportsDirectoryPicker();
   let reopenName: string | undefined;

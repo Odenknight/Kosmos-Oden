@@ -5,6 +5,25 @@ All notable changes to Kosmos-Oden are documented here. Format based on
 [SemVer](https://semver.org/) (pre-1.0: minor versions may include breaking
 changes, called out under **Compatibility**).
 
+## [Unreleased] — branch `renderer/three-r185-webgl` (RC groundwork)
+
+Phase 1 of the renderer program in `docs/assessments/Kosmos-Oden-Engineering-Review/`.
+**Not merged to `main`** — needs the browser/visual/cross-GPU soak and human RC
+promotion the CI/CD directive requires. Full detail: `docs/RENDERER-MIGRATION-r185.md`.
+
+### Changed
+- **Stable renderer migrated from vendored Three.js r128 (global `window.THREE`) to exact-pinned ESM `three@0.185.1` (r185)**, esbuild-bundled into the offline single-file artifacts (no CDN, still `file://`-capable). `import * as THREE from "three"` replaces the global; the vendored `<script>` inline is gone.
+- **WebGL2-only** stable renderer (modern `WebGLRenderer`), with capability detection and an honest unsupported-browser message + construction failure boundary (no silent downgrade).
+- **Explicit color-management policy (Strategy A)** — `ColorManagement.enabled=false`, `outputColorSpace=LinearSRGBColorSpace`, `NoToneMapping`; the shaders keep ownership of ACES tone-mapping + manual sRGB so the pipeline matches the r128 baseline with no double conversion.
+
+### Added
+- **WebGL2 context-loss/restore handling** — stop cleanly, show a recovering state, rebuild GPU resources and resume (no frozen canvas).
+- **Deterministic capture mode** `?capture=1&seed=&time=&dpr=&quality=&camera=&animation=off` — freezes shader time/camera/DPR/quality so visual-regression screenshots are stable; boots the demo scene without a picker.
+- **Renderer provenance**: `renderer-provenance.json` + `scripts/check-renderer-provenance.mjs` (exact version, lockfile integrity, revision, HTML build marker `<meta name="kosmos-renderer">`, no CDN), wired into `npm run verify` and CI; `window.__kosmosRenderer` descriptor.
+- **Playwright scaffolding**: `playwright.config.ts` + `test/browser/{standalone,embed,visual,context-loss}.spec.ts` + static test server; `test:browser` / `test:visual` / `test:renderer` scripts.
+- **CI split** per directive §10: `browser.yml`, `visual.yml`, `security.yml` (CodeQL + SBOM + provenance); renderer-provenance added to `ci.yml`.
+- Legacy r128 build retained at `vendor/legacy/three-r128.min.js` with a provenance record for an optional frozen WebGL1-era artifact.
+
 ## [0.5.5] — 2026-07-11
 
 Full rebuild on a shared **Kosmos Core**, then hardened per the two v0.5.1

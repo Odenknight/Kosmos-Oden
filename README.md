@@ -242,12 +242,23 @@ src/renderer/    cosmology, layout (+collision diagnostics), shaders, renderer
 src/plugin/      Obsidian plugin, iframe embed entry, host<->renderer protocol,
                  Agent API server, settings
 src/standalone/  directory source, rescan monitor, handle persistence, UI, entry
-scripts/         build pipeline, version/artifact/invariant checks, release packaging
+scripts/         build pipeline, version/artifact/invariant/renderer-provenance
+                 checks, release packaging, static test server
 test/            parser, resolver, lineage, temporal, incremental, graphiti,
-                 agent-api, protocol, standalone-artifact tests
+                 agent-api, protocol, cosmology, standalone-artifact tests;
+                 test/browser/ Playwright renderer + visual specs
 benchmarks/      synthetic-vault benchmark + measured results
-vendor/          three.min.js r128 (MIT), inlined at build time
+vendor/legacy/   frozen Three.js r128 global build (MIT), for an optional
+                 WebGL1-era compatibility artifact only
 ```
+
+> **Renderer:** the stable 3D engine is **Three.js r185** (`three@0.185.1`),
+> an exact-pinned ESM dependency bundled into the offline single-file artifacts
+> (no CDN). On the `renderer/three-r185-webgl` branch this replaced the vendored
+> r128 global build; it is **WebGL2-only** and provenance-checked in CI. See
+> [docs/RENDERER-MIGRATION-r185.md](docs/RENDERER-MIGRATION-r185.md) and
+> [renderer-provenance.json](renderer-provenance.json). WebGPU/TSL is a separate
+> future phase.
 
 ## License
 
