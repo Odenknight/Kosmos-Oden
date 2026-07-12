@@ -121,7 +121,6 @@ function makeToken() {
 }
 var LOCAL_HOSTNAMES = /* @__PURE__ */ new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]);
 var KosmosAgentServer = class {
-  // client -> recent request timestamps
   constructor(http, settings, provider) {
     this.server = null;
     this.status = "stopped";
@@ -130,6 +129,9 @@ var KosmosAgentServer = class {
     this.http = http;
     this.settings = settings;
     this.provider = provider;
+  }
+  reportTraversal(tool, paths) {
+    if (this.onTraversal && paths.length) this.onTraversal(paths, tool);
   }
   get bindHost() {
     return this.settings.agentBindMode === "lan" ? "0.0.0.0" : "127.0.0.1";
@@ -365,11 +367,13 @@ var KosmosAgentServer = class {
       if (s >= 0) scored.push([s, n]);
     }
     scored.sort((a, b) => b[0] - a[0] || (Date.parse(b[1].validAt || "") || 0) - (Date.parse(a[1].validAt || "") || 0));
+    const top = scored.slice(0, lim).map(([, n]) => n);
+    this.reportTraversal("search_notes", top.map((n) => n.path));
     return {
       query,
       method: "lexical (title/alias/tag/path substring; no embeddings)",
       total: scored.length,
-      results: scored.slice(0, lim).map(([, n]) => this.brief(n))
+      results: top.map((n) => this.brief(n))
     };
   }
   async qNote(sel) {
@@ -381,6 +385,7 @@ var KosmosAgentServer = class {
     const backlinks = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
     const semantic = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => l.target);
     const content = await this.provider.getNoteContent(n.path);
+    this.reportTraversal("get_note", [n.path]);
     return {
       ...this.brief(n),
       aliases: n.aliases,
@@ -421,6 +426,7 @@ var KosmosAgentServer = class {
     };
     walk(n.id);
     chain.sort((a, b) => (Date.parse(a.validAt || "") || 0) - (Date.parse(b.validAt || "") || 0));
+    this.reportTraversal("get_lineage", chain.map((x) => x.path));
     return {
       for: n.path,
       chainLength: chain.length,
@@ -436,10 +442,12 @@ var KosmosAgentServer = class {
       const x = byId.get(id);
       return x ? this.brief(x) : { path: id };
     };
-    const semantic = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => b(l.target));
-    const outgoing = graph.links.filter((l) => l.source === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
-    const backlinks = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
-    return { for: n.path, semantic, outgoing, backlinks };
+    const semanticIds = graph.links.filter((l) => l.source === n.id && l.kind === "semantic").map((l) => l.target);
+    const outgoingIds = graph.links.filter((l) => l.source === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
+    const backlinkIds = graph.links.filter((l) => l.target === n.id && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
+    const touched = [n.id, ...semanticIds, ...outgoingIds, ...backlinkIds].map((id) => byId.get(id)?.path).filter(Boolean);
+    this.reportTraversal("get_related", touched);
+    return { for: n.path, semantic: semanticIds.map(b), outgoing: outgoingIds.map(b), backlinks: backlinkIds.map(b) };
   }
   /** Point-in-time snapshot — the ONE shared projector (§4.1, §33). */
   async qAtTime(time, limit = 50) {

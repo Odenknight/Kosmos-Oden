@@ -29,13 +29,23 @@ export interface OpenPayload {
   path: string;
   label?: string;
 }
+/** Note paths touched by one Agent API query, for the live traversal trail. */
+export interface AgentTraversalPayload {
+  paths: string[];
+  tool: string;
+}
 
 export type HostToRenderer =
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-snapshot"; payload: FilesPayload }
-  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload };
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload }
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "agent-traversal"; payload: AgentTraversalPayload };
 
 export type RendererToHost =
-  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-note"; payload: OpenPayload };
+  /** A note was chosen ("Go to Note") — open it in a new tab. */
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-note"; payload: OpenPayload }
+  /** A folder-only galaxy was chosen ("Expand Folder") — reveal it in the
+   *  file explorer. Never opens or creates a note for a folder path. */
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-folder"; payload: OpenPayload };
 
 /** Build a wrapped, versioned message. */
 export function wrap<T extends string, P>(type: T, payload: P) {
@@ -83,6 +93,26 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
       if (!isArr(p.renames)) return { ok: false, reason: "delta.renames must be an array" };
       for (const r of p.renames as any[]) if (!r || !safePath(r.from) || !safePath(r.to)) return { ok: false, reason: "delta rename entry malformed or unsafe path" };
     }
+    return { ok: true, message: m as any };
+  }
+  if (m.type === "agent-traversal") {
+    if (!isArr(p.paths) || (p.paths as any[]).some((x) => !safePath(x))) return { ok: false, reason: "agent-traversal payload.paths must be safe paths" };
+    if (!isStr(p.tool)) return { ok: false, reason: "agent-traversal payload.tool must be a string" };
+    return { ok: true, message: m as any };
+  }
+  return { ok: false, reason: `unsupported message type ${String(m.type)}` };
+}
+
+/** Validate an inbound renderer→host message (the symmetric direction). */
+export function validateRendererMessage(data: unknown): ValidationResult<RendererToHost> {
+  if (!data || typeof data !== "object") return { ok: false };
+  const m = data as Record<string, unknown>;
+  if (m.protocol !== KOSMOS_PROTOCOL) return { ok: false }; // not ours
+  if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this host speaks v${KOSMOS_PROTOCOL_VERSION})` };
+  const p = m.payload as Record<string, unknown>;
+  if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "open-note" || m.type === "open-folder") {
+    if (!safePath(p.path)) return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
     return { ok: true, message: m as any };
   }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };

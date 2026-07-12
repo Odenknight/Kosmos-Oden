@@ -8,6 +8,8 @@
 
 The plugin can run a small local server so AI agents (Claude Code, Claude Desktop, Cursor, custom harnesses) can query your vault's **OKF+ temporal knowledge graph** directly — canonical knowledge chains, point-in-time snapshots, semantic links, search, and a ready-to-ingest Graphiti export. Visualization and Agent API queries never modify existing notes; the only writes are the explicitly named export files you trigger yourself.
 
+While an agent works, watch it: every `search_notes` / `get_note` / `get_lineage` / `get_related` query lights up the notes it touched with a fading emerald trail in the open Kosmos view, live.
+
 ## 1 · Turn it on (about 30 seconds)
 
 1. Obsidian → **Settings → Community plugins → Vault Kosmos** (gear icon).

@@ -35,11 +35,30 @@ function validateHostMessage(data) {
     }
     return { ok: true, message: m };
   }
+  if (m.type === "agent-traversal") {
+    if (!isArr(p.paths) || p.paths.some((x) => !safePath(x))) return { ok: false, reason: "agent-traversal payload.paths must be safe paths" };
+    if (!isStr(p.tool)) return { ok: false, reason: "agent-traversal payload.tool must be a string" };
+    return { ok: true, message: m };
+  }
+  return { ok: false, reason: `unsupported message type ${String(m.type)}` };
+}
+function validateRendererMessage(data) {
+  if (!data || typeof data !== "object") return { ok: false };
+  const m = data;
+  if (m.protocol !== KOSMOS_PROTOCOL) return { ok: false };
+  if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this host speaks v${KOSMOS_PROTOCOL_VERSION})` };
+  const p = m.payload;
+  if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "open-note" || m.type === "open-folder") {
+    if (!safePath(p.path)) return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
+    return { ok: true, message: m };
+  }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };
 }
 export {
   KOSMOS_PROTOCOL,
   KOSMOS_PROTOCOL_VERSION,
   validateHostMessage,
+  validateRendererMessage,
   wrap
 };

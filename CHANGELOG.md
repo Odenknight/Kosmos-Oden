@@ -22,6 +22,10 @@ engineering assessments (`docs/assessments/`).
 - Reproducibility double-build CI job; `SHA256SUMS` + `BUILD-INFO.json` release provenance; `kosmos-invariants.yml` policy with `check:invariants`; Dependabot; pinned toolchain + committed `package-lock.json`.
 - Versioned host↔renderer message protocol with structural validation; the plugin iframe is now sandboxed (`allow-scripts allow-pointer-lock allow-downloads`, no `allow-same-origin`).
 - Governance docs: `SECURITY.md`, `CONTRIBUTING.md`, `THREAT-MODEL.md`, `ARCHITECTURE.md`, `RELEASE-PROCESS.md`, `RENDERER-PROTOCOL.md`, `THIRD-PARTY-NOTICES.md`.
+- **Folder-safe context menu restored** — right-clicking a folder-only galaxy (no manifest note) now offers **Expand Folder** (reveals it in Obsidian's file explorer) instead of attempting to open or create a note; carried over via a versioned `open-folder` renderer→host message.
+- **Live agent-traversal trail restored** — `search_notes` / `get_note` / `get_lineage` / `get_related` queries report their touched note paths, which glow with a fading emerald halo in the open Kosmos view (broad queries like `vault_overview` and `graph_at_time` intentionally do not light up the whole vault).
+- 105-test suite (added protocol validation and traversal-reporting coverage).
+- README rewritten to fold in the prior release's narrative sections (attribution lineage, "why would I want it", friendly Agent API onboarding) alongside the v0.5.5 architecture and hardening documentation.
 
 ### Changed
 - Renderer extracted from the v0.5.0 base64 monolith into reviewable modules (`src/renderer/`); the single-file artifacts are now deterministically generated at build time.

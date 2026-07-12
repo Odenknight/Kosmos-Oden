@@ -10,12 +10,12 @@
  * then debounced deltas; the iframe's shared KosmosIndex re-parses only what
  * changed (§10). The Agent API answers from the same core index (§33).
  */
-import { ItemView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../core/version";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide } from "./settings";
-import { KOSMOS_PROTOCOL, KOSMOS_PROTOCOL_VERSION, wrap } from "./protocol";
+import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 
 const VIEW_TYPE = "vault-kosmos-view";
@@ -72,22 +72,34 @@ class KosmosView extends ItemView {
     frame.srcdoc = kosmosHtml();
     root.appendChild(frame);
     this.frame = frame;
-    // open-note requests coming back from the 3D view (right-click -> "Go to Note")
+    // open-note / open-folder requests coming back from the 3D view (right-click)
     this.registerDomEvent(window, "message", (ev: MessageEvent) => this.onMessage(ev));
   }
 
   private onMessage(ev: MessageEvent): void {
     if (!this.frame || ev.source !== this.frame.contentWindow) return;     // only our own iframe
     const data: any = ev.data;
-    // Accept the versioned open-note envelope; fall back to the legacy shape.
+    // Preferred path: versioned, structurally validated envelope.
+    const v = validateRendererMessage(data);
+    let type: "open-note" | "open-folder" | null = null;
     let path: string | undefined;
-    if (data && data.protocol === KOSMOS_PROTOCOL && data.version === KOSMOS_PROTOCOL_VERSION && data.type === "open-note") {
-      path = typeof data.payload?.path === "string" ? data.payload.path : undefined;
+    if (v.ok && v.message) {
+      type = v.message.type;
+      path = (v.message.payload as any).path;
     } else if (data && data.type === "kosmos:open" && typeof data.path === "string") {
-      path = data.path;
+      type = "open-note"; path = data.path;               // legacy flat shape (older renderer builds)
+    } else if (data && data.type === "kosmos:folder" && typeof data.path === "string") {
+      type = "open-folder"; path = data.path;
+    } else {
+      return;
     }
     if (!path) return;
     const file = this.app.vault.getAbstractFileByPath(path);
+    // Folder galaxies must never open or create a note — expand in the file explorer instead.
+    if (type === "open-folder" || file instanceof TFolder) {
+      if (file instanceof TFolder) this.revealFolder(file);
+      return;
+    }
     if (file instanceof TFile) {
       void this.app.workspace.getLeaf("tab").openFile(file);               // open the note in a NEW tab
     } else {
@@ -95,9 +107,26 @@ class KosmosView extends ItemView {
     }
   }
 
+  /** Reveal + expand a folder in Obsidian's file explorer; silently do nothing if that is unavailable. */
+  private revealFolder(folder: TFolder): void {
+    try {
+      const internal: any = (this.app as any).internalPlugins;
+      const fe = internal?.getEnabledPluginById?.("file-explorer") ?? internal?.getPluginById?.("file-explorer")?.instance;
+      if (fe && typeof fe.revealInFolder === "function") { fe.revealInFolder(folder); return; }
+    } catch (e) { /* file-explorer internals vary by Obsidian version; fail silently */ }
+    try {
+      const leaf = this.app.workspace.getLeavesOfType("file-explorer")[0];
+      const view: any = leaf?.view;
+      if (view && typeof view.revealInFolder === "function") view.revealInFolder(folder);
+    } catch (e) { /* same */ }
+  }
+
   private post(msg: any): void {
     if (this.frame && this.frame.contentWindow) this.frame.contentWindow.postMessage(msg, "*");
   }
+
+  /** Live AI-agent traversal (Agent API): light up visited bodies with the emerald trail. */
+  agentTraversal(paths: string[], tool: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool })); }
 
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
@@ -243,6 +272,9 @@ export default class VaultKosmosPlugin extends Plugin {
       this.app.workspace.getLeavesOfType(VIEW_TYPE)
         .map((l) => l.view)
         .filter((v): v is KosmosView => v instanceof KosmosView);
+
+    // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
+    this.agentApi.onTraversal = (paths, tool) => { for (const v of views()) v.agentTraversal(paths, tool); };
 
     this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
       this.provider.markChanged(file.path);

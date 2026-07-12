@@ -17,6 +17,9 @@ const app = createKosmosApp({
   onOpenNote: (path, label) => {
     try { window.parent.postMessage(wrap("open-note", { path, label }), "*"); } catch (_) { /* sandboxed */ }
   },
+  onOpenFolder: (path) => {
+    try { window.parent.postMessage(wrap("open-folder", { path }), "*"); } catch (_) { /* sandboxed */ }
+  },
 });
 const index = new KosmosIndex();
 
@@ -74,12 +77,14 @@ window.addEventListener("message", (ev: MessageEvent) => {
       const msg = v.message!;
       if (msg.type === "vault-snapshot") applySnapshot(msg.payload as FilesMessage);
       else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
+      else if (msg.type === "agent-traversal") app.notifyAgentTraversal((msg.payload as any).paths, (msg.payload as any).tool);
       return;
     }
     // Backward-compatible path: legacy flat messages (older host builds).
     if (raw.type === "kosmos:files") applySnapshot(raw as FilesMessage);
     else if (raw.type === "kosmos:update") applyDelta(raw as UpdateMessage);
     else if (raw.type === "kosmos:graph") app.renderGraph(raw.graph, raw.label);
+    else if (raw.type === "kosmos:agent" && Array.isArray(raw.paths)) app.notifyAgentTraversal(raw.paths, raw.tool || "");
   } catch (e) {
     console.error("Vault Kosmos:", e);
     app.showError("Could not render this vault.");

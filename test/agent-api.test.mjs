@@ -292,6 +292,34 @@ test("Origin validation: absent allowed, null and cross-site rejected", () => {
   assert.equal(s.originAllowed("https://evil.example.com"), false);
 });
 
+test("onTraversal: get_note/get_lineage/get_related/search_notes report touched paths for the live agent trail", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  const seen = [];
+  server.onTraversal = (paths, tool) => seen.push({ tool, paths });
+
+  await server.qNote({ title: "Engine v2" });
+  await server.qLineage({ title: "Engine v1" });
+  await server.qRelated({ title: "Engine v2" });
+  await server.qSearch("engine");
+
+  const byTool = Object.fromEntries(seen.map((s) => [s.tool, s.paths]));
+  assert.deepEqual(byTool.get_note, ["Ideas/Engine v2.md"]);
+  assert.deepEqual(new Set(byTool.get_lineage), new Set(["Ideas/Engine v1.md", "Ideas/Engine v2.md"]));
+  assert.ok(byTool.get_related.includes("Ideas/Engine v2.md"));
+  assert.ok(byTool.search_notes.length >= 1);
+});
+
+test("onTraversal: broad queries (overview/graph_at_time/episodes/diagnostics) do NOT report a trail", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  let fired = false;
+  server.onTraversal = () => { fired = true; };
+  await server.qOverview();
+  await server.qAtTime("2026-02-01");
+  await server.qDiagnostics();
+  await server.qEpisodes();
+  assert.equal(fired, false);
+});
+
 test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
   const migrated = migrateAgentSettings({ agentEnabled: true, agentPort: 5000, agentToken: "keepme" });
   assert.equal(migrated.schemaVersion, 2);

@@ -29,6 +29,9 @@ import { detectLang, I18N } from "./i18n";
 export interface KosmosAppOptions {
   /** Called when the user picks "Go to Note" (embed posts to the plugin). */
   onOpenNote?: (path: string, label?: string) => void;
+  /** Called when the user picks "Expand Folder" on a folder-only galaxy/cluster
+   *  (no manifest note). Must never fall back to opening or creating a note. */
+  onOpenFolder?: (path: string) => void;
   /** 'wait' = host will push data; 'demo' = boot straight into the demo. */
   autoStart?: "wait" | "demo";
 }
@@ -40,6 +43,8 @@ export interface KosmosApp {
   setConn(label: string, live: boolean): void;
   setAttachments(paths: string[]): void;
   notifyLiveEvent(ev: { path: string; type?: string }): void;
+  /** Highlight the notes touched by one Agent API query with a fading emerald trail. */
+  notifyAgentTraversal(paths: string[], tool: string): void;
   getDiagnostics(): any;
   getRenderStats(): { frames: number; running: boolean };
   showError(msg: string): void;
@@ -52,7 +57,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setAttachments() {}, notifyLiveEvent() {},
+    renderGraph() {}, showDemo() {}, setConn() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -686,16 +691,23 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const head = document.createElement("div"); head.textContent = n.label || n.id;
     head.style.cssText = "padding:5px 9px;color:#9fb4d4;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;border-bottom:1px solid rgba(125,211,252,.12);margin-bottom:4px";
     m.appendChild(head);
-    const canOpen = !!n.path && n.kind !== "unresolved" && !!opts.onOpenNote;
+    // Folder-only galaxies/cluster (no manifest note, n.kind==='folder') must
+    // never open or create a note — they expand in the file explorer instead.
+    const isFolderTarget = n.kind === "folder" && !!n.path && !!opts.onOpenFolder;
+    const canOpenNote = !isFolderTarget && !!n.path && n.kind !== "unresolved" && !!opts.onOpenNote;
+    const actionable = isFolderTarget || canOpenNote;
     const item = document.createElement("button");
-    item.textContent = n.body === "oort" ? "Open file" : (canOpen ? "Go to Note" : "No note to open");
-    item.style.cssText = "display:block;width:100%;text-align:left;padding:" + (fromTouch ? "13px 14px" : "8px 10px") + ";border:none;background:transparent;color:" + (canOpen ? "#e7eefc" : "#5b6b86") + ";border-radius:7px;cursor:" + (canOpen ? "pointer" : "default") + ";font:inherit;-webkit-tap-highlight-color:rgba(125,211,252,.18)";
-    if (canOpen) {
+    item.textContent = isFolderTarget ? "Expand Folder" : (n.body === "oort" ? "Open file" : (canOpenNote ? "Go to Note" : "No note to open"));
+    item.style.cssText = "display:block;width:100%;text-align:left;padding:" + (fromTouch ? "13px 14px" : "8px 10px") + ";border:none;background:transparent;color:" + (actionable ? "#e7eefc" : "#5b6b86") + ";border-radius:7px;cursor:" + (actionable ? "pointer" : "default") + ";font:inherit;-webkit-tap-highlight-color:rgba(125,211,252,.18)";
+    if (actionable) {
       item.onmouseenter = () => item.style.background = "rgba(125,211,252,.14)";
       item.onmouseleave = () => item.style.background = "transparent";
       const go = () => {
         if (performance.now() - menuShownAt < 350) return;
-        try { opts.onOpenNote && opts.onOpenNote(n.path, n.label); } catch (_) { /* host callback errors are not ours */ }
+        try {
+          if (isFolderTarget) opts.onOpenFolder && opts.onOpenFolder(n.path);
+          else opts.onOpenNote && opts.onOpenNote(n.path, n.label);
+        } catch (_) { /* host callback errors are not ours */ }
         hideKosmosMenu();
       };
       item.addEventListener("click", go);
@@ -798,6 +810,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const raycaster = new THREE.Raycaster(); const ndc = new THREE.Vector2();
   let selectedId: string | null = null, hoveredId: string | null = null, primaryLiveId: string | null = null;
   let liveIds = new Set<string>(), emergingIds = new Set<string>();
+  /** Ids currently lit for the live AI-agent traversal trail (Agent API queries) — colored emerald, distinct from the edit-live pulse. */
+  let agentIds = new Set<string>();
   let pendingHover: any = null, lastHoverT = 0;
   function pickAt(cx: number, cy: number) {
     ndc.x = (cx / window.innerWidth) * 2 - 1; ndc.y = -(cy / window.innerHeight) * 2 + 1;
@@ -834,18 +848,20 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const r of nodeRender) { const n = r.node; r.layer.attrs.aLive.setX(r.idx, liveIds.has(n.id) ? 1 : 0); r.layer.attrs.aEmerge.setX(r.idx, emergingIds.has(n.id) ? 1 : 0); }
     for (const b in layers) { layers[b].attrs.aLive.needsUpdate = true; layers[b].attrs.aEmerge.needsUpdate = true; }
   }
+  const AGENT_TRAIL_COLOR = "#34d399"; // emerald — visually distinct from the edit-live pulse
   function updateHalos() {
     if (!glow) return;
-    const ids = new Set<string>(); if (selectedId) ids.add(selectedId); for (const id of liveIds) ids.add(id);
+    // agent-traversal ids first so a busy trail is never truncated ahead of the plain edit-live set
+    const ids = new Set<string>(); for (const id of agentIds) ids.add(id); if (selectedId) ids.add(selectedId); for (const id of liveIds) ids.add(id);
     let i = 0;
     for (const id of ids) {
       if (i >= HALO_CAP) break;
       const rec = idToRender.get(id); if (!rec || rec.node.__hidden) continue;
       const n = rec.node, gi = haloBase + i;
       MAT.makeTranslation(n.position[0], n.position[1], n.position[2]); glow.mesh.setMatrixAt(gi, MAT);
-      const c = lin(id === selectedId ? "#ffffff" : n.color); glow.attrs.aColor.setXYZ(gi, c[0], c[1], c[2]);
+      const c = lin(id === selectedId ? "#ffffff" : (agentIds.has(id) ? AGENT_TRAIL_COLOR : n.color)); glow.attrs.aColor.setXYZ(gi, c[0], c[1], c[2]);
       glow.attrs.aSize.setX(gi, Math.max(6, (n.__r || 1) * 5)); glow.attrs.aVisible.setX(gi, 1);
-      glow.attrs.aLive.setX(gi, liveIds.has(id) ? 1 : 0); glow.attrs.aSeed.setX(gi, hashUnitLocal(id)); i++;
+      glow.attrs.aLive.setX(gi, (liveIds.has(id) || agentIds.has(id)) ? 1 : 0); glow.attrs.aSeed.setX(gi, hashUnitLocal(id)); i++;
     }
     for (; i < HALO_CAP; i++) glow.attrs.aVisible.setX(haloBase + i, 0);
     glow.mesh.instanceMatrix.needsUpdate = true;
@@ -1245,6 +1261,17 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     liveIds.add(id); primaryLiveId = id; if (ev.type === "add") emergingIds.add(id); applyLive(); updateHalos();
     setTimeout(() => { liveIds.delete(id); emergingIds.delete(id); applyLive(); updateHalos(); }, 9000);
   }
+  /** Live AI-agent traversal: light up the notes one Agent API query touched with a fading emerald trail. */
+  function notifyAgentTraversal(paths: string[], _tool: string): void {
+    const ids = (paths || []).map((p) => "file:" + p).filter((id) => idToRender.has(id));
+    if (!ids.length) return;
+    for (const id of ids) { liveIds.add(id); agentIds.add(id); }
+    applyLive(); updateHalos();
+    setTimeout(() => {
+      for (const id of ids) { liveIds.delete(id); agentIds.delete(id); }
+      applyLive(); updateHalos();
+    }, 9000);
+  }
   function runCapture() {
     const cap = params.get("capture"); if (!cap) return; document.body.classList.add("capture");
     if (cap === "focus") { if (primaryLiveId) selectNode(primaryLiveId, true); setTimeout(() => setMode("focus"), 320); }
@@ -1598,6 +1625,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setConn,
     setAttachments(paths: string[]) { __attach = (paths || []).slice(); },
     notifyLiveEvent: onLiveEvent,
+    notifyAgentTraversal,
     getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0 } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running }; },
     showError: showFatal,

@@ -5,6 +5,7 @@ import {
   KOSMOS_PROTOCOL,
   KOSMOS_PROTOCOL_VERSION,
   validateHostMessage,
+  validateRendererMessage,
   wrap,
 } from "../dist/kosmos-protocol.mjs";
 
@@ -63,4 +64,21 @@ test("path traversal rejected in delta removed/renames", () => {
 test("malformed payloads rejected", () => {
   assert.match(validateHostMessage(wrap("vault-snapshot", { files: "nope" })).reason, /must be an array/);
   assert.match(validateHostMessage({ protocol: KOSMOS_PROTOCOL, version: 1, type: "vault-snapshot" }).reason, /missing payload/);
+});
+
+test("agent-traversal (host->renderer): valid accepted, unsafe paths rejected", () => {
+  const ok = validateHostMessage(wrap("agent-traversal", { paths: ["Ideas/Engine v2.md"], tool: "get_note" }));
+  assert.equal(ok.ok, true);
+  const bad = validateHostMessage(wrap("agent-traversal", { paths: ["../secret.md"], tool: "get_note" }));
+  assert.equal(bad.ok, false);
+  const noTool = validateHostMessage(wrap("agent-traversal", { paths: ["a.md"], tool: 5 }));
+  assert.equal(noTool.ok, false);
+});
+
+test("renderer->host: open-note and open-folder accepted; unsafe/foreign rejected", () => {
+  assert.equal(validateRendererMessage(wrap("open-note", { path: "Ideas/Engine v2.md", label: "Engine v2" })).ok, true);
+  assert.equal(validateRendererMessage(wrap("open-folder", { path: "Ideas" })).ok, true);
+  assert.equal(validateRendererMessage(wrap("open-folder", { path: "../etc" })).ok, false);
+  assert.deepEqual(validateRendererMessage({ type: "kosmos:open", path: "a.md" }), { ok: false }); // not ours
+  assert.match(validateRendererMessage(wrap("delete-everything", {})).reason, /unsupported message type/);
 });

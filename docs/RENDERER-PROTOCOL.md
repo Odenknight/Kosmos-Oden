@@ -54,14 +54,34 @@ versions/types instead of acting on arbitrary `postMessage` data.
 
 { protocol: "vault-kosmos", version: 1, type: "vault-delta",
   payload: { changed?, removed?, renames?, folders?, attachments?, label? } }
+
+{ protocol: "vault-kosmos", version: 1, type: "agent-traversal",
+  payload: { paths: string[], tool: string } }
 ```
+
+`agent-traversal` carries the note paths one Agent API query touched, so the
+renderer can light them up with a fading emerald trail (restored from the
+real v0.5.1 behavior). Only per-note queries report a trail (`search_notes`,
+`get_note`, `get_lineage`, `get_related`); broad queries (`vault_overview`,
+`graph_at_time`, `export_graphiti_episodes`) intentionally do not, since
+lighting up the entire vault isn't a meaningful trail.
 
 ### Renderer → host
 
 ```ts
 { protocol: "vault-kosmos", version: 1, type: "open-note",
   payload: { path, label? } }
+
+{ protocol: "vault-kosmos", version: 1, type: "open-folder",
+  payload: { path } }
 ```
+
+`open-folder` is sent when the user right-clicks a folder-only galaxy/cluster
+(no manifest note). The host reveals and expands that folder in Obsidian's
+file explorer — it must never open or create a note for a folder path. The
+host applies the same defense-in-depth check on `open-note`: if the resolved
+path turns out to be a folder, it redirects to the folder-reveal path instead
+of falling through to link resolution.
 
 ### Validation
 
