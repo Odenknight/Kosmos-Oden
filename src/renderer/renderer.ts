@@ -1541,17 +1541,40 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const t = target.clone ? target.clone() : new THREE.Vector3(target[0], target[1], target[2]);
     return { target: t, radius, phi, thetaOff, dur, spin };
   }
+  // First-level-folder galaxies (graph.galaxies from cosmology.ts), resolved to
+  // their center nodes, largest first — the "major galaxies" the trailer tours.
+  function trailerGalaxyCenters(): any[] {
+    return (G.galaxies || [])
+      .map((g: any) => G.nodeById.get(g.center))
+      .filter((n: any) => n && n.position && !n.__hidden)
+      .sort((a: any, b: any) => (b.__extent || b.__r || 0) - (a.__extent || a.__r || 0));
+  }
   function buildTrailerSegs() {
     const segs: any[] = [], O = new THREE.Vector3(0, 4, 0);
     const SR = (isFinite(sceneRadius) && sceneRadius > 1) ? sceneRadius : 60;
-    const stars = topBodies("star", 1), planets = topBodies("planet", 3);
-    const anchor = stars[0] || topBodies("galaxy", 1)[0] || topBodies("cluster", 1)[0] || null;
-    const focus = anchor ? VEC.fromArray(anchor.position).clone() : O;
-    segs.push(wp(O, SR * 2.9, 0.62, 0.0, 3.6, 0.05));
-    segs.push(wp(focus, Math.max(22, (anchor ? anchor.__r : 8) * 9), 1.12, 1.4, 3.2, 0.10));
-    for (const p of planets) segs.push(wp(VEC.fromArray(p.position).clone(), Math.max(14, (p.__r || 2) * 7), 1.0, 2.0, 2.4, 0.14));
-    segs.push(wp(centroidOfBusiestArea(), Math.max(SR * 0.9, 28), 1.28, 1.2, 3.0, 0.18));
-    segs.push(wp(O, SR * 2.5, 0.7, 0.0, 4.0, 0.06));
+    segs.push(wp(O, SR * 2.9, 0.62, 0.0, 3.6, 0.05)); // opening wide shot
+    const centers = trailerGalaxyCenters();
+    if (centers.length) {
+      // fly nearby each major galaxy so the viewer gets a whole-vault overview
+      const MAX_TOUR = 16;
+      centers.slice(0, MAX_TOUR).forEach((c: any) => {
+        const ext = c.__extent || (c.__r || 2) * 6;
+        const j = hashUnitLocal(c.id + ":trailer");
+        const radius = Math.max(24, ext * 2.2);
+        const phi = 0.90 + j * 0.5;
+        const thetaOff = 0.8 + j * 2.4;
+        segs.push(wp(VEC.fromArray(c.position).clone(), radius, phi, thetaOff, 2.4, 0.10 + j * 0.08));
+      });
+    } else {
+      // legacy (non-cosmos) layout: fall back to a star + a few planets
+      const stars = topBodies("star", 1), planets = topBodies("planet", 3);
+      const anchor = stars[0] || topBodies("galaxy", 1)[0] || topBodies("cluster", 1)[0] || null;
+      const focus = anchor ? VEC.fromArray(anchor.position).clone() : O;
+      segs.push(wp(focus, Math.max(22, (anchor ? anchor.__r : 8) * 9), 1.12, 1.4, 3.2, 0.10));
+      for (const p of planets) segs.push(wp(VEC.fromArray(p.position).clone(), Math.max(14, (p.__r || 2) * 7), 1.0, 2.0, 2.4, 0.14));
+      segs.push(wp(centroidOfBusiestArea(), Math.max(SR * 0.9, 28), 1.28, 1.2, 3.0, 0.18));
+    }
+    segs.push(wp(O, SR * 2.5, 0.7, 0.0, 4.0, 0.06)); // closing pullback
     return segs;
   }
   function startTrailer(loop: boolean) {

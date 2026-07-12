@@ -17,6 +17,7 @@ promotion the CI/CD directive requires. Full detail: `docs/RENDERER-MIGRATION-r1
 - **Explicit color-management policy (Strategy A)** — `ColorManagement.enabled=false`, `outputColorSpace=LinearSRGBColorSpace`, `NoToneMapping`; the shaders keep ownership of ACES tone-mapping + manual sRGB so the pipeline matches the r128 baseline with no double conversion.
 
 ### Added
+- **Trailer tours the whole vault** — the Trailer flight now flies nearby **each first-level-folder galaxy** (largest first, framed to its extent), bookended by wide cluster establishing shots, so it gives an overview of the entire vault instead of a single star + a few planets. Ported from `main`; falls back to the old star/planets tour on the non-cosmos legacy layout.
 - **WebGL2 context-loss/restore handling** — stop cleanly, show a recovering state, rebuild GPU resources and resume (no frozen canvas).
 - **Deterministic capture mode** `?capture=1&seed=&time=&dpr=&quality=&camera=&animation=off` — freezes shader time/camera/DPR/quality so visual-regression screenshots are stable; boots the demo scene without a picker.
 - **Renderer provenance**: `renderer-provenance.json` + `scripts/check-renderer-provenance.mjs` (exact version, lockfile integrity, revision, HTML build marker `<meta name="kosmos-renderer">`, no CDN), wired into `npm run verify` and CI; `window.__kosmosRenderer` descriptor.
