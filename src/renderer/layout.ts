@@ -17,7 +17,7 @@ import {
 import { hashUnit } from "../core/paths";
 import type { KosmosGraph } from "../core/types";
 
-export { buildCosmos } from "./cosmology";
+export { buildCosmos, classifyStar, classifyPlanet, starScore, SPECTRAL, PLANET_COLORS } from "./cosmology";
 
 export function layoutCosmos(graph: any): KosmosGraph {
   const nodes: any[] = graph.nodes;

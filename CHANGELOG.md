@@ -11,6 +11,8 @@ Full rebuild on a shared **Kosmos Core**, then hardened per the two v0.5.1
 engineering assessments (`docs/assessments/`).
 
 ### Added
+- **Hertzsprung–Russell stellar classification** — a star's spectral class, color and size now read the weight of its solar system (member notes + distinct subfolders + total bytes): heavier systems climb the main sequence M→K→G→F→A→B→O (red dwarf → blue giant), relative to the vault's heaviest with a floor. Applied before layout so packing stays overlap-free; the inspector names the class. Pure `classifyStar`/`starScore` helpers, unit-tested.
+- **NASA exoplanet planet types** — each planet is typed (gas giant / Neptunian ice giant / super-Earth / terrestrial, per science.nasa.gov/exoplanets/planet-types) from its child notes, hosted attachments and note size, with per-type color, size factor, in-shader treatment (Jupiter/Saturn banding, cool Neptunian haze, amplified super-Earth relief, terrestrial land/sea + ice caps) and rings on gas giants only. Attachment-hosting biases watery varieties. Pure `classifyPlanet` helper, unit-tested; the inspector names the type.
 - **Shared Kosmos Core** (`src/core/`) — one parsing / resolution / canonical-lineage / temporal / graph / Graphiti implementation consumed by the plugin, the standalone viewer, the Agent API, the Graphiti exporter and the `kosmos-build` CLI.
 - **Canonical lineage** — `supersedes` / `superseded_by` normalized bidirectionally; one-sided declarations invalidate predecessors; cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps, duplicates and ambiguous resolution detected and surfaced through diagnostics.
 - **Single temporal projector** shared by Chrono, the Agent API `graph_at_time` and the tests.
@@ -27,7 +29,7 @@ engineering assessments (`docs/assessments/`).
 - **v0.5.1 visual pack restored** — irregular tumbling rock asteroids (carve-only vertex displacement + per-rock albedo/mineral tint, mobile-safe), rocky-planet land/sea tones + fbm-jittered polar ice caps, lunar maria + ejecta flecks on moons, and fine planetary ring grooves — all in-shader, both quality tiers.
 - **Host-driven render gate restored** — the plugin posts a versioned `visibility` message on leaf/layout changes, so the render loop fully stops when the Kosmos tab is hidden *inside* a visible Obsidian window (not just when the window itself hides), and resumes instantly.
 - **v0.5.1 idle/perf trims restored** — `updateHalos` idle fast-path (skips all writes/uploads when nothing is selected or live), per-layer instanced-matrix dirty flags, direct label-slot references (no per-frame array scans), and a 60 s LAN-IP cache for per-request Host validation.
-- 108-test suite (protocol validation incl. `visibility`, traversal caps, REST-vs-MCP emission parity).
+- 119-test suite (adds `cosmology.test.mjs`: spectral monotonicity/floor, planet-type rules incl. size + attachment correlations, and classified radii surviving layout; protocol `visibility` validation, traversal caps, REST-vs-MCP emission parity).
 - README rewritten to fold in the prior release's narrative sections (attribution lineage, "why would I want it", friendly Agent API onboarding) alongside the v0.5.5 architecture and hardening documentation.
 - Ingest sample pins `graphiti-core>=0.28.2` (upstream security fixes).
 

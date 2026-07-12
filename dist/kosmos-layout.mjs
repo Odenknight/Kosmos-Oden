@@ -66,6 +66,68 @@ var GAL_PACK = 0.6;
 var SYS_PACK = 0.42;
 var OORT_GAP = 0.7;
 var MINSEP = 0.55;
+var SPECTRAL = [
+  { cut: 0.92, cls: "O", color: "#9db8ff", mult: 1.55 },
+  // hot blue giant
+  { cut: 0.78, cls: "B", color: "#bcd2ff", mult: 1.4 },
+  // blue-white
+  { cut: 0.62, cls: "A", color: "#e8edff", mult: 1.26 },
+  // white (Sirius A)
+  { cut: 0.46, cls: "F", color: "#fff4e0", mult: 1.13 },
+  // yellow-white
+  { cut: 0.3, cls: "G", color: "#ffd27a", mult: 1 },
+  // yellow (the Sun)
+  { cut: 0.16, cls: "K", color: "#ffa25e", mult: 0.9 },
+  // orange
+  { cut: -1, cls: "M", color: "#ff7a4d", mult: 0.8 }
+  // red dwarf (Proxima Centauri)
+];
+function starScore(files, subfolders, bytes) {
+  return files + 0.6 * subfolders + Math.min(4, Math.log10(1 + bytes / 1024));
+}
+function classifyStar(score, maxScore) {
+  const t = Math.min(1, score / Math.max(maxScore, 12));
+  const s = SPECTRAL.find((x) => t >= x.cut);
+  return { cls: s.cls, color: s.color, mult: s.mult, t };
+}
+var PLANET_COLORS = {
+  jupiter: "#c9986a",
+  saturn: "#d8bd84",
+  // gas giants
+  neptune: "#3f6fd9",
+  uranus: "#7fd4d4",
+  // Neptunian ice giants
+  "super-water": "#4f8fb8",
+  "super-rock": "#b0725a",
+  "super-verdant": "#5a8f7a",
+  // super-Earths
+  mercury: "#9a938c",
+  venus: "#e9d29a",
+  earth: "#3f7fc9",
+  mars: "#c25a38"
+  // terrestrial
+};
+var PTYPE_NAME = { 0: "Terrestrial", 1: "Gas giant", 2: "Neptunian", 3: "Super-Earth" };
+var PTYPE_MULT = { 0: 1, 1: 1.22, 2: 1.1, 3: 1.05 };
+function classifyPlanet(moons, attachCount, sizeBytes, seed) {
+  const sizeKB = (Number(sizeBytes) || 0) / 1024;
+  const h = seed - Math.floor(seed);
+  let style, variant;
+  if (moons > 3) {
+    style = 1;
+    variant = h < 0.5 ? "jupiter" : "saturn";
+  } else if (moons >= 2) {
+    style = 2;
+    variant = attachCount > 0 ? "neptune" : h < 0.5 ? "uranus" : "neptune";
+  } else if (moons === 1 || sizeKB > 24) {
+    style = 3;
+    variant = attachCount > 0 ? "super-water" : h < 0.5 ? "super-rock" : "super-verdant";
+  } else {
+    style = 0;
+    variant = attachCount > 0 ? "earth" : h < 0.25 ? "mercury" : h < 0.5 ? "venus" : h < 0.75 ? "mars" : "earth";
+  }
+  return { style, variant, name: PTYPE_NAME[style], color: PLANET_COLORS[variant], mult: PTYPE_MULT[style], rings: style === 1 };
+}
 function hStr(s) {
   let h = 2166136261 >>> 0;
   s = String(s);
@@ -344,6 +406,32 @@ function buildCosmos(graph, opts = {}) {
     n.mass = r;
     if (!n.body) n.body = role;
   }
+  const sysFiles = /* @__PURE__ */ new Map();
+  const sysDirs = /* @__PURE__ */ new Map();
+  const sysBytes = /* @__PURE__ */ new Map();
+  for (const n of nodes) {
+    if (!n.systemId || n.kind !== "file") continue;
+    sysFiles.set(n.systemId, (sysFiles.get(n.systemId) || 0) + 1);
+    let dirs = sysDirs.get(n.systemId);
+    if (!dirs) {
+      dirs = /* @__PURE__ */ new Set();
+      sysDirs.set(n.systemId, dirs);
+    }
+    const d = dirName(n.path || "");
+    if (d) dirs.add(d);
+    sysBytes.set(n.systemId, (sysBytes.get(n.systemId) || 0) + (Number(n.size) || 0));
+  }
+  const scoreOf = (id) => starScore(sysFiles.get(id) || 0, sysDirs.get(id)?.size || 0, sysBytes.get(id) || 0);
+  let maxStarScore = 0;
+  for (const n of nodes) if (n.role === "star") maxStarScore = Math.max(maxStarScore, scoreOf(n.id));
+  for (const n of nodes) {
+    if (n.role !== "star") continue;
+    const s = classifyStar(scoreOf(n.id), maxStarScore);
+    n.__spectral = { cls: s.cls, t: s.t };
+    n.__starColor = s.color;
+    n.__r *= s.mult;
+    n.mass = n.__r;
+  }
   const childrenByParent = /* @__PURE__ */ new Map();
   for (const n of nodes) {
     if (n.parentId) {
@@ -365,18 +453,25 @@ function buildCosmos(graph, opts = {}) {
     }
     return c;
   }
-  const PCOL = { venus: "#e9d29a", earth: "#3f7fc9", mars: "#c25a38", minor: "#8f8077", gas: "#d8bd84" };
+  const attachHosts = /* @__PURE__ */ new Map();
+  for (const n of nodes) {
+    if (n.role !== "oort") continue;
+    for (const h of n.hosts && n.hosts.length ? n.hosts : [n.hostId]) {
+      if (h) attachHosts.set(h, (attachHosts.get(h) || 0) + 1);
+    }
+  }
   for (const n of nodes) {
     if (n.role !== "planet") continue;
     const mc = moonDesc(n.id);
     n.__moons = mc;
-    const pt = mc > 3 ? "gas" : mc === 0 ? "minor" : (() => {
-      const h = hUnit(n.id + "pt");
-      return h < 0.34 ? "venus" : h < 0.67 ? "earth" : "mars";
-    })();
-    n.__ptype = pt;
-    n.__pcolor = PCOL[pt];
-    n.__rings = pt === "gas";
+    const c = classifyPlanet(mc, attachHosts.get(n.id) || 0, Number(n.size) || 0, hUnit(n.id + "pt"));
+    n.__ptype = c.variant;
+    n.__pcolor = c.color;
+    n.__pstyle = c.style;
+    n.__ptypeName = c.name;
+    n.__rings = c.rings;
+    n.__r *= c.mult;
+    n.mass = n.__r;
   }
   const cosmosLinks = [];
   const visible = (id) => {
@@ -909,10 +1004,15 @@ function attachMoons(nodes, links, nodeById) {
   return orbitN;
 }
 export {
+  PLANET_COLORS,
+  SPECTRAL,
   buildCosmos,
+  classifyPlanet,
+  classifyStar,
   countIntersections,
   layoutCosmos,
   layoutGraph,
   positionCosmos,
-  separateCosmos
+  separateCosmos,
+  starScore
 };

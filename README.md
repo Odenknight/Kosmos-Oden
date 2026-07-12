@@ -68,12 +68,37 @@ The same vault produces materially the same nodes, links, lineage, HEAD status, 
 |---|---|
 | A home/index note in your vault root | The **cluster core** — the bright heart of the whole universe, the gravitational focal point. |
 | A top-level folder | A **galaxy**. If the folder has a manifest note (`index`/`README`/`MOC`/a note matching the folder's name), that note becomes the bright galactic center; otherwise the folder itself does. |
-| A well-connected note | A **star** with its own solar system. |
-| Notes linked from that note | **Planets**, **moons** and **moonlets**, chained by how closely they're related. |
+| A well-connected note | A **star** with its own solar system — its spectral class and size read the weight of that system (see below). |
+| Notes linked from that note | **Planets**, **moons** and **moonlets**, chained by how closely they're related. Each planet gets a NASA exoplanet type from its own note (see below). |
 | Loose or barely-linked notes | **Asteroids**, tumbling near the galaxy they're gravitationally bound to. |
 | Images, PDFs, other attachments | The **Oort cloud** — a faint outer shell around the system that references them. |
 
-Notes with more than three linked moons get Saturn-style rings with fine grooves and a Cassini-like gap. Rocky planets show land/sea tones and polar ice caps; moons carry dark maria patches and bright ejecta flecks; asteroids are irregular tumbling rocks with varied mineral coloring — all of it runs inside the existing shader passes (mobile keeps its dedicated lightweight path), so nothing got slower. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
+Moons carry dark maria patches and bright ejecta flecks; asteroids are irregular tumbling rocks with varied mineral coloring — all of it runs inside the existing shader passes (mobile keeps its dedicated lightweight path), so nothing got slower. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
+
+### Stars follow the Hertzsprung–Russell main sequence
+
+A star's brightness, color and size read the **weight of its solar system** — how many notes it gathers, how many distinct subfolders they span, and their total byte size. Heavier systems sit further up the [H-R main sequence](https://en.wikipedia.org/wiki/Hertzsprung%E2%80%93Russell_diagram): hotter, bluer and larger. A tiny system is a cool red **M** dwarf (like Proxima Centauri); a Sun-sized hub is a yellow **G**; a sprawling, deeply-foldered hub climbs through **F · A · B** to a hot blue **O** giant. The scale is relative to your own vault's heaviest system, with a floor so a two-note folder never mints a blue giant. Select a star and the inspector names its class (e.g. *Class G Star*).
+
+| Class | Color | You have… |
+|---|---|---|
+| **M** | red | a small, shallow system |
+| **K** | orange | a modest system |
+| **G** | yellow (the Sun) | a mid-sized, Sun-like hub |
+| **F · A** | white | a large, multi-folder system |
+| **B · O** | blue | your biggest, deepest, heaviest hubs |
+
+### Planets are typed like NASA's exoplanets
+
+Each planet's appearance is a [NASA exoplanet type](https://science.nasa.gov/exoplanets/planet-types/) chosen from the note itself — its child notes (moons), the attachments it hosts, and its size:
+
+| Type | You have… | Looks like |
+|---|---|---|
+| **Gas giant** | a note with 4+ descendant notes | banded Jupiter/Saturn tones, with rings |
+| **Neptunian** (ice giant) | a note with 2–3 descendants | smooth, cold, blue/cyan haze (Neptune/Uranus) |
+| **Super-Earth** | one descendant, or a hefty note (>24 KB) | amplified continental relief |
+| **Terrestrial** | a leaf note | Mercury/Venus/Earth/Mars — rocky, land/sea + ice caps |
+
+Hosting attachments biases a planet toward its watery variety (an Earth-like water world, a super-Earth ocean, or Neptune). Rings appear on gas giants only. Select a planet and the inspector names its type.
 
 ---
 
@@ -191,7 +216,7 @@ npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
 npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
 npm run build:standalone # just vault-kosmos.html
-npm test                 # 105 unit/API/artifact tests (node --test)
+npm test                 # 119 unit/API/artifact/classification tests (node --test)
 npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
 ```

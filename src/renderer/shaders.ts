@@ -78,9 +78,21 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
             base*=mix(0.78,1.18,m);
             base+=vColor*0.20*smoothstep(0.58,0.9,m);
             #ifdef PLANET
-              base=mix(base,base*vec3(0.74,0.87,1.05),smoothstep(0.30,0.62,m)*0.35);       // land/sea two-tone (reuses m)
-              float cap=smoothstep(0.74,0.92,abs(vObjNRM.y)+(m-0.5)*0.18)*(1.0-step(0.5,vBand));
-              base=mix(base,vec3(0.93,0.97,1.0),cap*0.6);                                  // fbm-jittered polar ice caps (rocky planets only)
+              // vBand carries the NASA exoplanet class: 0 terrestrial, 1 gas giant, 2 neptunian, 3 super-earth
+              if(vBand<0.5){                                                               // terrestrial: land/sea + polar ice caps
+                base=mix(base,base*vec3(0.74,0.87,1.05),smoothstep(0.30,0.62,m)*0.35);
+                float cap=smoothstep(0.74,0.92,abs(vObjNRM.y)+(m-0.5)*0.18);
+                base=mix(base,vec3(0.93,0.97,1.0),cap*0.6);
+              } else if(vBand<1.5){                                                        // gas giant: soften surface relief (bands added below)
+                base=mix(base,vColor,0.45);
+              } else if(vBand<2.5){                                                        // neptunian ice giant: smooth, cold, high-altitude haze
+                base=mix(base,vColor,0.55);
+                base=mix(base,base*vec3(0.82,0.94,1.22),0.5);
+                base+=vec3(0.02,0.05,0.10)*smoothstep(0.6,0.95,m);
+              } else {                                                                     // super-earth: amplified relief, continental contrast
+                base*=mix(0.68,1.30,m);
+                base=mix(base,base*vec3(0.80,0.92,1.06),smoothstep(0.42,0.72,m)*0.45);
+              }
             #else
               base*=1.0-0.28*smoothstep(0.60,0.80,m);                                      // lunar maria patches
               base+=vec3(0.05)*smoothstep(0.84,0.96,m);                                    // bright ejecta flecks
@@ -92,8 +104,14 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
             float rim=pow(1.0-NV,3.0); col+=vColor*rim*0.55*(0.35+0.65*diff);
           #endif
           #ifdef PLANET
-            if(vBand>0.5){ float lat=clamp(vObjNRM.y,-1.0,1.0); float bands=0.5+0.5*sin(lat*11.0+vSeed*5.0);
-              col=mix(col, col*vec3(1.18,1.06,0.82)+vec3(0.015), bands*0.5); }
+            float lat=clamp(vObjNRM.y,-1.0,1.0);
+            if(vBand>0.5&&vBand<1.5){                                                      // gas giant: warm Jupiter/Saturn banding
+              float bands=0.5+0.5*sin(lat*11.0+vSeed*5.0);
+              col=mix(col, col*vec3(1.18,1.06,0.82)+vec3(0.015), bands*0.5);
+            } else if(vBand>1.5&&vBand<2.5){                                               // neptunian: faint cool bands
+              float nbands=0.5+0.5*sin(lat*7.0+vSeed*4.0);
+              col=mix(col, col*vec3(0.88,0.98,1.16), nbands*0.30);
+            }
           #endif
         #endif
         col+=vColor*vHi*1.7; col+=vColor*pow(1.0-NV,2.0)*vHi*1.5; col=mix(col,vec3(1.0),vHi*0.30);

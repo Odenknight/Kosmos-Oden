@@ -243,7 +243,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
         const r = node.__r;
         MAT.compose(VEC.fromArray(node.position), QID, SCALE.set(r, r, r));
         L.mesh.setMatrixAt(i, MAT);
-        const c = lin(node.kind === "unresolved" && node.body !== "oort" ? "#8a93a8" : (b === "planet" && node.__pcolor ? node.__pcolor : node.color));
+        const c = lin(
+          node.kind === "unresolved" && node.body !== "oort" ? "#8a93a8"
+          : b === "planet" && node.__pcolor ? node.__pcolor
+          : b === "star" && node.__starColor ? node.__starColor   // H-R spectral color
+          : node.color
+        );
         if (node.__ghost) { const g = lin("#6b7280"); for (let k = 0; k < 3; k++) c[k] = c[k] * 0.55 + g[k] * 0.45; } // superseded (OKF+) => ghosted
         node.__baseC = c;
         node.__vt = node.validAt ? Date.parse(node.validAt) : null;
@@ -251,7 +256,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
         L.attrs.aColor.setXYZ(i, c[0], c[1], c[2]);
         L.attrs.aSeed.setX(i, hashUnitLocal(node.id));
         L.attrs.aVisible.setX(i, 1);
-        L.attrs.aBand.setX(i, (b === "planet" && node.__rings) ? 1 : 0);
+        // aBand carries the NASA planet-type style code (0 terrestrial, 1 gas, 2 neptunian, 3 super-earth)
+        L.attrs.aBand.setX(i, (b === "planet" && node.__pstyle != null) ? node.__pstyle : 0);
         const rec = { node, layer: L, idx: i, body: b };
         L.recByIdx[i] = rec;
         nodeRender.push(rec); idToRender.set(node.id, rec);
@@ -266,7 +272,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     glow = makeGlow(lumin.length + HALO_CAP); matsWithTime.push(glow.mat); keep(glow.geo); keep(glow.mat);
     lumin.forEach((node: any, i: number) => {
       MAT.makeTranslation(node.position[0], node.position[1], node.position[2]); glow.mesh.setMatrixAt(i, MAT);
-      const c = lin(node.color); glow.attrs.aColor.setXYZ(i, c[0], c[1], c[2]);
+      const c = lin(node.body === "star" && node.__starColor ? node.__starColor : node.color); // star coronae match the spectral class
+      glow.attrs.aColor.setXYZ(i, c[0], c[1], c[2]);
       const mult = node.body === "cluster" ? 5.6 : node.body === "galaxy" ? 5.0 : (node.depth === 0 ? 5.4 : 4.3);
       glow.attrs.aSize.setX(i, (node.__r || 3) * mult);
       glow.attrs.aVisible.setX(i, 1); glow.attrs.aSeed.setX(i, hashUnitLocal(node.id));
@@ -900,16 +907,22 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     host.innerHTML = items.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join("");
   }
   const inspector = document.getElementById("inspector");
-  function bodyLabel(b: string) {
+  function bodyLabel(b: string, n?: any) {
     const de = LANG === "de";
     if (b === "cluster") return de ? "Cluster-Kern" : "Cluster core";
     if (b === "galaxy") return de ? "Galaxienzentrum" : "Galactic center";
     if (b === "oort") return de ? "Oort-Objekt" : "Oort object";
-    return b === "star" ? (de ? "Stern" : "Star") : b === "planet" ? "Planet" : b === "moon" ? (de ? "Mond" : "Moon") : b === "moonlet" ? (de ? "Mondchen" : "Moonlet") : "Asteroid";
+    if (b === "star") {
+      const cls = n && n.__spectral ? n.__spectral.cls : null; // H-R spectral class
+      return cls ? (de ? `Stern · Klasse ${cls}` : `Class ${cls} Star`) : (de ? "Stern" : "Star");
+    }
+    if (b === "planet") return (n && n.__ptypeName) ? n.__ptypeName : "Planet"; // NASA exoplanet type
+    return b === "moon" ? (de ? "Mond" : "Moon") : b === "moonlet" ? (de ? "Mondchen" : "Moonlet") : "Asteroid";
   }
   function showInspector(id: string) {
     const n = G.nodeById.get(id); if (!n || !inspector) return;
-    const be = document.getElementById("insBody"); be.textContent = bodyLabel(n.body); (be as HTMLElement).style.color = n.color;
+    const be = document.getElementById("insBody"); be.textContent = bodyLabel(n.body, n);
+    (be as HTMLElement).style.color = n.body === "star" && n.__starColor ? n.__starColor : n.body === "planet" && n.__pcolor ? n.__pcolor : n.color;
     document.getElementById("insName").textContent = n.label;
     document.getElementById("insPath").textContent = n.path || prettyArea(n.area);
     const out = G.links.filter((l: any) => l.kind !== "contains" && l.source === id);

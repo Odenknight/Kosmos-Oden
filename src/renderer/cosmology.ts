@@ -27,6 +27,72 @@ export const SYS_PACK = 0.42; // solar-system packing inside a galaxy
 export const OORT_GAP = 0.7;  // Oort shell beyond a system's core
 export const MINSEP = 0.55;   // hard minimum gap enforced by the separation pass
 
+/* ------------------------------------------------------------------ *
+ *  Hertzsprung–Russell stellar classification (pure, unit-testable)
+ * ------------------------------------------------------------------ *
+ * A star's "stellar mass" is the knowledge weight of its solar system:
+ * member notes + distinct subfolders they span + total byte size. Heavier
+ * systems sit further up the main sequence — hotter, bluer, larger
+ * (M red dwarf → K → G Sun-like → F → A → B → O blue giant), i.e. the
+ * main-sequence diagonal of the H-R diagram in the reference image. */
+export const SPECTRAL: Array<{ cut: number; cls: string; color: string; mult: number }> = [
+  { cut: 0.92, cls: "O", color: "#9db8ff", mult: 1.55 }, // hot blue giant
+  { cut: 0.78, cls: "B", color: "#bcd2ff", mult: 1.40 }, // blue-white
+  { cut: 0.62, cls: "A", color: "#e8edff", mult: 1.26 }, // white (Sirius A)
+  { cut: 0.46, cls: "F", color: "#fff4e0", mult: 1.13 }, // yellow-white
+  { cut: 0.30, cls: "G", color: "#ffd27a", mult: 1.00 }, // yellow (the Sun)
+  { cut: 0.16, cls: "K", color: "#ffa25e", mult: 0.90 }, // orange
+  { cut: -1,   cls: "M", color: "#ff7a4d", mult: 0.80 }, // red dwarf (Proxima Centauri)
+];
+
+/** Weight of a solar system from its notes / subfolders / bytes. */
+export function starScore(files: number, subfolders: number, bytes: number): number {
+  return files + 0.6 * subfolders + Math.min(4, Math.log10(1 + bytes / 1024));
+}
+
+/** Map a star's score (against the vault's heaviest, floored) to a spectral class. */
+export function classifyStar(score: number, maxScore: number): { cls: string; color: string; mult: number; t: number } {
+  // Floor the denominator so a two-note vault never mints an O-class blue giant.
+  const t = Math.min(1, score / Math.max(maxScore, 12));
+  const s = SPECTRAL.find((x) => t >= x.cut)!;
+  return { cls: s.cls, color: s.color, mult: s.mult, t };
+}
+
+/* ------------------------------------------------------------------ *
+ *  NASA exoplanet classification (pure, unit-testable)
+ * ------------------------------------------------------------------ *
+ * Four types per science.nasa.gov/exoplanets/planet-types — gas giant,
+ * Neptunian (ice giants incl. mini-Neptunes), super-Earth, terrestrial —
+ * correlated to the note: descendant moons (child notes), hosted
+ * attachments, and note size choose the class; a stable hash picks the
+ * in-class variety. style codes: 0 terrestrial, 1 gas, 2 neptunian, 3 super-earth. */
+export const PLANET_COLORS: Record<string, string> = {
+  jupiter: "#c9986a", saturn: "#d8bd84",                                         // gas giants
+  neptune: "#3f6fd9", uranus: "#7fd4d4",                                         // Neptunian ice giants
+  "super-water": "#4f8fb8", "super-rock": "#b0725a", "super-verdant": "#5a8f7a", // super-Earths
+  mercury: "#9a938c", venus: "#e9d29a", earth: "#3f7fc9", mars: "#c25a38",       // terrestrial
+};
+const PTYPE_NAME: Record<number, string> = { 0: "Terrestrial", 1: "Gas giant", 2: "Neptunian", 3: "Super-Earth" };
+const PTYPE_MULT: Record<number, number> = { 0: 1.0, 1: 1.22, 2: 1.1, 3: 1.05 };
+
+export interface PlanetClass { style: number; variant: string; name: string; color: string; mult: number; rings: boolean; }
+
+export function classifyPlanet(moons: number, attachCount: number, sizeBytes: number, seed: number): PlanetClass {
+  const sizeKB = (Number(sizeBytes) || 0) / 1024;
+  const h = seed - Math.floor(seed); // fractional part → [0,1)
+  let style: number, variant: string;
+  if (moons > 3) {                                  // many child notes → gas giant
+    style = 1; variant = h < 0.5 ? "jupiter" : "saturn";
+  } else if (moons >= 2) {                          // a couple of children → ice giant
+    style = 2; variant = attachCount > 0 ? "neptune" : (h < 0.5 ? "uranus" : "neptune");
+  } else if (moons === 1 || sizeKB > 24) {          // one child or a hefty note → super-Earth
+    style = 3; variant = attachCount > 0 ? "super-water" : (h < 0.5 ? "super-rock" : "super-verdant");
+  } else {                                          // leaf-ish note → terrestrial
+    style = 0; variant = attachCount > 0 ? "earth" : (h < 0.25 ? "mercury" : h < 0.5 ? "venus" : h < 0.75 ? "mars" : "earth");
+  }
+  return { style, variant, name: PTYPE_NAME[style], color: PLANET_COLORS[variant], mult: PTYPE_MULT[style], rings: style === 1 };
+}
+
 // ---- tiny deterministic helpers ----
 export function hStr(s: any): number { let h = 2166136261 >>> 0; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
 export function hUnit(s: any): number { return (hStr(s) % 100000) / 100000; }
@@ -212,16 +278,50 @@ export function buildCosmos(graph: any, opts: CosmosOptions = {}): KosmosGraph {
     n.__r = r; n.mass = r; if (!n.body) n.body = role;
   }
 
-  // planet appearance: moon count -> Saturn-like gas giant (rings, >3 moons), else terrestrial, or reddish-grey minor
+  // ---- Hertzsprung–Russell stellar classification (see classifyStar) -------
+  // Runs BEFORE layout, so the packing/collision passes account for the
+  // enlarged radii and the scene stays overlap-free.
+  const sysFiles = new Map<string, number>();      // systemId -> member note count
+  const sysDirs = new Map<string, Set<string>>();  // systemId -> distinct subfolders
+  const sysBytes = new Map<string, number>();      // systemId -> total bytes
+  for (const n of nodes) {
+    if (!n.systemId || n.kind !== "file") continue;
+    sysFiles.set(n.systemId, (sysFiles.get(n.systemId) || 0) + 1);
+    let dirs = sysDirs.get(n.systemId); if (!dirs) { dirs = new Set(); sysDirs.set(n.systemId, dirs); }
+    const d = dirName(n.path || ""); if (d) dirs.add(d);
+    sysBytes.set(n.systemId, (sysBytes.get(n.systemId) || 0) + (Number(n.size) || 0));
+  }
+  const scoreOf = (id: string) => starScore(sysFiles.get(id) || 0, sysDirs.get(id)?.size || 0, sysBytes.get(id) || 0);
+  let maxStarScore = 0;
+  for (const n of nodes) if (n.role === "star") maxStarScore = Math.max(maxStarScore, scoreOf(n.id));
+  for (const n of nodes) {
+    if (n.role !== "star") continue;
+    const s = classifyStar(scoreOf(n.id), maxStarScore);
+    n.__spectral = { cls: s.cls, t: s.t };
+    n.__starColor = s.color;
+    n.__r *= s.mult; n.mass = n.__r;
+  }
+
+  // ---- NASA exoplanet classification for planets (see classifyPlanet) ------
   const childrenByParent = new Map<string, any[]>();
   for (const n of nodes) { if (n.parentId) { let arr = childrenByParent.get(n.parentId); if (!arr) { arr = []; childrenByParent.set(n.parentId, arr); } arr.push(n); } }
   function moonDesc(id: string): number { let c = 0; for (const k of (childrenByParent.get(id) || [])) { if (k.role === "moon" || k.role === "moonlet") { c++; c += moonDesc(k.id); } } return c; }
-  const PCOL: Record<string, string> = { venus: "#e9d29a", earth: "#3f7fc9", mars: "#c25a38", minor: "#8f8077", gas: "#d8bd84" };
+  // attachment hosting: notes referenced by Oort objects
+  const attachHosts = new Map<string, number>();
+  for (const n of nodes) {
+    if (n.role !== "oort") continue;
+    for (const h of (n.hosts && n.hosts.length ? n.hosts : [n.hostId])) {
+      if (h) attachHosts.set(h, (attachHosts.get(h) || 0) + 1);
+    }
+  }
   for (const n of nodes) {
     if (n.role !== "planet") continue;
     const mc = moonDesc(n.id); n.__moons = mc;
-    const pt = mc > 3 ? "gas" : mc === 0 ? "minor" : (() => { const h = hUnit(n.id + "pt"); return h < 0.34 ? "venus" : h < 0.67 ? "earth" : "mars"; })();
-    n.__ptype = pt; n.__pcolor = PCOL[pt]; n.__rings = (pt === "gas");
+    const c = classifyPlanet(mc, attachHosts.get(n.id) || 0, Number(n.size) || 0, hUnit(n.id + "pt"));
+    n.__ptype = c.variant; n.__pcolor = c.color;
+    n.__pstyle = c.style; n.__ptypeName = c.name;
+    n.__rings = c.rings;                              // rings on gas giants only
+    n.__r *= c.mult; n.mass = n.__r;
   }
 
   // ---- cosmos link set (categorised) ----
