@@ -5,21 +5,23 @@ All notable changes to Kosmos-Oden are documented here. Format based on
 [SemVer](https://semver.org/) (pre-1.0: minor versions may include breaking
 changes, called out under **Compatibility**).
 
-## [Unreleased] — branch `renderer/three-r185-webgl` (RC groundwork)
+## [0.6.0-beta.1] — 2026-07-14 · branch `renderer/three-r185-webgl` (pre-release)
 
-Phase 1 of the renderer program in `docs/assessments/Kosmos-Oden-Engineering-Review/`.
-**Not merged to `main`** — needs the browser/visual/cross-GPU soak and human RC
-promotion the CI/CD directive requires. Full detail: `docs/RENDERER-MIGRATION-r185.md`.
+Phase 1 of the renderer program in `docs/assessments/Kosmos-Oden-Engineering-Review/`,
+cut as a **GitHub pre-release** for renderer QA (BRAT-installable). **Not merged
+to `main`** — needs the browser/visual/cross-GPU soak and human RC promotion the
+CI/CD directive requires. Full detail: `docs/RENDERER-MIGRATION-r185.md`.
 
 ### Changed
 - **Stable renderer migrated from vendored Three.js r128 (global `window.THREE`) to exact-pinned ESM `three@0.185.1` (r185)**, esbuild-bundled into the offline single-file artifacts (no CDN, still `file://`-capable). `import * as THREE from "three"` replaces the global; the vendored `<script>` inline is gone.
 - **WebGL2-only** stable renderer (modern `WebGLRenderer`), with capability detection and an honest unsupported-browser message + construction failure boundary (no silent downgrade).
 - **Explicit color-management policy (Strategy A)** — `ColorManagement.enabled=false`, `outputColorSpace=LinearSRGBColorSpace`, `NoToneMapping`; the shaders keep ownership of ACES tone-mapping + manual sRGB so the pipeline matches the r128 baseline with no double conversion.
+- **Packaging (ported from `main`)** — standalone `vault-kosmos.html` and `dist/` are no longer committed; rebuilt by CI and attached to releases (standalone as its own asset, separate from the plugin components). `release.yml` fires on unprefixed version tags; pre-releases (tag with a `-` suffix) are marked automatically. See `docs/COMMUNITY-PLUGIN.md`.
 
 ### Added
 - **MCP: current protocol revision + native-HTTP `.mcp.json`** (ported from `main`) — the Agent API negotiates MCP `2025-06-18` (+ `2025-03-26`, `2024-11-05`); ships a native Streamable-HTTP `.mcp.json.example` (no `mcp-remote` bridge) and a settings "Copy .mcp.json" button.
 - **Per-agent live traversal trail** (ported from `main`) — each connected agent gets a stable hashed colour and a colour-coded **mini rocket** at its trail head; the name label follows the labels toggle. Identity from MCP `clientInfo.name` (via `Mcp-Session-Id`) else `User-Agent`.
-- **Agent API concurrency fairness (Mitigation 4)** (ported from `main`) — per-agent in-flight cap so one agent's bulk work can't starve another's interactive query. Full status: `docs/AGENT-API-CONCURRENCY-STATUS-v0.5.5.md`.
+- **Agent API concurrency fairness (Mitigation 4)** (ported from `main`) — per-agent in-flight cap so one agent's bulk work can't starve another's interactive query. Full status: `docs/AGENT-API-CONCURRENCY-STATUS.md`.
 - **Trailer tours the whole vault** — the Trailer flight now flies nearby **each first-level-folder galaxy** (largest first, framed to its extent), bookended by wide cluster establishing shots, so it gives an overview of the entire vault instead of a single star + a few planets. Ported from `main`; falls back to the old star/planets tour on the non-cosmos legacy layout.
 - **WebGL2 context-loss/restore handling** — stop cleanly, show a recovering state, rebuild GPU resources and resume (no frozen canvas).
 - **Deterministic capture mode** `?capture=1&seed=&time=&dpr=&quality=&camera=&animation=off` — freezes shader time/camera/DPR/quality so visual-regression screenshots are stable; boots the demo scene without a picker.

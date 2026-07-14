@@ -4,6 +4,14 @@ node_modules/
 .DS_Store
 release/
 
+# Generated build outputs — rebuilt by `npm run build`, attached to GitHub
+# Releases by CI (not committed). The committed plugin components are only
+# main.js + manifest.json + styles.css + versions.json. The standalone viewer
+# (vault-kosmos.html) is a separate release download, kept out of the tracked
+# tree so the plugin footprint stays clean.
+vault-kosmos.html
+dist/
+
 # Obsidian plugin runtime data (contains the local Agent API token — never commit)
 data.json
 
