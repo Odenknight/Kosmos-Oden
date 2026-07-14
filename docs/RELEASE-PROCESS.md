@@ -9,11 +9,15 @@ Releases are built **from the tag in CI**, not copied from a workstation
 2. `npm run check:versions` — confirms `package.json`, `manifest.json`,
    `versions.json` and `src/core/version.ts` agree.
 3. Update `CHANGELOG.md` (move `[Unreleased]` items under the new version).
-4. `npm run build && npm test` — commit the rebuilt `main.js`,
-   `vault-kosmos.html`, `dist/`.
-5. Commit, then tag: `git tag vX.Y.Z && git push --tags`.
+4. `npm run verify` locally to confirm the tree is release-ready. `main.js`,
+   `vault-kosmos.html`, and `dist/` are generated and **gitignored** — do not
+   commit them; CI builds them fresh from source.
+5. Commit the version/changelog changes, then tag with the **exact manifest
+   version, no `v` prefix** (Obsidian requirement — see
+   `docs/COMMUNITY-PLUGIN.md`): `git tag X.Y.Z && git push origin X.Y.Z`.
+   Pre-releases use a semver suffix, e.g. `git tag X.Y.Z-beta.1`.
 
-## What CI does on a `v*` tag (`.github/workflows/release.yml`)
+## What CI does on a version tag (`.github/workflows/release.yml`)
 
 1. `npm ci` (clean, from lockfile).
 2. `npm run verify` — typecheck + build + tests + version/artifact/invariant checks.
@@ -33,7 +37,7 @@ validation runs with `contents: read`.
 
 ```bash
 # Rebuild the tagged commit and compare to the published artifacts
-git checkout vX.Y.Z
+git checkout X.Y.Z
 npm ci
 npm run build
 sha256sum main.js vault-kosmos.html        # compare against the release SHA256SUMS

@@ -7,14 +7,15 @@ viewer** stay cleanly separated, and how to publish and submit it.
 
 | Kind | Files | Where it lives | How a user gets it |
 |---|---|---|---|
-| **Plugin** | `manifest.json`, `main.js`, `styles.css` (+ `versions.json`) | committed at repo root; attached to each release | Obsidian **Community plugins** browser / BRAT — Obsidian downloads only these files from the release |
+| **Plugin** | `manifest.json`, `styles.css`, `versions.json` (committed) + `main.js` (build output, gitignored) | source at repo root; all four attached to each release | Obsidian **Community plugins** browser / BRAT — Obsidian downloads only these files from the release |
 | **Standalone** | `vault-kosmos.html` (one self-contained file) | **not** committed (build output); attached to each release as its own asset | download the single file from the **Releases** page and open it in a browser |
 
 The standalone is **never** part of the plugin download — Obsidian only fetches
 `manifest.json` / `main.js` / `styles.css`. `vault-kosmos.html` is a separate,
 independently downloadable asset on the same release. Build outputs
-(`vault-kosmos.html`, `dist/`) are gitignored so the tracked tree shows only
-source + the four plugin files.
+(`main.js`, `vault-kosmos.html`, `dist/`) are gitignored so the tracked tree
+shows only source + `manifest.json`/`styles.css`/`versions.json`; CI rebuilds
+`main.js` fresh on every push and attaches it to tagged releases.
 
 ## Cutting a release
 
