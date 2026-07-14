@@ -25,7 +25,12 @@ import { buildGraphitiEpisodesWithContent } from "../core/graphiti";
 import { KOSMOS_VERSION } from "../core/version";
 import type { KosmosGraph, KosmosNode } from "../core/types";
 
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-03-26", "2024-11-05"];
+// Newest first. `2025-06-18` is the current MCP revision negotiated by
+// current Claude Code / Claude Desktop; older revisions are kept so existing
+// clients still initialize. The server is lenient about the post-init
+// `MCP-Protocol-Version` header (accepts requests without it) rather than
+// returning 400, so a client that omits it never breaks.
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const LATEST_MCP_PROTOCOL_VERSION = SUPPORTED_MCP_PROTOCOL_VERSIONS[0];
 
 /** Request-body cap in BYTES (4 MiB). Documented unit: bytes, not JS chars. */
@@ -81,6 +86,22 @@ export const MAX_CONCURRENT_REQUESTS = 24;
 export const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
+ * Concurrency Mitigation 4 (fairness): cap the in-flight requests any single
+ * agent may hold, so one agent's bulk/background work (e.g. a large
+ * export_graphiti_episodes) cannot monopolize throughput and starve another
+ * agent's interactive query. Applies to ALL clients (local agents are the
+ * intended fairness case), keyed by the agent identity behind the request.
+ * Generous by design — interactive use never reaches it.
+ */
+export const MAX_CONCURRENT_PER_AGENT = 12;
+
+/** Agent identity sessions (per-agent trail colour/label + fairness key).
+ *  Minted on MCP `initialize` from the client's `clientInfo.name`, echoed back
+ *  as `Mcp-Session-Id`. Bounded + TTL'd so the map never grows unbounded. */
+export const AGENT_SESSION_TTL_MS = 30 * 60_000;
+export const MAX_AGENT_SESSIONS = 64;
+
+/**
  * Generate an auth token from a cryptographically secure source (§16).
  * 32 random bytes, base64url-encoded. Throws when no secure RNG exists —
  * never silently downgrades to Math.random().
@@ -122,13 +143,15 @@ export class KosmosAgentServer {
   status = "stopped";
   private inFlight = 0;
   private hits = new Map<string, number[]>(); // client -> recent request timestamps
+  private perAgentInFlight = new Map<string, number>(); // agent identity -> in-flight count (Mitigation 4)
+  private sessions = new Map<string, { name: string; at: number }>(); // Mcp-Session-Id -> agent name
   private lanCache: { at: number; ips: string[] } = { at: 0, ips: [] }; // Host validation runs per request; cache the NIC scan
   /** Fired with the note paths one query touched, so the viewer can render a
    *  live agent-traversal trail. Emission is post-hoc from result objects
    *  (queries stay pure) and capped per tool so a broad result never floods
    *  the halo budget (v0.5.1 behavior). vault_overview / export / diagnostics
    *  are not reported — lighting up the entire vault isn't a trail. */
-  onTraversal?: (paths: string[], tool: string) => void;
+  onTraversal?: (paths: string[], tool: string, agent?: string) => void;
 
   /** Paths a query result touched, for the live traversal overlay (best-effort, capped). */
   private traversalPaths(tool: string, r: any): string[] {
@@ -144,10 +167,40 @@ export class KosmosAgentServer {
     } catch (_) { return []; }
   }
 
-  emitTraversal(tool: string, r: any): void {
+  emitTraversal(tool: string, r: any, agent?: string): void {
     if (!this.onTraversal) return;
     const paths = this.traversalPaths(tool, r);
-    if (paths.length) { try { this.onTraversal(paths, tool); } catch (_) { /* never break a request */ } }
+    if (paths.length) { try { this.onTraversal(paths, tool, agent); } catch (_) { /* never break a request */ } }
+  }
+
+  /* ---------------- agent identity (per-agent trail + fairness) ---------------- */
+
+  /** Register an MCP session from `initialize` and return its id (echoed as
+   *  `Mcp-Session-Id`). Prunes expired sessions and bounds the map size. */
+  private registerSession(name: string): string {
+    const now = Date.now();
+    for (const [k, v] of this.sessions) if (now - v.at > AGENT_SESSION_TTL_MS) this.sessions.delete(k);
+    while (this.sessions.size >= MAX_AGENT_SESSIONS) { const first = this.sessions.keys().next().value; if (first === undefined) break; this.sessions.delete(first); }
+    const sid = makeToken().slice(0, 22);
+    this.sessions.set(sid, { name: this.cleanAgentName(name), at: now });
+    return sid;
+  }
+
+  /** Trim an agent name/User-Agent to a short, safe display label. */
+  private cleanAgentName(s: unknown): string {
+    const raw = String(s ?? "").trim();
+    if (!raw) return "agent";
+    // keep the leading product token (before a version slash/space), bounded
+    const first = raw.split(/[\s/]+/)[0] || raw;
+    return first.replace(/[^\w.-]/g, "").slice(0, 40) || "agent";
+  }
+
+  /** Best-effort identity of the agent behind a request: the MCP session's
+   *  clientInfo.name (via `Mcp-Session-Id`), else the User-Agent, else "agent". */
+  agentLabel(req: any): string {
+    const sid = String(req?.headers?.["mcp-session-id"] || "");
+    if (sid) { const s = this.sessions.get(sid); if (s) { s.at = Date.now(); return s.name; } }
+    return this.cleanAgentName(req?.headers?.["user-agent"]);
   }
 
   constructor(http: any, settings: AgentSettings, provider: AgentDataProvider) {
@@ -175,6 +228,8 @@ export class KosmosAgentServer {
     }
     this.inFlight = 0;
     this.hits.clear();
+    this.perAgentInFlight.clear();
+    this.sessions.clear();
     const srv = this.http.createServer((req: any, res: any) => {
       this.handle(req, res).catch((e: any) => {
         try {
@@ -200,6 +255,8 @@ export class KosmosAgentServer {
     this.status = "stopped";
     this.inFlight = 0;
     this.hits.clear();
+    this.perAgentInFlight.clear();
+    this.sessions.clear();
   }
 
   /** Constant-time string comparison — no early return on first mismatch (Doc1 §3.6). */
@@ -306,9 +363,9 @@ export class KosmosAgentServer {
     });
   }
 
-  json(res: any, code: number, obj: any): void {
+  json(res: any, code: number, obj: any, extraHeaders?: Record<string, string>): void {
     const body = JSON.stringify(obj, null, 2);
-    res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(extraHeaders || {}) });
     res.end(body);
   }
 
@@ -542,9 +599,9 @@ export class KosmosAgentServer {
     ];
   }
 
-  async callTool(name: string, args: any): Promise<any> {
+  async callTool(name: string, args: any, agent?: string): Promise<any> {
     args = args || {};
-    const done = (r: any) => { this.emitTraversal(name, r); return r; };
+    const done = (r: any) => { this.emitTraversal(name, r, agent); return r; };
     switch (name) {
       case "vault_overview": return this.qOverview();
       case "search_notes": return done(await this.qSearch(args.query, args));
@@ -563,13 +620,16 @@ export class KosmosAgentServer {
     return LATEST_MCP_PROTOCOL_VERSION;
   }
 
-  async mcpDispatch(msg: any): Promise<any | null> {
+  async mcpDispatch(msg: any, ctx?: { agent?: string; setSessionId?: (sid: string) => void }): Promise<any | null> {
     if (!msg || typeof msg !== "object") return { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } };
     const { id, method, params } = msg;
     if (id === undefined || id === null) return null; // notification: accept silently
     const ok = (result: any) => ({ jsonrpc: "2.0", id, result });
     try {
       if (method === "initialize") {
+        // Mint a session keyed to the client's name so its later tool calls get a
+        // stable per-agent trail colour/label (echoed back as Mcp-Session-Id).
+        try { if (ctx?.setSessionId) ctx.setSessionId(this.registerSession(params?.clientInfo?.name)); } catch (_) { /* identity is best-effort */ }
         return ok({
           protocolVersion: this.negotiateProtocolVersion(params?.protocolVersion),
           capabilities: { tools: { listChanged: false } },
@@ -581,7 +641,7 @@ export class KosmosAgentServer {
       if (method === "tools/list") return ok({ tools: this.toolDefs() });
       if (method === "tools/call") {
         try {
-          const r = await this.callTool(params?.name, params?.arguments);
+          const r = await this.callTool(params?.name, params?.arguments, ctx?.agent);
           return ok({ content: [{ type: "text", text: JSON.stringify(r, null, 2) }], isError: false });
         } catch (e: any) {
           return ok({ content: [{ type: "text", text: "Error: " + (e?.message || String(e)) }], isError: true });
@@ -605,11 +665,22 @@ export class KosmosAgentServer {
       res.end(JSON.stringify({ error: "too many requests", hint: rl.reason }));
       return;
     }
+    // Mitigation 4: per-agent in-flight fairness cap (applies to all clients).
+    const akey = this.agentLabel(req);
+    const cur = this.perAgentInFlight.get(akey) || 0;
+    if (cur >= MAX_CONCURRENT_PER_AGENT) {
+      res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "1" });
+      res.end(JSON.stringify({ error: "too many requests", hint: `agent '${akey}' has too many concurrent requests (max ${MAX_CONCURRENT_PER_AGENT}); background work is throttled so other agents stay responsive` }));
+      return;
+    }
+    this.perAgentInFlight.set(akey, cur + 1);
     this.inFlight++;
     try {
       await this.dispatch(req, res);
     } finally {
       this.inFlight = Math.max(0, this.inFlight - 1);
+      const c = (this.perAgentInFlight.get(akey) || 1) - 1;
+      if (c <= 0) this.perAgentInFlight.delete(akey); else this.perAgentInFlight.set(akey, c);
     }
   }
 
@@ -649,14 +720,18 @@ export class KosmosAgentServer {
       let parsed: any;
       try { parsed = JSON.parse(body || "null"); }
       catch (_) { this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); return; }
+      const agent = this.agentLabel(req);
+      let newSid: string | undefined;
+      const ctx = { agent, setSessionId: (sid: string) => { newSid = sid; } };
+      const sidHeader = () => (newSid ? { "Mcp-Session-Id": newSid } : undefined);
       if (Array.isArray(parsed)) {
         const outs: any[] = [];
-        for (const m of parsed) { const r = await this.mcpDispatch(m); if (r) outs.push(r); }
-        if (!outs.length) { res.writeHead(202); res.end(); } else this.json(res, 200, outs);
+        for (const m of parsed) { const r = await this.mcpDispatch(m, ctx); if (r) outs.push(r); }
+        if (!outs.length) { res.writeHead(202, sidHeader()); res.end(); } else this.json(res, 200, outs, sidHeader());
         return;
       }
-      const out = await this.mcpDispatch(parsed);
-      if (!out) { res.writeHead(202); res.end(); } else this.json(res, 200, out);
+      const out = await this.mcpDispatch(parsed, ctx);
+      if (!out) { res.writeHead(202, sidHeader()); res.end(); } else this.json(res, 200, out, sidHeader());
       return;
     }
 
@@ -677,11 +752,11 @@ export class KosmosAgentServer {
       case "/overview": this.json(res, 200, await this.qOverview()); return;
       case "/diagnostics": this.json(res, 200, await this.qDiagnostics()); return;
       case "/graph": this.json(res, 200, await this.qGraph()); return;
-      case "/notes": { const r = await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : undefined }); this.emitTraversal("search_notes", r); this.json(res, 200, r); return; }
-      case "/note": { const r = await this.qNote({ path: q("path"), title: q("title") }); this.emitTraversal("get_note", r); this.json(res, 200, r); return; }
-      case "/lineage": { const r = await this.qLineage({ path: q("path"), title: q("title") }); this.emitTraversal("get_lineage", r); this.json(res, 200, r); return; }
-      case "/related": { const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r); this.json(res, 200, r); return; }
-      case "/at": { const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r); this.json(res, 200, r); return; }
+      case "/notes": { const a = this.agentLabel(req); const r = await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : undefined }); this.emitTraversal("search_notes", r, a); this.json(res, 200, r); return; }
+      case "/note": { const a = this.agentLabel(req); const r = await this.qNote({ path: q("path"), title: q("title") }); this.emitTraversal("get_note", r, a); this.json(res, 200, r); return; }
+      case "/lineage": { const a = this.agentLabel(req); const r = await this.qLineage({ path: q("path"), title: q("title") }); this.emitTraversal("get_lineage", r, a); this.json(res, 200, r); return; }
+      case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
+      case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
       case "/episodes": this.json(res, 200, await this.qEpisodes()); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }

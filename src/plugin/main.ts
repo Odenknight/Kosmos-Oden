@@ -126,7 +126,7 @@ class KosmosView extends ItemView {
   }
 
   /** Live AI-agent traversal (Agent API): light up visited bodies with the emerald trail. */
-  agentTraversal(paths: string[], tool: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool })); }
+  agentTraversal(paths: string[], tool: string, agent?: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool, agent })); }
 
   /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
   syncVisibility(): void { this.post(wrap("visibility", { visible: this.isVisible() })); }
@@ -278,7 +278,7 @@ export default class VaultKosmosPlugin extends Plugin {
         .filter((v): v is KosmosView => v instanceof KosmosView);
 
     // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
-    this.agentApi.onTraversal = (paths, tool) => { for (const v of views()) v.agentTraversal(paths, tool); };
+    this.agentApi.onTraversal = (paths, tool, agent) => { for (const v of views()) v.agentTraversal(paths, tool, agent); };
 
     this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
       this.provider.markChanged(file.path);

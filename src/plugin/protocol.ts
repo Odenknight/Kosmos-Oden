@@ -33,6 +33,9 @@ export interface OpenPayload {
 export interface AgentTraversalPayload {
   paths: string[];
   tool: string;
+  /** Short label identifying the agent behind the query (for per-agent trail
+   *  colour + name label). Optional for backward compatibility. */
+  agent?: string;
 }
 /** Host-side leaf visibility: inside Obsidian, document.visibilitychange only
  *  fires when the whole window hides — the host must tell the iframe when its
@@ -105,6 +108,7 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   if (m.type === "agent-traversal") {
     if (!isArr(p.paths) || (p.paths as any[]).some((x) => !safePath(x))) return { ok: false, reason: "agent-traversal payload.paths must be safe paths" };
     if (!isStr(p.tool)) return { ok: false, reason: "agent-traversal payload.tool must be a string" };
+    if (p.agent != null && !isStr(p.agent)) return { ok: false, reason: "agent-traversal payload.agent must be a string" };
     return { ok: true, message: m as any };
   }
   if (m.type === "visibility") {

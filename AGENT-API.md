@@ -22,12 +22,30 @@ Desktop only: Obsidian on iPhone/Android can't run local servers (the 3D view st
 
 ## 2 · Connect an agent
 
-### Claude Code (terminal)
+### Claude Code (terminal) — native HTTP, no bridge
+
+One command:
 ```bash
 claude mcp add --transport http vault-kosmos "http://127.0.0.1:4816/mcp" --header "Authorization: Bearer <TOKEN>"
 ```
 
+…or drop a project-scoped **`.mcp.json`** next to where you run `claude` (copy the
+committed `.mcp.json.example`, fill in your token). This is the reliable path —
+Claude Code speaks Streamable HTTP directly, so **no `mcp-remote` npx bridge** is involved:
+```json
+{
+  "mcpServers": {
+    "vault-kosmos": {
+      "type": "http",
+      "url": "http://127.0.0.1:4816/mcp",
+      "headers": { "Authorization": "Bearer <TOKEN>" }
+    }
+  }
+}
+```
+
 ### Claude Desktop (and other stdio-only MCP apps)
+Claude Desktop can't speak HTTP directly, so it needs the `mcp-remote` bridge.
 Settings → Developer → **Edit Config** (needs Node.js once, from nodejs.org):
 
 ```json
@@ -40,6 +58,11 @@ Settings → Developer → **Edit Config** (needs Node.js once, from nodejs.org)
   }
 }
 ```
+
+> **Protocol:** the server negotiates MCP revisions `2025-06-18` (current),
+> `2025-03-26`, and `2024-11-05`, so current and older clients both connect. It
+> replies with stateless JSON (no SSE), and on `initialize` returns an
+> `Mcp-Session-Id` used to colour that agent's live traversal trail.
 
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
 URL `http://127.0.0.1:4816/mcp` with header `Authorization: Bearer <TOKEN>`.

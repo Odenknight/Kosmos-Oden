@@ -43,8 +43,9 @@ export interface KosmosApp {
   setConn(label: string, live: boolean): void;
   setAttachments(paths: string[]): void;
   notifyLiveEvent(ev: { path: string; type?: string }): void;
-  /** Highlight the notes touched by one Agent API query with a fading emerald trail. */
-  notifyAgentTraversal(paths: string[], tool: string): void;
+  /** Highlight the notes touched by one Agent API query with a fading trail.
+   *  `agent` (optional) colours the trail per-agent and labels its rocket head. */
+  notifyAgentTraversal(paths: string[], tool: string, agent?: string): void;
   /** Host-side leaf visibility: false fully stops the render loop, true resumes it. */
   setHostVisible(visible: boolean): void;
   getDiagnostics(): any;
@@ -146,10 +147,34 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   /* Live AI-agent traversal overlay (Agent API): breadcrumb of the last hops,
      drawn as fading emerald line segments (v0.5.1 behavior, ported). */
   let agentTrail: any = null;
-  let agentSteps: Array<{ id: string; t: number }> = [];
+  let agentSteps: Array<{ id: string; t: number; agent: string }> = [];
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 24;
+  const AGENT_TRAIL_MS = 30000;
+  const DEFAULT_AGENT = "agent";
+  const MAX_AGENTS_SHOWN = 6;      // distinct agents with a live rocket marker
+  // Per-agent colour, derived from a stable hash of the agent's name so the
+  // same agent keeps its hue across queries and multiple agents stay distinct.
+  const __agentColors = new Map<string, { rgb: [number, number, number]; css: string }>();
+  function agentColor(name: string): { rgb: [number, number, number]; css: string } {
+    const key = name || DEFAULT_AGENT;
+    const hit = __agentColors.get(key); if (hit) return hit;
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    const hue = h % 360, sat = 0.82, lig = 0.60;
+    // HSL -> RGB (0..1) for the additive line buffer; CSS string for the DOM rocket.
+    const c = (1 - Math.abs(2 * lig - 1)) * sat, x = c * (1 - Math.abs(((hue / 60) % 2) - 1)), m = lig - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (hue < 60) { r = c; g = x; } else if (hue < 120) { r = x; g = c; } else if (hue < 180) { g = c; b = x; }
+    else if (hue < 240) { g = x; b = c; } else if (hue < 300) { r = x; b = c; } else { r = c; b = x; }
+    const rgb: [number, number, number] = [r + m, g + m, b + m];
+    const val = { rgb, css: `hsl(${hue} 82% 62%)` };
+    __agentColors.set(key, val);
+    return val;
+  }
+  // Rocket + name markers (DOM overlay, one per active agent), gated by labels.
+  let agentMarkers: Array<{ el: HTMLElement; rocket: HTMLElement; name: HTMLElement; agent: string | null }> = [];
   let lastFocusIds: Set<string> | null = null;
   let showAllConnections = false, showAllObjects = false;
 
@@ -588,6 +613,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     placedLabels = np;
   }
   function updateLabels(t: number) {
+    // rockets ride the trail head every frame regardless of the labels toggle
+    // (the toggle only governs each rocket's name span, inside this call)
+    if (agentSteps.length) updateAgentMarkers();
     if (!labelsEnabled) {
       for (const s of labelPool) { if (s.shown) { s.el.style.opacity = "0"; s.shown = false; } }
       for (const a of areaLabels) { if (a.shown) { a.el.style.opacity = "0"; a.shown = false; } }
@@ -977,7 +1005,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   document.getElementById("insX") && document.getElementById("insX").addEventListener("click", clearFocus);
 
   let labelsEnabled = true;
-  function toggleLabels() { labelsEnabled = !labelsEnabled; const b = document.getElementById("labelsBtn"); if (b) b.classList.toggle("on", labelsEnabled); }
+  function toggleLabels() {
+    labelsEnabled = !labelsEnabled; const b = document.getElementById("labelsBtn"); if (b) b.classList.toggle("on", labelsEnabled);
+    // apply to agent-rocket name spans immediately (don't wait for a frame tick)
+    for (const m of agentMarkers) m.name.style.display = labelsEnabled ? "" : "none";
+  }
   document.getElementById("labelsBtn") && document.getElementById("labelsBtn").addEventListener("click", toggleLabels);
 
   function setAllObjectsGlow(on: boolean) { for (const m of matsWithTime) { if (m && m.uniforms && m.uniforms.uGlowAll) m.uniforms.uGlowAll.value = on ? 1.0 : 0.0; } }
@@ -1310,21 +1342,65 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
   function updateAgentTrail(): void {
-    if (!agentSteps.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); return; }
+    if (!agentSteps.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
     const now = performance.now();
-    agentSteps = agentSteps.filter((s) => now - s.t < 30000 && idToRender.has(s.id));
+    agentSteps = agentSteps.filter((s) => now - s.t < AGENT_TRAIL_MS && idToRender.has(s.id));
     refreshAgentLive(now);
-    if (agentSteps.length < 2) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); return; }
+    if (agentSteps.length < 2) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
     const T = ensureAgentTrail(); let v = 0;
     for (let i = 1; i < agentSteps.length && v < T.cap; i++) {
+      // only connect consecutive hops made by the SAME agent, so two agents
+      // never get a spurious line drawn between their notes
+      if (agentSteps[i - 1].agent !== agentSteps[i].agent) continue;
       const a = idToRender.get(agentSteps[i - 1].id), b = idToRender.get(agentSteps[i].id);
       if (!a || !b) continue;
-      const f = 1 - Math.min(1, (now - agentSteps[i].t) / 30000) * 0.85, o = v * 6, pa = a.node.position, pb = b.node.position;
+      const f = 1 - Math.min(1, (now - agentSteps[i].t) / AGENT_TRAIL_MS) * 0.85, o = v * 6, pa = a.node.position, pb = b.node.position;
+      const [cr, cg, cb] = agentColor(agentSteps[i].agent).rgb;
       T.pos[o] = pa[0]; T.pos[o + 1] = pa[1]; T.pos[o + 2] = pa[2]; T.pos[o + 3] = pb[0]; T.pos[o + 4] = pb[1]; T.pos[o + 5] = pb[2];
-      T.col[o] = 0.16 * f; T.col[o + 1] = 0.95 * f; T.col[o + 2] = 0.62 * f; T.col[o + 3] = 0.16 * f; T.col[o + 4] = 0.95 * f; T.col[o + 5] = 0.62 * f;
+      T.col[o] = cr * f; T.col[o + 1] = cg * f; T.col[o + 2] = cb * f; T.col[o + 3] = cr * f; T.col[o + 4] = cg * f; T.col[o + 5] = cb * f;
       v++;
     }
     T.geo.attributes.position.needsUpdate = true; T.geo.attributes.color.needsUpdate = true; T.geo.setDrawRange(0, v * 2);
+    updateAgentMarkers();
+  }
+  /** Ensure a small pool of DOM markers (rocket glyph + name span) exists. */
+  function ensureAgentMarkers(): void {
+    if (agentMarkers.length || !labelHost) return;
+    for (let i = 0; i < MAX_AGENTS_SHOWN; i++) {
+      const el = document.createElement("div"); el.className = "agent-marker"; el.style.opacity = "0";
+      const rocket = document.createElement("span"); rocket.className = "agent-rocket"; rocket.textContent = "🚀"; // 🚀
+      const name = document.createElement("span"); name.className = "agent-name";
+      el.appendChild(rocket); el.appendChild(name); labelHost.appendChild(el);
+      agentMarkers.push({ el, rocket, name, agent: null });
+    }
+  }
+  /** Place one rocket at the head (most recent hop) of each active agent's
+   *  trail, tinted to the agent's colour; the name span shows only when labels
+   *  are toggled on. */
+  function updateAgentMarkers(): void {
+    ensureAgentMarkers();
+    if (!agentMarkers.length) return;
+    const now = performance.now();
+    // newest hop per agent over the trail lifetime (rocket rides the head of
+    // each agent's trail and fades with it); newest agents first, capped
+    const headByAgent = new Map<string, { id: string; t: number; agent: string }>();
+    for (const s of agentSteps) { if (now - s.t > AGENT_TRAIL_MS || !idToRender.has(s.id)) continue; headByAgent.set(s.agent, s); }
+    const heads = Array.from(headByAgent.values()).sort((a, b) => b.t - a.t).slice(0, MAX_AGENTS_SHOWN);
+    let mi = 0;
+    for (const s of heads) {
+      const r = idToRender.get(s.id); if (!r) continue;
+      const sp = projectToScreen(r.node.position); if (!sp) continue;
+      const fade = 1 - Math.min(1, (now - s.t) / AGENT_TRAIL_MS) * 0.75;
+      const m = agentMarkers[mi++]; const col = agentColor(s.agent);
+      m.agent = s.agent;
+      m.rocket.style.color = col.css; m.rocket.style.textShadow = `0 0 6px ${col.css}`;
+      if (m.name.textContent !== s.agent) m.name.textContent = s.agent;
+      m.name.style.color = col.css; m.name.style.borderColor = col.css + "66";
+      m.name.style.display = labelsEnabled ? "" : "none";
+      m.el.style.transform = `translate(-50%,-140%) translate(${sp.x.toFixed(1)}px,${sp.y.toFixed(1)}px)`;
+      m.el.style.opacity = fade.toFixed(2);
+    }
+    for (; mi < agentMarkers.length; mi++) { agentMarkers[mi].el.style.opacity = "0"; agentMarkers[mi].agent = null; }
   }
   /** Notes visited in the last 8 s pulse live (emerald halos via agentIds); diffed to skip redundant uploads. */
   function refreshAgentLive(now: number): void {
@@ -1339,20 +1415,24 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     applyLive(); updateHalos();
   }
   /** Entry point: the host posts agent-traversal whenever the Agent API serves a query. */
-  function notifyAgentTraversal(paths: string[], tool: string): void {
+  function notifyAgentTraversal(paths: string[], tool: string, agent?: string): void {
     if (!Array.isArray(paths) || !G) return;
+    const who = String(agent || "").trim() || DEFAULT_AGENT;
     const now = performance.now(); let touched = false;
     for (const p of paths) {
       const id = "file:" + String(p || "").replace(/\\/g, "/");
       if (!idToRender.has(id)) continue;
+      // de-dupe only against this same agent's own last hop, so interleaved
+      // agents keep independent trails
       const last = agentSteps[agentSteps.length - 1];
-      if (last && last.id === id) { last.t = now; touched = true; continue; }
-      agentSteps.push({ id, t: now }); touched = true;
+      if (last && last.id === id && last.agent === who) { last.t = now; touched = true; continue; }
+      agentSteps.push({ id, t: now, agent: who }); touched = true;
       if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
     }
     if (!touched) return;
     refreshAgentLive(now); updateAgentTrail();
-    if (now - __agentHintT > 4000) { __agentHintT = now; showHint("Agent traversal: " + (tool || "query")); }
+    const label = who === DEFAULT_AGENT ? "Agent traversal" : who + " traversal";
+    if (now - __agentHintT > 4000) { __agentHintT = now; showHint(label + ": " + (tool || "query")); }
   }
   function runCapture() {
     const cap = params.get("capture"); if (!cap) return; document.body.classList.add("capture");

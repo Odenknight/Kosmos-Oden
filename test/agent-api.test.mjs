@@ -7,6 +7,7 @@ import {
   KosmosAgentServer,
   LATEST_MCP_PROTOCOL_VERSION,
   MAX_BODY_BYTES,
+  MAX_CONCURRENT_PER_AGENT,
   MAX_NOTE_CONTENT_CHARS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
   DEFAULT_AGENT_SETTINGS,
@@ -207,6 +208,53 @@ test("agent api", async (t) => {
     const r = await mcp({ jsonrpc: "2.0", id: 6, method: "does/not/exist" });
     assert.equal(r.json().error.code, -32601);
   });
+
+  await t.test("MCP initialize negotiates the current revision (2025-06-18) and issues an Mcp-Session-Id", async () => {
+    assert.equal(LATEST_MCP_PROTOCOL_VERSION, "2025-06-18");
+    const r = await mcp({ jsonrpc: "2.0", id: 7, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "CARSON" } } });
+    assert.equal(r.json().result.protocolVersion, "2025-06-18");
+    assert.match(String(r.headers["mcp-session-id"] || ""), /^[A-Za-z0-9_-]{10,}$/);
+  });
+
+  await t.test("agent identity (clientInfo.name via Mcp-Session-Id) flows to the traversal callback", async () => {
+    const init = await mcp({ jsonrpc: "2.0", id: 8, method: "initialize", params: { clientInfo: { name: "Hermes" } } });
+    const sid = init.headers["mcp-session-id"];
+    assert.ok(sid, "initialize should return a session id");
+    let seen = null;
+    server.onTraversal = (paths, tool, agent) => { seen = { paths, tool, agent }; };
+    await request(port, {
+      method: "POST", path: "/mcp",
+      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_lineage", arguments: { title: "Engine v2" } } }),
+    });
+    server.onTraversal = undefined;
+    assert.ok(seen, "traversal should have fired");
+    assert.equal(seen.agent, "Hermes");
+    assert.equal(seen.tool, "get_lineage");
+  });
+});
+
+test("Mitigation 4: a single agent's concurrent requests are capped for fairness", async () => {
+  let release; const gate = new Promise((r) => { release = r; });
+  const provider = {
+    getGraph: async () => { await gate; return buildGraph(FILES, ["Ideas"]); },
+    getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
+  };
+  const server = new KosmosAgentServer(http, settings(), provider);
+  await new Promise((resolve) => { server.start(); server.server.on("listening", resolve); });
+  const port = server.server.address().port;
+  const N = MAX_CONCURRENT_PER_AGENT;
+  const ua = { ...auth, "User-Agent": "BulkAgent/1" };
+  const reqs = [];
+  for (let i = 0; i < N + 2; i++) reqs.push(request(port, { path: "/overview", headers: ua }));
+  // let the first N pile up in-flight (blocked on the gate), then release them
+  setTimeout(() => release(), 60);
+  const results = await Promise.all(reqs);
+  const throttled = results.filter((r) => r.status === 429);
+  assert.equal(throttled.length, 2, "the 2 requests past the per-agent cap are throttled");
+  assert.match(throttled[0].json().hint, /concurrent/);
+  assert.equal(results.filter((r) => r.status === 200).length, N);
+  server.stop();
 });
 
 test("auth disabled + empty token: requireToken(on)+empty token fails closed (§16)", async () => {
