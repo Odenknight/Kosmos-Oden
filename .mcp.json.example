@@ -1,0 +1,12 @@
+{
+  "//": "Kosmos-Oden Agent API — ready-to-use MCP client config (Claude Code / any Streamable-HTTP MCP client). Copy this file to `.mcp.json`, replace <TOKEN> with the token from the plugin's settings (Settings -> Vault Kosmos -> Agent API), and adjust the port if you changed it. Native HTTP transport: NO `mcp-remote` npx bridge needed. Keep the real `.mcp.json` out of git (it holds your token) — it is gitignored.",
+  "mcpServers": {
+    "vault-kosmos": {
+      "type": "http",
+      "url": "http://127.0.0.1:4816/mcp",
+      "headers": {
+        "Authorization": "Bearer <TOKEN>"
+      }
+    }
+  }
+}

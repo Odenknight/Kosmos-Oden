@@ -17,6 +17,9 @@ promotion the CI/CD directive requires. Full detail: `docs/RENDERER-MIGRATION-r1
 - **Explicit color-management policy (Strategy A)** — `ColorManagement.enabled=false`, `outputColorSpace=LinearSRGBColorSpace`, `NoToneMapping`; the shaders keep ownership of ACES tone-mapping + manual sRGB so the pipeline matches the r128 baseline with no double conversion.
 
 ### Added
+- **MCP: current protocol revision + native-HTTP `.mcp.json`** (ported from `main`) — the Agent API negotiates MCP `2025-06-18` (+ `2025-03-26`, `2024-11-05`); ships a native Streamable-HTTP `.mcp.json.example` (no `mcp-remote` bridge) and a settings "Copy .mcp.json" button.
+- **Per-agent live traversal trail** (ported from `main`) — each connected agent gets a stable hashed colour and a colour-coded **mini rocket** at its trail head; the name label follows the labels toggle. Identity from MCP `clientInfo.name` (via `Mcp-Session-Id`) else `User-Agent`.
+- **Agent API concurrency fairness (Mitigation 4)** (ported from `main`) — per-agent in-flight cap so one agent's bulk work can't starve another's interactive query. Full status: `docs/AGENT-API-CONCURRENCY-STATUS-v0.5.5.md`.
 - **Trailer tours the whole vault** — the Trailer flight now flies nearby **each first-level-folder galaxy** (largest first, framed to its extent), bookended by wide cluster establishing shots, so it gives an overview of the entire vault instead of a single star + a few planets. Ported from `main`; falls back to the old star/planets tour on the non-cosmos legacy layout.
 - **WebGL2 context-loss/restore handling** — stop cleanly, show a recovering state, rebuild GPU resources and resume (no frozen canvas).
 - **Deterministic capture mode** `?capture=1&seed=&time=&dpr=&quality=&camera=&animation=off` — freezes shader time/camera/DPR/quality so visual-regression screenshots are stable; boots the demo scene without a picker.
@@ -64,6 +67,7 @@ engineering assessments (`docs/assessments/`).
 - Request-size limit now counts bytes, not JS string length.
 
 ### Security
+- **Agent API concurrency fairness (Mitigation 4)** — a per-agent in-flight cap (`MAX_CONCURRENT_PER_AGENT = 12`, all clients incl. loopback), so one agent's bulk/background work can't monopolize throughput and starve another agent's interactive query. Complements the existing global cap + per-client rate limit + request timeout. Concurrency review of all four mitigations recorded in `docs/AGENT-API-CONCURRENCY-STATUS-v0.5.5.md` (index-once: confirmed; `*Sync` audit: clean; worker-thread: scoped out with rationale).
 - MCP protocol-version negotiation against an explicit supported list (no echo of unknown versions).
 - `Host` and `Origin` validation (DNS-rebinding / cross-site defence).
 - LAN mode refuses to start without a token; query-string token auth deprecated, off by default, always rejected in LAN mode.

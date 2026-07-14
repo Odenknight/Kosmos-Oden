@@ -29,9 +29,22 @@ Desktop only: Obsidian on iPhone/Android can't run local servers, so this featur
 
 ## 2 · Connect an agent
 
-### Claude Code (terminal)
+### Claude Code (terminal) — native HTTP, no bridge
 \`\`\`bash
 claude mcp add --transport http vault-kosmos "${URLB}/mcp" --header "Authorization: Bearer ${token}"
+\`\`\`
+
+…or save this as \`.mcp.json\` where you run \`claude\` (no \`mcp-remote\` bridge needed):
+\`\`\`json
+{
+  "mcpServers": {
+    "vault-kosmos": {
+      "type": "http",
+      "url": "${URLB}/mcp",
+      "headers": { "Authorization": "Bearer ${token}" }
+    }
+  }
+}
 \`\`\`
 
 Then ask Claude Code things like *"use vault-kosmos to show the lineage of Engine v2"*.
@@ -186,10 +199,15 @@ export class KosmosSettingTab extends PluginSettingTab {
       return `http://127.0.0.1:${s.agentPort}`;
     };
     if (s.agentBindMode === "lan") containerEl.createEl("p", { text: "Copy buttons below use your LAN address so remote agents can reach this vault.", cls: "setting-item-description" });
-    new Setting(containerEl).setName("Claude Code").setDesc("Copies a one-line terminal command (header auth).")
+    new Setting(containerEl).setName("Claude Code").setDesc("Copies a one-line terminal command (native HTTP, header auth).")
       .addButton((b) => b.setButtonText("Copy command").onClick(() => {
         navigator.clipboard.writeText(`claude mcp add --transport http vault-kosmos "${url()}/mcp" --header "Authorization: Bearer ${s.agentToken}"`);
         new Notice("Claude Code command copied — paste it in a terminal");
+      }));
+    new Setting(containerEl).setName("Claude Code (.mcp.json)").setDesc("Copies native-HTTP JSON — save as .mcp.json where you run claude. No mcp-remote bridge.")
+      .addButton((b) => b.setButtonText("Copy .mcp.json").onClick(() => {
+        navigator.clipboard.writeText(JSON.stringify({ mcpServers: { "vault-kosmos": { type: "http", url: `${url()}/mcp`, headers: { Authorization: `Bearer ${s.agentToken}` } } } }, null, 2));
+        new Notice(".mcp.json copied — save it next to where you run claude");
       }));
     new Setting(containerEl).setName("Claude Desktop / stdio MCP apps").setDesc("Copies JSON for claude_desktop_config.json (uses npx mcp-remote; needs Node.js).")
       .addButton((b) => b.setButtonText("Copy config").onClick(() => {

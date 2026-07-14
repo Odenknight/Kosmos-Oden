@@ -38,6 +38,7 @@ function validateHostMessage(data) {
   if (m.type === "agent-traversal") {
     if (!isArr(p.paths) || p.paths.some((x) => !safePath(x))) return { ok: false, reason: "agent-traversal payload.paths must be safe paths" };
     if (!isStr(p.tool)) return { ok: false, reason: "agent-traversal payload.tool must be a string" };
+    if (p.agent != null && !isStr(p.agent)) return { ok: false, reason: "agent-traversal payload.agent must be a string" };
     return { ok: true, message: m };
   }
   if (m.type === "visibility") {
