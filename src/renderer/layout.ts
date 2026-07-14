@@ -155,9 +155,17 @@ export function layoutCosmos(graph: any): KosmosGraph {
     console.debug(`Vault Kosmos layout: ${residual} residual body intersection(s) after corrective pass`);
   }
 
-  // orbital parameters: every body revolves about world +Y around its parent,
-  // preserving its radius (so the animation never introduces new collisions).
+  // orbital parameters: every body revolves about world +Y around its parent.
+  // With ECC=0 (or unset) the motion is a perfect circle, preserving the current
+  // radius so animation never introduces new collisions. With ECC>0 the object
+  // traces an ellipse whose *apoapsis* is pinned to the original |ov| — so max
+  // reach from the parent never exceeds the current radius (collision-safe),
+  // while periapsis pulls the body inward by up to `e` and the geometric speed
+  // varies around the orbit, giving a gravity-anchored feel.
   const SPD: Record<string, number> = { galaxy: 0.005, star: 0.02, asteroid: 0.03, oort: 0.012 };
+  // Median-ish reference mass per role for the Kepler speed scaling — sqrt(m/ref)
+  // so heavier parents pull satellites faster without dwarf systems crawling.
+  const REF_MASS: Record<string, number> = { star: 1.0, planet: 0.7, moon: 0.4, galaxy: 6.0, cluster: 10.0 };
   function parentIdOf(n: any): string | null {
     if (n.role === "galaxy") return clusterId;
     if (n.role === "star") return galaxyCenter.get(n.galaxyId) || clusterId;
@@ -166,6 +174,20 @@ export function layoutCosmos(graph: any): KosmosGraph {
     if (n.role === "oort") return n.systemId || galaxyCenter.get(n.galaxyId) || clusterId;
     return null;
   }
+  // How eccentric should this body's orbit be? Heavier (better-anchored) bodies
+  // orbit more circularly; lighter/isolated bodies swing more. Deterministic
+  // (hUnit hash + node mass), capped so the ellipse never approaches degeneracy.
+  function eccentricityFor(n: any): number {
+    // outer/edge bodies stay circular — moving these tips of the packing would
+    // over-emphasize the wobble on cosmetic elements
+    if (n.role === "asteroid" || n.role === "oort" || n.role === "cluster") return 0;
+    const mass = Math.max(0.05, Math.min(1.5, (n.mass || 0.5)));
+    // heavy: meanE ≈ 0.05; light: meanE ≈ 0.22
+    const meanE = 0.22 - Math.min(0.17, mass * 0.15);
+    const jitter = (hUnit(n.id + ":ecc") - 0.5) * 0.16; // ±0.08
+    return Math.max(0, Math.min(0.28, meanE + jitter));
+  }
+  const orbiters: any[] = [];
   for (const n of nodes) {
     if (n.role === "hidden" || n.role === "cluster" || !n.position) continue;
     const pid = parentIdOf(n);
@@ -178,7 +200,37 @@ export function layoutCosmos(graph: any): KosmosGraph {
       : n.role === "moonlet" ? Math.min(0.55, 1.2 / (rxz + 0.4))
       : (SPD[n.role] || 0);
     sp *= (0.85 + 0.3 * hUnit(n.id + "sp"));
+    // Kepler-inspired: heavier parents pull satellites faster (bounded so a
+    // very massive galaxy doesn't blur its own contents).
+    const pMass = Math.max(0.1, p.mass || REF_MASS[p.role] || 1.0);
+    const ref = REF_MASS[p.role] || 1.0;
+    const gravScale = Math.max(0.6, Math.min(1.9, Math.sqrt(pMass / ref)));
+    sp *= gravScale;
     n.__op = pid; n.__ov = ov; n.__os = sp;
+    n.__ecc = eccentricityFor(n);
+    orbiters.push(n);
+  }
+  // Sibling perturbation (option 2): the heaviest sibling in the same system
+  // slightly tugs its neighbours' orbital planes. One sine term, amplitude
+  // capped small so it reads as "gravity has a hold" without breaking packing.
+  const heaviest = new Map<string, any>();
+  for (const n of orbiters) {
+    const b = heaviest.get(n.__op);
+    if (!b || (n.mass || 0) > (b.mass || 0)) heaviest.set(n.__op, n);
+  }
+  for (const n of orbiters) {
+    const bully = heaviest.get(n.__op);
+    if (!bully || bully === n) continue;
+    const pMass = Math.max(0.1, (byId.get(n.__op)?.mass || 1.0));
+    const bullyMass = Math.max(0, bully.mass || 0);
+    const ratio = bullyMass / (pMass + bullyMass); // 0..1, small when parent dominates
+    // Perturbation is a THETA jitter (radians): the bully tug advances/retards
+    // the body along its orbit — never displaces it perpendicular. This keeps
+    // the max radius exactly = a(1+e) = |ov_horiz| (collision-safe), and lets
+    // t=0 be a no-op regardless of phase.
+    n.__wob_amp = Math.min(0.14, 0.32 * ratio); // radians, max ~8°
+    n.__wob_freq = bully.__os || 0;
+    n.__wob_phase = hUnit(n.id + ":wobph") * 6.2831853;
   }
   graph.statsRef = graph.stats;
   return graph;

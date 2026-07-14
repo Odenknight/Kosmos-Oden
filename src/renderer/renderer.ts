@@ -430,7 +430,38 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       for (const rec of nodeRender) {
         const n = rec.node; if (n.body !== role || n.__hidden) continue;
         const pn = n.__opNode; if (!pn || !n.__ov) continue; const p = pn.position;
-        const a = (n.__os || 0) * t, c = Math.cos(a), s = Math.sin(a), ox = n.__ov[0], oy = n.__ov[1], oz = n.__ov[2];
+        const ox = n.__ov[0], oy = n.__ov[1], oz = n.__ov[2];
+        const e = n.__ecc || 0;
+        if (e > 0) {
+          // Elliptical orbit: apoapsis is pinned to the original |ov_horiz|,
+          // so the max distance from the parent never exceeds the packed radius
+          // (collision-safe). Periapsis is a(1-e) inward. At t=0 the object is
+          // at apoapsis (matches its layout-time position exactly).
+          const aH = Math.hypot(ox, oz);
+          if (aH > 0) {
+            const semi = aH / (1 + e);                // semi-major axis
+            let theta = Math.PI + (n.__os || 0) * t;  // start at apoapsis
+            // Sibling perturbation (theta jitter): the heaviest sibling tugs
+            // this body slightly along its orbit — no perpendicular offset,
+            // so max radius stays exactly aH. Zero at t=0 by construction.
+            const wa = n.__wob_amp;
+            if (wa) {
+              const wph = n.__wob_phase || 0;
+              theta += wa * (Math.sin((n.__wob_freq || 0) * t + wph) - Math.sin(wph));
+            }
+            const rOrbit = semi * (1 - e * e) / (1 + e * Math.cos(theta));
+            const dth = theta - Math.PI, cd = Math.cos(dth), sd = Math.sin(dth);
+            const ux = ox / aH, uz = oz / aH;         // apoapsis unit direction
+            const rx = ux * cd - uz * sd;             // rotate around Y by dθ
+            const rz = ux * sd + uz * cd;
+            n.position[0] = p[0] + rx * rOrbit;
+            n.position[1] = p[1] + oy;
+            n.position[2] = p[2] + rz * rOrbit;
+            continue;
+          }
+        }
+        // fallback: perfect circle (unchanged from prior behaviour)
+        const a = (n.__os || 0) * t, c = Math.cos(a), s = Math.sin(a);
         n.position[0] = p[0] + ox * c + oz * s; n.position[1] = p[1] + oy; n.position[2] = p[2] - ox * s + oz * c;
       }
     }
