@@ -337,4 +337,4 @@ is live.
 
 Reference implementation: `src/plugin/agent-server.ts` (core),
 `src/plugin/vault-provider.ts` (a provider), `test/agent-api.test.mjs` (tests),
-`docs/AGENT-API-CONCURRENCY-STATUS-v0.5.5.md` (the mitigation rationale).
+`docs/AGENT-API-CONCURRENCY-STATUS.md` (the mitigation rationale).

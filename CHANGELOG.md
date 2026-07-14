@@ -37,6 +37,7 @@ engineering assessments (`docs/assessments/`).
 - Ingest sample pins `graphiti-core>=0.28.2` (upstream security fixes).
 
 ### Changed
+- **Packaging for Obsidian Community Plugin submission** — the standalone viewer (`vault-kosmos.html`) and other generated outputs (`dist/`) are no longer committed; they're rebuilt by CI and attached to each GitHub Release, with the standalone as its own downloadable asset kept separate from the plugin components (`manifest.json`/`main.js`/`styles.css`/`versions.json`). `release.yml` now fires on unprefixed version tags (Obsidian requires the tag to equal the manifest version exactly, no `v`) and marks pre-releases automatically. See `docs/COMMUNITY-PLUGIN.md`. Internal docs consolidated under `docs/` with de-versioned filenames.
 - Renderer extracted from the v0.5.0 base64 monolith into reviewable modules (`src/renderer/`); the single-file artifacts are now deterministically generated at build time.
 - README/AGENT-API rewritten to match what the code proves (no universal no-overlap claim, temporal-validity-intervals instead of "bitemporal", explicit list of file-producing commands).
 - Removed a quadratic orphan scan from graph assembly (50k-note build 75.7 s → 2.2 s).
@@ -47,7 +48,7 @@ engineering assessments (`docs/assessments/`).
 - Request-size limit now counts bytes, not JS string length.
 
 ### Security
-- **Agent API concurrency fairness (Mitigation 4)** — a per-agent in-flight cap (`MAX_CONCURRENT_PER_AGENT = 12`, all clients incl. loopback), so one agent's bulk/background work can't monopolize throughput and starve another agent's interactive query. Complements the existing global cap + per-client rate limit + request timeout. Concurrency review of all four mitigations recorded in `docs/AGENT-API-CONCURRENCY-STATUS-v0.5.5.md` (index-once: confirmed; `*Sync` audit: clean; worker-thread: scoped out with rationale).
+- **Agent API concurrency fairness (Mitigation 4)** — a per-agent in-flight cap (`MAX_CONCURRENT_PER_AGENT = 12`, all clients incl. loopback), so one agent's bulk/background work can't monopolize throughput and starve another agent's interactive query. Complements the existing global cap + per-client rate limit + request timeout. Concurrency review of all four mitigations recorded in `docs/AGENT-API-CONCURRENCY-STATUS.md` (index-once: confirmed; `*Sync` audit: clean; worker-thread: scoped out with rationale).
 - MCP protocol-version negotiation against an explicit supported list (no echo of unknown versions).
 - `Host` and `Origin` validation (DNS-rebinding / cross-site defence).
 - LAN mode refuses to start without a token; query-string token auth deprecated, off by default, always rejected in LAN mode.
