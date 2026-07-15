@@ -7,6 +7,24 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.2] — 2026-07-15 (pre-release)
+
+### Added
+- Added deterministic, bounded note-evidence selection for OKF+ descriptions,
+  types, tags, and explicitly named supersession candidates, with structural
+  evidence-quality scores and reasons instead of a claim of semantic meaning.
+- Added an optional OpenAI-compatible local/cloud second pass whose output is
+  saved only as pending, evidence-cited review proposals.
+
+### Security
+- Local endpoints are loopback-only; cloud endpoints require HTTPS and fresh
+  per-run consent. Confidential/PHI cloud input is hard-blocked, API keys are
+  referenced only by environment-variable name, and note/paragraph/per-note/
+  total-input/output/timeout caps constrain each run.
+- Model tools, retries, automatic writes, governance-authority fields, and
+  unevidenced relationship targets are disallowed. Output is schema-validated,
+  and proposal confidence never grants approval.
+
 ## [0.6.5-alpha.1] — 2026-07-15 (pre-release)
 
 ### Added

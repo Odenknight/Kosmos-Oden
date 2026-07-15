@@ -36,7 +36,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 3;
+export const AGENT_SETTINGS_SCHEMA = 4;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -53,6 +53,17 @@ export interface AgentSettings {
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
    *  always rejected in LAN mode regardless of this flag. */
   agentAllowQueryToken: boolean;
+  okfEnrichmentProvider: "none" | "local" | "cloud";
+  okfEnrichmentEndpoint: string;
+  okfEnrichmentModel: string;
+  okfEnrichmentApiKeyEnv: string;
+  okfEnrichmentMaxNotes: number;
+  okfEnrichmentMaxParagraphs: number;
+  okfEnrichmentMaxInputChars: number;
+  okfEnrichmentMaxTotalInputChars: number;
+  okfEnrichmentMaxSuggestions: number;
+  okfEnrichmentTimeoutMs: number;
+  okfEnrichmentCloudCeiling: "public" | "internal";
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -65,6 +76,17 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentSensitivityCeiling: "internal",
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
+  okfEnrichmentProvider: "none",
+  okfEnrichmentEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+  okfEnrichmentModel: "",
+  okfEnrichmentApiKeyEnv: "",
+  okfEnrichmentMaxNotes: 25,
+  okfEnrichmentMaxParagraphs: 4,
+  okfEnrichmentMaxInputChars: 4000,
+  okfEnrichmentMaxTotalInputChars: 50000,
+  okfEnrichmentMaxSuggestions: 12,
+  okfEnrichmentTimeoutMs: 30000,
+  okfEnrichmentCloudCeiling: "public",
 };
 
 /** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
@@ -78,6 +100,14 @@ export function migrateAgentSettings(raw: any): AgentSettings {
     // behavior while keeping confidential/PHI notes opt-in.
     s.agentSensitivityCeiling = "internal";
   }
+  if (!["none", "local", "cloud"].includes(s.okfEnrichmentProvider)) s.okfEnrichmentProvider = "none";
+  if (!["public", "internal"].includes(s.okfEnrichmentCloudCeiling)) s.okfEnrichmentCloudCeiling = "public";
+  s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));
+  s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.okfEnrichmentMaxParagraphs) || 4));
+  s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.okfEnrichmentMaxInputChars) || 4000));
+  s.okfEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(s.okfEnrichmentMaxTotalInputChars) || 50000));
+  s.okfEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(s.okfEnrichmentMaxSuggestions) || 12));
+  s.okfEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, Number(s.okfEnrichmentTimeoutMs) || 30000));
   s.schemaVersion = AGENT_SETTINGS_SCHEMA;
   return s;
 }

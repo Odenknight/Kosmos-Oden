@@ -10,6 +10,7 @@ import {
   MAX_CONCURRENT_PER_AGENT,
   MAX_NOTE_CONTENT_CHARS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  AGENT_SETTINGS_SCHEMA,
   DEFAULT_AGENT_SETTINGS,
   migrateAgentSettings,
   makeToken,
@@ -490,7 +491,7 @@ test("onTraversal: REST routes emit the same events as MCP tools", async () => {
 
 test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
   const migrated = migrateAgentSettings({ agentEnabled: true, agentPort: 5000, agentToken: "keepme" });
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, AGENT_SETTINGS_SCHEMA);
   assert.equal(migrated.agentAllowQueryToken, false); // security default on upgrade
   assert.equal(migrated.agentSensitivityCeiling, "internal");
   assert.equal(migrated.agentToken, "keepme");        // existing token preserved

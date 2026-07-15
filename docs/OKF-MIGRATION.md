@@ -119,8 +119,9 @@ backup, source matching, and plan binding are deterministic tasks. Adding a
 model would introduce privacy, nondeterminism, cost, and hallucination risk
 without improving those guarantees.
 
-Models may later help create *proposals* for descriptions, note types, tags,
-citations, or typed relationships:
+After deterministic structural onboarding, the separate content-assisted
+enrichment workflow can create *pending proposals* for descriptions, note
+types, tags, or explicitly evidenced relationships:
 
 | Route | Benefits | Costs and risks |
 |---|---|---|
@@ -128,12 +129,13 @@ citations, or typed relationships:
 | Cloud LLM | Often stronger language and classification; less local hardware | Note data leaves the device; provider retention/policy, credentials, cost, latency, prompt injection, and confidential/PHI restrictions |
 | No LLM | Reproducible, fast, private, easy to audit | Generic descriptions/types require later human refinement |
 
-Recommended policy: local-first for non-public notes; explicit per-run cloud
-consent after sensitivity classification; minimum necessary content; no cloud
-fallback on local failure; and all semantic output enters a review queue rather
-than frontmatter automatically. The existing universal read-only MCP connector
-can support a compatible local or cloud agent harness, but it does not grant a
-model write authority over this migration.
+The implemented policy is local-first for non-public notes, explicit per-run
+cloud consent, minimum-necessary bounded excerpts, no cloud fallback on local
+failure, no governance-authority fields in the model schema, and a pending
+review queue rather than automatic frontmatter writes. See
+[OKF+ Content-Assisted Enrichment](OKF-ENRICHMENT.md). The universal read-only
+MCP connector remains separate and does not grant a model write authority over
+this migration.
 
 ## Recovery
 
