@@ -17,6 +17,10 @@ security:
   # Query-string token auth is deprecated and off by default; never in LAN mode.
   query_tokens_default_enabled: false
   query_tokens_allowed_in_lan: false
+  # OKF+ sensitivity enforcement: legacy/unlabeled notes are internal;
+  # confidential and PHI require an explicit local policy choice.
+  default_agent_sensitivity_ceiling: internal
+  invalid_sensitivity_fails_closed_as: phi
   # The Agent API is read-only: no write routes exist.
   api_write_routes_allowed: false
   # Request body cap, in bytes.
@@ -27,6 +31,7 @@ security:
   # Host/Origin validation must be present.
   host_validation: required
   origin_validation: required
+  mcp_latest_protocol: 2025-11-25
 
 build:
   lockfile_required: package-lock.json
@@ -42,6 +47,7 @@ release:
     - styles.css
     - versions.json
     - vault-kosmos.html
+    - kosmos-mcp-stdio.mjs
     - BUILD-INFO.json
     - SHA256SUMS
   forbidden_files:
@@ -62,3 +68,12 @@ renderer:
   iframe_sandbox_forbid_same_origin: true
   # Host <-> renderer messages carry a protocol version and are validated.
   message_protocol_versioned: true
+
+okf_migration:
+  audit_before_apply: true
+  plan_hash: sha256
+  byte_exact_backup: true
+  source_match_before_write: true
+  body_preserved: true
+  llm_required: false
+  network_dispatch_allowed: false

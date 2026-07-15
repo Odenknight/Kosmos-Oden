@@ -11,6 +11,7 @@ export * from "./paths";
 export * from "./colors";
 export * from "./markdown";
 export * from "./okf";
+export * from "./okf-migration";
 export * from "./resolver";
 export * from "./lineage";
 export * from "./temporal";

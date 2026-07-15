@@ -36,15 +36,40 @@ export interface ParsedLink {
   heading?: string;
 }
 
+export type OkfSensitivity = "public" | "internal" | "confidential" | "phi";
+
+export type OkfRelation =
+  | "depends_on"
+  | "derives_from"
+  | "contradicts"
+  | "refines"
+  | "implements"
+  | "blocks"
+  | "documents"
+  | "cites"
+  | "related_to";
+
 /** OKF+ (Open Knowledge Format Plus) data parsed from one note. */
 export interface OkfData {
+  okfVersion?: string;
+  /** Stable external identity. A valid v2.2 value is a lowercase UUIDv4. */
+  uid?: string;
   type?: string;
   title?: string;
+  description?: string;
   timestamp?: string;
+  epistemicState?: string;
+  scope?: string;
+  scopeId?: string;
+  sensitivity?: OkfSensitivity;
   resource?: string;
   /** As authored in frontmatter (titles/paths, unresolved). */
   supersedes: string[];
   supersededBy: string[];
+  forkedFrom: string[];
+  forkedTo: string[];
+  /** Explicit typed v2.2 relationships, kept separate from body wikilinks. */
+  relations: Partial<Record<OkfRelation, string[]>>;
   /** Titles from the footer `**Related:**` line. */
   related: string[];
 }
@@ -179,6 +204,8 @@ export interface LineageModel {
 
 /** Graphiti episode (getzep/graphiti `EpisodeType.json` compatible). */
 export interface GraphitiEpisode {
+  /** Stable episode identity: OKF+ uid when valid, deterministic fallback otherwise. */
+  uuid: string;
   name: string;
   episode_body: string;
   source: "json";

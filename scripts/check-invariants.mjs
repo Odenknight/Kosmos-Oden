@@ -61,6 +61,8 @@ must(/agentEnabled:\s*false/.test(server), "DEFAULT_AGENT_SETTINGS.agentEnabled 
 must(/agentBindMode:\s*"localhost"/.test(server), "default bind mode must be localhost");
 must(/agentRequireToken:\s*true/.test(server), "default agentRequireToken must be true");
 must(/agentAllowQueryToken:\s*false/.test(server), "default agentAllowQueryToken must be false (query tokens off by default)");
+must(new RegExp(`agentSensitivityCeiling:\\s*"${sec.default_agent_sensitivity_ceiling}"`).test(server), "default agent sensitivity ceiling must match policy");
+must(server.includes(`"${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
 must(sec.query_tokens_default_enabled === false, "policy: query_tokens_default_enabled must be false");
 must(/lanNeedsAuthButHasNone/.test(server) && /LAN mode requires an auth token/.test(server), "server must refuse to start LAN mode without a token");
 must(/agentBindMode !== "lan"/.test(server), "query-token auth must be gated out of LAN mode");
@@ -70,6 +72,8 @@ must(!/Math\.random\s*\(/.test(serverCode), "no Math.random() may appear in the 
 must(/hostAllowed/.test(server), "Host validation must be present");
 must(/originAllowed/.test(server), "Origin validation must be present");
 must(/timingSafeEqual/.test(server), "token comparison must be constant-time");
+const okfParser = read("src/core/okf.ts");
+must(sec.invalid_sensitivity_fails_closed_as === "phi" && /return typeof v === "string" && v\.trim\(\) \? "phi"/.test(okfParser), "invalid explicit sensitivity must fail closed as phi");
 must(/GET only \(read-only API\)/.test(server) && !/\bcase "\/write"|app\.post\(|writeFile/.test(server), "Agent API must expose no write routes");
 
 /* ---- build invariants ---- */
@@ -86,6 +90,18 @@ must(/setAttribute\("sandbox"/.test(mainCode), "plugin iframe must set a sandbox
 must(!/allow-same-origin/.test(mainCode), "iframe sandbox must NOT include allow-same-origin");
 const protocol = read("src/plugin/protocol.ts");
 must(/KOSMOS_PROTOCOL_VERSION/.test(protocol) && /validateHostMessage/.test(protocol), "host↔renderer protocol must be versioned and validated");
+
+/* ---- OKF+ migration invariants ---- */
+const migrationCore = read("src/core/okf-migration.ts");
+const migrationHost = read("src/plugin/okf-migration.ts");
+const migrationCode = stripComments(migrationCore + "\n" + migrationHost);
+const mig = policy.okf_migration || {};
+must(mig.audit_before_apply === true && /createOkfMigrationPlan/.test(migrationCore) && /OkfMigrationPreviewModal/.test(migrationHost), "OKF+ writes must be preceded by an explicit audit preview");
+must(mig.plan_hash === "sha256" && /subtle\.digest\("SHA-256"/.test(migrationCore) && /verifyOkfMigrationPlan/.test(migrationHost), "OKF+ apply must verify and bind to a SHA-256 plan");
+must(mig.byte_exact_backup === true && /readBinary/.test(migrationHost) && /writeBinary/.test(migrationHost), "OKF+ migration must make byte-exact binary backups");
+must(mig.source_match_before_write === true && /current !== entry\.originalContent/.test(migrationHost), "OKF+ migration must skip sources changed after the plan");
+must(mig.body_preserved === true && /fm\.body/.test(migrationCore), "OKF+ migration must preserve the human-authored body");
+must(mig.llm_required === false && mig.network_dispatch_allowed === false && !/\bfetch\s*\(|XMLHttpRequest|WebSocket/.test(migrationCode), "OKF+ migration must remain LLM-free and make no network dispatch");
 
 /* ---- standalone invariants (artifact must exist and be self-contained) ---- */
 if (existsSync(resolve(root, "vault-kosmos.html"))) {

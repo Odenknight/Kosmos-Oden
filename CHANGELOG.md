@@ -5,6 +5,43 @@ All notable changes to Kosmos-Oden are documented here. Format based on
 [SemVer](https://semver.org/) (pre-1.0: minor versions may include breaking
 changes, called out under **Compatibility**).
 
+## [Unreleased]
+
+## [0.5.6] — 2026-07-15
+
+### Added
+- Added **Mark notes in OKF+ format**, a vault-wide, LLM-free audit that accepts
+  either OKF+ 2.2 or Google's OKF 0.1 draft and proposes conservative OKF+ 2.2
+  metadata only for mechanically safe notes. The preview can be saved without
+  note contents; apply is bound to the SHA-256 plan, requires explicit backup
+  and sensitivity acknowledgements, creates byte-exact per-file backups, skips
+  concurrently changed notes, preserves Markdown bodies, and reports blocked
+  YAML/governance/UID conflicts instead of guessing.
+
+### Fixed
+- Updated the MCP server to the published `2025-11-25` revision and current
+  Streamable HTTP lifecycle: strict JSON-RPC/tool validation, one message per
+  POST, negotiated protocol headers, real session termination/expiry handling,
+  structured tool results, and read-only/idempotent tool annotations.
+- Corrected the Claude Code quick-connect command's option ordering and added
+  native OpenAI Codex/ChatGPT desktop configuration plus a bundled first-party
+  stdio adapter for clients that cannot attach to Streamable HTTP directly.
+- Graphiti episodes now reuse valid OKF+ UUIDs, use disambiguated assertion
+  namespaces, paginate connector exports, and never backfill later
+  `superseded_by`/`head`/`invalid_at` state into earlier episodes.
+
+### Security
+- Added an OKF+ sensitivity ceiling (`internal` by default) across note reads,
+  search, graph/lineage/temporal traversal, diagnostics, and Graphiti export.
+  Invalid explicit sensitivity labels fail closed at the `phi` boundary.
+
+### Changed
+- The shared parser now recognizes the flat OKF+ 2.2 governance fields,
+  canonical wikilink lists, `forked_to` compatibility, and registered typed
+  relationships. Graphiti is labeled as a non-authoritative projection of
+  explicit user assertions; source notes and accepted semantic events remain
+  authoritative.
+
 ## [0.5.5] — 2026-07-11
 
 Full rebuild on a shared **Kosmos Core**, then hardened per the two v0.5.1

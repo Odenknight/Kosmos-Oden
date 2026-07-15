@@ -1,0 +1,503 @@
+/**
+ * Safety-first OKF+ 2.2 note onboarding.
+ *
+ * This module is deliberately deterministic and LLM-free. It audits strict,
+ * flat frontmatter; accepts either OKF+ 2.2 or Google's minimal OKF v0.1;
+ * and proposes OKF+ only for notes that satisfy the mechanical safety gate.
+ * Ambiguous YAML and invalid explicit governance values are never guessed.
+ */
+import type { OkfSensitivity } from "./types";
+
+export type OkfAuditStatus =
+  | "okf-plus-2.2"
+  | "google-okf-0.1"
+  | "google-reserved"
+  | "needs-okf-plus"
+  | "blocked";
+
+export interface OkfMigrationSource {
+  path: string;
+  content: string;
+  createdTime?: number;
+  modifiedTime?: number;
+}
+
+export interface OkfMigrationFinding {
+  code: string;
+  message: string;
+}
+
+export interface OkfMigrationDefaults {
+  type: "episodic" | "semantic" | "procedural";
+  epistemicState: "hypothesis";
+  scope: "node";
+  sensitivity: OkfSensitivity;
+}
+
+export const DEFAULT_OKF_MIGRATION_DEFAULTS: OkfMigrationDefaults = {
+  type: "semantic",
+  epistemicState: "hypothesis",
+  scope: "node",
+  sensitivity: "internal",
+};
+
+export interface OkfMigrationEntry {
+  path: string;
+  status: OkfAuditStatus;
+  standard: "OKF+ 2.2" | "Google OKF 0.1 draft" | "Google OKF reserved" | "none";
+  findings: OkfMigrationFinding[];
+  originalHash: string;
+  proposedHash?: string;
+  uid?: string;
+  /** In-memory only. publicOkfMigrationPlan() removes note contents. */
+  originalContent: string;
+  /** In-memory only. The human-authored body is copied byte-for-byte. */
+  proposedContent?: string;
+}
+
+export interface OkfMigrationPlan {
+  schema: "okf-plus-migration-plan/1";
+  runId: string;
+  createdAt: string;
+  planHash: string;
+  defaults: OkfMigrationDefaults;
+  totals: Record<OkfAuditStatus | "notes" | "changes", number>;
+  entries: OkfMigrationEntry[];
+}
+
+interface ParsedField {
+  key: string;
+  kind: "scalar" | "list";
+  listStyle?: "inline" | "block";
+  scalar?: string;
+  values?: string[];
+  /** Exact original field lines, used only for unknown flat compatibility keys. */
+  rawLines: string[];
+  /** Raw list item expressions, retained to validate quoted wikilinks. */
+  rawItems?: string[];
+}
+
+interface StrictFrontmatter {
+  state: "none" | "valid" | "unterminated";
+  bom: string;
+  eol: "\n" | "\r\n";
+  body: string;
+  fields: ParsedField[];
+  byKey: Map<string, ParsedField>;
+  looseLines: string[];
+  problems: OkfMigrationFinding[];
+}
+
+const CANONICAL_KEYS = [
+  "okf_version", "uid", "type", "title", "description", "resource",
+  "timestamp", "epistemic_state", "scope", "scope_id", "sensitivity",
+  "tags", "supersedes", "superseded_by", "forked_from", "forked_to",
+  "depends_on", "derives_from", "contradicts", "refines", "implements",
+  "blocks", "documents", "cites", "related_to",
+] as const;
+const RECOGNIZED = new Set<string>(CANONICAL_KEYS);
+const LINEAGE_KEYS = ["supersedes", "superseded_by", "forked_from", "forked_to"] as const;
+const RELATION_KEYS = [
+  "depends_on", "derives_from", "contradicts", "refines", "implements",
+  "blocks", "documents", "cites", "related_to",
+] as const;
+const TYPES = new Set(["episodic", "semantic", "procedural"]);
+const EPISTEMIC = new Set(["fact", "verified_inference", "hypothesis", "deprecated", "refuted"]);
+const SCOPES = new Set(["global", "project", "tenant", "node", "agent", "entity"]);
+const SENSITIVITIES = new Set(["public", "internal", "confidential", "phi"]);
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const yamlUnquote = (raw: string): string => {
+  const s = raw.trim();
+  if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
+    try { return JSON.parse(s); } catch (_) { return s.slice(1, -1); }
+  }
+  if (s.length >= 2 && s[0] === "'" && s[s.length - 1] === "'") return s.slice(1, -1).replace(/''/g, "'");
+  return s;
+};
+
+const yamlQuote = (value: string): string => JSON.stringify(String(value));
+
+/** Split a YAML comment only when # is outside quotes and starts a comment. */
+function splitYamlComment(raw: string): { value: string; comment?: string } {
+  let quote = "", escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (escaped) { escaped = false; continue; }
+    if (quote === '"' && ch === "\\") { escaped = true; continue; }
+    if (quote) { if (ch === quote) quote = ""; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === "#" && (i === 0 || /\s/.test(raw[i - 1]))) {
+      return { value: raw.slice(0, i).trimEnd(), comment: raw.slice(i).trim() };
+    }
+  }
+  return { value: raw };
+}
+
+/** Small, quote-aware inline-list reader for the flat subset this migrator accepts. */
+function inlineList(raw: string): string[] | null {
+  const s = raw.trim();
+  if (!s.startsWith("[") || !s.endsWith("]")) return null;
+  const inner = s.slice(1, -1).trim();
+  if (!inner) return [];
+  const out: string[] = [];
+  let buf = "", quote = "", escaped = false;
+  for (const ch of inner) {
+    if (escaped) { buf += ch; escaped = false; continue; }
+    if (quote === '"' && ch === "\\") { buf += ch; escaped = true; continue; }
+    if (quote) { buf += ch; if (ch === quote) quote = ""; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; buf += ch; continue; }
+    if (ch === ",") { out.push(yamlUnquote(buf)); buf = ""; continue; }
+    buf += ch;
+  }
+  if (quote) return null;
+  out.push(yamlUnquote(buf));
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+function strictFrontmatter(raw: string): StrictFrontmatter {
+  const bom = raw.charCodeAt(0) === 0xfeff ? "\uFEFF" : "";
+  const text = bom ? raw.slice(1) : raw;
+  const eol: "\n" | "\r\n" = text.includes("\r\n") ? "\r\n" : "\n";
+  if (!(text.startsWith("---\n") || text.startsWith("---\r\n"))) {
+    if (text === "---" || text === "---\r") {
+      return {
+        state: "unterminated", bom, eol, body: text, fields: [], byKey: new Map(), looseLines: [],
+        problems: [{ code: "unterminated-frontmatter", message: "Opening frontmatter delimiter has no closing delimiter." }],
+      };
+    }
+    return { state: "none", bom, eol, body: text, fields: [], byKey: new Map(), looseLines: [], problems: [] };
+  }
+  const openLength = text.startsWith("---\r\n") ? 5 : 4;
+  const closing = /^---\r?$/gm;
+  closing.lastIndex = openLength;
+  const match = closing.exec(text);
+  if (!match) {
+    return {
+      state: "unterminated", bom, eol, body: text, fields: [], byKey: new Map(), looseLines: [],
+      problems: [{ code: "unterminated-frontmatter", message: "Opening frontmatter delimiter has no closing delimiter." }],
+    };
+  }
+  const header = text.slice(openLength, match.index).replace(/\r?\n$/, "");
+  let bodyAt = match.index + match[0].length;
+  if (text.slice(bodyAt, bodyAt + 2) === "\r\n") bodyAt += 2;
+  else if (text[bodyAt] === "\n") bodyAt += 1;
+  const body = text.slice(bodyAt);
+  const lines = header ? header.split(/\r?\n/) : [];
+  const chunks: Array<{ key: string; lines: string[] }> = [];
+  const looseLines: string[] = [];
+  let current: { key: string; lines: string[] } | null = null;
+  const problems: OkfMigrationFinding[] = [];
+  for (const line of lines) {
+    const top = /^([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(line);
+    if (top) {
+      current = { key: top[1], lines: [line] };
+      chunks.push(current);
+    } else if (current && (/^\s+/.test(line) || !line.trim() || line.trimStart().startsWith("#"))) {
+      current.lines.push(line);
+    } else if (!line.trim() || line.trimStart().startsWith("#")) {
+      looseLines.push(line);
+    } else {
+      problems.push({ code: "unsupported-frontmatter-line", message: `Cannot safely parse frontmatter line: ${line.slice(0, 80)}` });
+    }
+  }
+  const fields: ParsedField[] = [];
+  const byKey = new Map<string, ParsedField>();
+  for (const chunk of chunks) {
+    if (byKey.has(chunk.key)) {
+      problems.push({ code: "duplicate-key", message: `Duplicate frontmatter key: ${chunk.key}` });
+      continue;
+    }
+    const first = /^([A-Za-z0-9_-]+):(?:\s*(.*))?$/.exec(chunk.lines[0])!;
+    const rest = splitYamlComment(first[2] ?? "").value.trim();
+    let field: ParsedField | null = null;
+    if (rest) {
+      if (rest === "|" || rest === ">" || rest.startsWith("{") || rest.endsWith("}")) {
+        problems.push({ code: "nested-or-complex-yaml", message: `Key ${chunk.key} uses YAML outside the safe flat scalar/list grammar.` });
+      } else if (rest.startsWith("[")) {
+        const values = inlineList(rest);
+        if (!values) problems.push({ code: "malformed-inline-list", message: `Key ${chunk.key} has a malformed inline list.` });
+        else field = { key: chunk.key, kind: "list", listStyle: "inline", values, rawLines: chunk.lines, rawItems: values.map(yamlQuote) };
+      } else if (chunk.lines.slice(1).some((l) => l.trim() && !l.trimStart().startsWith("#"))) {
+        problems.push({ code: "nested-or-complex-yaml", message: `Key ${chunk.key} mixes a scalar with nested YAML.` });
+      } else {
+        field = { key: chunk.key, kind: "scalar", scalar: yamlUnquote(rest), rawLines: chunk.lines };
+      }
+    } else {
+      const values: string[] = [];
+      const rawItems: string[] = [];
+      let invalid = false;
+      for (const line of chunk.lines.slice(1)) {
+        if (!line.trim() || line.trimStart().startsWith("#")) continue;
+        const item = /^\s+-\s+(.+)$/.exec(line);
+        if (!item) { invalid = true; break; }
+        const expr = splitYamlComment(item[1]).value.trim();
+        const unquoted = yamlUnquote(expr);
+        if (expr.startsWith("{") || expr.endsWith("}") || (!/^['"]/.test(expr) && /^[^:]+:\s+/.test(expr))) { invalid = true; break; }
+        values.push(unquoted); rawItems.push(expr);
+      }
+      if (invalid || !rawItems.length) {
+        problems.push({ code: "nested-or-null-yaml", message: `Key ${chunk.key} is nested, null, or not a flat string list.` });
+      } else {
+        field = { key: chunk.key, kind: "list", listStyle: "block", values, rawLines: chunk.lines, rawItems };
+      }
+    }
+    if (field) {
+      // Unknown fields retain their exact raw lines. Comments attached to
+      // recognized fields are moved intact to the frontmatter footer so a
+      // canonical rewrite never silently deletes human annotations.
+      if (RECOGNIZED.has(field.key)) {
+        for (const line of chunk.lines) {
+          if (line.trimStart().startsWith("#")) looseLines.push(line.trimStart());
+          else {
+            const comment = splitYamlComment(line).comment;
+            if (comment) looseLines.push(comment);
+          }
+        }
+      }
+      fields.push(field); byKey.set(field.key, field);
+    }
+  }
+  return { state: "valid", bom, eol, body, fields, byKey, looseLines, problems };
+}
+
+const scalar = (fm: StrictFrontmatter, key: string): string | undefined => {
+  const f = fm.byKey.get(key);
+  return f?.kind === "scalar" ? f.scalar : undefined;
+};
+const list = (fm: StrictFrontmatter, key: string): string[] | undefined => {
+  const f = fm.byKey.get(key);
+  return f?.kind === "list" ? [...(f.values ?? [])] : undefined;
+};
+const nonempty = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+const validTimestamp = (v: string | undefined): boolean => Boolean(v && /^\d{4}-\d{2}-\d{2}T.*Z$/.test(v) && !Number.isNaN(Date.parse(v)));
+const safeWikiTargets = (field: ParsedField | undefined): boolean => {
+  if (!field || field.kind !== "list") return false;
+  if (!(field.values?.length)) return true;
+  return (field.values ?? []).every((item) => /^\[\[[^\]\r\n]{1,180}\]\]$/.test(item));
+};
+const canonicalWikiList = (field: ParsedField | undefined): boolean => {
+  if (!safeWikiTargets(field)) return false;
+  if (!(field?.values?.length)) return field?.listStyle === "inline";
+  return field.listStyle === "block" && (field.rawItems ?? []).every((item) => /^"\[\[[^\]\r\n]{1,180}\]\]"$/.test(item));
+};
+
+function okfValidation(fm: StrictFrontmatter): OkfMigrationFinding[] {
+  const f: OkfMigrationFinding[] = [];
+  const requireString = (key: string) => { if (!nonempty(scalar(fm, key))) f.push({ code: `missing-${key}`, message: `${key} must be a non-empty string.` }); };
+  requireString("okf_version"); requireString("uid"); requireString("type"); requireString("title");
+  requireString("description"); requireString("timestamp"); requireString("epistemic_state");
+  requireString("scope"); requireString("sensitivity");
+  if (scalar(fm, "okf_version") !== "2.2") f.push({ code: "invalid-okf-version", message: `okf_version must be exactly "2.2".` });
+  if (!UUID_V4.test(scalar(fm, "uid") ?? "")) f.push({ code: "invalid-uid", message: "uid must be a lowercase UUIDv4." });
+  if (!TYPES.has(scalar(fm, "type") ?? "")) f.push({ code: "invalid-type", message: "type must be episodic, semantic, or procedural." });
+  if (!validTimestamp(scalar(fm, "timestamp"))) f.push({ code: "invalid-timestamp", message: "timestamp must be a UTC ISO-8601 value ending in Z." });
+  if (!EPISTEMIC.has(scalar(fm, "epistemic_state") ?? "")) f.push({ code: "invalid-epistemic-state", message: "epistemic_state is missing or invalid." });
+  const scope = scalar(fm, "scope") ?? "";
+  if (!SCOPES.has(scope)) f.push({ code: "invalid-scope", message: "scope is missing or invalid." });
+  if (scope && scope !== "global" && !nonempty(scalar(fm, "scope_id"))) f.push({ code: "missing-scope-id", message: "scope_id is required for a named non-global scope." });
+  if (!SENSITIVITIES.has(scalar(fm, "sensitivity") ?? "")) f.push({ code: "invalid-sensitivity", message: "sensitivity is missing or invalid." });
+  if (!fm.byKey.has("tags") || fm.byKey.get("tags")?.kind !== "list") f.push({ code: "invalid-tags", message: "tags must be a flat list, including [] when empty." });
+  for (const key of LINEAGE_KEYS) if (!canonicalWikiList(fm.byKey.get(key))) f.push({ code: `invalid-${key}`, message: `${key} must be [] or a block list of double-quoted wikilinks.` });
+  for (const key of RELATION_KEYS) if (fm.byKey.has(key) && !canonicalWikiList(fm.byKey.get(key))) f.push({ code: `invalid-${key}`, message: `${key} must be a block list of double-quoted wikilinks.` });
+  const ranks = new Map(CANONICAL_KEYS.map((k, i) => [k, i]));
+  let last = -1, sawUnknown = false;
+  for (const field of fm.fields) {
+    const rank = ranks.get(field.key as any);
+    if (rank == null) { sawUnknown = true; continue; }
+    if (sawUnknown || rank < last) { f.push({ code: "noncanonical-key-order", message: "Recognized OKF+ fields are not in canonical order." }); break; }
+    last = rank;
+  }
+  return f;
+}
+
+function invalidExplicitGovernance(fm: StrictFrontmatter): OkfMigrationFinding[] {
+  const out: OkfMigrationFinding[] = [];
+  const checkEnum = (key: string, allowed: Set<string>) => {
+    if (!fm.byKey.has(key)) return;
+    const v = scalar(fm, key);
+    if (!v || !allowed.has(v)) out.push({ code: `invalid-explicit-${key}`, message: `Existing ${key} is invalid and requires human review; it will not be overwritten.` });
+  };
+  if (fm.byKey.has("okf_version") && scalar(fm, "okf_version") !== "2.2") out.push({ code: "different-okf-version", message: "A different explicit okf_version requires compatibility review." });
+  if (fm.byKey.has("uid") && !UUID_V4.test(scalar(fm, "uid") ?? "")) out.push({ code: "invalid-explicit-uid", message: "Existing uid is not a lowercase UUIDv4 and will not be replaced automatically." });
+  checkEnum("type", TYPES); checkEnum("epistemic_state", EPISTEMIC); checkEnum("scope", SCOPES); checkEnum("sensitivity", SENSITIVITIES);
+  if (fm.byKey.has("timestamp") && !validTimestamp(scalar(fm, "timestamp"))) out.push({ code: "invalid-explicit-timestamp", message: "Existing timestamp is invalid and will not be replaced automatically." });
+  for (const key of [...LINEAGE_KEYS, ...RELATION_KEYS]) {
+    if (fm.byKey.has(key) && !safeWikiTargets(fm.byKey.get(key))) out.push({ code: `unsafe-explicit-${key}`, message: `Existing ${key} contains values that cannot be safely normalized as wikilinks.` });
+  }
+  return out;
+}
+
+function fileTitle(path: string): string {
+  const base = path.split("/").pop() ?? path;
+  return base.replace(/\.md$/i, "").trim() || "Untitled note";
+}
+
+function emitList(key: string, values: string[], eol: string, wikilinks = false): string[] {
+  if (!values.length) return [`${key}: []`];
+  const unique = [...new Set(values.map((x) => x.trim()).filter(Boolean))];
+  return [`${key}:`, ...unique.map((v) => `  - ${yamlQuote(wikilinks && !/^\[\[.*\]\]$/.test(v) ? `[[${v}]]` : v)}`)];
+}
+
+function proposedOkf(fm: StrictFrontmatter, source: OkfMigrationSource, uid: string, createdAt: string, defaults: OkfMigrationDefaults): string {
+  const eol = fm.eol;
+  const title = scalar(fm, "title") || fileTitle(source.path);
+  const description = scalar(fm, "description") || `Knowledge note for ${title}.`;
+  const created = Number.isFinite(source.createdTime) && (source.createdTime ?? 0) > 0
+    ? new Date(source.createdTime!).toISOString()
+    : Number.isFinite(source.modifiedTime) && (source.modifiedTime ?? 0) > 0
+      ? new Date(source.modifiedTime!).toISOString()
+      : createdAt;
+  const actualUid = scalar(fm, "uid") || uid;
+  const lines: string[] = [
+    "---",
+    `okf_version: "2.2"`,
+    `uid: ${yamlQuote(actualUid)}`,
+    `type: ${yamlQuote(scalar(fm, "type") || defaults.type)}`,
+    `title: ${yamlQuote(title)}`,
+    `description: ${yamlQuote(description)}`,
+  ];
+  const resource = scalar(fm, "resource");
+  if (resource) lines.push(`resource: ${yamlQuote(resource)}`);
+  lines.push(
+    `timestamp: ${yamlQuote(scalar(fm, "timestamp") || created)}`,
+    `epistemic_state: ${yamlQuote(scalar(fm, "epistemic_state") || defaults.epistemicState)}`,
+    `scope: ${yamlQuote(scalar(fm, "scope") || defaults.scope)}`,
+    `scope_id: ${yamlQuote(scalar(fm, "scope_id") || actualUid)}`,
+    `sensitivity: ${yamlQuote(scalar(fm, "sensitivity") || defaults.sensitivity)}`,
+  );
+  lines.push(...emitList("tags", list(fm, "tags") ?? (scalar(fm, "tags") ? [scalar(fm, "tags")!] : []), eol));
+  for (const key of LINEAGE_KEYS) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
+  for (const key of RELATION_KEYS) if (fm.byKey.has(key)) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
+  for (const field of fm.fields) {
+    if (!RECOGNIZED.has(field.key)) lines.push(...field.rawLines);
+  }
+  if (fm.looseLines.some((x) => x.trim())) lines.push(...fm.looseLines);
+  lines.push("---");
+  return fm.bom + lines.join(eol) + eol + fm.body;
+}
+
+export function makeOkfUuidV4(): string {
+  const c: any = (globalThis as any).crypto;
+  if (!c || typeof c.getRandomValues !== "function") throw new Error("OKF+ migration requires crypto.getRandomValues; refusing insecure UID generation.");
+  const b = new Uint8Array(16); c.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+export async function sha256Text(text: string): Promise<string> {
+  const subtle = (globalThis as any).crypto?.subtle;
+  if (!subtle) throw new Error("OKF+ migration requires WebCrypto SHA-256 for plan binding.");
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+function planMaterial(plan: Omit<OkfMigrationPlan, "planHash"> | OkfMigrationPlan): unknown {
+  return {
+    schema: plan.schema, runId: plan.runId, createdAt: plan.createdAt,
+    defaults: plan.defaults, totals: plan.totals,
+    entries: plan.entries.map((e) => ({ path: e.path, status: e.status, originalHash: e.originalHash, proposedHash: e.proposedHash, uid: e.uid, findings: e.findings })),
+  };
+}
+
+/** Recompute the approval hash and the in-memory content hashes before write. */
+export async function verifyOkfMigrationPlan(plan: OkfMigrationPlan): Promise<boolean> {
+  if (await sha256Text(JSON.stringify(planMaterial(plan))) !== plan.planHash) return false;
+  for (const entry of plan.entries) {
+    if (await sha256Text(entry.originalContent) !== entry.originalHash) return false;
+    if (entry.proposedContent != null && await sha256Text(entry.proposedContent) !== entry.proposedHash) return false;
+  }
+  return true;
+}
+
+interface AuditOptions {
+  createdAt: string;
+  defaults: OkfMigrationDefaults;
+  uuid: () => string;
+}
+
+async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise<OkfMigrationEntry> {
+  const originalHash = await sha256Text(source.content);
+  const fm = strictFrontmatter(source.content);
+  const name = source.path.split("/").pop()?.toLowerCase();
+  if ((name === "index.md" || name === "log.md") && !source.path.toLowerCase().startsWith(".okf/")) {
+    const rootVersionDeclaration = source.path.toLowerCase() === "index.md" && fm.state === "valid" && scalar(fm, "okf_version") === "0.1";
+    const findings = fm.state === "none" || rootVersionDeclaration
+      ? [{ code: "google-reserved", message: `${name} is a Google OKF reserved document and is not converted.` }]
+      : [{ code: "reserved-frontmatter-review", message: `${name} is reserved by Google OKF; its frontmatter requires manual review.` }];
+    return { path: source.path, status: rootVersionDeclaration || fm.state === "none" ? "google-reserved" : "blocked", standard: "Google OKF reserved", findings, originalHash, originalContent: source.content };
+  }
+  if (fm.state === "unterminated" || fm.problems.length) {
+    return { path: source.path, status: "blocked", standard: "none", findings: fm.problems, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+  }
+  if (fm.state === "valid" && scalar(fm, "okf_version") === "2.2") {
+    const validation = okfValidation(fm);
+    if (!validation.length) return { path: source.path, status: "okf-plus-2.2", standard: "OKF+ 2.2", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+    const destructive = invalidExplicitGovernance(fm);
+    if (destructive.length) return { path: source.path, status: "blocked", standard: "none", findings: destructive, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+    const uid = scalar(fm, "uid") || opts.uuid();
+    const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults);
+    return { path: source.path, status: "needs-okf-plus", standard: "none", findings: validation, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid };
+  }
+  // Google OKF v0.1 draft conformance is intentionally minimal: parseable YAML
+  // frontmatter and a non-empty type. Producer-defined extra keys are allowed.
+  if (fm.state === "valid" && nonempty(scalar(fm, "type"))) {
+    return { path: source.path, status: "google-okf-0.1", standard: "Google OKF 0.1 draft", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+  }
+  const explicit = invalidExplicitGovernance(fm);
+  if (explicit.length) return { path: source.path, status: "blocked", standard: "none", findings: explicit, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+  const uid = scalar(fm, "uid") || opts.uuid();
+  const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults);
+  const findings: OkfMigrationFinding[] = [{
+    code: fm.state === "none" ? "missing-frontmatter" : "missing-okf-type",
+    message: fm.state === "none" ? "No YAML frontmatter was found." : "Frontmatter is not OKF+ 2.2 and lacks the type required by Google OKF 0.1.",
+  }];
+  return { path: source.path, status: "needs-okf-plus", standard: "none", findings, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid };
+}
+
+export async function createOkfMigrationPlan(
+  sources: OkfMigrationSource[],
+  options: Partial<OkfMigrationDefaults> & { now?: () => Date; uuid?: () => string } = {},
+): Promise<OkfMigrationPlan> {
+  const { now: suppliedNow, uuid: suppliedUuid, ...overrides } = options;
+  const defaults: OkfMigrationDefaults = { ...DEFAULT_OKF_MIGRATION_DEFAULTS, ...overrides } as OkfMigrationDefaults;
+  const now = suppliedNow ?? (() => new Date());
+  const uuid = suppliedUuid ?? makeOkfUuidV4;
+  const createdAt = now().toISOString();
+  const runId = `okf-${createdAt.replace(/[-:.]/g, "").replace("Z", "Z")}-${uuid().slice(0, 8)}`;
+  const entries: OkfMigrationEntry[] = [];
+  for (const source of [...sources].sort((a, b) => a.path.localeCompare(b.path))) {
+    if (source.path.toLowerCase().startsWith(".okf/")) continue;
+    entries.push(await auditOne(source, { createdAt, defaults, uuid }));
+  }
+  const uidMap = new Map<string, OkfMigrationEntry[]>();
+  for (const entry of entries) if (entry.uid && UUID_V4.test(entry.uid)) {
+    const group = uidMap.get(entry.uid) ?? []; group.push(entry); uidMap.set(entry.uid, group);
+  }
+  for (const [uid, group] of uidMap) if (group.length > 1) {
+    for (const entry of group) {
+      entry.findings.push({ code: "duplicate-uid", message: `UID ${uid} is also used by ${group.filter((x) => x !== entry).map((x) => x.path).join(", ")}.` });
+      if (entry.status === "okf-plus-2.2" || entry.status === "needs-okf-plus") {
+        entry.status = "blocked"; entry.standard = "none"; delete entry.proposedContent; delete entry.proposedHash;
+      }
+    }
+  }
+  const totals: OkfMigrationPlan["totals"] = {
+    notes: entries.length, changes: 0, "okf-plus-2.2": 0, "google-okf-0.1": 0,
+    "google-reserved": 0, "needs-okf-plus": 0, blocked: 0,
+  };
+  for (const entry of entries) { totals[entry.status]++; if (entry.status === "needs-okf-plus") totals.changes++; }
+  const base = { schema: "okf-plus-migration-plan/1" as const, runId, createdAt, defaults, totals, entries };
+  const planHash = await sha256Text(JSON.stringify(planMaterial(base)));
+  return { ...base, planHash };
+}
+
+/** Remove raw/proposed note contents before persisting an audit plan. */
+export function publicOkfMigrationPlan(plan: OkfMigrationPlan): unknown {
+  return {
+    schema: plan.schema, runId: plan.runId, createdAt: plan.createdAt, planHash: plan.planHash,
+    defaults: plan.defaults, totals: plan.totals,
+    entries: plan.entries.map(({ originalContent: _o, proposedContent: _p, ...entry }) => entry),
+  };
+}

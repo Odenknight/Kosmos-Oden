@@ -29,6 +29,15 @@ if (existsSync(standalonePath)) {
   must(html.includes("webkitdirectory"), "standalone is missing the snapshot fallback");
 }
 
+// stdio compatibility adapter ships beside the Obsidian plugin artifacts
+const stdioAdapter = resolve(root, "kosmos-mcp-stdio.mjs");
+must(existsSync(stdioAdapter), "kosmos-mcp-stdio.mjs is missing");
+if (existsSync(stdioAdapter)) {
+  const source = readFileSync(stdioAdapter, "utf8");
+  must(source.includes("MCP-Protocol-Version"), "stdio adapter does not preserve the negotiated MCP protocol header");
+  must(source.includes("Mcp-Session-Id"), "stdio adapter does not preserve the MCP session header");
+}
+
 // version agreement between built artifacts and manifest/package
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8"));
@@ -44,4 +53,4 @@ if (problems.length) {
   for (const p of problems) console.error("check-artifacts:", p);
   process.exit(1);
 }
-console.log("check-artifacts: OK — main.js and vault-kosmos.html are present, self-contained and version-consistent");
+console.log("check-artifacts: OK — plugin, standalone, and stdio adapter artifacts are present and version-consistent");

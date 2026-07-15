@@ -1,0 +1,143 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  createOkfMigrationPlan,
+  publicOkfMigrationPlan,
+  verifyOkfMigrationPlan,
+} from "../dist/kosmos-core.mjs";
+
+const UUIDS = [
+  "00000000-0000-4000-8000-000000000001",
+  "00000000-0000-4000-8000-000000000002",
+  "00000000-0000-4000-8000-000000000003",
+  "00000000-0000-4000-8000-000000000004",
+  "00000000-0000-4000-8000-000000000005",
+];
+
+function options() {
+  let i = 0;
+  return {
+    now: () => new Date("2026-07-14T12:00:00.000Z"),
+    uuid: () => UUIDS[i++] ?? `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+  };
+}
+
+const validOkf = `---
+okf_version: "2.2"
+uid: "11111111-1111-4111-8111-111111111111"
+type: "semantic"
+title: "Existing"
+description: "Already conformant."
+timestamp: "2026-07-01T00:00:00Z"
+epistemic_state: "hypothesis"
+scope: "node"
+scope_id: "11111111-1111-4111-8111-111111111111"
+sensitivity: "internal"
+tags: []
+supersedes: []
+superseded_by: []
+forked_from: []
+forked_to: []
+---
+Body.
+`;
+
+test("OKF+ onboarding accepts valid OKF+ and Google's minimal OKF", async () => {
+  const plan = await createOkfMigrationPlan([
+    { path: "Existing.md", content: validOkf },
+    { path: "Google.md", content: "---\ntype: Playbook\ntitle: Google-compatible\n---\nBody\n" },
+    { path: "index.md", content: "# Index\n" },
+  ], options());
+  assert.equal(plan.totals["okf-plus-2.2"], 1);
+  assert.equal(plan.totals["google-okf-0.1"], 1);
+  assert.equal(plan.totals["google-reserved"], 1);
+  assert.equal(plan.totals.changes, 0);
+});
+
+test("missing frontmatter gets conservative OKF+ 2.2 without changing body bytes", async () => {
+  const body = "# Alpha\r\n\r\nHuman text.\r\n";
+  const plan = await createOkfMigrationPlan([
+    { path: "Folder/Alpha.md", content: "\uFEFF" + body, createdTime: Date.parse("2025-03-04T05:06:07Z") },
+  ], options());
+  const entry = plan.entries[0];
+  assert.equal(entry.status, "needs-okf-plus");
+  assert.match(entry.proposedContent, /^\uFEFF---\r\nokf_version: "2\.2"/);
+  assert.match(entry.proposedContent, /type: "semantic"/);
+  assert.match(entry.proposedContent, /epistemic_state: "hypothesis"/);
+  assert.match(entry.proposedContent, /scope: "node"/);
+  assert.match(entry.proposedContent, /sensitivity: "internal"/);
+  assert.match(entry.proposedContent, /timestamp: "2025-03-04T05:06:07\.000Z"/);
+  assert.ok(entry.proposedContent.endsWith(body), "body bytes after frontmatter are preserved");
+});
+
+test("simple Obsidian properties are preserved after canonical OKF+ fields", async () => {
+  const original = `---
+aliases: [Alpha alias]
+cssclasses: [wide]
+tags: [one, one, two]
+---
+Text
+`;
+  const plan = await createOkfMigrationPlan([{ path: "Alpha.md", content: original }], options());
+  const out = plan.entries[0].proposedContent;
+  assert.match(out, /tags:\n  - "one"\n  - "two"/);
+  assert.ok(out.indexOf("forked_to: []") < out.indexOf("aliases: [Alpha alias]"));
+  assert.match(out, /cssclasses: \[wide\]/);
+  assert.ok(out.endsWith("Text\n"));
+});
+
+test("quoted hash characters and human frontmatter comments survive normalization", async () => {
+  const original = `---
+title: "A # B" # keep this title note
+# keep this standalone note
+aliases: [hash-test]
+---
+Body
+`;
+  const plan = await createOkfMigrationPlan([{ path: "Hash.md", content: original }], options());
+  const out = plan.entries[0].proposedContent;
+  assert.match(out, /title: "A # B"/);
+  assert.match(out, /# keep this title note/);
+  assert.match(out, /# keep this standalone note/);
+});
+
+test("ambiguous or destructive frontmatter is blocked instead of guessed", async () => {
+  const plan = await createOkfMigrationPlan([
+    { path: "Duplicate.md", content: "---\ntags: [a]\ntags: [b]\n---\nBody\n" },
+    { path: "Nested.md", content: "---\nscope:\n  kind: project\n---\nBody\n" },
+    { path: "Invalid-v2.2.md", content: "---\nokf_version: '2.2'\nuid: unknown\ntype: semantic\n---\nBody\n" },
+    { path: "Only-delimiter.md", content: "---" },
+  ], options());
+  assert.equal(plan.totals.blocked, 4);
+  assert.equal(plan.totals.changes, 0);
+  assert.ok(plan.entries.every((e) => e.proposedContent == null));
+});
+
+test("duplicate OKF+ UIDs are a global blocking conflict", async () => {
+  const two = validOkf.replace("title: \"Existing\"", "title: \"Second\"");
+  const plan = await createOkfMigrationPlan([
+    { path: "One.md", content: validOkf },
+    { path: "Two.md", content: two },
+  ], options());
+  assert.equal(plan.totals.blocked, 2);
+  assert.ok(plan.entries.every((e) => e.findings.some((f) => f.code === "duplicate-uid")));
+});
+
+test("persistable plan binds hashes but never includes note contents", async () => {
+  const plan = await createOkfMigrationPlan([{ path: "Secret.md", content: "TOP SECRET BODY" }], options());
+  assert.match(plan.planHash, /^[0-9a-f]{64}$/);
+  const persisted = JSON.stringify(publicOkfMigrationPlan(plan));
+  assert.doesNotMatch(persisted, /TOP SECRET BODY/);
+  assert.match(persisted, /originalHash/);
+  assert.match(persisted, /proposedHash/);
+  assert.equal(await verifyOkfMigrationPlan(plan), true);
+  plan.entries[0].proposedContent += "tampered";
+  assert.equal(await verifyOkfMigrationPlan(plan), false);
+});
+
+test("nonempty relationship lists are canonicalized to quoted block wikilinks", async () => {
+  const input = validOkf.replace("forked_to: []", "forked_to: []\nrelated_to: [\"[[Neighbor]]\"]");
+  const plan = await createOkfMigrationPlan([{ path: "Existing.md", content: input }], options());
+  assert.equal(plan.entries[0].status, "needs-okf-plus");
+  assert.match(plan.entries[0].proposedContent, /related_to:\n  - "\[\[Neighbor\]\]"/);
+});

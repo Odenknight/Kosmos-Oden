@@ -1,0 +1,108 @@
+# OKF/OKF+ Note Audit and Migration
+
+## Purpose
+
+**Mark notes in OKF+ format** is a user-triggered Obsidian workflow for safely
+onboarding existing Markdown notes. It scans every vault note except the
+processor-owned `.okf/**` sidecars, recognizes either:
+
+- normative project **OKF+ 2.2** frontmatter; or
+- Google's permissive **Open Knowledge Format 0.1 draft**, whose concept-note
+  conformance requirement is parseable YAML frontmatter with a non-empty
+  `type` field.
+
+Google OKF is an interoperability floor; OKF+ is the stricter identity,
+governance, sensitivity, lineage, and typed-relationship extension used by
+Kosmos. Google's current primary specification is
+[GoogleCloudPlatform/knowledge-catalog/okf/SPEC.md](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md).
+
+## Workflow and warnings
+
+1. Make a separate, restorable backup or snapshot. Cloud sync is not a backup:
+   it can propagate unwanted edits and deletions.
+2. Run the command and review the dry-run counts, paths, findings, defaults,
+   and SHA-256 plan hash. Scanning never changes notes.
+3. Optionally save the content-free audit without applying it.
+4. To apply, confirm both the independent backup and the sensitivity warning.
+5. The plugin rechecks every source. A note edited, renamed, or deleted after
+   the scan is skipped.
+6. Before each edit, the original file bytes are copied to
+   `.okf/backup/<run-id>/<original-path>.bak` using binary I/O.
+7. Obsidian atomically processes the matching source. The human-authored body
+   is unchanged; only frontmatter is added or normalized.
+8. The approved plan and result are stored under
+   `.okf/migrations/<run-id>/` without note bodies.
+
+The local backup helps recovery but is not independent: it lives in the same
+vault and may be synchronized with it. Keep an external snapshot as well.
+
+## Classification
+
+| Result | Action |
+|---|---|
+| OKF+ 2.2 | Leave unchanged |
+| Google OKF 0.1 draft | Leave unchanged |
+| Google `index.md` / `log.md` | Treat as reserved; leave unchanged |
+| Safe mechanical candidate | Propose OKF+ 2.2 in the dry run |
+| Ambiguous or conflicting | Block and report for human review |
+
+Blocking conditions include unterminated frontmatter, duplicate keys, nested
+or unsupported YAML, invalid explicit UID/type/timestamp/epistemic/scope/
+sensitivity values, unsafe lineage or relationship serialization, duplicate
+UIDs, and frontmatter on a reserved Google document that needs review. The
+workflow does not silently salvage or overwrite those values.
+
+## Conservative defaults
+
+For a note without a safe existing value, onboarding emits:
+
+- `okf_version: "2.2"`;
+- a cryptographically generated, lowercase UUIDv4 `uid`;
+- `type: "semantic"`;
+- the filename stem as `title`;
+- a transparent title-based `description`;
+- file creation time (then modification/onboarding time fallback) as the
+  immutable UTC `timestamp`;
+- `epistemic_state: "hypothesis"`;
+- `scope: "node"` and the UID as `scope_id`;
+- `sensitivity: "internal"`;
+- preserved/deduplicated tags, required empty lineage lists, safe existing
+  typed relationships, and preserved unknown flat Obsidian fields.
+
+These defaults establish a structurally valid, narrow, non-authoritative
+starting point. They are not an assertion that a model inspected or understood
+the note, and `internal` is not a privacy scan. Review confidential and PHI
+content before enabling cloud agents or expanding a connector's sensitivity
+ceiling.
+
+## LLM assessment
+
+An LLM is not necessary for structural onboarding and is intentionally absent
+from the apply path. Structural repair, UID assignment, canonical ordering,
+backup, source matching, and plan binding are deterministic tasks. Adding a
+model would introduce privacy, nondeterminism, cost, and hallucination risk
+without improving those guarantees.
+
+Models may later help create *proposals* for descriptions, note types, tags,
+citations, or typed relationships:
+
+| Route | Benefits | Costs and risks |
+|---|---|---|
+| Local LLM | Notes stay on the device; offline; controllable retention | More setup and hardware; often weaker classification/summarization; local software still needs a trust review |
+| Cloud LLM | Often stronger language and classification; less local hardware | Note data leaves the device; provider retention/policy, credentials, cost, latency, prompt injection, and confidential/PHI restrictions |
+| No LLM | Reproducible, fast, private, easy to audit | Generic descriptions/types require later human refinement |
+
+Recommended policy: local-first for non-public notes; explicit per-run cloud
+consent after sensitivity classification; minimum necessary content; no cloud
+fallback on local failure; and all semantic output enters a review queue rather
+than frontmatter automatically. The existing universal read-only MCP connector
+can support a compatible local or cloud agent harness, but it does not grant a
+model write authority over this migration.
+
+## Recovery
+
+Stop sync before recovering a file. Locate its `.bak` using `result.json`,
+verify the target note and run ID, then restore the backup bytes outside the
+plugin or from an independent snapshot. Recovery is intentionally not a bulk
+one-click action: a later human edit must not be silently erased. Keep the
+plan/result records with the restored note for auditability.

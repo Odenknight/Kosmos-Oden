@@ -78,6 +78,41 @@ test("OKF+: Related footer produces semantic targets", () => {
   assert.deepEqual(okf.related, ["A", "B"]);
 });
 
+test("OKF+ 2.2: flat governance fields and canonical wikilink lists parse", () => {
+  const { data, content } = parseFrontmatter(`---
+okf_version: "2.2"
+uid: "7f3a9c1e-4b2d-4e8a-9c6f-1d5e8a2b7c4d"
+type: semantic
+title: Engine
+description: Governed engine note
+timestamp: 2026-07-01T00:00:00Z
+epistemic_state: verified_inference
+scope: project
+scope_id: kosmos
+sensitivity: confidential
+supersedes:
+  - "[[Engine v1]]"
+forked_by:
+  - "[[Alternative]]"
+depends_on:
+  - "[[Ledger]]"
+related_to:
+  - "[[Fuel]]"
+---
+Body`);
+  const okf = parseOkfPlus(data, content);
+  assert.equal(okf.okfVersion, "2.2");
+  assert.equal(okf.uid, "7f3a9c1e-4b2d-4e8a-9c6f-1d5e8a2b7c4d");
+  assert.equal(okf.description, "Governed engine note");
+  assert.equal(okf.epistemicState, "verified_inference");
+  assert.equal(okf.scopeId, "kosmos");
+  assert.equal(okf.sensitivity, "confidential");
+  assert.deepEqual(okf.supersedes, ["Engine v1"]);
+  assert.deepEqual(okf.forkedTo, ["Alternative"]); // forked_by read compatibility
+  assert.deepEqual(okf.relations.depends_on, ["Ledger"]);
+  assert.deepEqual(okf.related, ["Fuel"]);
+});
+
 test("OKF+: absent markers -> null; invalid timestamp -> fallback validAt", () => {
   const { data, content } = parseFrontmatter("---\nunrelated: x\n---\nBody");
   assert.equal(parseOkfPlus(data, content), null);

@@ -256,10 +256,10 @@ export function assembleGraph(
     node.okf.head = temporal.head.get(id) ?? false;
   }
 
-  // ---- semantic Related links: retag matching wikilinks as `semantic` ----
+  // ---- semantic relations: legacy **Related:** + canonical v2.2 related_to ----
   const linksBySource = new Map<string, KosmosLink[]>();
   for (const l of links) {
-    if (l.kind !== "wikilink") continue;
+    if (l.kind !== "wikilink" && l.kind !== "property") continue;
     const arr = linksBySource.get(l.source);
     if (arr) arr.push(l);
     else linksBySource.set(l.source, [l]);
@@ -271,7 +271,7 @@ export function assembleGraph(
       rec.okf.related.map((t) => resolveLinkTarget(resolver, rec.relativePath, t) ?? unresolvedId(t))
     );
     for (const l of linksBySource.get(id) ?? []) {
-      if (relIds.has(l.target) && l.kind === "wikilink") {
+      if (relIds.has(l.target) && (l.kind === "wikilink" || l.kind === "property")) {
         l.kind = "semantic";
         relIds.delete(l.target);
       }
@@ -327,6 +327,9 @@ export function assembleGraph(
     statuses: uniq(list.map((n) => n.status).filter(Boolean) as string[]),
     types: uniq(list.map((n) => n.type).filter(Boolean) as string[]),
     diagnostics,
+    // Core owns temporal semantics; consumers must not depend on a renderer
+    // mutation to discover the graph's time range.
+    __timeSpan: temporal.timeSpan,
   };
 }
 

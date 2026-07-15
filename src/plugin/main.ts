@@ -14,7 +14,8 @@ import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidia
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../core/version";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
-import { KosmosSettingTab, buildAgentGuide } from "./settings";
+import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
+import { openOkfMigrationWorkflow } from "./okf-migration";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 
@@ -246,10 +247,11 @@ export default class VaultKosmosPlugin extends Plugin {
 
   async onload(): Promise<void> {
     this.agentSettings = migrateAgentSettings(await this.loadData());
+    let settingsChanged = false;
     if (!this.agentSettings.agentToken) {
       try {
         this.agentSettings.agentToken = makeToken();
-        await this.saveAgentSettings();
+        settingsChanged = true;
       } catch (e: any) {
         // No secure RNG: leave the token empty. With agentRequireToken on, the
         // server rejects every request rather than accepting a weak token (§16).
@@ -257,6 +259,13 @@ export default class VaultKosmosPlugin extends Plugin {
         new Notice("Vault Kosmos: could not create a secure Agent API token; the API will refuse requests until one exists.");
       }
     }
+    if (!this.agentSettings.agentGraphNamespace) {
+      try {
+        this.agentSettings.agentGraphNamespace = makeToken().slice(0, 16);
+        settingsChanged = true;
+      } catch (_) { /* token failure above already leaves the API fail-closed */ }
+    }
+    if (settingsChanged) await this.saveAgentSettings();
     this.provider = new VaultDataProvider(this.app);
     this.agentApi = new KosmosAgentServer(nodeRequire("http"), this.agentSettings, this.provider);
     this.addSettingTab(new KosmosSettingTab(this.app, this));
@@ -266,6 +275,11 @@ export default class VaultKosmosPlugin extends Plugin {
     this.registerView(VIEW_TYPE, (leaf) => new KosmosView(leaf));
     this.addRibbonIcon("orbit", "Open Vault Kosmos", () => void this.activate());
     this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
+    this.addCommand({
+      id: "mark-notes-okf-plus",
+      name: "Mark notes in OKF+ format (scan, back up, and preview)",
+      callback: () => void this.markNotesInOkf(),
+    });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });
 
     // Don't react to the startup metadata-resolve storm; the view's initial load already
@@ -319,17 +333,29 @@ export default class VaultKosmosPlugin extends Plugin {
 
   async saveAgentSettings(): Promise<void> { await this.saveData(this.agentSettings); }
 
+  /** Audit the vault and open the explicit backup/approval gate. No LLM or
+   * network route is involved; the core planner refuses ambiguous metadata. */
+  async markNotesInOkf(): Promise<void> {
+    await openOkfMigrationWorkflow(this.app, () => this.provider.markFullDirty());
+  }
+
   async writeAgentGuide(): Promise<void> {
-    const md = buildAgentGuide(this.agentSettings.agentPort, this.agentSettings.agentToken || "<enable the API to generate a token>", this.agentSettings.agentBindMode, this.agentLanUrls());
+    const md = buildAgentGuide(
+      this.agentSettings.agentPort,
+      this.agentSettings.agentToken || "<enable the API to generate a token>",
+      this.agentSettings.agentBindMode,
+      this.agentLanUrls(),
+      installedBridgePath(this.app, this)
+    );
     await this.app.vault.adapter.write("AGENT-API.md", md);
     new Notice("Vault Kosmos: wrote AGENT-API.md to your vault root (with your address + token filled in)");
   }
 
   onunload(): void { this.agentApi?.stop(); }
 
-  /** Export every Markdown note as a Graphiti-ingestable episode (getzep/graphiti).
-   *  Canonical OKF+ lineage + the footer **Related:** links ride along inside
-   *  EpisodeType.json bodies, so Graphiti ingests the knowledge chains in order. */
+  /** Export readable source assertions as a non-authoritative Graphiti projection.
+   * Stable episode UUIDs make re-ingestion idempotent; later supersession state
+   * is not back-propagated into earlier episodes. */
   async exportGraphitiEpisodes(): Promise<void> {
     const episodes = await this.agentApi.qEpisodes();
     await this.app.vault.adapter.write("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
@@ -361,6 +387,7 @@ async def main(path: str) -> None:
     try:
         for e in episodes:  # chronological order preserves OKF+ knowledge chains
             await g.add_episode(
+                uuid=e["uuid"],
                 name=e["name"],
                 episode_body=e["episode_body"],
                 source=EpisodeType.json,

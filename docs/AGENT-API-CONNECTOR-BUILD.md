@@ -162,14 +162,14 @@ validation runs on every request).
 
 ## 6. MCP over Streamable HTTP
 
-Single endpoint `POST /mcp`, **stateless JSON responses** (no SSE stream needed):
+Single endpoint `POST /mcp`, JSON responses (no server-initiated SSE stream):
 
 ```
-GET  /mcp     → 405  Allow: POST, DELETE      (we don't offer a server→client SSE stream; clients tolerate this)
-DELETE /mcp   → 200                            (stateless: nothing to terminate)
+GET  /mcp     → 405  Allow: POST, DELETE      (no server→client SSE stream)
+DELETE /mcp   → 204 with valid session headers; 404 when unknown/expired
 POST /mcp     → read body (byte-capped) → JSON.parse → mcpDispatch()
                 single object → one JSON-RPC response
-                array (legacy batch) → array of responses ([] → 202)
+                array/batch → HTTP 400 / JSON-RPC -32600
 ```
 
 `mcpDispatch(msg, ctx)` handles JSON-RPC 2.0:
@@ -177,25 +177,27 @@ POST /mcp     → read body (byte-capped) → JSON.parse → mcpDispatch()
 | method | behaviour |
 |---|---|
 | `initialize` | negotiate protocol version; register a session from `clientInfo.name`; return `capabilities.tools`, `serverInfo{name,version}`, `instructions`. The POST handler adds an **`Mcp-Session-Id`** response header. |
-| `notifications/*` (no `id`) | accept silently → HTTP **202**, empty body |
+| `notifications/initialized` (no `id`) | transition the session to initialized → HTTP **202**, empty body |
+| other notifications (no `id`) | accept silently → HTTP **202**, empty body |
 | `ping` | `{}` |
-| `tools/list` | the tool definitions (name, description, `inputSchema`) |
-| `tools/call` | run the named tool; return `{ content: [{type:"text", text: JSON.stringify(result)}], isError }`. Tool errors become `isError:true` results, **not** JSON-RPC errors. |
+| `tools/list` | tool definitions with input/output schemas and read-only/idempotent annotations |
+| `tools/call` | validate name/arguments; return text plus `structuredContent`. Unknown tools/malformed calls are `-32602`; execution failures use `isError:true`. |
 | `resources/list`, `prompts/list` | `{ resources: [] }` / `{ prompts: [] }` |
 | unknown | JSON-RPC error `-32601` |
 
 **Protocol version negotiation.** Keep an explicit supported list, newest first:
 
 ```ts
-const SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"];
+const SUPPORTED = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 // echo the client's version if supported; else return our latest (never echo an unknown version)
 negotiate(requested) { return SUPPORTED.includes(requested) ? requested : SUPPORTED[0]; }
 ```
 
-> Keep `2025-06-18` (current) in the list or modern Claude Code / Desktop get
-> silently downgraded. The server is intentionally **lenient** about the post-init
-> `MCP-Protocol-Version` header (accepts requests without it) rather than 400-ing,
-> so a client that omits it never breaks.
+The server issues `Mcp-Session-Id` during initialization. Every subsequent POST
+and DELETE must send that id plus the negotiated `MCP-Protocol-Version`.
+Missing/mismatched protocol headers return 400; unknown/expired sessions return
+404 so clients can reinitialize. This follows the current Streamable HTTP
+lifecycle instead of treating a stateful identity session as stateless.
 
 ---
 
@@ -263,7 +265,7 @@ Kosmos's read-only set (adapt to your domain):
 | `get_lineage` — `GET /lineage?…` | canonical chain, oldest→newest, HEAD marked |
 | `get_related` — `GET /related?…` | semantic + outgoing + backlinks |
 | `graph_at_time` — `GET /at?time=ISO` | point-in-time snapshot (validity intervals) |
-| `export_graphiti_episodes` — `GET /episodes` | whole dataset as ingestable episodes |
+| `export_graphiti_episodes` — `GET /episodes` | paginated ingestable episodes (`cursor`, max 100/page) |
 | — `GET /health`, `/`, `/diagnostics`, `/graph` | liveness + service descriptor |
 
 Cap every output (note bodies, result counts, export size). Truncate with a
@@ -273,25 +275,33 @@ visible `"…truncated"` marker rather than streaming unbounded data.
 
 ## 10. Client configuration
 
-**Claude Code — native HTTP (preferred, no bridge).** `.mcp.json` where you run `claude`:
+**Anthropic Claude Code — native HTTP.** `.mcp.json` where you run `claude`:
 ```json
 {
   "mcpServers": {
     "my-connector": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "http://127.0.0.1:4816/mcp",
       "headers": { "Authorization": "Bearer <TOKEN>" }
     }
   }
 }
 ```
-or `claude mcp add --transport http my-connector "http://127.0.0.1:4816/mcp" --header "Authorization: Bearer <TOKEN>"`.
+or `claude mcp add --transport http --header "Authorization: Bearer <TOKEN>" my-connector "http://127.0.0.1:4816/mcp"`.
 
-**Claude Desktop / stdio-only clients** need the bridge (Node required):
+**OpenAI Codex / ChatGPT desktop / Codex IDE** share `config.toml`:
+```toml
+[mcp_servers.my-connector]
+url = "http://127.0.0.1:4816/mcp"
+http_headers = { Authorization = "Bearer <TOKEN>" }
+```
+
+**Claude Desktop / stdio-only clients** use the bundled first-party adapter:
 ```json
 { "mcpServers": { "my-connector": {
-  "command": "npx",
-  "args": ["-y", "mcp-remote", "http://127.0.0.1:4816/mcp", "--header", "Authorization: Bearer <TOKEN>"]
+  "command": "node",
+  "args": ["<PLUGIN-DIRECTORY>/kosmos-mcp-stdio.mjs"],
+  "env": { "KOSMOS_MCP_URL": "http://127.0.0.1:4816/mcp", "KOSMOS_MCP_TOKEN": "<TOKEN>" }
 }}}
 ```
 
@@ -307,16 +317,20 @@ holds the token). Never commit `data.json`/settings that persist the token.
 Unit tests (plain `node --test`, no browser): auth on/off + empty-token fail-closed,
 query-token rules, Host/Origin accept/reject, byte-limit 413, output-cap truncation,
 MCP version negotiation (each supported echoed; unknown → latest), `initialize`
-issues `Mcp-Session-Id`, agent-identity flows to `onTraversal`, per-agent cap 429s.
+issues `Mcp-Session-Id`, lifecycle headers are enforced, DELETE terminates,
+malformed JSON-RPC/tool calls fail correctly, sensitivity filtering holds,
+agent identity flows to `onTraversal`, and the per-agent cap returns 429.
 
 End-to-end MCP probe (mimics a real client — run against a started server):
 
 ```js
 // POST /mcp with Accept: application/json, text/event-stream
-// 1) initialize {protocolVersion:"2025-06-18", clientInfo:{name:"probe"}} → 200, negotiated version, Mcp-Session-Id header
-// 2) notifications/initialized (no id)                                    → 202
-// 3) tools/list                                                           → the tool set
-// 4) tools/call {name, arguments}                                         → { content:[{type:"text",text}], isError:false }
+// 1) initialize {protocolVersion:"2025-11-25", capabilities:{},
+//                clientInfo:{name:"probe",version:"1"}}
+//      → 200, negotiated version, Mcp-Session-Id header
+// 2) notifications/initialized + Mcp-Session-Id + MCP-Protocol-Version → 202
+// 3) tools/list + both headers                                          → annotated tool set
+// 4) tools/call + both headers → text + structuredContent
 ```
 
 If all four steps pass and `.mcp.json` connects from Claude Code, the connector

@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.5.5
+# Kosmos-Oden (Vault Kosmos) — v0.5.6
 
-**Version 0.5.5** — a 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.5.6** — a 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -21,7 +21,7 @@ Both surfaces — plus the Agent API and the `kosmos-build` CLI — render **the
 
 **What OdenKnight's Obsidian adaptation (v0.5.0–v0.5.1) added:** a complete visualization redesign with accurate folder/file hierarchy mapping; gravitational orbital mechanics (notes orbit gravitational focal points by connection strength); Saturn-style rings for well-connected notes; a folder-safe context menu (right-clicking a folder galaxy expands it in Obsidian's file explorer — it never opens or creates a note); a live agent-traversal trail; the Agent API with MCP support; Graphiti episode export; render-loop suspension and other performance work; and early security hardening (constant-time token comparison, DNS-rebinding protection).
 
-**What Kosmos-Oden v0.5.5 adds:** a single shared **Kosmos Core** so the plugin, the standalone viewer, the Agent API and the CLI compute identical graphs instead of drifting into separate interpretations; canonical bidirectional lineage normalization with validation; a genuinely offline single-file standalone viewer with folder monitoring; and a full build-provenance / reproducibility / security-hardening pass (see [Security, assurance & governance](#security-assurance--governance)).
+**What Kosmos-Oden adds:** a single shared **Kosmos Core** so the plugin, the standalone viewer, the Agent API and the CLI compute identical graphs instead of drifting into separate interpretations; canonical bidirectional lineage normalization with validation; a genuinely offline single-file standalone viewer with folder monitoring; and a full build-provenance / reproducibility / security-hardening pass (see [Security, assurance & governance](#security-assurance--governance)).
 
 Both projects use the MIT License — see [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The original code remains attributed to H4R7W16; new contributions are attributed to OdenKnight.
 
@@ -126,7 +126,7 @@ The standalone scanner is **read-only**: it never renames, deletes, modifies, re
 
 Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 
-1. Copy `manifest.json`, `main.js`, and `styles.css` into `<your-vault>/.obsidian/plugins/vault-kosmos/`.
+1. Copy `manifest.json`, `main.js`, `styles.css`, and `kosmos-mcp-stdio.mjs` into `<your-vault>/.obsidian/plugins/vault-kosmos/` (the adapter is required only for stdio-only agent clients).
 2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
 3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
 
@@ -153,8 +153,21 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 - **Canonical knowledge chains** — `supersedes` / `superseded_by` frontmatter is normalized internally into one canonical lineage graph, so both fields are projected bidirectionally: declaring **either side** is enough. Superseded notes render as ghosts; the newest version of a chain is flagged **HEAD**. Malformed lineage (cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps) is detected and reported through diagnostics instead of silently breaking the graph.
 - **Temporal validity intervals** — each note is *valid* from its OKF+ `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
 - **Chrono time-travel** — the **Chrono** button (`H`) scrubs the cosmos to any moment: notes not yet written vanish, notes already superseded dim to dark ghosts. Chrono, the Agent API's `graph_at_time`, and the temporal tests all use the **same** projector.
-- **Semantic links** — the footer `**Related:** [[A]], [[B]]` links are tracked as their own `semantic` edge kind.
+- **OKF+ 2.2 metadata** — flat `okf_version`, stable `uid`, epistemic state, scope, sensitivity, lineage/fork fields, and registered typed relationships are parsed without treating body wikilinks or Algorithmic Ties as governed semantics. Canonical `related_to` and the legacy `**Related:**` footer are tracked as semantic edges.
+- **Sensitivity-aware agent reads** — the Agent API defaults to an `internal` ceiling. `confidential` and `phi` notes are excluded from search, note reads, graph/lineage traversal, diagnostics, and Graphiti pages unless the user explicitly raises the ceiling.
 - The viewer is read-only: it never patches your notes.
+
+---
+
+## Mark notes in OKF+ format
+
+Run command palette → **Mark notes in OKF+ format (scan, back up, and preview)**, or use **Settings → Vault Kosmos → OKF+ note formatting**.
+
+The audit recognizes both strict OKF+ 2.2 and [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md). It leaves notes conforming to either standard unchanged, skips Google's reserved `index.md`/`log.md`, and proposes conservative OKF+ metadata only where the flat frontmatter can be handled mechanically. Duplicate keys or UIDs, nested/ambiguous YAML, unsafe relationship values, invalid explicit governance fields, and concurrently edited notes are blocked rather than guessed.
+
+Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
+
+No LLM is needed or contacted. New metadata uses transparent conservative defaults: `semantic`, `hypothesis`, `node` scope, and `internal` sensitivity. An LLM can be useful later for proposed summaries, tags, types, or relationships, but those are semantic suggestions—not safe bulk repairs. Prefer a local model for private material; cloud enrichment must be separately opted into after sensitivity review and must never auto-accept governance changes. See [the migration guide](docs/OKF-MIGRATION.md).
 
 ---
 
@@ -162,23 +175,23 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 
 Settings → **Vault Kosmos** → toggle **Enable local Agent API**.
 
-**Connecting Claude (no typing required):**
-1. Click **Copy Claude Code Config** or **Copy Claude Desktop Config** in the plugin settings.
-2. Paste it into Claude.
+**Connecting an agent (no reimplementation required):**
+1. Click the quick-connect button for **Anthropic Claude Code**, **OpenAI Codex / ChatGPT desktop**, **Claude Desktop / stdio**, or a vendor-neutral MCP harness.
+2. Paste the copied configuration into that product.
 
 That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong. Want a reference for later? Run **"Write Agent API guide"** from the command palette and the plugin drops a ready-to-read `AGENT-API.md` into your vault with your connection details already filled in. Full guide: [AGENT-API.md](AGENT-API.md).
 
 **Watch it work:** every query an agent makes is mirrored live in the Kosmos view — visited notes pulse with emerald halos and connect into a fading emerald breadcrumb trail (the last ~24 hops, fading over 30 seconds), so you can see exactly which notes your agent walked through and in what order.
 
-**Technical:** a read-only server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it) exposing the same normalized graph the viewer renders: `vault_overview`, `search_notes`, `get_note`, `get_lineage`, `get_related`, `graph_at_time`, `export_graphiti_episodes` over MCP (`/mcp`, Streamable HTTP) plus plain REST mirrors and a `/diagnostics` route.
+**Technical:** a read-only server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it) exposing `vault_overview`, `search_notes`, `get_note`, `get_lineage`, `get_related`, `graph_at_time`, and paginated `export_graphiti_episodes` over the current MCP Streamable HTTP transport (`2025-11-25`, with compatible earlier revisions) plus REST mirrors. The release also includes a first-party stdio adapter for clients that cannot connect to HTTP directly.
 
-Security: tokens are generated from a cryptographically secure RNG only (32 bytes, base64url — token creation fails loudly rather than falling back to a weak source) and compared in constant time; `Host`/`Origin` headers are validated to block DNS-rebinding and cross-site requests; request bodies are capped at 4 MiB (measured in **bytes**); non-loopback clients are rate-limited with a concurrency cap; note bodies, search results and episode exports are size-capped; every response sets `Cache-Control: no-store`. `?token=` query authentication is **deprecated and off by default** — header auth (`Authorization: Bearer` / `x-api-key`) is the default, and query tokens are always rejected in LAN mode even if re-enabled. **LAN mode refuses to start without a token.** MCP protocol versions are negotiated against an explicit supported list. Desktop only (Obsidian mobile has no local server support).
+Security: tokens are generated from a cryptographically secure RNG only (32 bytes, base64url — token creation fails loudly rather than falling back to a weak source) and compared in constant time; `Host`/`Origin` headers are validated to block DNS-rebinding and cross-site requests; request bodies are capped at 4 MiB (measured in **bytes**); non-loopback clients are rate-limited with a concurrency cap; note bodies, search results and episode pages are capped; every response sets `Cache-Control: no-store`. MCP sessions and post-initialization protocol headers are validated, unknown/expired sessions return 404, JSON-RPC envelopes/tool inputs are checked, and tool declarations are marked read-only/idempotent. `?token=` query authentication is deprecated and off by default. **LAN mode refuses to start without a token.** Desktop only (Obsidian mobile has no local server support).
 
 ---
 
 ## Graphiti export
 
-Export your vault as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable episodes — every note becomes an `EpisodeType.json` episode (`name`, `episode_body`, `source`, `source_description`, `reference_time`, `group_id`), sorted chronologically so lineage lands in order. A per-vault `group_id` keeps multiple vaults' exports separable in one Graphiti graph. Episode bodies carry the **canonical** (resolved) lineage plus the raw authored declarations under `source_okf`, keeping "what the author declared" and "what the system resolved" explicit. The format is Graphiti-ingestable; Graphiti's own LLM pipeline determines the graph it builds, so an identical internal reconstruction is not guaranteed.
+Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the OKF+ `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, and explicit non-authoritative governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the OKF+ authority.
 
 - **Plugin:** command palette → *Export Graphiti episodes (OKF+)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
 - **Standalone:** the **Export Graphiti Episodes** button downloads the same payload.
@@ -191,6 +204,7 @@ Then: `pip install graphiti-core` (Python 3.10+), set `OPENAI_API_KEY` + Neo4j e
 ```bash
 node kosmos-build.mjs /path/to/vault graph.json
 node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json
+node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json --group-id my-stable-vault
 node kosmos-build.mjs /path/to/vault graph.json --watch     # rebuild on change (Node)
 ```
 
@@ -198,9 +212,9 @@ Uses the same bundled Kosmos Core as the plugin and the standalone page — not 
 
 ## What writes what (read-only guarantees)
 
-**Never modify existing notes:** the 3D visualization, directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
+**Never modify existing notes:** the 3D visualization, ordinary directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
 
-**Create explicitly named new files, only when you trigger them:** *Write Agent API guide* → `AGENT-API.md`; *Export Graphiti episodes* → `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` → `graph.json` (+ episodes file). Visualization and Agent API queries never modify existing notes; optional export and setup commands create explicitly named output files.
+**Write only through explicit commands:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Visualization and Agent API queries remain read-only.
 
 ## Private by design
 

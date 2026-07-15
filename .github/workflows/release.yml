@@ -37,8 +37,8 @@ jobs:
             exit 1
           fi
 
-      # Assembles release/ with the plugin components + the standalone as a
-      # SEPARATE asset (vault-kosmos.html), plus BUILD-INFO.json + SHA256SUMS.
+      # Assembles release/ with plugin components + the stdio adapter + the
+      # standalone as a separate asset, plus BUILD-INFO.json + SHA256SUMS.
       - name: Assemble release (plugin assets + standalone + provenance)
         run: npm run package:release
 
@@ -46,7 +46,7 @@ jobs:
         run: cd release && sha256sum -c SHA256SUMS
 
       # Individual files as assets: Obsidian installs manifest.json + main.js +
-      # styles.css directly; vault-kosmos.html is downloadable on its own.
+      # styles.css (+ stdio adapter for local clients); standalone is separate.
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

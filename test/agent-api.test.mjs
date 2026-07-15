@@ -36,12 +36,14 @@ const TOKEN = "test-token-1234567890";
 
 function settings(overrides = {}) {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     agentEnabled: true,
     agentPort: 0, // ephemeral
     agentToken: TOKEN,
     agentRequireToken: true,
     agentBindMode: "localhost",
+    agentSensitivityCeiling: "internal",
+    agentGraphNamespace: "testnamespace",
     agentAllowQueryToken: false,
     ...overrides,
   };
@@ -160,27 +162,43 @@ test("agent api", async (t) => {
     assert.deepEqual(late.superseded.map((n) => n.title), ["Engine v1"]);
   });
 
-  const mcp = async (msg) => request(port, {
-    method: "POST", path: "/mcp",
-    headers: { ...auth, "Content-Type": "application/json" },
-    body: JSON.stringify(msg),
+  let mcpSession = "";
+  let mcpProtocol = "";
+  const initParams = (protocolVersion, name = "test-client") => ({
+    protocolVersion,
+    capabilities: {},
+    clientInfo: { name, version: "1.0.0" },
   });
+  const mcp = async (msg, extraHeaders = {}) => {
+    const sessionHeaders = msg?.method === "initialize" || !mcpSession ? {} : {
+      "Mcp-Session-Id": mcpSession,
+      "MCP-Protocol-Version": mcpProtocol,
+    };
+    const r = await request(port, {
+      method: "POST", path: "/mcp",
+      headers: { ...auth, "Content-Type": "application/json", ...sessionHeaders, ...extraHeaders },
+      body: JSON.stringify(msg),
+    });
+    if (r.headers["mcp-session-id"]) mcpSession = r.headers["mcp-session-id"];
+    try { if (r.json()?.result?.protocolVersion) mcpProtocol = r.json().result.protocolVersion; } catch {}
+    return r;
+  };
 
   await t.test("MCP initialize: supported version is echoed", async () => {
     for (const v of SUPPORTED_MCP_PROTOCOL_VERSIONS) {
-      const r = await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: v } });
+      const r = await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: initParams(v) });
       assert.equal(r.json().result.protocolVersion, v);
     }
   });
 
   await t.test("MCP initialize: unsupported version -> server's latest, never echoed (§15)", async () => {
-    const r = await mcp({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "9999-12-31" } });
+    const r = await mcp({ jsonrpc: "2.0", id: 2, method: "initialize", params: initParams("9999-12-31") });
     assert.equal(r.json().result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
   });
 
-  await t.test("MCP initialize: missing version -> server's latest", async () => {
+  await t.test("MCP initialize validates required lifecycle fields", async () => {
     const r = await mcp({ jsonrpc: "2.0", id: 3, method: "initialize", params: {} });
-    assert.equal(r.json().result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
+    assert.equal(r.json().error.code, -32602);
   });
 
   await t.test("MCP initialized notification (no id) -> 202 accepted silently", async () => {
@@ -195,6 +213,7 @@ test("agent api", async (t) => {
       "export_graphiti_episodes", "get_lineage", "get_note", "get_related",
       "graph_at_time", "search_notes", "vault_overview",
     ]);
+    assert.ok(r.json().result.tools.every((x) => x.annotations.readOnlyHint === true));
   });
 
   await t.test("MCP tools/call get_lineage returns the canonical chain", async () => {
@@ -202,6 +221,7 @@ test("agent api", async (t) => {
     const payload = JSON.parse(r.json().result.content[0].text);
     assert.equal(payload.chainLength, 2);
     assert.equal(payload.chain[1].head, true);
+    assert.equal(r.json().result.structuredContent.chainLength, 2);
   });
 
   await t.test("MCP unknown method -> -32601", async () => {
@@ -209,28 +229,63 @@ test("agent api", async (t) => {
     assert.equal(r.json().error.code, -32601);
   });
 
-  await t.test("MCP initialize negotiates the current revision (2025-06-18) and issues an Mcp-Session-Id", async () => {
-    assert.equal(LATEST_MCP_PROTOCOL_VERSION, "2025-06-18");
-    const r = await mcp({ jsonrpc: "2.0", id: 7, method: "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "CARSON" } } });
-    assert.equal(r.json().result.protocolVersion, "2025-06-18");
+  await t.test("MCP initialize negotiates current 2025-11-25 and issues Mcp-Session-Id", async () => {
+    assert.equal(LATEST_MCP_PROTOCOL_VERSION, "2025-11-25");
+    const r = await mcp({ jsonrpc: "2.0", id: 7, method: "initialize", params: initParams("2025-11-25", "CARSON") });
+    assert.equal(r.json().result.protocolVersion, "2025-11-25");
     assert.match(String(r.headers["mcp-session-id"] || ""), /^[A-Za-z0-9_-]{10,}$/);
   });
 
   await t.test("agent identity (clientInfo.name via Mcp-Session-Id) flows to the traversal callback", async () => {
-    const init = await mcp({ jsonrpc: "2.0", id: 8, method: "initialize", params: { clientInfo: { name: "Hermes" } } });
+    const init = await mcp({ jsonrpc: "2.0", id: 8, method: "initialize", params: initParams(LATEST_MCP_PROTOCOL_VERSION, "Hermes") });
     const sid = init.headers["mcp-session-id"];
     assert.ok(sid, "initialize should return a session id");
+    await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
     let seen = null;
     server.onTraversal = (paths, tool, agent) => { seen = { paths, tool, agent }; };
     await request(port, {
       method: "POST", path: "/mcp",
-      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid },
+      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
       body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_lineage", arguments: { title: "Engine v2" } } }),
     });
     server.onTraversal = undefined;
     assert.ok(seen, "traversal should have fired");
     assert.equal(seen.agent, "Hermes");
     assert.equal(seen.tool, "get_lineage");
+  });
+
+  await t.test("MCP rejects JSON-RPC 1.0, batches, and unknown tools", async () => {
+    const old = await mcp({ jsonrpc: "1.0", id: 10, method: "tools/list" });
+    assert.equal(old.json().error.code, -32600);
+    const unknown = await mcp({ jsonrpc: "2.0", id: 11, method: "tools/call", params: { name: "not_a_tool", arguments: {} } });
+    assert.equal(unknown.json().error.code, -32602);
+    const batch = await request(port, {
+      method: "POST", path: "/mcp",
+      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol },
+      body: JSON.stringify([{ jsonrpc: "2.0", id: 12, method: "ping" }]),
+    });
+    assert.equal(batch.status, 400);
+    assert.equal(batch.json().error.code, -32600);
+  });
+
+  await t.test("MCP enforces session and protocol headers, and DELETE terminates", async () => {
+    const missing = await request(port, {
+      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 13, method: "ping" }),
+    });
+    assert.equal(missing.status, 400);
+    const wrongVersion = await request(port, {
+      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": "2024-11-05" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 14, method: "ping" }),
+    });
+    assert.equal(wrongVersion.status, 400);
+    const ended = await request(port, { method: "DELETE", path: "/mcp", headers: { ...auth, "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol } });
+    assert.equal(ended.status, 204);
+    const expired = await request(port, {
+      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 15, method: "ping" }),
+    });
+    assert.equal(expired.status, 404);
   });
 });
 
@@ -320,6 +375,34 @@ test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
   assert.match(note.content, /truncated/);
 });
 
+test("OKF+ sensitivity ceiling filters search, note content, graph, and Graphiti pages", async () => {
+  const files = [
+    { relativePath: "Public.md", content: "---\ntype: semantic\nsensitivity: public\ntimestamp: 2026-01-01T00:00:00Z\n---\npublic" },
+    { relativePath: "Internal.md", content: "---\ntype: semantic\nsensitivity: internal\ntimestamp: 2026-01-02T00:00:00Z\n---\ninternal" },
+    { relativePath: "Secret.md", content: "---\ntype: semantic\nsensitivity: confidential\ntimestamp: 2026-01-03T00:00:00Z\nsupersedes:\n  - Public\n---\nsecret" },
+    { relativePath: "Patient.md", content: "---\ntype: semantic\nsensitivity: phi\ntimestamp: 2026-01-04T00:00:00Z\n---\npatient" },
+  ];
+  const graph = buildGraph(files, []);
+  const provider = {
+    getGraph: async () => graph,
+    getNoteContent: async (p) => files.find((f) => f.relativePath === p)?.content || null,
+    vaultName: () => "Sensitive",
+    vaultIdentity: () => "sensitive-vault",
+    lanAddresses: () => [],
+  };
+  const server = new KosmosAgentServer(http, settings({ agentSensitivityCeiling: "internal" }), provider);
+  assert.deepEqual((await server.qSearch("")).results.map((n) => n.title), ["Internal", "Public"]);
+  assert.equal((await server.qNote({ title: "Secret" })).error, "note not found");
+  assert.equal((await server.qNote({ title: "Public" })).superseded, false, "hidden successor must not leak through temporal state");
+  assert.equal((await server.qGraph()).nodes.length, 2);
+  assert.equal((await server.qEpisodePage()).total, 2);
+  const publicEpisode = (await server.qEpisodePage()).episodes.find((e) => e.name === "Public");
+  assert.deepEqual(JSON.parse(publicEpisode.episode_body).lineage.resolved_supersedes, []);
+  server.settings.agentSensitivityCeiling = "confidential";
+  assert.equal((await server.qNote({ title: "Secret" })).title, "Secret");
+  assert.equal((await server.qNote({ title: "Patient" })).error, "note not found");
+});
+
 test("Host validation: loopback forms accepted, foreign/trailing-dot rejected", async () => {
   const s = new KosmosAgentServer(http, settings(), fixtureProvider());
   assert.equal(s.hostAllowed("127.0.0.1:4816"), true);
@@ -407,8 +490,9 @@ test("onTraversal: REST routes emit the same events as MCP tools", async () => {
 
 test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
   const migrated = migrateAgentSettings({ agentEnabled: true, agentPort: 5000, agentToken: "keepme" });
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.equal(migrated.agentAllowQueryToken, false); // security default on upgrade
+  assert.equal(migrated.agentSensitivityCeiling, "internal");
   assert.equal(migrated.agentToken, "keepme");        // existing token preserved
   assert.equal(migrated.agentPort, 5000);
   // defaults fill in for a null load

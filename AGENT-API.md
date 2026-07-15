@@ -1,42 +1,44 @@
-# Vault Kosmos — Agent API guide (v0.5.5)
+# Vault Kosmos — universal Agent API guide (v0.5.5)
 
-**Read-only · localhost by default · token-protected**
+**Read-only · localhost by default · token-protected · MCP 2025-11-25**
 
-> This is the generic copy of the guide. Inside Obsidian, run the command
-> *“Write Agent API guide (AGENT-API.md) to vault”* to get this file with your
-> actual address and token pre-filled.
+> This is the generic guide. In Obsidian, run **Write Agent API guide** to
+> create a vault-local copy with the actual address, token, and stdio-adapter
+> path filled in.
 
-The plugin can run a small local server so AI agents (Claude Code, Claude Desktop, Cursor, custom harnesses) can query your vault's **OKF+ temporal knowledge graph** directly — canonical knowledge chains, point-in-time snapshots, semantic links, search, and a ready-to-ingest Graphiti export. Visualization and Agent API queries never modify existing notes; the only writes are the explicitly named export files you trigger yourself.
+Vault Kosmos exposes one vendor-neutral MCP Streamable HTTP endpoint. Anthropic,
+OpenAI, and other harnesses use the same tools and protocol; their config files
+are only setup conveniences. Source notes and accepted OKF+ semantic events are
+authoritative. API responses and Graphiti episodes are read projections.
 
-While an agent works, watch it: every `search_notes` / `get_note` / `get_lineage` / `get_related` query lights up the notes it touched with a fading emerald trail in the open Kosmos view, live.
+## Start the connector
 
-## 1 · Turn it on (about 30 seconds)
+1. Open **Obsidian → Settings → Community plugins → Vault Kosmos**.
+2. Enable **local Agent API**.
+3. Keep **Require auth token** enabled.
+4. Choose the highest OKF+ sensitivity agents may read. The default is
+   `internal`; `confidential` and `phi` remain hidden until explicitly enabled.
 
-1. Obsidian → **Settings → Community plugins → Vault Kosmos** (gear icon).
-2. Toggle **Enable local Agent API** on. The status line should read **running**.
-3. Your address is `http://127.0.0.1:<port>` (default port 4816) and your token is shown in settings — both have **Copy** buttons.
+The default endpoint is `http://127.0.0.1:4816/mcp`. LAN mode is opt-in and
+refuses to start without a token.
 
-**Network access: Localhost only** is the default — only this computer can reach the API. To let agents on other devices on your subnet/VLAN connect, switch **Network access** to *Local network (LAN/VLAN)*; the settings page then shows the exact address to give them. Anyone on that network **with the token** can read every note in the vault, so only enable it on networks you trust.
+## Quick connect
 
-Desktop only: Obsidian on iPhone/Android can't run local servers (the 3D view still works on mobile).
+The settings page has copy buttons for every configuration below.
 
-## 2 · Connect an agent
+### Anthropic Claude Code
 
-### Claude Code (terminal) — native HTTP, no bridge
-
-One command:
 ```bash
-claude mcp add --transport http vault-kosmos "http://127.0.0.1:4816/mcp" --header "Authorization: Bearer <TOKEN>"
+claude mcp add --transport http --header "Authorization: Bearer <TOKEN>" vault-kosmos "http://127.0.0.1:4816/mcp"
 ```
 
-…or drop a project-scoped **`.mcp.json`** next to where you run `claude` (copy the
-committed `.mcp.json.example`, fill in your token). This is the reliable path —
-Claude Code speaks Streamable HTTP directly, so **no `mcp-remote` npx bridge** is involved:
+Project-scoped `.mcp.json`:
+
 ```json
 {
   "mcpServers": {
     "vault-kosmos": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "http://127.0.0.1:4816/mcp",
       "headers": { "Authorization": "Bearer <TOKEN>" }
     }
@@ -44,63 +46,82 @@ Claude Code speaks Streamable HTTP directly, so **no `mcp-remote` npx bridge** i
 }
 ```
 
-### Claude Desktop (and other stdio-only MCP apps)
-Claude Desktop can't speak HTTP directly, so it needs the `mcp-remote` bridge.
-Settings → Developer → **Edit Config** (needs Node.js once, from nodejs.org):
+### OpenAI Codex, ChatGPT desktop, and Codex IDE
+
+These clients share Codex `config.toml` on the same desktop host:
+
+```toml
+[mcp_servers.vault-kosmos]
+url = "http://127.0.0.1:4816/mcp"
+http_headers = { Authorization = "Bearer <TOKEN>" }
+```
+
+You can instead use **Settings → MCP servers → Add server**, select
+**Streamable HTTP**, and enter the URL and bearer token. ChatGPT web cannot
+reach a localhost service; use the desktop Codex host for this connector.
+
+### Claude Desktop and stdio-only harnesses
+
+The release ships `kosmos-mcp-stdio.mjs`, a first-party adapter that preserves
+the MCP session and protocol headers. It replaces the old downloaded
+`mcp-remote` bridge.
 
 ```json
 {
   "mcpServers": {
     "vault-kosmos": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:4816/mcp", "--header", "Authorization: Bearer <TOKEN>"]
+      "command": "node",
+      "args": ["<PLUGIN-DIRECTORY>/kosmos-mcp-stdio.mjs"],
+      "env": {
+        "KOSMOS_MCP_URL": "http://127.0.0.1:4816/mcp",
+        "KOSMOS_MCP_TOKEN": "<TOKEN>"
+      }
     }
   }
 }
 ```
 
-> **Protocol:** the server negotiates MCP revisions `2025-06-18` (current),
-> `2025-03-26`, and `2024-11-05`, so current and older clients both connect. It
-> replies with stateless JSON (no SSE), and on `initialize` returns an
-> `Mcp-Session-Id` used to colour that agent's live traversal trail.
+Node.js 18 or newer is required for the adapter.
 
-### Cursor / Windsurf / any Streamable-HTTP MCP client
-URL `http://127.0.0.1:4816/mcp` with header `Authorization: Bearer <TOKEN>`.
+### Any Streamable HTTP harness
 
-### No MCP? Plain HTTP works too
-```bash
-curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/health"
-curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/lineage?title=Engine%20v2"
-curl -H "Authorization: Bearer <TOKEN>" "http://127.0.0.1:4816/at?time=2026-04-01"
-```
+- URL: `http://127.0.0.1:4816/mcp`
+- Header: `Authorization: Bearer <TOKEN>`
+- Transport: MCP Streamable HTTP
+- Latest supported revision: `2025-11-25`
 
-> `?token=` query authentication is **deprecated and off by default** (query strings leak through history, proxy logs and screenshots). Enable it in settings only if a client cannot send headers — it is always rejected in LAN mode.
+After `initialize`, return both `Mcp-Session-Id` and
+`MCP-Protocol-Version` on later requests. Send one JSON-RPC message per POST;
+batches are not part of the current transport contract.
 
-## 3 · What agents can ask (MCP tools)
+## Read tools
 
-| Tool | What it gives an agent |
-| --- | --- |
-| `vault_overview` | Sizes, areas, HEAD/superseded counts, lineage + semantic edge counts, diagnostics |
-| `search_notes` | Lexical search (title/alias/tag/path substring — no embeddings) with OKF+ status on every hit |
-| `get_note` | Full note content (frontmatter stripped) + canonical OKF+ lineage + outgoing links, backlinks, semantic links |
-| `get_lineage` | The knowledge chain oldest → newest with **HEAD** marked — canonical and bidirectionally normalized, identical to what the 3D view shows |
-| `get_related` | Semantic (**Related:** footer), wikilink and backlink neighbors |
-| `graph_at_time` | Temporal-validity snapshot: valid vs superseded vs not-yet-created at time T — the same projector as the Chrono view |
-| `export_graphiti_episodes` | The whole vault as Graphiti `EpisodeType.json` episodes, chronological, canonical lineage in each body |
+| Tool | Result |
+|---|---|
+| `vault_overview` | Sensitivity-filtered OKF+ projection statistics |
+| `search_notes` | Lexical title/alias/tag/path search |
+| `get_note` | Readable source body, v2.2 metadata, lineage projection, and links |
+| `get_lineage` | Supersession chain, oldest to newest |
+| `get_related` | Explicit `related_to`, legacy Related, outgoing, and backlink neighbors |
+| `graph_at_time` | Point-in-time temporal-validity projection |
+| `export_graphiti_episodes` | Paginated non-authoritative episodes with stable UUIDs |
 
-REST mirrors: `/overview /diagnostics /graph /notes /note /lineage /related /at /episodes` — hit `/` for the index. MCP protocol versions supported: `2025-03-26`, `2024-11-05` (unsupported client versions are answered with the server's latest, never echoed).
+Graphiti pages default to 20 episodes and cap at 100. Follow `nextCursor`.
+Earlier episodes never receive later `superseded_by`, `head`, or `invalid_at`
+state. A valid OKF+ UUID becomes the Graphiti episode UUID, making re-ingestion
+idempotent; legacy notes receive a deterministic fallback UUID.
 
-## 4 · Direct vs. indirect Graphiti
+## REST and troubleshooting
 
-- **Direct (this server):** agents read the OKF+ temporal graph live — no database, no LLM, instant. Search is honest lexical matching, not embeddings.
-- **Indirect (full Graphiti):** call `export_graphiti_episodes` (or the palette command) and ingest with `graphiti-ingest-sample.py` into [getzep/graphiti](https://github.com/getzep/graphiti) (Python + Neo4j/FalkorDB + an LLM key) for entity extraction and hybrid semantic retrieval. Both paths share the same OKF+ source of truth. The export is Graphiti-ingestable; Graphiti's own LLM pipeline decides how it reconstructs entities, so an identical internal graph is not guaranteed.
+Read-only REST mirrors are available at `/overview`, `/diagnostics`, `/graph`,
+`/notes`, `/note`, `/lineage`, `/related`, `/at`, and paginated `/episodes`.
 
-## 5 · Safety & troubleshooting
+- `401`: token missing or stale.
+- `400` after initialization: session or protocol-version header missing.
+- `404` on MCP: session expired or was terminated; initialize again.
+- `403`: disallowed Host/Origin.
+- `429`: back off; fairness/rate limit reached.
+- No confidential note found: raise the sensitivity ceiling only if policy permits.
 
-- Read-only by design; REST is GET-only and MCP exposes query tools only — there are no write endpoints.
-- Request bodies are capped at **4 MiB, measured in bytes** (HTTP 413 beyond that). Note bodies, search results and episode exports are also capped.
-- Non-loopback clients are **rate-limited** (per-IP sliding window) with a concurrency cap; loopback is exempt for throughput.
-- The server validates `Host` and `Origin` headers against the bind mode, blocking DNS-rebinding and cross-site browser requests. All responses set `Cache-Control: no-store`.
-- **LAN mode cannot start without a token** — the server fails closed rather than exposing the vault unauthenticated.
-- Tokens are generated from a cryptographically secure source (32 random bytes, base64url); there is no insecure fallback, and comparison is constant-time. **Regenerate** in settings invalidates old tokens instantly.
-- **401 unauthorized** → token missing/stale, or you used `?token=` while it's disabled; use a header. **403 forbidden host/origin** → the request came through a hostname the server doesn't serve; use `127.0.0.1`. **429 too many requests** → back off (LAN clients). **Port busy** → change the port in settings.
+Request bodies are byte-capped at 4 MiB, note/episode content is capped, every
+response is `Cache-Control: no-store`, and the server exposes no write tool.

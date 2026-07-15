@@ -10,7 +10,11 @@ network or data-access behavior changes.
   still permits *disclosure*: a disclosure defect can leak the whole vault.
 - **Artifact integrity** — users install `main.js` without compiling; they
   trust it matches reviewed source.
-- **The auth token** — grants full read access to the graph.
+- **The auth token** — grants read access up to the configured OKF+
+  sensitivity ceiling (default `internal`).
+- **Source-note integrity** — the optional OKF+ onboarding command has write
+  authority only after a dry-run approval; a bulk metadata defect could damage
+  many notes or misclassify sensitive material.
 
 ## Trust boundaries
 
@@ -25,6 +29,8 @@ network or data-access behavior changes.
 3. **Agent API network boundary (LAN mode).** Other machines on the subnet can
    reach the API when LAN mode is explicitly enabled.
 4. **Build/release pipeline.** Source → `main.js` → GitHub release.
+5. **OKF+ migration write boundary.** In-memory audit plan → explicit human
+   confirmations → local binary backup → source-matched atomic note process.
 
 ## Adversaries & mitigations
 
@@ -35,8 +41,14 @@ network or data-access behavior changes.
 | Network eavesdropper (LAN mode) | LAN mode is off by default, requires a token, and the UI + docs warn that HTTP is unencrypted (use a VPN/SSH tunnel/TLS proxy). Not defended: passive observation of unencrypted LAN traffic — documented, not silently ignored. |
 | Token leakage | CSPRNG tokens; never logged; not in URLs by default; query-token auth deprecated/off/blocked-in-LAN; regeneration invalidates old clients. |
 | Oversized / malformed request (DoS) | 4 MiB byte-accurate body cap; JSON/MCP envelope validation; request timeouts; per-client rate + concurrency limits; capped response sizes. |
+| Stale, forged, or cross-client MCP session | Server-issued session IDs; negotiated `MCP-Protocol-Version` required after initialization; unknown/expired sessions return 404; DELETE actually terminates the session. |
+| Confidential/PHI disclosure through graph metadata | Sensitivity ceiling filters search, bodies, nodes, links, lineage/temporal state, diagnostics, and Graphiti pages. Invalid explicit sensitivity labels fail closed as PHI. |
+| A Graphiti projection is mistaken for accepted truth | Exported episodes identify themselves as non-authoritative explicit-user-assertion projections and omit later state from earlier episodes. |
 | Path traversal via renderer messages | Message paths validated: no absolute paths, no `..` segments. |
 | Malformed note content | Tolerant parser never throws the graph away; lineage validation degrades gracefully and reports via diagnostics. |
+| Bulk OKF+ migration damages notes | Read-only dry run; SHA-256-bound plan; independent-backup warning and acknowledgement; byte-exact per-file backup; source equality recheck; Obsidian atomic processor; human-authored body preserved; changed/missing notes skipped; result audit. |
+| Migration hallucinates metadata or leaks notes to a model | The migration is deterministic and contains no LLM or network call. Conservative defaults are disclosed. Ambiguous YAML, invalid governance data, unsafe semantic links, and UID conflicts are blocked for review. |
+| `internal` default is mistaken for privacy classification | Apply requires acknowledgement that defaults are not content inspection; UI/docs require confidential/PHI review before cloud routing. Connector sensitivity enforcement remains independent. |
 | Artifact substitution / stale build | Reproducible executable artifacts; release `SHA256SUMS` + `BUILD-INFO.json` (commit/tag/lockfile hash); release built from the tag in CI; `check:artifacts` + `check:versions`. |
 | Dependency / supply-chain compromise | Pinned versions + committed lockfile; `npm ci` everywhere; Dependabot; dependency-review on PRs; minimal, mostly dev-only dependency surface. |
 | Silent security regression | `kosmos-invariants.yml` + `check:invariants` gate CI; negative security tests. |

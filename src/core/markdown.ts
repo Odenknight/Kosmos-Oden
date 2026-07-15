@@ -64,8 +64,13 @@ export function parseFrontmatter(raw: string): { data: Frontmatter; content: str
   return { data, content };
 }
 
-/** Frontmatter properties treated as relations (produce `property` links). */
-export const RELATION_PROPERTIES = ["related", "depends_on", "blocks", "initiative", "project", "repo", "source"];
+/** Frontmatter properties treated as relations (produce `property` links).
+ * Includes every registered OKF+ 2.2 typed relationship. */
+export const RELATION_PROPERTIES = [
+  "related", "related_to", "depends_on", "derives_from", "contradicts",
+  "refines", "implements", "blocks", "documents", "cites",
+  "forked_from", "forked_to", "initiative", "project", "repo", "source",
+];
 
 export const isExternal = (t: string): boolean =>
   /^(https?:|file:|mailto:|tel:|obsidian:|data:|#)/i.test(t);

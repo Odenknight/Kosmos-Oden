@@ -36,13 +36,14 @@ five different interpretations of the same vault.
 | `types.ts` | Shared types: nodes, links, graph, diagnostics, lineage/temporal models. |
 | `paths.ts` | POSIX path normalization, note/attachment classification, deterministic hashes. |
 | `markdown.ts` | Tolerant frontmatter + wikilink/markdown/property link parsing. |
-| `okf.ts` | OKF+ frontmatter + `**Related:**` footer parsing (declarations only). |
+| `okf.ts` | Flat OKF+ 2.2 metadata, typed relations, compatibility aliases, and legacy `**Related:**` parsing (declarations only). |
+| `okf-migration.ts` | Strict Google OKF/OKF+ conformance audit plus deterministic, hash-bound OKF+ onboarding proposals; no Obsidian or LLM dependency. |
 | `resolver.ts` | Link/title resolution with ambiguity tracking. |
 | `lineage.ts` | **Canonical lineage normalization** — one `NEWER→OLDER` edge set from either declared side; validation (cycles, self-ref, unresolved, multi-successor, ordering, duplicates, ambiguity). |
 | `temporal.ts` | `valid_at`/`invalid_at`, HEAD derivation, and the **one** point-in-time projector. |
 | `graph.ts` | `parseSourceFile` (expensive, cacheable) + `assembleGraph` (cheap) + `buildGraph`. |
 | `incremental.ts` | `KosmosIndex`: parse only changed content, rename without reparse, structural-rebuild threshold, graph delta. |
-| `graphiti.ts` | `EpisodeType.json` episodes with canonical lineage + preserved raw declarations. |
+| `graphiti.ts` | Stable-UUID, chronological, non-authoritative Graphiti episodes without future-state leakage. |
 | `demo.ts` | Built-in demo vault. |
 | `version.ts` | Single version source of truth. |
 
@@ -59,7 +60,12 @@ page) and streams the vault in via the versioned `postMessage` protocol
 (`protocol.ts`). `agent-server.ts` is a framework-free HTTP + MCP server
 (unit-testable in Node) backed by `vault-provider.ts`, which owns a
 `KosmosIndex` so the API answers from the *same* normalized graph the viewer
-renders. `settings.ts` is the settings tab + setup guide.
+renders, filtered by the configured OKF+ sensitivity ceiling. `settings.ts`
+provides Anthropic, OpenAI, stdio, and vendor-neutral quick-connect configs;
+the release's `kosmos-mcp-stdio.mjs` preserves MCP lifecycle headers for
+stdio-only harnesses. `okf-migration.ts` hosts the explicit audit/backup/apply
+modal: content-free persisted plans, byte-exact binary backups, source equality
+checks, and atomic note processing.
 
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
@@ -77,7 +83,9 @@ by a CI job); volatile metadata lives only in `release/BUILD-INFO.json`.
 
 ## Read/write boundary
 
-Read-only: visualization, directory scanning, Agent API, MCP/REST queries,
-Chrono, in-memory Graphiti generation. Writes happen only through explicit,
-named, user-triggered commands (`AGENT-API.md`, `graphiti-episodes.json` +
-sample script, `graph.json`).
+Read-only: visualization, ordinary directory scanning, Agent API, MCP/REST
+queries, Chrono, in-memory Graphiti generation, and the initial OKF audit.
+Writes happen only through explicit, named, user-triggered commands. The OKF+
+migrator has a separate approval boundary: save-audit writes only a content-free
+plan; apply requires backup/sensitivity confirmations, writes binary backups,
+and edits only sources still identical to the approved hash-bound plan.

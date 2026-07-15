@@ -6,6 +6,7 @@
  *
  *   node kosmos-build.mjs /path/to/vault graph.json
  *   node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json
+ *        --group-id my-governed-vault-namespace
  *   node kosmos-build.mjs /path/to/vault graph.json --watch
  *
  * graph.json can be placed next to vault-kosmos.html (served over http) to
@@ -41,19 +42,20 @@ const {
 /* ---------------- CLI parsing ---------------- */
 const argv = process.argv.slice(2);
 const flags = new Set();
-const opts = { episodes: null };
+const opts = { episodes: null, groupId: null };
 const positional = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--watch") flags.add("watch");
   else if (a === "--episodes") opts.episodes = argv[++i];
+  else if (a === "--group-id") opts.groupId = argv[++i];
   else if (a === "--help" || a === "-h") flags.add("help");
   else positional.push(a);
 }
 if (flags.has("help") || positional.length < 1) {
   console.log(`kosmos-build v${KOSMOS_VERSION}
 Usage:
-  node kosmos-build.mjs <vault-dir> [graph.json] [--episodes <episodes.json>] [--watch]`);
+  node kosmos-build.mjs <vault-dir> [graph.json] [--episodes <episodes.json>] [--group-id <stable-namespace>] [--watch]`);
   process.exit(flags.has("help") ? 0 : 1);
 }
 const vaultDir = resolve(positional[0]);
@@ -120,7 +122,11 @@ async function buildOnce() {
 
   if (episodesOut) {
     const contents = new Map(files.map((f) => [f.relativePath, stripFrontmatter(f.content)]));
-    const episodes = buildGraphitiEpisodesWithContent(graph, contents, { vault: basename(vaultDir) });
+    const episodes = buildGraphitiEpisodesWithContent(graph, contents, {
+      vault: basename(vaultDir),
+      vaultIdentity: vaultDir,
+      groupId: opts.groupId || undefined,
+    });
     await writeFile(episodesOut, JSON.stringify(episodes, null, 2));
     console.log(`kosmos-build: ${episodes.length} Graphiti episodes -> ${episodesOut}`);
   }

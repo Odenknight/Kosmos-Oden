@@ -23,7 +23,7 @@ Releases are built **from the tag in CI**, not copied from a workstation
 2. `npm run verify` — typecheck + build + tests + version/artifact/invariant checks.
 3. Assert the tag matches `manifest.json`.
 4. `npm run package:release` — stages `release/` with `manifest.json`, `main.js`,
-   `styles.css`, `versions.json`, `vault-kosmos.html`, plus:
+   `styles.css`, `versions.json`, `vault-kosmos.html`, `kosmos-mcp-stdio.mjs`, plus:
    - `BUILD-INFO.json` — provenance: commit, tag, workflow, run id, Node version,
      lockfile SHA-256, dirty flag, build time.
    - `SHA256SUMS` — integrity hashes over every release file.

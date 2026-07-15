@@ -1,8 +1,8 @@
 {
-  "//": "Kosmos-Oden Agent API — ready-to-use MCP client config (Claude Code / any Streamable-HTTP MCP client). Copy this file to `.mcp.json`, replace <TOKEN> with the token from the plugin's settings (Settings -> Vault Kosmos -> Agent API), and adjust the port if you changed it. Native HTTP transport: NO `mcp-remote` npx bridge needed. Keep the real `.mcp.json` out of git (it holds your token) — it is gitignored.",
+  "//": "Anthropic-style project config for the universal Vault Kosmos Streamable HTTP endpoint. Replace <TOKEN>; keep the filled file out of git. OpenAI Codex/ChatGPT desktop use the equivalent config.toml shown in plugin settings. STDIO-only clients can launch the bundled kosmos-mcp-stdio.mjs adapter.",
   "mcpServers": {
     "vault-kosmos": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "http://127.0.0.1:4816/mcp",
       "headers": {
         "Authorization": "Bearer <TOKEN>"

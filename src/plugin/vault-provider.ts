@@ -153,6 +153,16 @@ export class VaultDataProvider implements AgentDataProvider {
     return this.app.vault.getName();
   }
 
+  vaultIdentity(): string {
+    // The path is never exported; it is hashed by the Graphiti projector to
+    // prevent same-name vaults from sharing a namespace accidentally.
+    try {
+      return String((this.app.vault.adapter as any).getBasePath?.() || this.vaultName());
+    } catch {
+      return this.vaultName();
+    }
+  }
+
   lanAddresses(): string[] {
     return lanAddresses();
   }
