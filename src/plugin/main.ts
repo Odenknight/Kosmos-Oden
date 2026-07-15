@@ -13,6 +13,7 @@
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../core/version";
+import type { OkfMigrationMode } from "../core/okf-migration";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
 import { openOkfMigrationWorkflow } from "./okf-migration";
@@ -280,6 +281,11 @@ export default class VaultKosmosPlugin extends Plugin {
       name: "Mark notes in OKF+ format (scan, back up, and preview)",
       callback: () => void this.markNotesInOkf(),
     });
+    this.addCommand({
+      id: "upgrade-all-notes-okf-plus-2-2",
+      name: "Upgrade all recoverable notes to OKF+ 2.2 (preview first)",
+      callback: () => void this.markNotesInOkf("upgrade-all"),
+    });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });
 
     // Don't react to the startup metadata-resolve storm; the view's initial load already
@@ -335,8 +341,8 @@ export default class VaultKosmosPlugin extends Plugin {
 
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
-  async markNotesInOkf(): Promise<void> {
-    await openOkfMigrationWorkflow(this.app, () => this.provider.markFullDirty());
+  async markNotesInOkf(mode: OkfMigrationMode = "safe-onboarding"): Promise<void> {
+    await openOkfMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty());
   }
 
   async writeAgentGuide(): Promise<void> {

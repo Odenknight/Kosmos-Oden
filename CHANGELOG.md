@@ -7,6 +7,22 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.1] — 2026-07-15 (pre-release)
+
+### Added
+- Added a governed **Upgrade all to OKF+ 2.2** mode for every mechanically
+  recoverable Markdown note, including Google OKF, reserved index/log files,
+  and flat legacy/2.1 frontmatter.
+- Every migration entry now carries an explainable deterministic migration-
+  safety confidence score and the complete coded reasons for manual review.
+- Recoverable legacy governance values replaced by upgrade-all are retained in
+  hash-bound salvage records and byte-exact backups.
+
+### Security
+- Upgrade-all remains unable to force duplicate keys, ambiguous/nested YAML,
+  unsafe relationship values, or duplicate UIDs. Confidence orders review but
+  never grants approval or changes epistemic authority.
+
 ## [0.6.0-beta.2] — 2026-07-15 (pre-release)
 
 Updates the r185/WebGL2 beta with all 0.5.6 core, provider-neutral MCP,

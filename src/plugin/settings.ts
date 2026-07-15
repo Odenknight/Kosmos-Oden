@@ -232,14 +232,17 @@ export class KosmosSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h3", { text: "OKF+ note formatting" });
     containerEl.createEl("p", {
-      text: "Audit every Markdown note for OKF+ 2.2 or Google's OKF 0.1 draft. Notes that match either standard are left alone. Safe mechanical candidates can receive conservative OKF+ metadata after a dry-run preview, independent-backup confirmation, and byte-exact local backup. No LLM or network connection is used.",
+      text: "Audit every Markdown note or explicitly upgrade every mechanically recoverable note to normative OKF+ 2.2. Both modes require a hash-bound dry-run preview, independent-backup confirmation, and byte-exact local backup. Upgrade-all preserves overridden legacy values in the migration plan and never forces ambiguous YAML or identity conflicts. No LLM or network connection is used.",
       cls: "setting-item-description",
     });
     new Setting(containerEl)
       .setName("Mark notes in OKF+ format")
-      .setDesc("Scans first and changes nothing until you review and explicitly approve the bound plan. Ambiguous YAML and governance conflicts are blocked.")
-      .addButton((b) => b.setButtonText("Scan and preview").setCta().onClick(async () => {
-        await this.plugin.markNotesInOkf();
+      .setDesc("Safe scan leaves Google OKF notes alone. Upgrade-all converts recoverable legacy/2.1 notes and shows a deterministic confidence score plus every manual-review reason.")
+      .addButton((b) => b.setButtonText("Safe scan").onClick(async () => {
+        await this.plugin.markNotesInOkf("safe-onboarding");
+      }))
+      .addButton((b) => b.setButtonText("Upgrade all to 2.2").setCta().onClick(async () => {
+        await this.plugin.markNotesInOkf("upgrade-all");
       }));
 
     containerEl.createEl("h3", { text: "Quick connect — Anthropic, OpenAI, and universal MCP" });

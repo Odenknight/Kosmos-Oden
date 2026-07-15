@@ -18,12 +18,22 @@ Kosmos. Google's current primary specification is
 
 ## Workflow and warnings
 
+The 0.6.5 workflow offers two explicit modes:
+
+- **Safe scan** preserves the prior behavior: conforming Google OKF notes and
+  reserved `index.md`/`log.md` documents are reported but not converted.
+- **Upgrade all to 2.2** proposes v2.2 for every mechanically recoverable note,
+  including Google OKF, reserved documents, and flat legacy/2.1 frontmatter.
+  It is an override of recoverable values, not an instruction to guess through
+  ambiguity or identity conflicts.
+
 1. Make a separate, restorable backup or snapshot. Cloud sync is not a backup:
    it can propagate unwanted edits and deletions.
 2. Run the command and review the dry-run counts, paths, findings, defaults,
    and SHA-256 plan hash. Scanning never changes notes.
 3. Optionally save the content-free audit without applying it.
 4. To apply, confirm both the independent backup and the sensitivity warning.
+   Upgrade-all also requires a separate governed-override acknowledgement.
 5. The plugin rechecks every source. A note edited, renamed, or deleted after
    the scan is skipped.
 6. Before each edit, the original file bytes are copied to
@@ -46,11 +56,37 @@ vault and may be synchronized with it. Keep an external snapshot as well.
 | Safe mechanical candidate | Propose OKF+ 2.2 in the dry run |
 | Ambiguous or conflicting | Block and report for human review |
 
-Blocking conditions include unterminated frontmatter, duplicate keys, nested
-or unsupported YAML, invalid explicit UID/type/timestamp/epistemic/scope/
-sensitivity values, unsafe lineage or relationship serialization, duplicate
-UIDs, and frontmatter on a reserved Google document that needs review. The
-workflow does not silently salvage or overwrite those values.
+In upgrade-all mode, the two Google rows become proposed v2.2 changes when
+their frontmatter is mechanically recoverable. Invalid legacy version, UID,
+type, timestamp, epistemic state, scope, and sensitivity values are replaced
+with conservative values. Every original overridden value is retained in the
+hash-bound plan's `salvage` records and in the byte-exact backup.
+
+Legacy `id` is never emitted as governed v2.2 metadata: a valid lowercase
+UUIDv4 `id` is migrated to `uid`; `id: unknown` or another invalid value is
+salvaged and replaced with a newly generated UUIDv4.
+
+Blocking conditions in all modes include unterminated frontmatter, duplicate
+keys, nested or unsupported YAML, unsafe lineage or relationship serialization,
+and duplicate UIDs. Safe scan also blocks invalid explicit governance values;
+upgrade-all may replace the recoverable flat values listed above but cannot
+force through cases whose meaning or identity would have to be guessed.
+
+## Confidence and manual review
+
+Every plan entry includes a deterministic `review` object:
+
+- `required`: whether the note remains blocked for manual review;
+- `confidence`: a 0–1 score estimating only the mechanical safety of the
+  metadata rewrite;
+- `basis: deterministic-migration-safety`;
+- `reasons`: every coded finding shown in the UI and persisted in the plan.
+
+Blocked entries are displayed lowest-confidence first. Confidence only orders
+review; it is not an entailment probability, epistemic state, approval, or
+authority to commit semantic meaning. The score and reasons are covered by the
+plan hash, so they cannot be altered after approval without invalidating the
+write plan.
 
 ## Conservative defaults
 

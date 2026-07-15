@@ -111,6 +111,69 @@ test("ambiguous or destructive frontmatter is blocked instead of guessed", async
   assert.equal(plan.totals.blocked, 4);
   assert.equal(plan.totals.changes, 0);
   assert.ok(plan.entries.every((e) => e.proposedContent == null));
+  assert.ok(plan.entries.every((e) => e.review.required));
+  assert.ok(plan.entries.every((e) => e.review.confidence <= 0.25));
+  assert.ok(plan.entries.every((e) => e.review.reasons.length > 0));
+});
+
+test("upgrade-all converts recoverable legacy notes and preserves overridden values in salvage", async () => {
+  const legacy = `---
+okf_version: "2.1"
+uid: unknown
+id: unknown
+type: memo
+title: Legacy
+timestamp: yesterday
+epistemic_state: inferred
+scope: somewhere
+sensitivity: secret
+tags: [legacy]
+---
+Body remains exact.
+`;
+  const unsafe = `---
+okf_version: "2.1"
+type: semantic
+related_to: [not-a-wikilink]
+---
+Unsafe
+`;
+  const plan = await createOkfMigrationPlan([
+    { path: "Google.md", content: "---\nid: 22222222-2222-4222-8222-222222222222\ntype: Playbook\ntitle: Google-compatible\n---\nBody\n" },
+    { path: "index.md", content: "# Reserved index\n" },
+    { path: "Legacy.md", content: legacy, createdTime: Date.parse("2025-01-02T03:04:05Z") },
+    { path: "Unsafe.md", content: unsafe },
+  ], { ...options(), mode: "upgrade-all" });
+
+  assert.equal(plan.schema, "okf-plus-migration-plan/2");
+  assert.equal(plan.mode, "upgrade-all");
+  assert.equal(plan.totals.changes, 3);
+  assert.equal(plan.totals.blocked, 1);
+  const google = plan.entries.find((entry) => entry.path === "Google.md");
+  assert.match(google.proposedContent, /okf_version: "2\.2"/);
+  assert.match(google.proposedContent, /uid: "22222222-2222-4222-8222-222222222222"/);
+  assert.doesNotMatch(google.proposedContent, /^id:/m);
+  assert.match(google.proposedContent, /type: "semantic"/);
+  assert.ok(google.findings.some((finding) => finding.code === "upgrade-google-okf"));
+  const reserved = plan.entries.find((entry) => entry.path === "index.md");
+  assert.equal(reserved.status, "needs-okf-plus");
+  assert.ok(reserved.findings.some((finding) => finding.code === "upgrade-google-reserved"));
+  const upgraded = plan.entries.find((entry) => entry.path === "Legacy.md");
+  assert.match(upgraded.proposedContent, /uid: "00000000-0000-4000-8000-00000000000/);
+  assert.match(upgraded.proposedContent, /epistemic_state: "hypothesis"/);
+  assert.match(upgraded.proposedContent, /sensitivity: "internal"/);
+  assert.ok(upgraded.proposedContent.endsWith("Body remains exact.\n"));
+  assert.ok(upgraded.salvage.some((record) => record.field === "okf_version" && record.originalValue === "2.1"));
+  assert.ok(upgraded.salvage.some((record) => record.field === "uid" && record.originalValue === "unknown"));
+  assert.ok(upgraded.salvage.some((record) => record.field === "id" && record.originalValue === "unknown"));
+  assert.doesNotMatch(upgraded.proposedContent, /^id:/m);
+  assert.equal(upgraded.review.basis, "deterministic-migration-safety");
+  assert.equal(upgraded.review.required, false);
+  assert.ok(upgraded.review.confidence < 0.9);
+  const blocked = plan.entries.find((entry) => entry.path === "Unsafe.md");
+  assert.equal(blocked.status, "blocked");
+  assert.equal(blocked.review.required, true);
+  assert.ok(blocked.review.reasons.some((finding) => finding.code === "unsafe-explicit-related_to"));
 });
 
 test("duplicate OKF+ UIDs are a global blocking conflict", async () => {
@@ -130,6 +193,12 @@ test("persistable plan binds hashes but never includes note contents", async () 
   assert.doesNotMatch(persisted, /TOP SECRET BODY/);
   assert.match(persisted, /originalHash/);
   assert.match(persisted, /proposedHash/);
+  assert.match(persisted, /deterministic-migration-safety/);
+  assert.equal(await verifyOkfMigrationPlan(plan), true);
+  const originalConfidence = plan.entries[0].review.confidence;
+  plan.entries[0].review.confidence = 0;
+  assert.equal(await verifyOkfMigrationPlan(plan), false, "review confidence is covered by the plan hash");
+  plan.entries[0].review.confidence = originalConfidence;
   assert.equal(await verifyOkfMigrationPlan(plan), true);
   plan.entries[0].proposedContent += "tampered";
   assert.equal(await verifyOkfMigrationPlan(plan), false);

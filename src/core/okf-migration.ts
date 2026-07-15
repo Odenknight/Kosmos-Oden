@@ -15,6 +15,8 @@ export type OkfAuditStatus =
   | "needs-okf-plus"
   | "blocked";
 
+export type OkfMigrationMode = "safe-onboarding" | "upgrade-all";
+
 export interface OkfMigrationSource {
   path: string;
   content: string;
@@ -25,6 +27,20 @@ export interface OkfMigrationSource {
 export interface OkfMigrationFinding {
   code: string;
   message: string;
+}
+
+export interface OkfMigrationReview {
+  required: boolean;
+  /** Deterministic confidence that the proposed metadata rewrite is mechanically safe. */
+  confidence: number;
+  basis: "deterministic-migration-safety";
+  reasons: OkfMigrationFinding[];
+}
+
+export interface OkfMigrationSalvage {
+  field: string;
+  originalValue: string | string[];
+  reason: string;
 }
 
 export interface OkfMigrationDefaults {
@@ -46,6 +62,9 @@ export interface OkfMigrationEntry {
   status: OkfAuditStatus;
   standard: "OKF+ 2.2" | "Google OKF 0.1 draft" | "Google OKF reserved" | "none";
   findings: OkfMigrationFinding[];
+  review: OkfMigrationReview;
+  /** Original governed values replaced by upgrade-all; persisted in the bound plan. */
+  salvage?: OkfMigrationSalvage[];
   originalHash: string;
   proposedHash?: string;
   uid?: string;
@@ -56,10 +75,11 @@ export interface OkfMigrationEntry {
 }
 
 export interface OkfMigrationPlan {
-  schema: "okf-plus-migration-plan/1";
+  schema: "okf-plus-migration-plan/2";
   runId: string;
   createdAt: string;
   planHash: string;
+  mode: OkfMigrationMode;
   defaults: OkfMigrationDefaults;
   totals: Record<OkfAuditStatus | "notes" | "changes", number>;
   entries: OkfMigrationEntry[];
@@ -328,6 +348,82 @@ function invalidExplicitGovernance(fm: StrictFrontmatter): OkfMigrationFinding[]
   return out;
 }
 
+function migrationReview(entry: Pick<OkfMigrationEntry, "status" | "findings">): OkfMigrationReview {
+  const codes = new Set(entry.findings.map((finding) => finding.code));
+  let confidence = 1;
+  if (entry.status === "needs-okf-plus") {
+    confidence = [...codes].some((code) => code.startsWith("override-")) ? 0.78
+      : [...codes].some((code) => code.startsWith("upgrade-")) ? 0.9
+        : codes.has("missing-frontmatter") ? 0.97
+          : 0.95;
+  } else if (entry.status === "blocked") {
+    confidence = codes.has("duplicate-uid") ? 0.05
+      : [...codes].some((code) => code.includes("duplicate-key") || code.includes("nested") || code.includes("unterminated")) ? 0.1
+        : [...codes].some((code) => code.startsWith("unsafe-")) ? 0.15
+          : 0.25;
+  }
+  return {
+    required: entry.status === "blocked",
+    confidence,
+    basis: "deterministic-migration-safety",
+    reasons: entry.findings.map((finding) => ({ ...finding })),
+  };
+}
+
+function assessed(entry: Omit<OkfMigrationEntry, "review">): OkfMigrationEntry {
+  return { ...entry, review: migrationReview(entry) };
+}
+
+function originalFieldValue(fm: StrictFrontmatter, key: string): string | string[] | undefined {
+  const field = fm.byKey.get(key);
+  if (!field) return undefined;
+  return field.kind === "list" ? [...(field.values ?? [])] : field.scalar;
+}
+
+function upgradeOverrides(fm: StrictFrontmatter): {
+  findings: OkfMigrationFinding[];
+  salvage: OkfMigrationSalvage[];
+  blockers: OkfMigrationFinding[];
+} {
+  const findings: OkfMigrationFinding[] = [];
+  const salvage: OkfMigrationSalvage[] = [];
+  const blockers: OkfMigrationFinding[] = [];
+  const replace = (field: string, code: string, reason: string) => {
+    const originalValue = originalFieldValue(fm, field);
+    if (originalValue == null) return;
+    findings.push({ code, message: reason });
+    salvage.push({ field, originalValue, reason });
+  };
+  if (fm.byKey.has("okf_version") && scalar(fm, "okf_version") !== "2.2") {
+    replace("okf_version", "override-okf-version", "Existing okf_version will be upgraded to 2.2; the original value is retained in migration salvage.");
+  }
+  if (fm.byKey.has("uid") && !UUID_V4.test(scalar(fm, "uid") ?? "")) {
+    replace("uid", "override-invalid-uid", "Invalid legacy uid will be replaced with a new lowercase UUIDv4; the original value is retained in migration salvage.");
+  }
+  if (fm.byKey.has("id")) {
+    replace("id", "override-legacy-id", UUID_V4.test(scalar(fm, "id") ?? "")
+      ? "Legacy id will be migrated to uid and removed from frontmatter; the original value is retained in migration salvage."
+      : "Invalid legacy id will be removed and replaced by a new uid; the original value is retained in migration salvage.");
+  }
+  const enums: Array<[string, Set<string>]> = [
+    ["type", TYPES], ["epistemic_state", EPISTEMIC], ["scope", SCOPES], ["sensitivity", SENSITIVITIES],
+  ];
+  for (const [key, allowed] of enums) {
+    if (fm.byKey.has(key) && !allowed.has(scalar(fm, key) ?? "")) {
+      replace(key, `override-invalid-${key}`, `Invalid legacy ${key} will be replaced with the conservative migration default; the original value is retained in migration salvage.`);
+    }
+  }
+  if (fm.byKey.has("timestamp") && !validTimestamp(scalar(fm, "timestamp"))) {
+    replace("timestamp", "override-invalid-timestamp", "Invalid legacy timestamp will be replaced with the file creation/modified time; the original value is retained in migration salvage.");
+  }
+  for (const key of [...LINEAGE_KEYS, ...RELATION_KEYS]) {
+    if (fm.byKey.has(key) && !safeWikiTargets(fm.byKey.get(key))) {
+      blockers.push({ code: `unsafe-explicit-${key}`, message: `Existing ${key} cannot be normalized without guessing and remains blocked for manual review.` });
+    }
+  }
+  return { findings, salvage, blockers };
+}
+
 function fileTitle(path: string): string {
   const base = path.split("/").pop() ?? path;
   return base.replace(/\.md$/i, "").trim() || "Untitled note";
@@ -339,7 +435,14 @@ function emitList(key: string, values: string[], eol: string, wikilinks = false)
   return [`${key}:`, ...unique.map((v) => `  - ${yamlQuote(wikilinks && !/^\[\[.*\]\]$/.test(v) ? `[[${v}]]` : v)}`)];
 }
 
-function proposedOkf(fm: StrictFrontmatter, source: OkfMigrationSource, uid: string, createdAt: string, defaults: OkfMigrationDefaults): string {
+function proposedOkf(
+  fm: StrictFrontmatter,
+  source: OkfMigrationSource,
+  uid: string,
+  createdAt: string,
+  defaults: OkfMigrationDefaults,
+  salvage: OkfMigrationSalvage[] = [],
+): string {
   const eol = fm.eol;
   const title = scalar(fm, "title") || fileTitle(source.path);
   const description = scalar(fm, "description") || `Knowledge note for ${title}.`;
@@ -348,33 +451,47 @@ function proposedOkf(fm: StrictFrontmatter, source: OkfMigrationSource, uid: str
     : Number.isFinite(source.modifiedTime) && (source.modifiedTime ?? 0) > 0
       ? new Date(source.modifiedTime!).toISOString()
       : createdAt;
-  const actualUid = scalar(fm, "uid") || uid;
+  const existingUid = scalar(fm, "uid");
+  const actualUid = existingUid && UUID_V4.test(existingUid) ? existingUid : uid;
+  const existingType = scalar(fm, "type");
+  const existingEpistemic = scalar(fm, "epistemic_state");
+  const existingScope = scalar(fm, "scope");
+  const existingSensitivity = scalar(fm, "sensitivity");
+  const existingTimestamp = scalar(fm, "timestamp");
   const lines: string[] = [
     "---",
     `okf_version: "2.2"`,
     `uid: ${yamlQuote(actualUid)}`,
-    `type: ${yamlQuote(scalar(fm, "type") || defaults.type)}`,
+    `type: ${yamlQuote(existingType && TYPES.has(existingType) ? existingType : defaults.type)}`,
     `title: ${yamlQuote(title)}`,
     `description: ${yamlQuote(description)}`,
   ];
   const resource = scalar(fm, "resource");
   if (resource) lines.push(`resource: ${yamlQuote(resource)}`);
   lines.push(
-    `timestamp: ${yamlQuote(scalar(fm, "timestamp") || created)}`,
-    `epistemic_state: ${yamlQuote(scalar(fm, "epistemic_state") || defaults.epistemicState)}`,
-    `scope: ${yamlQuote(scalar(fm, "scope") || defaults.scope)}`,
-    `scope_id: ${yamlQuote(scalar(fm, "scope_id") || actualUid)}`,
-    `sensitivity: ${yamlQuote(scalar(fm, "sensitivity") || defaults.sensitivity)}`,
+    `timestamp: ${yamlQuote(validTimestamp(existingTimestamp) ? existingTimestamp! : created)}`,
+    `epistemic_state: ${yamlQuote(existingEpistemic && EPISTEMIC.has(existingEpistemic) ? existingEpistemic : defaults.epistemicState)}`,
+    `scope: ${yamlQuote(existingScope && SCOPES.has(existingScope) ? existingScope : defaults.scope)}`,
+    `scope_id: ${yamlQuote((existingScope && SCOPES.has(existingScope) ? scalar(fm, "scope_id") : undefined) || actualUid)}`,
+    `sensitivity: ${yamlQuote(existingSensitivity && SENSITIVITIES.has(existingSensitivity) ? existingSensitivity : defaults.sensitivity)}`,
   );
   lines.push(...emitList("tags", list(fm, "tags") ?? (scalar(fm, "tags") ? [scalar(fm, "tags")!] : []), eol));
   for (const key of LINEAGE_KEYS) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
   for (const key of RELATION_KEYS) if (fm.byKey.has(key)) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
   for (const field of fm.fields) {
-    if (!RECOGNIZED.has(field.key)) lines.push(...field.rawLines);
+    if (!RECOGNIZED.has(field.key) && !salvage.some((record) => record.field === field.key)) lines.push(...field.rawLines);
   }
   if (fm.looseLines.some((x) => x.trim())) lines.push(...fm.looseLines);
   lines.push("---");
   return fm.bom + lines.join(eol) + eol + fm.body;
+}
+
+function migrationUid(fm: StrictFrontmatter, generate: () => string, allowLegacyId = false): string {
+  const existingUid = scalar(fm, "uid");
+  if (existingUid && UUID_V4.test(existingUid)) return existingUid;
+  const legacyId = allowLegacyId ? scalar(fm, "id") : undefined;
+  if (legacyId && UUID_V4.test(legacyId)) return legacyId;
+  return generate();
 }
 
 export function makeOkfUuidV4(): string {
@@ -396,8 +513,12 @@ export async function sha256Text(text: string): Promise<string> {
 function planMaterial(plan: Omit<OkfMigrationPlan, "planHash"> | OkfMigrationPlan): unknown {
   return {
     schema: plan.schema, runId: plan.runId, createdAt: plan.createdAt,
-    defaults: plan.defaults, totals: plan.totals,
-    entries: plan.entries.map((e) => ({ path: e.path, status: e.status, originalHash: e.originalHash, proposedHash: e.proposedHash, uid: e.uid, findings: e.findings })),
+    mode: plan.mode, defaults: plan.defaults, totals: plan.totals,
+    entries: plan.entries.map((e) => ({
+      path: e.path, status: e.status, originalHash: e.originalHash,
+      proposedHash: e.proposedHash, uid: e.uid, findings: e.findings,
+      review: e.review, salvage: e.salvage,
+    })),
   };
 }
 
@@ -415,6 +536,7 @@ interface AuditOptions {
   createdAt: string;
   defaults: OkfMigrationDefaults;
   uuid: () => string;
+  mode: OkfMigrationMode;
 }
 
 async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise<OkfMigrationEntry> {
@@ -423,44 +545,65 @@ async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise
   const name = source.path.split("/").pop()?.toLowerCase();
   if ((name === "index.md" || name === "log.md") && !source.path.toLowerCase().startsWith(".okf/")) {
     const rootVersionDeclaration = source.path.toLowerCase() === "index.md" && fm.state === "valid" && scalar(fm, "okf_version") === "0.1";
+    if (fm.state === "unterminated" || fm.problems.length) {
+      return assessed({ path: source.path, status: "blocked", standard: "Google OKF reserved", findings: fm.problems, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    }
+    if (opts.mode === "upgrade-all") {
+      const override = upgradeOverrides(fm);
+      if (override.blockers.length) return assessed({ path: source.path, status: "blocked", standard: "Google OKF reserved", findings: override.blockers, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+      const uid = migrationUid(fm, opts.uuid, true);
+      const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
+      const findings = [{ code: "upgrade-google-reserved", message: `${name} is reserved by Google OKF but is included by the explicit upgrade-all mode.` }, ...override.findings];
+      return assessed({ path: source.path, status: "needs-okf-plus", standard: "Google OKF reserved", findings, salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
+    }
     const findings = fm.state === "none" || rootVersionDeclaration
       ? [{ code: "google-reserved", message: `${name} is a Google OKF reserved document and is not converted.` }]
       : [{ code: "reserved-frontmatter-review", message: `${name} is reserved by Google OKF; its frontmatter requires manual review.` }];
-    return { path: source.path, status: rootVersionDeclaration || fm.state === "none" ? "google-reserved" : "blocked", standard: "Google OKF reserved", findings, originalHash, originalContent: source.content };
+    return assessed({ path: source.path, status: rootVersionDeclaration || fm.state === "none" ? "google-reserved" : "blocked", standard: "Google OKF reserved", findings, originalHash, originalContent: source.content });
   }
   if (fm.state === "unterminated" || fm.problems.length) {
-    return { path: source.path, status: "blocked", standard: "none", findings: fm.problems, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+    return assessed({ path: source.path, status: "blocked", standard: "none", findings: fm.problems, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
   }
   if (fm.state === "valid" && scalar(fm, "okf_version") === "2.2") {
     const validation = okfValidation(fm);
-    if (!validation.length) return { path: source.path, status: "okf-plus-2.2", standard: "OKF+ 2.2", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+    if (!validation.length) return assessed({ path: source.path, status: "okf-plus-2.2", standard: "OKF+ 2.2", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
     const destructive = invalidExplicitGovernance(fm);
-    if (destructive.length) return { path: source.path, status: "blocked", standard: "none", findings: destructive, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
-    const uid = scalar(fm, "uid") || opts.uuid();
-    const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults);
-    return { path: source.path, status: "needs-okf-plus", standard: "none", findings: validation, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid };
+    if (destructive.length && opts.mode !== "upgrade-all") return assessed({ path: source.path, status: "blocked", standard: "none", findings: destructive, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    const override = opts.mode === "upgrade-all" ? upgradeOverrides(fm) : { findings: [], salvage: [], blockers: [] };
+    if (override.blockers.length) return assessed({ path: source.path, status: "blocked", standard: "none", findings: override.blockers, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    const uid = migrationUid(fm, opts.uuid, opts.mode === "upgrade-all");
+    const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
+    return assessed({ path: source.path, status: "needs-okf-plus", standard: "none", findings: [...validation, ...override.findings], salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
   }
   // Google OKF v0.1 draft conformance is intentionally minimal: parseable YAML
   // frontmatter and a non-empty type. Producer-defined extra keys are allowed.
   if (fm.state === "valid" && nonempty(scalar(fm, "type"))) {
-    return { path: source.path, status: "google-okf-0.1", standard: "Google OKF 0.1 draft", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
+    if (opts.mode !== "upgrade-all") return assessed({ path: source.path, status: "google-okf-0.1", standard: "Google OKF 0.1 draft", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    const override = upgradeOverrides(fm);
+    if (override.blockers.length) return assessed({ path: source.path, status: "blocked", standard: "Google OKF 0.1 draft", findings: override.blockers, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    const uid = migrationUid(fm, opts.uuid, true);
+    const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
+    const findings = [{ code: "upgrade-google-okf", message: "Google OKF/legacy frontmatter will be upgraded to the normative OKF+ 2.2 flat schema." }, ...override.findings];
+    return assessed({ path: source.path, status: "needs-okf-plus", standard: "Google OKF 0.1 draft", findings, salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
   }
   const explicit = invalidExplicitGovernance(fm);
-  if (explicit.length) return { path: source.path, status: "blocked", standard: "none", findings: explicit, originalHash, originalContent: source.content, uid: scalar(fm, "uid") };
-  const uid = scalar(fm, "uid") || opts.uuid();
-  const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults);
+  if (explicit.length && opts.mode !== "upgrade-all") return assessed({ path: source.path, status: "blocked", standard: "none", findings: explicit, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+  const override = opts.mode === "upgrade-all" ? upgradeOverrides(fm) : { findings: [], salvage: [], blockers: [] };
+  if (override.blockers.length) return assessed({ path: source.path, status: "blocked", standard: "none", findings: override.blockers, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+  const uid = migrationUid(fm, opts.uuid, opts.mode === "upgrade-all");
+  const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
   const findings: OkfMigrationFinding[] = [{
     code: fm.state === "none" ? "missing-frontmatter" : "missing-okf-type",
     message: fm.state === "none" ? "No YAML frontmatter was found." : "Frontmatter is not OKF+ 2.2 and lacks the type required by Google OKF 0.1.",
-  }];
-  return { path: source.path, status: "needs-okf-plus", standard: "none", findings, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid };
+  }, ...override.findings];
+  return assessed({ path: source.path, status: "needs-okf-plus", standard: "none", findings, salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
 }
 
 export async function createOkfMigrationPlan(
   sources: OkfMigrationSource[],
-  options: Partial<OkfMigrationDefaults> & { now?: () => Date; uuid?: () => string } = {},
+  options: Partial<OkfMigrationDefaults> & { now?: () => Date; uuid?: () => string; mode?: OkfMigrationMode } = {},
 ): Promise<OkfMigrationPlan> {
-  const { now: suppliedNow, uuid: suppliedUuid, ...overrides } = options;
+  const { now: suppliedNow, uuid: suppliedUuid, mode = "safe-onboarding", ...overrides } = options;
   const defaults: OkfMigrationDefaults = { ...DEFAULT_OKF_MIGRATION_DEFAULTS, ...overrides } as OkfMigrationDefaults;
   const now = suppliedNow ?? (() => new Date());
   const uuid = suppliedUuid ?? makeOkfUuidV4;
@@ -469,7 +612,7 @@ export async function createOkfMigrationPlan(
   const entries: OkfMigrationEntry[] = [];
   for (const source of [...sources].sort((a, b) => a.path.localeCompare(b.path))) {
     if (source.path.toLowerCase().startsWith(".okf/")) continue;
-    entries.push(await auditOne(source, { createdAt, defaults, uuid }));
+    entries.push(await auditOne(source, { createdAt, defaults, uuid, mode }));
   }
   const uidMap = new Map<string, OkfMigrationEntry[]>();
   for (const entry of entries) if (entry.uid && UUID_V4.test(entry.uid)) {
@@ -481,6 +624,7 @@ export async function createOkfMigrationPlan(
       if (entry.status === "okf-plus-2.2" || entry.status === "needs-okf-plus") {
         entry.status = "blocked"; entry.standard = "none"; delete entry.proposedContent; delete entry.proposedHash;
       }
+      entry.review = migrationReview(entry);
     }
   }
   const totals: OkfMigrationPlan["totals"] = {
@@ -488,7 +632,7 @@ export async function createOkfMigrationPlan(
     "google-reserved": 0, "needs-okf-plus": 0, blocked: 0,
   };
   for (const entry of entries) { totals[entry.status]++; if (entry.status === "needs-okf-plus") totals.changes++; }
-  const base = { schema: "okf-plus-migration-plan/1" as const, runId, createdAt, defaults, totals, entries };
+  const base = { schema: "okf-plus-migration-plan/2" as const, runId, createdAt, mode, defaults, totals, entries };
   const planHash = await sha256Text(JSON.stringify(planMaterial(base)));
   return { ...base, planHash };
 }
@@ -497,7 +641,7 @@ export async function createOkfMigrationPlan(
 export function publicOkfMigrationPlan(plan: OkfMigrationPlan): unknown {
   return {
     schema: plan.schema, runId: plan.runId, createdAt: plan.createdAt, planHash: plan.planHash,
-    defaults: plan.defaults, totals: plan.totals,
+    mode: plan.mode, defaults: plan.defaults, totals: plan.totals,
     entries: plan.entries.map(({ originalContent: _o, proposedContent: _p, ...entry }) => entry),
   };
 }

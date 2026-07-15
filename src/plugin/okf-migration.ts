@@ -5,6 +5,7 @@ import {
   publicOkfMigrationPlan,
   verifyOkfMigrationPlan,
   type OkfMigrationEntry,
+  type OkfMigrationMode,
   type OkfMigrationPlan,
   type OkfMigrationSource,
 } from "../core/okf-migration";
@@ -20,6 +21,7 @@ export interface OkfMigrationApplyResult {
   planPath: string;
   resultPath: string;
   completedAt: string;
+  mode: OkfMigrationMode;
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {
@@ -33,7 +35,7 @@ async function ensureFolder(app: App, path: string): Promise<void> {
   }
 }
 
-export async function scanVaultForOkf(app: App): Promise<OkfMigrationPlan> {
+export async function scanVaultForOkf(app: App, mode: OkfMigrationMode = "safe-onboarding"): Promise<OkfMigrationPlan> {
   const files = app.vault.getMarkdownFiles()
     .filter((f) => !f.path.toLowerCase().startsWith(".okf/"));
   const sources: OkfMigrationSource[] = [];
@@ -45,7 +47,7 @@ export async function scanVaultForOkf(app: App): Promise<OkfMigrationPlan> {
       modifiedTime: file.stat.mtime,
     });
   }
-  return createOkfMigrationPlan(sources);
+  return createOkfMigrationPlan(sources, { mode });
 }
 
 function persistedResult(result: OkfMigrationApplyResult): string {
@@ -92,6 +94,7 @@ export async function applyOkfMigrationPlan(app: App, plan: OkfMigrationPlan): P
     planPath,
     resultPath,
     completedAt: "",
+    mode: plan.mode,
   };
 
   for (const entry of plan.entries.filter((e) => e.status === "needs-okf-plus")) {
@@ -158,19 +161,21 @@ export class OkfMigrationPreviewModal extends Modal {
   onOpen(): void {
     const { contentEl, plan } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Mark notes in OKF+ format — preview" });
+    const upgradeAll = plan.mode === "upgrade-all";
+    contentEl.createEl("h2", { text: upgradeAll ? "Upgrade all recoverable notes to OKF+ 2.2 — preview" : "Mark notes in OKF+ format — preview" });
     contentEl.createEl("p", { text: `Scanned ${plan.totals.notes} notes. This dry run proposes ${plan.totals.changes} note changes; nothing has been changed yet.` });
 
     const summary = contentEl.createEl("ul");
     summary.createEl("li", { text: `${plan.totals["okf-plus-2.2"]} already conform to OKF+ 2.2` });
-    summary.createEl("li", { text: `${plan.totals["google-okf-0.1"]} conform to Google's OKF 0.1 draft and will be left unchanged` });
-    summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files will be left unchanged` });
+    summary.createEl("li", { text: `${plan.totals["google-okf-0.1"]} conform to Google's OKF 0.1 draft${upgradeAll ? "" : " and will be left unchanged"}` });
+    summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files${upgradeAll ? " remain outside the recoverable set" : " will be left unchanged"}` });
     summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely onboarded to OKF+ 2.2` });
     summary.createEl("li", { text: `${plan.totals.blocked} need manual review and will not be changed` });
 
     warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .okf/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
     warningBox(contentEl, "No LLM is used or needed.", "This pass is deterministic and local. No note content is sent to OpenAI, Anthropic, Google, or a local model. It uses conservative defaults: semantic, hypothesis, node-scoped, and internal. An LLM may later suggest richer descriptions, types, tags, or relationships, but those are semantic proposals and should require review. Prefer a local model for confidential material; never send confidential or PHI notes to a cloud model without explicit policy and consent.");
     warningBox(contentEl, "Review sensitivity after migration.", "The default label is internal; it is not a content-based privacy classification. Review notes that may contain confidential data or protected health information before enabling cloud agents or raising connector access. Existing invalid governance values, duplicate UIDs, duplicate keys, and nested/ambiguous YAML are blocked instead of overwritten.");
+    if (upgradeAll) warningBox(contentEl, "Upgrade-all is a governed override, not a force switch.", "Recoverable legacy/2.1 values are replaced with conservative v2.2 values and their originals are retained in the hash-bound migration plan. Duplicate keys, ambiguous YAML, unsafe relationship targets, and duplicate UIDs remain blocked. Confidence is a deterministic migration-safety score used to order review; it is never epistemic truth or approval authority.");
 
     contentEl.createEl("p", { text: `Plan SHA-256: ${plan.planHash}`, cls: "setting-item-description" });
     contentEl.createEl("p", { text: "When applied, the human-authored Markdown body remains byte-for-byte unchanged. Only frontmatter is added or normalized, and a note edited after this scan is skipped.", cls: "setting-item-description" });
@@ -190,11 +195,12 @@ export class OkfMigrationPreviewModal extends Modal {
       return;
     }
 
-    let backupConfirmed = false, policyConfirmed = false;
+    let backupConfirmed = false, policyConfirmed = false, overrideConfirmed = !upgradeAll;
     let applyButton: HTMLButtonElement | null = null;
-    const refresh = () => { if (applyButton) applyButton.disabled = !(backupConfirmed && policyConfirmed) || this.applying; };
+    const refresh = () => { if (applyButton) applyButton.disabled = !(backupConfirmed && policyConfirmed && overrideConfirmed) || this.applying; };
     confirmation(contentEl, "I have made a separate, restorable backup or snapshot of this vault; I understand that cloud sync alone is not a backup.", (v) => { backupConfirmed = v; refresh(); });
     confirmation(contentEl, "I understand the conservative defaults are not an AI privacy review, and I will review confidential/PHI sensitivity before cloud use.", (v) => { policyConfirmed = v; refresh(); });
+    if (upgradeAll) confirmation(contentEl, "I approve upgrading recoverable legacy/2.1 governance fields to conservative OKF+ 2.2 values; original overridden values will remain in the migration plan and byte-exact backup.", (v) => { overrideConfirmed = v; refresh(); });
 
     new Setting(contentEl)
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
@@ -206,7 +212,7 @@ export class OkfMigrationPreviewModal extends Modal {
         b.setButtonText(`Back up and apply ${plan.totals.changes} changes`).setWarning();
         applyButton = b.buttonEl; refresh();
         b.onClick(async () => {
-          if (this.applying || !backupConfirmed || !policyConfirmed) return;
+          if (this.applying || !backupConfirmed || !policyConfirmed || !overrideConfirmed) return;
           this.applying = true; refresh(); applyButton!.textContent = "Applying safely…";
           try {
             await this.onApply(plan);
@@ -224,9 +230,10 @@ export class OkfMigrationPreviewModal extends Modal {
     const details = parent.createEl("details");
     details.createEl("summary", { text: `${title} (${entries.length})` });
     const list = details.createEl("ul");
-    for (const entry of entries.slice(0, 50)) {
-      const reason = entry.findings[0]?.message;
-      list.createEl("li", { text: `${entry.path}${reason ? ` — ${reason}` : ""}` });
+    for (const entry of [...entries].sort((a, b) => a.review.confidence - b.review.confidence || a.path.localeCompare(b.path)).slice(0, 50)) {
+      const confidence = `${Math.round(entry.review.confidence * 100)}% migration confidence`;
+      const reasons = entry.review.reasons.map((finding) => `${finding.code}: ${finding.message}`).join(" | ");
+      list.createEl("li", { text: `${entry.path} — ${confidence}${reasons ? ` — ${reasons}` : ""}` });
     }
     if (entries.length > 50) list.createEl("li", { text: `…and ${entries.length - 50} more. The complete list is saved with the plan when you apply.` });
   }
@@ -234,11 +241,12 @@ export class OkfMigrationPreviewModal extends Modal {
 
 export async function openOkfMigrationWorkflow(
   app: App,
+  mode: OkfMigrationMode = "safe-onboarding",
   onApplied?: (result: OkfMigrationApplyResult) => void,
 ): Promise<void> {
   const scanning = new Notice("Vault Kosmos: scanning notes for OKF/OKF+ frontmatter…", 0);
   try {
-    const plan = await scanVaultForOkf(app);
+    const plan = await scanVaultForOkf(app, mode);
     scanning.hide();
     new OkfMigrationPreviewModal(app, plan, async (approved) => {
       const running = new Notice(`Vault Kosmos: backing up and applying ${approved.totals.changes} OKF+ changes…`, 0);
