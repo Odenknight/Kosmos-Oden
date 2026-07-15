@@ -43,6 +43,9 @@ jobs:
       - name: Invariants policy (kosmos-invariants.yml)
         run: npm run check:invariants
 
+      - name: Renderer provenance (exact-pinned three, marker, no CDN)
+        run: npm run check:renderer-provenance
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

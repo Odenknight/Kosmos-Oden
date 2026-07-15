@@ -7,6 +7,25 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.0-beta.2] — 2026-07-15 (pre-release)
+
+Updates the r185/WebGL2 beta with all 0.5.6 core, provider-neutral MCP,
+Graphiti projection, OKF+ migration, and sensitivity hardening changes.
+
+### Changed
+- Stable renderer remains exact-pinned to ESM `three@0.185.1`, bundled into
+  offline single-file artifacts with WebGL2 capability and context-loss handling.
+- Provider quick links now cover native Streamable HTTP clients and a bundled
+  first-party stdio adapter without making Graphiti part of the MCP setup.
+
+### Added
+- Deterministic capture controls, renderer provenance checks, Playwright browser
+  scaffolding, split renderer CI, and mass-weighted elliptical orbits.
+
+### Known issues
+- Human smoke testing passed with orbits rendering correctly. A minor cosmetic
+  clipping of the top header edge remains under investigation for beta QA.
+
 ## [0.5.6] — 2026-07-15
 
 ### Added

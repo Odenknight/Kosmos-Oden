@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.5.6
+# Kosmos-Oden (Vault Kosmos) — v0.6.0-beta.2
 
-**Version 0.5.6** — a 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.0-beta.2** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -21,7 +21,7 @@ Both surfaces — plus the Agent API and the `kosmos-build` CLI — render **the
 
 **What OdenKnight's Obsidian adaptation (v0.5.0–v0.5.1) added:** a complete visualization redesign with accurate folder/file hierarchy mapping; gravitational orbital mechanics (notes orbit gravitational focal points by connection strength); Saturn-style rings for well-connected notes; a folder-safe context menu (right-clicking a folder galaxy expands it in Obsidian's file explorer — it never opens or creates a note); a live agent-traversal trail; the Agent API with MCP support; Graphiti episode export; render-loop suspension and other performance work; and early security hardening (constant-time token comparison, DNS-rebinding protection).
 
-**What Kosmos-Oden adds:** a single shared **Kosmos Core** so the plugin, the standalone viewer, the Agent API and the CLI compute identical graphs instead of drifting into separate interpretations; canonical bidirectional lineage normalization with validation; a genuinely offline single-file standalone viewer with folder monitoring; and a full build-provenance / reproducibility / security-hardening pass (see [Security, assurance & governance](#security-assurance--governance)).
+**What Kosmos-Oden adds:** a single shared **Kosmos Core** so the plugin, the standalone viewer, the Agent API and the CLI compute identical graphs instead of drifting into separate interpretations; canonical bidirectional lineage normalization with validation; a genuinely offline single-file standalone viewer with folder monitoring; and a full build-provenance / reproducibility / security-hardening pass (see [Security, assurance & governance](#security-assurance--governance)). The 0.6 beta upgrades the renderer to exact-pinned Three.js r185/WebGL2 while retaining the offline single-file model.
 
 Both projects use the MIT License — see [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The original code remains attributed to H4R7W16; new contributions are attributed to OdenKnight.
 
@@ -256,12 +256,23 @@ src/renderer/    cosmology, layout (+collision diagnostics), shaders, renderer
 src/plugin/      Obsidian plugin, iframe embed entry, host<->renderer protocol,
                  Agent API server, settings
 src/standalone/  directory source, rescan monitor, handle persistence, UI, entry
-scripts/         build pipeline, version/artifact/invariant checks, release packaging
+scripts/         build pipeline, version/artifact/invariant/renderer-provenance
+                 checks, release packaging, static test server
 test/            parser, resolver, lineage, temporal, incremental, graphiti,
-                 agent-api, protocol, standalone-artifact tests
+                 agent-api, protocol, cosmology, standalone-artifact tests;
+                 test/browser/ Playwright renderer + visual specs
 benchmarks/      synthetic-vault benchmark + measured results
-vendor/          three.min.js r128 (MIT), inlined at build time
+vendor/legacy/   frozen Three.js r128 global build (MIT), for an optional
+                 WebGL1-era compatibility artifact only
 ```
+
+> **Renderer:** the stable 3D engine is **Three.js r185** (`three@0.185.1`),
+> an exact-pinned ESM dependency bundled into the offline single-file artifacts
+> (no CDN). On the `renderer/three-r185-webgl` branch this replaced the vendored
+> r128 global build; it is **WebGL2-only** and provenance-checked in CI. See
+> [docs/RENDERER-MIGRATION-r185.md](docs/RENDERER-MIGRATION-r185.md) and
+> [renderer-provenance.json](renderer-provenance.json). WebGPU/TSL is a separate
+> future phase.
 
 ## License
 

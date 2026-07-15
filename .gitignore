@@ -6,7 +6,7 @@ release/
 
 # Generated build outputs — rebuilt by `npm run build`, attached to GitHub
 # Releases by CI (not committed). The committed plugin components are only
-# main.js + manifest.json + styles.css + versions.json. The standalone viewer
+# manifest.json + styles.css + versions.json (+ source). The standalone viewer
 # (vault-kosmos.html) is a separate release download, kept out of the tracked
 # tree so the plugin footprint stays clean. main.js is also generated (embeds
 # the iframe page as base64) — rebuilding on Windows re-encodes its embedded
@@ -36,3 +36,8 @@ vault-kosmos_v0.6.0/
 
 # benchmark scratch fixtures (generated on demand)
 benchmarks/fixtures/
+
+# Playwright browser/visual output (QA-run, not committed except reviewed baselines)
+playwright-report/
+test-results/
+sbom.cdx.json
