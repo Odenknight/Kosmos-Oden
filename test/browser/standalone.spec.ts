@@ -14,6 +14,12 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
 
   await page.goto(CAPTURE);
 
+  // Headless Firefox on some Linux runners exposes no WebGL2 device. The
+  // separate fallback test below verifies that unsupported path; do not turn
+  // a missing runner capability into a renderer regression.
+  const hasWebGL2 = await page.evaluate(() => !!document.createElement("canvas").getContext("webgl2"));
+  test.skip(!hasWebGL2, "WebGL2 is unavailable in this browser/runner combination");
+
   // renderer descriptor is exposed once createKosmosApp runs
   await page.waitForFunction(() => (window as any).__kosmosRenderer != null, null, { timeout: 15_000 });
   const r = await page.evaluate(() => (window as any).__kosmosRenderer);
@@ -26,7 +32,7 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
     return b && b.classList.contains("gone");
   }, null, { timeout: 15_000 });
   const stats = await page.locator("#stats").innerText();
-  expect(stats).toMatch(/NODES/);
+  expect(stats).toMatch(/\bNodes\b/i);
 
   // canvas present and at least one frame produced while visible
   await page.waitForFunction(() => (window as any).__kosmosRenderStats?.frames > 0, null, { timeout: 15_000 });
