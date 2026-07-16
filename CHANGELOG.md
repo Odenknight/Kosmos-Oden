@@ -7,6 +7,22 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.6] — 2026-07-16 (pre-release)
+
+### Added
+- Added a guided, inline OKF+ reconciliation workflow with explicit
+  **Needs review**, **Accept**, and **Reject** decisions, live progress,
+  expand/collapse controls, and a safe **Reject all remaining** action.
+- Added per-note model-pass labels and inline recovery guidance when an
+  optional model times out or returns unusable output.
+
+### Changed
+- The governed apply-plan button remains unavailable until every visible
+  proposal has an explicit decision. An untouched control is no longer
+  silently treated as rejection.
+- Malformed model JSON is discarded with a plain-language explanation while
+  independently generated deterministic proposals remain reviewable.
+
 ## [0.6.5-alpha.5] — 2026-07-16 (pre-release)
 
 ### Added

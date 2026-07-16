@@ -23,6 +23,15 @@ export interface OkfEnrichmentRecord {
   currentValues: Partial<Record<OkfEnrichmentField, string | string[]>>;
   suggestions: OkfEnrichmentSuggestion[];
   status: "pending";
+  modelPass: "not-requested" | "not-eligible" | "enhanced" | "no-suggestions" | "failed";
+  modelIssue?: string;
+}
+
+interface OkfEnrichmentIssue {
+  path?: string;
+  kind: "model" | "scan" | "stop-policy";
+  message: string;
+  action: string;
 }
 
 const sensitivityRank: Record<OkfSensitivity, number> = { public: 0, internal: 1, confidential: 2, phi: 3 };
@@ -44,8 +53,8 @@ async function llmSuggestions(settings: AgentSettings, path: string, sensitivity
   return validateLlmEnrichmentResponse(await requestOkfLlmJson(settings, system, { path, sensitivity, evidence }), blocks, settings.okfEnrichmentMaxSuggestions);
 }
 
-async function buildRecords(app: App, settings: AgentSettings): Promise<{ records: OkfEnrichmentRecord[]; skipped: string[]; excluded: Array<{ path: string; pattern: string }>; errors: string[] }> {
-  const records: OkfEnrichmentRecord[] = [], skipped: string[] = [], excluded: Array<{ path: string; pattern: string }> = [], errors: string[] = [];
+async function buildRecords(app: App, settings: AgentSettings): Promise<{ records: OkfEnrichmentRecord[]; skipped: string[]; excluded: Array<{ path: string; pattern: string }>; issues: OkfEnrichmentIssue[] }> {
+  const records: OkfEnrichmentRecord[] = [], skipped: string[] = [], excluded: Array<{ path: string; pattern: string }> = [], issues: OkfEnrichmentIssue[] = [];
   let usedInputChars = 0;
   let consecutiveProviderErrors = 0;
   const candidates = app.vault.getMarkdownFiles().filter((file) => !file.path.toLowerCase().startsWith(".okf/")).sort((a, b) => a.path.localeCompare(b.path));
@@ -69,13 +78,24 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
       const evidenceAssessment = assessOkfEvidence(blocks);
       const deterministic = deterministicOkfSuggestions(blocks);
       let llm: OkfEnrichmentSuggestion[] = [], stopAfterRecord = false;
+      let modelPass: OkfEnrichmentRecord["modelPass"] = settings.okfEnrichmentProvider === "none" ? "not-requested" : "no-suggestions";
+      let modelIssue: string | undefined;
       if (settings.okfEnrichmentProvider !== "none") {
-        try { llm = await llmSuggestions(settings, file.path, sensitivity, blocks); consecutiveProviderErrors = 0; }
+        const ineligible = (settings.okfEnrichmentProvider === "cloud" && (sensitivityRank[sensitivity] > sensitivityRank[settings.okfEnrichmentCloudCeiling] || sensitivity === "confidential" || sensitivity === "phi"))
+          || (settings.okfEnrichmentProvider === "lan" && (sensitivityRank[sensitivity] > sensitivityRank[settings.okfEnrichmentLanCeiling] || sensitivity === "phi"));
+        if (ineligible) modelPass = "not-eligible";
+        try {
+          llm = await llmSuggestions(settings, file.path, sensitivity, blocks);
+          modelPass = ineligible ? "not-eligible" : (llm.length ? "enhanced" : "no-suggestions");
+          consecutiveProviderErrors = 0;
+        }
         catch (error: any) {
           consecutiveProviderErrors++;
-          errors.push(`${file.path}: ${String(error?.message || error)}`);
+          modelPass = "failed";
+          modelIssue = String(error?.message || error);
+          issues.push({ path: file.path, kind: "model", message: modelIssue, action: "Review the deterministic proposals below, or close this window and re-run after adjusting the model. No model output from this request will be applied." });
           stopAfterRecord = consecutiveProviderErrors >= 3;
-          if (stopAfterRecord) errors.push("LLM second pass stopped after three consecutive provider errors; no fallback provider or retries were used.");
+          if (stopAfterRecord) issues.push({ kind: "stop-policy", message: "The model pass stopped after three consecutive provider errors.", action: "This safety stop prevents repeated disclosure and runaway requests. Fix the provider or use deterministic-only mode before re-running." });
         }
       }
       const suggestions = [...deterministic, ...llm].slice(0, settings.okfEnrichmentMaxSuggestions);
@@ -88,11 +108,11 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
         if (typeof value === "string") currentValues[field] = value;
         else if (Array.isArray(value)) currentValues[field] = value.map(String);
       }
-      records.push({ schema: "okf-plus-enrichment-proposal/1", proposalId: `okfep-${(await sha256Text(material)).slice(0, 24)}`, createdAt: new Date().toISOString(), path: file.path, noteHash, sensitivity, provider: llm.length ? settings.okfEnrichmentProvider as "local" | "lan" | "cloud" : "deterministic", model: llm.length ? settings.okfEnrichmentModel : undefined, policy: { maxParagraphs: settings.okfEnrichmentMaxParagraphs, maxInputChars: settings.okfEnrichmentMaxInputChars, maxTotalInputChars: settings.okfEnrichmentMaxTotalInputChars, maxSuggestions: settings.okfEnrichmentMaxSuggestions, temperature: 0, tools: false, automaticWrite: false }, evidenceAssessment, evidence: blocks.map(({ text: _text, ...block }) => block), currentValues, suggestions, status: "pending" });
+      records.push({ schema: "okf-plus-enrichment-proposal/1", proposalId: `okfep-${(await sha256Text(material)).slice(0, 24)}`, createdAt: new Date().toISOString(), path: file.path, noteHash, sensitivity, provider: llm.length ? settings.okfEnrichmentProvider as "local" | "lan" | "cloud" : "deterministic", model: llm.length ? settings.okfEnrichmentModel : undefined, policy: { maxParagraphs: settings.okfEnrichmentMaxParagraphs, maxInputChars: settings.okfEnrichmentMaxInputChars, maxTotalInputChars: settings.okfEnrichmentMaxTotalInputChars, maxSuggestions: settings.okfEnrichmentMaxSuggestions, temperature: 0, tools: false, automaticWrite: false }, evidenceAssessment, evidence: blocks.map(({ text: _text, ...block }) => block), currentValues, suggestions, status: "pending", modelPass, modelIssue });
       if (stopAfterRecord) break;
-    } catch (error: any) { errors.push(`${file.path}: ${String(error?.message || error)}`); }
+    } catch (error: any) { issues.push({ path: file.path, kind: "scan", message: String(error?.message || error), action: "This note was not included. Open it to correct the reported structure, then re-run the scan." }); }
   }
-  return { records, skipped, excluded, errors };
+  return { records, skipped, excluded, issues };
 }
 
 async function saveReviewQueue(app: App, records: OkfEnrichmentRecord[]): Promise<string> {
@@ -105,7 +125,8 @@ async function saveReviewQueue(app: App, records: OkfEnrichmentRecord[]): Promis
   return path;
 }
 
-interface ReviewControl { accepted: boolean; text: string; }
+type ReviewDecision = "pending" | "accepted" | "rejected";
+interface ReviewControl { decision: ReviewDecision; text: string; }
 
 function reviewText(suggestion: OkfEnrichmentSuggestion): string {
   return Array.isArray(suggestion.value) ? JSON.stringify(suggestion.value) : suggestion.value;
@@ -123,16 +144,20 @@ function reviewedValue(suggestion: OkfEnrichmentSuggestion, text: string): strin
 class OkfEnrichmentPreviewModal extends Modal {
   private controls = new Map<string, ReviewControl>();
   private reviewRecords: OkfEnrichmentRecord[];
+  private progressEl?: HTMLElement;
+  private planButton?: HTMLButtonElement;
   constructor(app: App, private result: Awaited<ReturnType<typeof buildRecords>>, private onApplied?: () => void) { super(app); this.reviewRecords = result.records.slice(0, 50); }
   private key(record: OkfEnrichmentRecord, index: number): string { return `${record.proposalId}:${index}`; }
   private async buildApplyPlan(): Promise<void> {
+    const pending = this.reviewCounts().pending;
+    if (pending > 0) throw new Error(`Review or reject the ${pending} remaining proposal${pending === 1 ? "" : "s"} first.`);
     const sources: OkfEnrichmentApplySource[] = [];
     for (const record of this.reviewRecords) {
       const abstract = this.app.vault.getAbstractFileByPath(record.path);
       const content = abstract instanceof TFile ? await this.app.vault.read(abstract) : "";
       const decisions: OkfEnrichmentReviewDecision[] = record.suggestions.map((originalSuggestion, suggestionIndex) => {
-        const control = this.controls.get(this.key(record, suggestionIndex)) ?? { accepted: false, text: reviewText(originalSuggestion) };
-        if (!control.accepted) return { suggestionIndex, decision: "rejected", edited: false, originalSuggestion };
+        const control = this.controls.get(this.key(record, suggestionIndex)) ?? { decision: "pending", text: reviewText(originalSuggestion) };
+        if (control.decision !== "accepted") return { suggestionIndex, decision: "rejected", edited: false, originalSuggestion };
         const value = reviewedValue(originalSuggestion, control.text);
         const edited = JSON.stringify(value) !== JSON.stringify(originalSuggestion.value);
         const finalSuggestion: OkfEnrichmentSuggestion = { ...originalSuggestion, value, reason: edited ? `${originalSuggestion.reason} Reviewer edited the proposed value.` : originalSuggestion.reason };
@@ -144,34 +169,87 @@ class OkfEnrichmentPreviewModal extends Modal {
     new OkfEnrichmentApplyPreviewModal(this.app, plan, () => this.onApplied?.()).open();
     this.close();
   }
+  private reviewCounts(): { total: number; pending: number; accepted: number; rejected: number } {
+    const values = [...this.controls.values()];
+    return {
+      total: values.length,
+      pending: values.filter((item) => item.decision === "pending").length,
+      accepted: values.filter((item) => item.decision === "accepted").length,
+      rejected: values.filter((item) => item.decision === "rejected").length,
+    };
+  }
+  private updateProgress(): void {
+    const counts = this.reviewCounts();
+    if (this.progressEl) this.progressEl.setText(`${counts.pending} still need review · ${counts.accepted} accepted · ${counts.rejected} rejected · ${counts.total} total`);
+    if (this.planButton) {
+      this.planButton.disabled = counts.pending > 0;
+      this.planButton.setAttribute("aria-disabled", String(counts.pending > 0));
+      this.planButton.title = counts.pending > 0 ? `Resolve ${counts.pending} remaining proposal${counts.pending === 1 ? "" : "s"} first.` : "Preview the hash-bound changes before anything is written.";
+    }
+  }
+  private setRemaining(decision: Exclude<ReviewDecision, "pending">): void {
+    for (const control of this.controls.values()) if (control.decision === "pending") control.decision = decision;
+    this.onOpen();
+  }
   onOpen(): void {
     const { contentEl } = this; contentEl.empty();
     contentEl.createEl("h2", { text: "OKF+ content-assisted proposals" });
-    contentEl.createEl("p", { text: `${this.result.records.length} notes produced pending proposals; ${this.result.excluded.length} matched OKF exclusions; ${this.result.skipped.length} other notes were skipped; ${this.result.errors.length} failed. No frontmatter has been changed.` });
-    contentEl.createEl("p", { text: "Evidence selection is objective and reproducible, not a claim that early prose is meaningful. Nothing is preselected: explicitly accept, reject, or edit each proposal before building a separate hash-bound write plan.", cls: "setting-item-description" });
+    const failedNotes = new Set(this.result.issues.filter((issue) => issue.path).map((issue) => issue.path)).size;
+    const enhanced = this.result.records.filter((record) => record.modelPass === "enhanced").length;
+    const deterministicOnly = this.result.records.filter((record) => record.modelPass !== "enhanced").length;
+    contentEl.createEl("p", { text: `${this.result.records.length} notes produced proposals: ${enhanced} model-enhanced and ${deterministicOnly} deterministic-only. ${this.result.excluded.length} matched exclusions; ${this.result.skipped.length} were skipped; ${failedNotes} had an issue. No frontmatter has been changed.` });
+    const help = contentEl.createEl("div", { cls: "okf-review-help" });
+    help.createEl("h3", { text: "What to do in this window" });
+    const steps = help.createEl("ol");
+    steps.createEl("li", { text: "Open a note below and compare each proposal with its current value and stated reason." });
+    steps.createEl("li", { text: "Choose Accept or Reject. You may edit the proposed value before accepting it." });
+    steps.createEl("li", { text: "When nothing remains under Needs review, build the governed apply plan. That opens a second preview; it still does not write immediately." });
+    help.createEl("p", { text: "A model error does not invalidate deterministic proposals. Review those inline, or close and re-run after changing the model settings. Never copy raw JSON into a note.", cls: "setting-item-description" });
+    this.progressEl = help.createEl("p", { cls: "okf-review-progress" });
+    new Setting(help)
+      .addButton((button) => button.setButtonText("Expand all notes").onClick(() => contentEl.querySelectorAll("details.okf-review-note").forEach((item) => item.setAttribute("open", ""))))
+      .addButton((button) => button.setButtonText("Collapse all notes").onClick(() => contentEl.querySelectorAll("details.okf-review-note").forEach((item) => item.removeAttribute("open"))))
+      .addButton((button) => button.setButtonText("Reject all remaining").onClick(() => this.setRemaining("rejected")));
+    contentEl.createEl("p", { text: "Evidence selection is objective and reproducible, not a claim that early prose is meaningful. No suggestion is accepted by default.", cls: "setting-item-description" });
     if (this.result.records.length > this.reviewRecords.length) contentEl.createEl("p", { text: `This review batch is limited to the first ${this.reviewRecords.length} notes. Save the full queue, then lower the per-run note cap or process another batch before applying the remainder.`, cls: "setting-item-description" });
     for (const record of this.reviewRecords) {
-      const details = contentEl.createEl("details"); details.createEl("summary", { text: `${record.path} (${record.suggestions.length})` });
+      const details = contentEl.createEl("details", { cls: "okf-review-note" }); details.createEl("summary", { text: `${record.path} (${record.suggestions.length}) · ${record.modelPass === "enhanced" ? "model-enhanced" : "deterministic-only"}` });
+      if (record.modelIssue) {
+        const issue = details.createEl("div", { cls: "okf-review-issue" });
+        issue.createEl("strong", { text: "The model response could not be used." });
+        issue.createEl("div", { text: record.modelIssue });
+        issue.createEl("div", { text: "You can still reconcile the deterministic proposals below. To try the model again, close this window, adjust its timeout/model if needed, and re-run the scan. No partial model response is retained." });
+      }
       details.createEl("p", { text: `Evidence quality: ${record.evidenceAssessment.status} (${Math.round(record.evidenceAssessment.qualityScore * 100)}%) — ${record.evidenceAssessment.reasons.join(" ")}` });
       record.suggestions.forEach((suggestion, index) => {
-        const key = this.key(record, index); const control: ReviewControl = { accepted: false, text: reviewText(suggestion) }; this.controls.set(key, control);
+        const key = this.key(record, index); const control: ReviewControl = this.controls.get(key) ?? { decision: "pending", text: reviewText(suggestion) }; this.controls.set(key, control);
         const current = record.currentValues[suggestion.field];
         new Setting(details)
           .setName(`${suggestion.field} · ${Math.round(suggestion.confidence * 100)}% · ${suggestion.source}`)
           .setDesc(`Current: ${JSON.stringify(current ?? "<absent>")} · Reason: ${suggestion.reason}`)
-          .addToggle((toggle) => toggle.setValue(false).setTooltip("Explicitly accept this suggestion").onChange((value) => { control.accepted = value; }))
+          .addDropdown((dropdown) => dropdown
+            .addOption("pending", "Needs review")
+            .addOption("accepted", "Accept")
+            .addOption("rejected", "Reject")
+            .setValue(control.decision)
+            .onChange((value) => { control.decision = value as ReviewDecision; this.updateProgress(); }))
           .addText((input) => { input.setValue(control.text).onChange((value) => { control.text = value; }); input.inputEl.style.width = "min(520px, 55vw)"; });
       });
     }
     if (this.result.excluded.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Excluded from this enrichment scan (${this.result.excluded.length})` }); for (const item of this.result.excluded.slice(0, 100)) d.createEl("div", { text: `${item.path} — ${item.pattern}` }); if (this.result.excluded.length > 100) d.createEl("div", { text: `…and ${this.result.excluded.length - 100} more.` }); }
-    if (this.result.errors.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Errors (${this.result.errors.length})` }); for (const error of this.result.errors.slice(0, 50)) d.createEl("div", { text: error }); }
+    const unattachedIssues = this.result.issues.filter((issue) => !issue.path || !this.reviewRecords.some((record) => record.path === issue.path));
+    if (unattachedIssues.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Run issues (${unattachedIssues.length})` }); for (const issue of unattachedIssues.slice(0, 50)) { const item = d.createEl("div", { cls: "okf-review-issue" }); item.createEl("strong", { text: issue.path ? `${issue.path}: ` : "" }); item.createSpan({ text: issue.message }); item.createEl("div", { text: issue.action, cls: "setting-item-description" }); } }
     new Setting(contentEl)
       .addButton((button) => button.setButtonText("Close").onClick(() => this.close()))
       .addButton((button) => button.setButtonText("Save pending queue").onClick(async () => { const path = await saveReviewQueue(this.app, this.result.records); new Notice(`Vault Kosmos: proposals saved to ${path}. No note frontmatter was changed.`, 10000); }))
-      .addButton((button) => button.setButtonText("Build governed apply plan").setWarning().onClick(async () => {
+      .addButton((button) => {
+        this.planButton = button.buttonEl;
+        button.setButtonText("Build governed apply plan").setWarning().onClick(async () => {
         try { await this.buildApplyPlan(); }
         catch (error: any) { new Notice(`Could not build enrichment apply plan: ${String(error?.message || error)}`, 15000); }
-      }));
+        });
+      });
+    this.updateProgress();
   }
 }
 

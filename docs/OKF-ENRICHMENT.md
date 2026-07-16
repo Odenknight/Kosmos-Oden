@@ -106,6 +106,25 @@ reviewed value, original proposal, decision, reason, confidence, and evidence
 references are bound into the plan. Confidence never selects or accepts an
 item.
 
+The proposal window is the reconciliation workspace; you do not need to hunt
+through the vault for a separate review screen:
+
+1. Read the short workflow shown at the top and open a note row.
+2. Compare each current value, proposed value, confidence, source, and reason.
+3. Choose **Accept** or **Reject**. Edit the proposed value before accepting
+   when the idea is correct but the wording or list needs correction.
+4. Use **Reject all remaining** only when every still-unreviewed proposal
+   should remain out of the plan.
+5. Build the governed apply plan after the remaining-review count reaches
+   zero. This opens another preview and still does not write immediately.
+
+Each note is labeled **model-enhanced** or **deterministic-only**. If the model
+times out or returns malformed JSON, that note displays the issue and recovery
+choice inline. The partial model response is discarded; deterministic
+proposals can still be reconciled safely. Close and re-run after adjusting the
+model only if a model second pass is still desired. Never paste raw model JSON
+into note frontmatter.
+
 Before a note can be marked ready, the planner:
 
 - rechecks that its SHA-256 hash still matches the source of the proposal;

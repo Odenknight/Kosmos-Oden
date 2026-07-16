@@ -26,7 +26,11 @@ export function validateOkfLlmConfiguration(settings: AgentSettings): string {
 
 function parseJsonObject(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  return JSON.parse(trimmed);
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    throw new Error("The model returned incomplete or malformed JSON. Its response was discarded; deterministic proposals remain available for review.");
+  }
 }
 
 /** Bounded OpenAI-compatible JSON request shared by the two advisory passes. */
