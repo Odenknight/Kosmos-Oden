@@ -7,6 +7,26 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.4] — 2026-07-16 (pre-release)
+
+### Added
+- Renamed the enrichment action to **Scan / re-scan all OKF+ 2.2 notes** and
+  clarified that every run reads current eligible notes again, including notes
+  already upgraded by the deterministic migration.
+- Added local-model advisory triage for migration-blocked notes. It returns
+  explanations, manual inspection steps, and questions for a human; it has no
+  note-write path and cannot emit a retained executable YAML patch.
+
+### Security
+- Blocked-note model review is loopback-local only because a blocked note may
+  have missing or invalid sensitivity metadata. Cloud review is unavailable.
+- Only bounded, provably closed frontmatter is sent; likely credential fields
+  and their nested/multiline values are redacted. Unterminated frontmatter is
+  omitted. Output must cite supplied deterministic finding codes and is saved
+  without the transmitted frontmatter excerpt.
+- Clarified that “no LLM needed” describes deterministic structural migration,
+  not the separately configured enrichment re-scan.
+
 ## [0.6.5-alpha.3] — 2026-07-16 (pre-release)
 
 ### Added

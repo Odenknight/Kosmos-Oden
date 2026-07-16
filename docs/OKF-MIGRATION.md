@@ -137,6 +137,21 @@ review queue rather than automatic frontmatter writes. See
 MCP connector remains separate and does not grant a model write authority over
 this migration.
 
+The enrichment action is a re-scan, not a one-time migration stage. Every time
+**Scan / re-scan all OKF+ 2.2 notes** runs, it reads the current eligible 2.2
+notes again. Already-upgraded notes are included. Unchanged notes may produce
+the same proposal, and duplicate queue records are suppressed by proposal ID.
+
+Blocked migration entries are different: their frontmatter is not safe to
+rewrite mechanically. When a loopback Local LLM is configured, the migration
+preview offers advisory blocked-note triage. It sends only deterministic
+finding codes and bounded frontmatter whose closing boundary can be proven;
+likely credential-key values are redacted. Unterminated frontmatter is
+omitted. The model may explain the
+blockers, suggest manual inspection steps, and ask questions; it cannot provide
+a retained executable YAML patch or write a note. Cloud blocked-note review is
+not offered because these notes may lack trustworthy sensitivity metadata.
+
 ## Recovery
 
 Stop sync before recovering a file. Locate its `.bak` using `result.json`,

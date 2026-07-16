@@ -3,5 +3,5 @@
  * scripts/check-versions.mjs asserts that package.json, manifest.json and
  * versions.json stay in sync with this constant (CI fails otherwise).
  */
-export const KOSMOS_VERSION = "0.6.5-alpha.3";
+export const KOSMOS_VERSION = "0.6.5-alpha.4";
 export const KOSMOS_NAME = "kosmos-oden";

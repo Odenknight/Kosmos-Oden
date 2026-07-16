@@ -2,15 +2,22 @@
 
 ## What this feature does
 
-After structural onboarding to OKF+ 2.2, **Propose OKF+ metadata from bounded
-note evidence** can create pending suggestions for descriptions, note types,
-tags, and explicitly evidenced relationships. It never changes note
-frontmatter automatically. The proposal preview may be saved to
+After structural onboarding to OKF+ 2.2, **Scan / re-scan all OKF+ 2.2 notes
+for enrichment proposals** can create pending suggestions for descriptions,
+note types, tags, and explicitly evidenced relationships. It never changes
+note frontmatter automatically. The proposal preview may be saved to
 `.okf/review-queue.jsonl`, or a human can explicitly review each suggestion
 and build a governed apply plan.
 
 The deterministic pass always runs first. A second OpenAI-compatible local or
 cloud LLM pass is optional and disabled by default.
+
+This is explicitly a **scan / re-scan** operation. Migration does not mark a
+2.2 note as permanently processed. Each run reads every currently eligible
+OKF+ 2.2 note within the configured caps, including notes upgraded in an
+earlier deterministic migration. Unchanged notes can produce identical
+proposals; duplicate JSONL queue records are suppressed by content-derived
+proposal ID.
 
 ## “Meaningful” is not an objective automation guarantee
 
@@ -105,3 +112,18 @@ has changed. It then creates a byte-exact copy under
 canonical frontmatter can be normalized, but the Markdown body is preserved
 byte-for-byte. The decision plan and result audit are stored under
 `.okf/enrichment/<run-id>/`.
+
+## Blocked migration notes
+
+Migration-blocked notes do not enter ordinary enrichment because their
+frontmatter is not yet canonical OKF+ 2.2. The migration preview can ask the
+configured loopback Local LLM for advisory triage. This is intentionally more
+limited than enrichment: bounded frontmatter and deterministic blocker codes
+are sent, with likely credential-key values redacted. The result must cite the
+supplied codes, and the
+model can return explanations, manual steps, and questions only. The saved
+report contains no transmitted frontmatter excerpt and has no apply action.
+
+Cloud blocked-note review is unavailable. A missing or invalid sensitivity
+field is itself a common blocker, so using that field to authorize cloud
+disclosure would be circular and unsafe.

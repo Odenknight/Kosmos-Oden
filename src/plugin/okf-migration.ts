@@ -9,6 +9,8 @@ import {
   type OkfMigrationPlan,
   type OkfMigrationSource,
 } from "../core/okf-migration";
+import type { AgentSettings } from "./agent-server";
+import { openOkfBlockedReview } from "./okf-blocked-review";
 
 export interface OkfMigrationApplyResult {
   runId: string;
@@ -154,7 +156,7 @@ export class OkfMigrationPreviewModal extends Modal {
   private onApply: (plan: OkfMigrationPlan) => Promise<void>;
   private applying = false;
 
-  constructor(app: App, plan: OkfMigrationPlan, onApply: (plan: OkfMigrationPlan) => Promise<void>) {
+  constructor(app: App, plan: OkfMigrationPlan, onApply: (plan: OkfMigrationPlan) => Promise<void>, private settings?: AgentSettings) {
     super(app); this.plan = plan; this.onApply = onApply;
   }
 
@@ -173,7 +175,7 @@ export class OkfMigrationPreviewModal extends Modal {
     summary.createEl("li", { text: `${plan.totals.blocked} need manual review and will not be changed` });
 
     warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .okf/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
-    warningBox(contentEl, "No LLM is used or needed.", "This pass is deterministic and local. No note content is sent to OpenAI, Anthropic, Google, or a local model. It uses conservative defaults: semantic, hypothesis, node-scoped, and internal. An LLM may later suggest richer descriptions, types, tags, or relationships, but those are semantic proposals and should require review. Prefer a local model for confidential material; never send confidential or PHI notes to a cloud model without explicit policy and consent.");
+    warningBox(contentEl, "This migration preview is deterministic; model enrichment is a separate re-scan.", "This screen does not call any model or send note content anywhere. It can create structurally valid OKF+ 2.2 metadata using conservative defaults without an LLM. After migration, choose a second-pass provider in Settings and run Scan / re-scan all 2.2 notes for richer, review-only proposals. Already-upgraded 2.2 notes are included each time. Model proposals are never accepted or written automatically.");
     warningBox(contentEl, "Review sensitivity after migration.", "The default label is internal; it is not a content-based privacy classification. Review notes that may contain confidential data or protected health information before enabling cloud agents or raising connector access. Existing invalid governance values, duplicate UIDs, duplicate keys, and nested/ambiguous YAML are blocked instead of overwritten.");
     if (upgradeAll) warningBox(contentEl, "Upgrade-all is a governed override, not a force switch.", "Recoverable legacy/2.1 values are replaced with conservative v2.2 values and their originals are retained in the hash-bound migration plan. Duplicate keys, ambiguous YAML, unsafe relationship targets, and duplicate UIDs remain blocked. Confidence is a deterministic migration-safety score used to order review; it is never epistemic truth or approval authority.");
 
@@ -184,6 +186,18 @@ export class OkfMigrationPreviewModal extends Modal {
     if (changed.length) this.renderEntries(contentEl, "Proposed changes", changed);
     const blocked = plan.entries.filter((e) => e.status === "blocked");
     if (blocked.length) this.renderEntries(contentEl, "Blocked for review", blocked);
+    if (blocked.length) {
+      const localConfigured = this.settings?.okfEnrichmentProvider === "local";
+      new Setting(contentEl)
+        .setName("Local model advisory review of blocked notes")
+        .setDesc(localConfigured
+          ? "Sends bounded frontmatter with likely credential-key values redacted, plus deterministic blocker codes, to your configured loopback model. It returns explanations, manual steps, and questions only—never YAML, an executable patch, or a note write."
+          : "Choose Local LLM under Content-assisted enrichment first. Cloud review is intentionally unavailable because blocked notes may have missing or invalid sensitivity labels.")
+        .addButton((button) => button
+          .setButtonText(localConfigured ? `Review ${Math.min(blocked.length, this.settings!.okfEnrichmentMaxNotes)} blocked notes locally` : "Local LLM required")
+          .setDisabled(!localConfigured)
+          .onClick(async () => { if (this.settings) await openOkfBlockedReview(this.app, plan, this.settings); }));
+    }
 
     if (!plan.totals.changes) {
       new Setting(contentEl)
@@ -243,6 +257,7 @@ export async function openOkfMigrationWorkflow(
   app: App,
   mode: OkfMigrationMode = "safe-onboarding",
   onApplied?: (result: OkfMigrationApplyResult) => void,
+  settings?: AgentSettings,
 ): Promise<void> {
   const scanning = new Notice("Vault Kosmos: scanning notes for OKF/OKF+ frontmatter…", 0);
   try {
@@ -261,7 +276,7 @@ export async function openOkfMigrationWorkflow(
         new Notice(`Vault Kosmos OKF+ migration stopped: ${String(error?.message || error)}. No unbacked note is intentionally written.`, 15000);
         throw error;
       }
-    }).open();
+    }, settings).open();
   } catch (error: any) {
     scanning.hide();
     new Notice(`Vault Kosmos could not scan OKF+ frontmatter: ${String(error?.message || error)}`, 15000);

@@ -232,7 +232,7 @@ export class KosmosSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h3", { text: "OKF+ note formatting" });
     containerEl.createEl("p", {
-      text: "Audit every Markdown note or explicitly upgrade every mechanically recoverable note to normative OKF+ 2.2. Both modes require a hash-bound dry-run preview, independent-backup confirmation, and byte-exact local backup. Upgrade-all preserves overridden legacy values in the migration plan and never forces ambiguous YAML or identity conflicts. No LLM or network connection is used.",
+      text: "Audit every Markdown note or explicitly upgrade every mechanically recoverable note to normative OKF+ 2.2. These migration buttons are deterministic and never contact a model. Model enrichment is the separate section below and can re-scan notes after they already conform to 2.2. Both write-capable migration modes require a hash-bound preview, independent-backup confirmation, and byte-exact local backup.",
       cls: "setting-item-description",
     });
     new Setting(containerEl)
@@ -246,7 +246,7 @@ export class KosmosSettingTab extends PluginSettingTab {
       }));
 
     containerEl.createEl("h4", { text: "Content-assisted enrichment proposals" });
-    containerEl.createEl("p", { text: "Runs only after notes are OKF+ 2.2. Deterministic evidence selection proposes tags, descriptions, types, and explicit supersession candidates. An optional OpenAI-compatible local/cloud model may add schema-validated proposals. Governance authority fields are outside the model's schema, and no proposal writes frontmatter automatically.", cls: "setting-item-description" });
+    containerEl.createEl("p", { text: "Runs after notes are OKF+ 2.2 and deliberately scans them again on every run—even if migration already processed them. Deterministic evidence selection proposes tags, descriptions, types, and explicit supersession candidates. An optional OpenAI-compatible local/cloud model may add schema-validated proposals. Governance authority fields are outside the model's schema, and no proposal writes frontmatter automatically.", cls: "setting-item-description" });
     new Setting(containerEl).setName("Second-pass provider").setDesc("Disabled means deterministic proposals only. Local endpoints must be loopback; cloud endpoints must use HTTPS.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "Local LLM (loopback)").addOption("cloud", "Cloud LLM (HTTPS)").setValue(s.okfEnrichmentProvider).onChange(async (v: any) => { s.okfEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
     if (s.okfEnrichmentProvider !== "none") {
       new Setting(containerEl).setName("OpenAI-compatible endpoint").setDesc(s.okfEnrichmentProvider === "local" ? "Loopback only, for example Ollama /v1/chat/completions." : "HTTPS only. Confidential and PHI notes are always excluded.").addText((t) => t.setValue(s.okfEnrichmentEndpoint).onChange(async (v) => { s.okfEnrichmentEndpoint = v.trim(); await this.plugin.saveAgentSettings(); }));
@@ -259,7 +259,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Run input budget").setDesc("Hard total evidence budget across the run: 4,000–250,000 characters.").addText((t) => t.setValue(String(s.okfEnrichmentMaxTotalInputChars)).onChange(async (v) => { s.okfEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(v) || 50000)); await this.plugin.saveAgentSettings(); }));
     new Setting(containerEl).setName("Proposal cap").setDesc("Maximum schema-valid suggestions retained per note (1–24).").addText((t) => t.setValue(String(s.okfEnrichmentMaxSuggestions)).onChange(async (v) => { s.okfEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(v) || 12)); await this.plugin.saveAgentSettings(); }));
     if (s.okfEnrichmentProvider !== "none") new Setting(containerEl).setName("Request timeout").setDesc("5–120 seconds per note; timed-out requests are not retried.").addText((t) => t.setValue(String(Math.round(s.okfEnrichmentTimeoutMs / 1000))).onChange(async (v) => { s.okfEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, (Number(v) || 30) * 1000)); await this.plugin.saveAgentSettings(); }));
-    new Setting(containerEl).setName("Build enrichment preview").setDesc("Selected evidence is bounded and treated as untrusted. LLM tools are disabled, temperature is zero, output is schema-validated, and proposals remain pending in .okf/review-queue.jsonl.").addButton((b) => b.setButtonText("Preview proposals").setCta().onClick(async () => { await this.plugin.proposeOkfEnrichment(); }));
+    new Setting(containerEl).setName("Scan or re-scan OKF+ 2.2 notes").setDesc("Every click reads the current eligible 2.2 notes again. Unchanged notes may produce the same proposals; duplicate queue records are suppressed. Selected evidence is bounded and untrusted, model tools are disabled, and nothing is written automatically.").addButton((b) => b.setButtonText("Scan / re-scan all 2.2 notes").setCta().onClick(async () => { await this.plugin.proposeOkfEnrichment(); }));
 
     containerEl.createEl("h3", { text: "Quick connect — Anthropic, OpenAI, and universal MCP" });
     const url = () => {

@@ -13,6 +13,7 @@ export * from "./markdown";
 export * from "./okf";
 export * from "./okf-migration";
 export * from "./okf-enrichment";
+export * from "./okf-blocked-review";
 export * from "./resolver";
 export * from "./lineage";
 export * from "./temporal";

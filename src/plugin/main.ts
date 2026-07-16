@@ -282,7 +282,7 @@ export default class VaultKosmosPlugin extends Plugin {
       name: "Mark notes in OKF+ format (scan, back up, and preview)",
       callback: () => void this.markNotesInOkf(),
     });
-    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Propose OKF+ metadata from bounded note evidence", callback: () => void this.proposeOkfEnrichment() });
+    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Scan / re-scan all OKF+ 2.2 notes for enrichment proposals", callback: () => void this.proposeOkfEnrichment() });
     this.addCommand({
       id: "upgrade-all-notes-okf-plus-2-2",
       name: "Upgrade all recoverable notes to OKF+ 2.2 (preview first)",
@@ -344,7 +344,7 @@ export default class VaultKosmosPlugin extends Plugin {
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
   async markNotesInOkf(mode: OkfMigrationMode = "safe-onboarding"): Promise<void> {
-    await openOkfMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty());
+    await openOkfMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings);
   }
 
   async proposeOkfEnrichment(): Promise<void> {

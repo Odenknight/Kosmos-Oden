@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.3
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.4
 
-**Version 0.6.5-alpha.3** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-alpha.4** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -168,7 +168,7 @@ The audit recognizes both strict OKF+ 2.2 and [Google's intentionally minimal OK
 
 Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
 
-No LLM is needed or contacted. New metadata uses transparent conservative defaults: `semantic`, `hypothesis`, `node` scope, and `internal` sensitivity. An LLM can be useful later for proposed summaries, tags, types, or relationships, but those are semantic suggestions—not safe bulk repairs. Prefer a local model for private material; cloud enrichment must be separately opted into after sensitivity review and must never auto-accept governance changes. See [the migration guide](docs/OKF-MIGRATION.md).
+The migration scan itself is deterministic and contacts no model; “no LLM needed” applies to structural onboarding, not to the separate enrichment feature. After migration, **Scan / re-scan all OKF+ 2.2 notes for enrichment proposals** reads every eligible 2.2 note again using the configured deterministic/local/cloud second pass. A local model can also provide advisory triage for blocked migration entries, but it cannot emit executable YAML or write notes. Cloud blocked-note review is intentionally unavailable because those notes may not have trustworthy sensitivity metadata. See [the migration guide](docs/OKF-MIGRATION.md).
 
 ---
 

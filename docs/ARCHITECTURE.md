@@ -67,7 +67,9 @@ stdio-only harnesses. `okf-migration.ts` hosts the explicit structural
 audit/backup/apply modal. `okf-enrichment.ts` builds deterministic and optional
 bounded-LLM proposals; `okf-enrichment-apply.ts` keeps the later human review,
 hash-bound decision plan, backup, source recheck, and write authority in a
-separate step.
+separate step. `okf-blocked-review.ts` is a local-only, advisory boundary for
+migration blockers; it shares the bounded JSON request transport in
+`okf-llm.ts` but has no route into either writer.
 
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
