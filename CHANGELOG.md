@@ -7,6 +7,13 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.7] — 2026-07-16 (pre-release)
+
+### Fixed
+- Replaced the proposal row's viewport-sized input width with a bounded,
+  responsive two-column layout. Field descriptions no longer collapse into a
+  near-zero-width column and create extremely tall gaps between controls.
+
 ## [0.6.5-alpha.6] — 2026-07-16 (pre-release)
 
 ### Added

@@ -33,9 +33,43 @@
   font-weight: var(--font-semibold);
 }
 
+.okf-review-note .okf-review-proposal {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.25fr);
+  gap: 0.5rem 1rem;
+  align-items: start;
+  min-height: 0;
+  padding: 0.55rem 0;
+}
+
+.okf-review-note .okf-review-proposal .setting-item-info,
+.okf-review-note .okf-review-proposal .setting-item-control {
+  align-self: start;
+  min-width: 0;
+  margin: 0;
+}
+
+.okf-review-note .okf-review-proposal .setting-item-control {
+  display: grid;
+  grid-template-columns: max-content minmax(160px, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.okf-review-note .okf-review-proposal input[type="text"] {
+  width: 100%;
+  min-width: 0;
+}
+
 .okf-review-issue {
   margin: 0.5rem 0;
   padding: 0.6rem 0.75rem;
   border-left: 3px solid var(--color-orange);
   background: var(--background-secondary-alt);
+}
+
+@media (max-width: 700px) {
+  .okf-review-note .okf-review-proposal {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

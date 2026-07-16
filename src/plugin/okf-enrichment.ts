@@ -224,7 +224,7 @@ class OkfEnrichmentPreviewModal extends Modal {
       record.suggestions.forEach((suggestion, index) => {
         const key = this.key(record, index); const control: ReviewControl = this.controls.get(key) ?? { decision: "pending", text: reviewText(suggestion) }; this.controls.set(key, control);
         const current = record.currentValues[suggestion.field];
-        new Setting(details)
+        const row = new Setting(details)
           .setName(`${suggestion.field} · ${Math.round(suggestion.confidence * 100)}% · ${suggestion.source}`)
           .setDesc(`Current: ${JSON.stringify(current ?? "<absent>")} · Reason: ${suggestion.reason}`)
           .addDropdown((dropdown) => dropdown
@@ -233,7 +233,8 @@ class OkfEnrichmentPreviewModal extends Modal {
             .addOption("rejected", "Reject")
             .setValue(control.decision)
             .onChange((value) => { control.decision = value as ReviewDecision; this.updateProgress(); }))
-          .addText((input) => { input.setValue(control.text).onChange((value) => { control.text = value; }); input.inputEl.style.width = "min(520px, 55vw)"; });
+          .addText((input) => { input.setValue(control.text).onChange((value) => { control.text = value; }); });
+        row.settingEl.addClass("okf-review-proposal");
       });
     }
     if (this.result.excluded.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Excluded from this enrichment scan (${this.result.excluded.length})` }); for (const item of this.result.excluded.slice(0, 100)) d.createEl("div", { text: `${item.path} — ${item.pattern}` }); if (this.result.excluded.length > 100) d.createEl("div", { text: `…and ${this.result.excluded.length - 100} more.` }); }
