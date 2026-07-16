@@ -7,6 +7,22 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.3] — 2026-07-16 (pre-release)
+
+### Added
+- Added a governed enrichment review and apply workflow. No proposal is
+  preselected; reviewers can accept, reject, or edit each value before a
+  note-body-free SHA-256 plan is created.
+- Accepted relationship targets must resolve and cannot point back to the
+  source note. Conflicting scalar decisions are blocked for correction.
+
+### Security
+- Apply rechecks the proposal source hash, verifies the plan and in-memory
+  content hashes, rechecks exact live note bytes, creates byte-exact backups,
+  and writes only still-matching notes through Obsidian's note processor.
+- Plans and results are retained under `.okf/enrichment/<run-id>/`; note bodies
+  are omitted from the persisted plan and Markdown body bytes are preserved.
+
 ## [0.6.5-alpha.2] — 2026-07-15 (pre-release)
 
 ### Added

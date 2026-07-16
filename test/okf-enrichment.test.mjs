@@ -1,6 +1,50 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessOkfEvidence, deterministicOkfSuggestions, selectOkfEvidenceWindow, validateLlmEnrichmentResponse } from "../dist/kosmos-core.mjs";
+import {
+  assessOkfEvidence,
+  createOkfEnrichmentApplyPlan,
+  deterministicOkfSuggestions,
+  publicOkfEnrichmentApplyPlan,
+  selectOkfEvidenceWindow,
+  sha256Text,
+  validateLlmEnrichmentResponse,
+  verifyOkfEnrichmentApplyPlan,
+} from "../dist/kosmos-core.mjs";
+
+const canonicalNote = (title = "Current Guide", body = "# Current Guide\n\nBody bytes stay exactly the same.\n") => [
+  "---",
+  'okf_version: "2.2"',
+  'uid: "12345678-1234-4123-8123-123456789abc"',
+  'type: "semantic"',
+  `title: "${title}"`,
+  'description: "Old description"',
+  'timestamp: "2026-07-15T12:00:00.000Z"',
+  'epistemic_state: "hypothesis"',
+  'scope: "node"',
+  'scope_id: "12345678-1234-4123-8123-123456789abc"',
+  'sensitivity: "internal"',
+  "tags:",
+  '  - "existing"',
+  "supersedes: []",
+  "superseded_by: []",
+  "forked_from: []",
+  "forked_to: []",
+  "---",
+  body,
+].join("\n");
+
+const suggestion = (field, value, confidence = 0.8) => ({
+  field, value, confidence, reason: `Reviewed evidence for ${field}`,
+  evidenceBlockIds: [1], source: "deterministic",
+});
+
+const accept = (suggestionIndex, item, finalValue = item.value) => ({
+  suggestionIndex,
+  decision: "accepted",
+  edited: JSON.stringify(finalValue) !== JSON.stringify(item.value),
+  originalSuggestion: item,
+  finalSuggestion: { ...item, value: finalValue },
+});
 
 test("evidence window excludes code/tables and selects bounded reproducible prose", async () => {
   const note = [
@@ -54,4 +98,70 @@ test("insufficient structure is reported as fallback evidence, not semantic cert
   const assessment = assessOkfEvidence(blocks);
   assert.equal(assessment.status, "weak");
   assert.ok(assessment.reasons.some((reason) => /fallback/i.test(reason)));
+});
+
+test("governed apply plan binds reviewed edits and safely merges metadata without changing the body", async () => {
+  const content = canonicalNote();
+  const proposals = [
+    suggestion("description", "Draft description"),
+    suggestion("type", "procedural"),
+    suggestion("tags", ["new-tag"]),
+    suggestion("supersedes", "[[Old Guide]]"),
+    suggestion("related_to", "[[Project Hub]]"),
+  ];
+  const plan = await createOkfEnrichmentApplyPlan([{
+    path: "Current Guide.md",
+    proposalId: "proposal-1",
+    expectedNoteHash: await sha256Text(content),
+    content,
+    decisions: proposals.map((item, index) => accept(index, item, index === 0 ? "Reviewer-approved description" : item.value)),
+  }], {
+    now: () => new Date("2026-07-16T00:00:00.000Z"),
+    uuid: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    resolveRelationship: async (_source, target) => ({ "Old Guide": "Old Guide.md", "Project Hub": "Project Hub.md" })[target] ?? null,
+  });
+  assert.equal(plan.totals.ready, 1);
+  assert.equal(plan.totals.edited, 1);
+  assert.equal(await verifyOkfEnrichmentApplyPlan(plan), true);
+  const proposed = plan.entries[0].proposedContent;
+  assert.match(proposed, /description: "Reviewer-approved description"/);
+  assert.match(proposed, /type: "procedural"/);
+  assert.match(proposed, /  - "existing"\n  - "new-tag"/);
+  assert.match(proposed, /supersedes:\n  - "\[\[Old Guide\]\]"/);
+  assert.match(proposed, /related_to:\n  - "\[\[Project Hub\]\]"/);
+  assert.equal(proposed.slice(proposed.indexOf("---\n# Current Guide") + 4), content.slice(content.indexOf("---\n# Current Guide") + 4));
+  const persisted = JSON.stringify(publicOkfEnrichmentApplyPlan(plan));
+  assert.doesNotMatch(persisted, /Body bytes stay exactly the same|originalContent|proposedContent/);
+});
+
+test("apply plan verification detects decision tampering", async () => {
+  const content = canonicalNote();
+  const item = suggestion("description", "Reviewed description");
+  const plan = await createOkfEnrichmentApplyPlan([{
+    path: "Current Guide.md", proposalId: "proposal-2", expectedNoteHash: await sha256Text(content), content,
+    decisions: [accept(0, item)],
+  }]);
+  assert.equal(await verifyOkfEnrichmentApplyPlan(plan), true);
+  plan.entries[0].decisions[0].finalSuggestion.value = "Tampered after preview";
+  assert.equal(await verifyOkfEnrichmentApplyPlan(plan), false);
+});
+
+test("changed sources, unresolved/self relationships, and conflicting scalars are blocked", async () => {
+  const content = canonicalNote();
+  const old = suggestion("supersedes", "[[Missing Guide]]");
+  const self = suggestion("related_to", "[[Current Guide]]");
+  const descriptionA = suggestion("description", "Description A");
+  const descriptionB = suggestion("description", "Description B");
+  const noteHash = await sha256Text(content);
+  const plan = await createOkfEnrichmentApplyPlan([
+    { path: "Changed.md", proposalId: "changed", expectedNoteHash: "0".repeat(64), content, decisions: [accept(0, descriptionA)] },
+    { path: "Missing.md", proposalId: "missing", expectedNoteHash: noteHash, content, decisions: [accept(0, old)] },
+    { path: "Current Guide.md", proposalId: "self", expectedNoteHash: noteHash, content, decisions: [accept(0, self)] },
+    { path: "Conflict.md", proposalId: "conflict", expectedNoteHash: noteHash, content, decisions: [accept(0, descriptionA), accept(1, descriptionB)] },
+  ], { resolveRelationship: async (_source, target) => target === "Current Guide" ? "Current Guide.md" : null });
+  assert.equal(plan.totals.blocked, 4);
+  assert.match(plan.entries.find((entry) => entry.path === "Changed.md").reasons.join(" "), /changed after/);
+  assert.match(plan.entries.find((entry) => entry.path === "Missing.md").reasons.join(" "), /does not resolve/);
+  assert.match(plan.entries.find((entry) => entry.path === "Current Guide.md").reasons.join(" "), /same note/);
+  assert.match(plan.entries.find((entry) => entry.path === "Conflict.md").reasons.join(" "), /conflicting description/);
 });

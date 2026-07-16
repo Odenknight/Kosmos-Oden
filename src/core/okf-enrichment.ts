@@ -1,5 +1,5 @@
 import { parseFrontmatter } from "./markdown";
-import { sha256Text } from "./okf-migration";
+import { applyOkfEnrichmentFrontmatter, makeOkfUuidV4, sha256Text, type OkfEnrichmentFrontmatterUpdates } from "./okf-migration";
 
 export type OkfEnrichmentField = "description" | "type" | "tags" | "supersedes" | "related_to";
 
@@ -156,4 +156,157 @@ export function validateLlmEnrichmentResponse(value: unknown, blocks: OkfEvidenc
     out.push({ field: row.field, value: normalized, confidence, reason, evidenceBlockIds: ids, source: "llm" });
   }
   return out;
+}
+
+export interface OkfEnrichmentReviewDecision {
+  suggestionIndex: number;
+  decision: "accepted" | "rejected";
+  edited: boolean;
+  originalSuggestion: OkfEnrichmentSuggestion;
+  finalSuggestion?: OkfEnrichmentSuggestion;
+}
+
+export interface OkfEnrichmentApplySource {
+  path: string;
+  proposalId: string;
+  expectedNoteHash: string;
+  content: string;
+  decisions: OkfEnrichmentReviewDecision[];
+}
+
+export interface OkfEnrichmentApplyEntry {
+  path: string;
+  proposalId: string;
+  status: "ready" | "no-change" | "blocked";
+  reasons: string[];
+  expectedNoteHash: string;
+  originalHash: string;
+  proposedHash?: string;
+  decisions: OkfEnrichmentReviewDecision[];
+  resolvedRelationships: Array<{ field: "supersedes" | "related_to"; value: string; path: string }>;
+  /** In-memory only; removed by publicOkfEnrichmentApplyPlan. */
+  originalContent: string;
+  /** In-memory only; removed by publicOkfEnrichmentApplyPlan. */
+  proposedContent?: string;
+}
+
+export interface OkfEnrichmentApplyPlan {
+  schema: "okf-plus-enrichment-apply-plan/1";
+  runId: string;
+  createdAt: string;
+  planHash: string;
+  totals: { notes: number; ready: number; blocked: number; noChange: number; reviewed: number; accepted: number; rejected: number; edited: number };
+  entries: OkfEnrichmentApplyEntry[];
+}
+
+export interface OkfEnrichmentApplyPlanOptions {
+  now?: () => Date;
+  uuid?: () => string;
+  resolveRelationship?: (sourcePath: string, wikilinkTarget: string) => Promise<string | null>;
+}
+
+function applyPlanMaterial(plan: Omit<OkfEnrichmentApplyPlan, "planHash"> | OkfEnrichmentApplyPlan): unknown {
+  return {
+    schema: plan.schema, runId: plan.runId, createdAt: plan.createdAt, totals: plan.totals,
+    entries: plan.entries.map((entry) => ({
+      path: entry.path, proposalId: entry.proposalId, status: entry.status, reasons: entry.reasons,
+      expectedNoteHash: entry.expectedNoteHash, originalHash: entry.originalHash, proposedHash: entry.proposedHash,
+      decisions: entry.decisions, resolvedRelationships: entry.resolvedRelationships,
+    })),
+  };
+}
+
+function reviewedSuggestion(suggestion: OkfEnrichmentSuggestion): OkfEnrichmentSuggestion {
+  const field = suggestion.field;
+  if (!["description", "type", "tags", "supersedes", "related_to"].includes(field)) throw new Error(`unsupported reviewed field: ${field}`);
+  let value: string | string[];
+  if (field === "description") {
+    if (typeof suggestion.value !== "string" || !suggestion.value.trim() || suggestion.value.trim().length > 500) throw new Error("description must contain 1–500 characters");
+    value = suggestion.value.trim();
+  } else if (field === "type") {
+    if (typeof suggestion.value !== "string" || !["episodic", "semantic", "procedural"].includes(suggestion.value.trim())) throw new Error("type must be episodic, semantic, or procedural");
+    value = suggestion.value.trim();
+  } else {
+    const values = (Array.isArray(suggestion.value) ? suggestion.value : [suggestion.value]).map((item) => String(item).trim()).filter(Boolean);
+    if (!values.length || values.length > 20) throw new Error(`${field} requires 1–20 values`);
+    if (field === "tags" && values.some((item) => !/^[A-Za-z][\w/-]{0,79}$/.test(item))) throw new Error("tags contain unsupported characters");
+    if (field !== "tags" && values.some((item) => !/^\[\[[^\]\r\n]{1,180}\]\]$/.test(item))) throw new Error(`${field} values must be bounded wikilinks`);
+    value = [...new Set(values)];
+  }
+  if (!Number.isFinite(suggestion.confidence) || suggestion.confidence < 0 || suggestion.confidence > 1) throw new Error("suggestion confidence is invalid");
+  if (!suggestion.reason.trim()) throw new Error("suggestion reason is required");
+  return { ...suggestion, value, reason: suggestion.reason.trim().slice(0, 500), evidenceBlockIds: [...new Set(suggestion.evidenceBlockIds)].slice(0, 8) };
+}
+
+/** Build a note-body-free, hash-bound plan from explicit review decisions. */
+export async function createOkfEnrichmentApplyPlan(
+  sources: OkfEnrichmentApplySource[],
+  options: OkfEnrichmentApplyPlanOptions = {},
+): Promise<OkfEnrichmentApplyPlan> {
+  const now = options.now ?? (() => new Date());
+  const uuid = options.uuid ?? makeOkfUuidV4;
+  const createdAt = now().toISOString();
+  const runId = `okf-enrich-${createdAt.replace(/[-:.]/g, "")}-${uuid().slice(0, 8)}`;
+  const entries: OkfEnrichmentApplyEntry[] = [];
+  for (const source of [...sources].sort((a, b) => a.path.localeCompare(b.path))) {
+    const originalHash = await sha256Text(source.content);
+    const entry: OkfEnrichmentApplyEntry = { path: source.path, proposalId: source.proposalId, status: "no-change", reasons: [], expectedNoteHash: source.expectedNoteHash, originalHash, decisions: source.decisions.map((decision) => ({ ...decision })), resolvedRelationships: [], originalContent: source.content };
+    if (originalHash !== source.expectedNoteHash) { entry.status = "blocked"; entry.reasons.push("note content changed after the enrichment proposal was generated"); entries.push(entry); continue; }
+    const accepted: OkfEnrichmentSuggestion[] = [];
+    try {
+      for (const decision of entry.decisions) if (decision.decision === "accepted") {
+        if (!decision.finalSuggestion) throw new Error(`accepted suggestion ${decision.suggestionIndex} has no reviewed value`);
+        decision.finalSuggestion = reviewedSuggestion(decision.finalSuggestion);
+        accepted.push(decision.finalSuggestion);
+      }
+    } catch (error: any) { entry.status = "blocked"; entry.reasons.push(String(error?.message || error)); entries.push(entry); continue; }
+    if (!accepted.length) { entry.reasons.push("reviewer accepted no suggestions for this note"); entries.push(entry); continue; }
+    for (const field of ["description", "type"] as const) {
+      const values = accepted.filter((suggestion) => suggestion.field === field).map((suggestion) => JSON.stringify(suggestion.value));
+      if (new Set(values).size > 1) entry.reasons.push(`multiple conflicting ${field} values were accepted`);
+    }
+    if (entry.reasons.length) { entry.status = "blocked"; entries.push(entry); continue; }
+    const updates: OkfEnrichmentFrontmatterUpdates = {};
+    for (const suggestion of accepted) {
+      if (suggestion.field === "description") updates.description = suggestion.value as string;
+      else if (suggestion.field === "type") updates.type = suggestion.value as OkfEnrichmentFrontmatterUpdates["type"];
+      else {
+        const values = Array.isArray(suggestion.value) ? suggestion.value : [suggestion.value];
+        const existing = (updates as any)[suggestion.field] ?? [];
+        (updates as any)[suggestion.field] = [...new Set([...existing, ...values])];
+      }
+    }
+    for (const field of ["supersedes", "related_to"] as const) for (const value of updates[field] ?? []) {
+      const target = value.slice(2, -2).trim();
+      const resolved = options.resolveRelationship ? await options.resolveRelationship(source.path, target) : null;
+      if (!resolved) entry.reasons.push(`${field} target does not resolve: ${value}`);
+      else if (resolved.toLowerCase() === source.path.toLowerCase()) entry.reasons.push(`${field} cannot target the same note: ${value}`);
+      else entry.resolvedRelationships.push({ field, value, path: resolved });
+    }
+    if (entry.reasons.length) { entry.status = "blocked"; entries.push(entry); continue; }
+    try {
+      entry.proposedContent = applyOkfEnrichmentFrontmatter({ path: source.path, content: source.content }, updates);
+      entry.proposedHash = await sha256Text(entry.proposedContent);
+      entry.status = entry.proposedContent === source.content ? "no-change" : "ready";
+      if (entry.status === "no-change") entry.reasons.push("accepted values already match canonical frontmatter");
+    } catch (error: any) { entry.status = "blocked"; entry.reasons.push(String(error?.message || error)); delete entry.proposedContent; delete entry.proposedHash; }
+    entries.push(entry);
+  }
+  const decisions = entries.flatMap((entry) => entry.decisions);
+  const totals = { notes: entries.length, ready: entries.filter((entry) => entry.status === "ready").length, blocked: entries.filter((entry) => entry.status === "blocked").length, noChange: entries.filter((entry) => entry.status === "no-change").length, reviewed: decisions.length, accepted: decisions.filter((decision) => decision.decision === "accepted").length, rejected: decisions.filter((decision) => decision.decision === "rejected").length, edited: decisions.filter((decision) => decision.edited).length };
+  const base = { schema: "okf-plus-enrichment-apply-plan/1" as const, runId, createdAt, totals, entries };
+  return { ...base, planHash: await sha256Text(JSON.stringify(applyPlanMaterial(base))) };
+}
+
+export async function verifyOkfEnrichmentApplyPlan(plan: OkfEnrichmentApplyPlan): Promise<boolean> {
+  if (await sha256Text(JSON.stringify(applyPlanMaterial(plan))) !== plan.planHash) return false;
+  for (const entry of plan.entries) {
+    if (await sha256Text(entry.originalContent) !== entry.originalHash) return false;
+    if (entry.proposedContent != null && await sha256Text(entry.proposedContent) !== entry.proposedHash) return false;
+  }
+  return true;
+}
+
+export function publicOkfEnrichmentApplyPlan(plan: OkfEnrichmentApplyPlan): unknown {
+  return { ...plan, entries: plan.entries.map(({ originalContent: _original, proposedContent: _proposed, ...entry }) => entry) };
 }

@@ -486,6 +486,70 @@ function proposedOkf(
   return fm.bom + lines.join(eol) + eol + fm.body;
 }
 
+export interface OkfEnrichmentFrontmatterUpdates {
+  description?: string;
+  type?: "episodic" | "semantic" | "procedural";
+  tags?: string[];
+  supersedes?: string[];
+  related_to?: string[];
+}
+
+/**
+ * Apply an explicitly reviewed enrichment set through the same strict parser
+ * and canonical writer as migration. Scalars replace only when supplied;
+ * collections merge and deduplicate. The Markdown body is preserved exactly.
+ */
+export function applyOkfEnrichmentFrontmatter(
+  source: OkfMigrationSource,
+  updates: OkfEnrichmentFrontmatterUpdates,
+): string {
+  const fm = strictFrontmatter(source.content);
+  if (fm.state !== "valid" || fm.problems.length) throw new Error("note frontmatter is not safely parseable by the flat OKF+ grammar");
+  const validation = okfValidation(fm);
+  if (validation.length) throw new Error(`note is not canonical OKF+ 2.2: ${validation.map((finding) => finding.code).join(", ")}`);
+
+  const setScalar = (key: "description" | "type", value: string) => {
+    const field = fm.byKey.get(key);
+    if (!field || field.kind !== "scalar") throw new Error(`${key} is not a safe scalar field`);
+    field.scalar = value;
+  };
+  const mergeList = (key: "tags" | "supersedes" | "related_to", values: string[]) => {
+    const existing = list(fm, key) ?? [];
+    const merged = [...new Set([...existing, ...values].map((value) => value.trim()).filter(Boolean))];
+    let field = fm.byKey.get(key);
+    if (!field) {
+      field = { key, kind: "list", listStyle: "block", values: merged, rawLines: [], rawItems: merged.map(yamlQuote) };
+      fm.fields.push(field); fm.byKey.set(key, field);
+    } else if (field.kind !== "list") throw new Error(`${key} is not a safe list field`);
+    else { field.values = merged; field.rawItems = merged.map(yamlQuote); field.listStyle = merged.length ? "block" : "inline"; }
+  };
+
+  if (updates.description != null) {
+    const value = updates.description.trim();
+    if (!value || value.length > 500) throw new Error("description must contain 1–500 characters");
+    setScalar("description", value);
+  }
+  if (updates.type != null) {
+    if (!TYPES.has(updates.type)) throw new Error("type must be episodic, semantic, or procedural");
+    setScalar("type", updates.type);
+  }
+  if (updates.tags?.length) {
+    if (updates.tags.some((value) => !/^[A-Za-z][\w/-]{0,79}$/.test(value))) throw new Error("tags must use safe Markdown tag characters");
+    mergeList("tags", updates.tags);
+  }
+  for (const key of ["supersedes", "related_to"] as const) if (updates[key]?.length) {
+    if (updates[key]!.some((value) => !/^\[\[[^\]\r\n]{1,180}\]\]$/.test(value))) throw new Error(`${key} values must be bounded wikilinks`);
+    mergeList(key, updates[key]!);
+  }
+
+  const proposed = proposedOkf(fm, source, scalar(fm, "uid")!, new Date().toISOString(), DEFAULT_OKF_MIGRATION_DEFAULTS);
+  const checked = strictFrontmatter(proposed);
+  const after = checked.state === "valid" && !checked.problems.length ? okfValidation(checked) : checked.problems;
+  if (after.length) throw new Error(`proposed enrichment is not canonical OKF+ 2.2: ${after.map((finding) => finding.code).join(", ")}`);
+  if (checked.body !== fm.body) throw new Error("proposed enrichment changed Markdown body bytes");
+  return proposed;
+}
+
 function migrationUid(fm: StrictFrontmatter, generate: () => string, allowLegacyId = false): string {
   const existingUid = scalar(fm, "uid");
   if (existingUid && UUID_V4.test(existingUid)) return existingUid;

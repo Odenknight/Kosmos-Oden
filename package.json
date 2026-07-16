@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-alpha.2",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-alpha.2) — a 3D Local Cluster view of a Markdown knowledge base, with a shared Kosmos Core powering the Obsidian plugin, the standalone HTML viewer, the Agent API (REST + MCP), the Graphiti exporter, and the kosmos-build CLI.",
+  "version": "0.6.5-alpha.3",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-alpha.3) — a 3D Local Cluster view of a Markdown knowledge base, with a shared Kosmos Core powering the Obsidian plugin, the standalone HTML viewer, the Agent API (REST + MCP), the Graphiti exporter, and the kosmos-build CLI.",
   "main": "main.js",
   "type": "module",
   "engines": {

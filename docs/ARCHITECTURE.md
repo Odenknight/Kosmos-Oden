@@ -63,9 +63,11 @@ page) and streams the vault in via the versioned `postMessage` protocol
 renders, filtered by the configured OKF+ sensitivity ceiling. `settings.ts`
 provides Anthropic, OpenAI, stdio, and vendor-neutral quick-connect configs;
 the release's `kosmos-mcp-stdio.mjs` preserves MCP lifecycle headers for
-stdio-only harnesses. `okf-migration.ts` hosts the explicit audit/backup/apply
-modal: content-free persisted plans, byte-exact binary backups, source equality
-checks, and atomic note processing.
+stdio-only harnesses. `okf-migration.ts` hosts the explicit structural
+audit/backup/apply modal. `okf-enrichment.ts` builds deterministic and optional
+bounded-LLM proposals; `okf-enrichment-apply.ts` keeps the later human review,
+hash-bound decision plan, backup, source recheck, and write authority in a
+separate step.
 
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
@@ -89,3 +91,8 @@ Writes happen only through explicit, named, user-triggered commands. The OKF+
 migrator has a separate approval boundary: save-audit writes only a content-free
 plan; apply requires backup/sensitivity confirmations, writes binary backups,
 and edits only sources still identical to the approved hash-bound plan.
+The enrichment path adds another boundary: proposals have no write authority,
+nothing is preselected, accepted relationship targets must resolve, and only a
+reviewer-approved plan can reach the backup/apply modal. Persisted enrichment
+plans omit note bodies and each live note is compared byte-for-byte with the
+reviewed source before its guarded write.

@@ -348,7 +348,7 @@ export default class VaultKosmosPlugin extends Plugin {
   }
 
   async proposeOkfEnrichment(): Promise<void> {
-    await openOkfEnrichmentWorkflow(this.app, this.agentSettings);
+    await openOkfEnrichmentWorkflow(this.app, this.agentSettings, () => this.provider.markFullDirty());
   }
 
   async writeAgentGuide(): Promise<void> {
