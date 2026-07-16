@@ -31,8 +31,7 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
     const b = document.getElementById("boot");
     return b && b.classList.contains("gone");
   }, null, { timeout: 15_000 });
-  const stats = await page.locator("#stats").innerText();
-  expect(stats).toMatch(/\bNodes\b/i);
+  await expect(page.locator("#stats span")).toHaveText(["Nodes", "Links", "Files", "Areas"]);
 
   // canvas present and at least one frame produced while visible
   await page.waitForFunction(() => (window as any).__kosmosRenderStats?.frames > 0, null, { timeout: 15_000 });
