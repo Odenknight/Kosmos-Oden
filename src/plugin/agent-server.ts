@@ -36,7 +36,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 4;
+export const AGENT_SETTINGS_SCHEMA = 5;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -53,7 +53,7 @@ export interface AgentSettings {
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
    *  always rejected in LAN mode regardless of this flag. */
   agentAllowQueryToken: boolean;
-  okfEnrichmentProvider: "none" | "local" | "cloud";
+  okfEnrichmentProvider: "none" | "local" | "lan" | "cloud";
   okfEnrichmentEndpoint: string;
   okfEnrichmentModel: string;
   okfEnrichmentApiKeyEnv: string;
@@ -64,6 +64,11 @@ export interface AgentSettings {
   okfEnrichmentMaxSuggestions: number;
   okfEnrichmentTimeoutMs: number;
   okfEnrichmentCloudCeiling: "public" | "internal";
+  okfEnrichmentLanCeiling: "public" | "internal" | "confidential";
+  /** Custom glob-style exclusions used only by OKF migration/enrichment. */
+  okfExcludePatterns: string[];
+  /** Opt-in exact/common developer and agent-control file preset. */
+  okfDeveloperExclusions: boolean;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -87,6 +92,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   okfEnrichmentMaxSuggestions: 12,
   okfEnrichmentTimeoutMs: 30000,
   okfEnrichmentCloudCeiling: "public",
+  okfEnrichmentLanCeiling: "internal",
+  okfExcludePatterns: [],
+  okfDeveloperExclusions: false,
 };
 
 /** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
@@ -100,8 +108,11 @@ export function migrateAgentSettings(raw: any): AgentSettings {
     // behavior while keeping confidential/PHI notes opt-in.
     s.agentSensitivityCeiling = "internal";
   }
-  if (!["none", "local", "cloud"].includes(s.okfEnrichmentProvider)) s.okfEnrichmentProvider = "none";
+  if (!["none", "local", "lan", "cloud"].includes(s.okfEnrichmentProvider)) s.okfEnrichmentProvider = "none";
   if (!["public", "internal"].includes(s.okfEnrichmentCloudCeiling)) s.okfEnrichmentCloudCeiling = "public";
+  if (!["public", "internal", "confidential"].includes(s.okfEnrichmentLanCeiling)) s.okfEnrichmentLanCeiling = "internal";
+  s.okfExcludePatterns = Array.isArray(s.okfExcludePatterns) ? s.okfExcludePatterns.map(String).slice(0, 200) : [];
+  s.okfDeveloperExclusions = s.okfDeveloperExclusions === true;
   s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));
   s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.okfEnrichmentMaxParagraphs) || 4));
   s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.okfEnrichmentMaxInputChars) || 4000));

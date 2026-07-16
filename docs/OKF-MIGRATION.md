@@ -125,13 +125,15 @@ types, tags, or explicitly evidenced relationships:
 
 | Route | Benefits | Costs and risks |
 |---|---|---|
-| Local LLM | Notes stay on the device; offline; controllable retention | More setup and hardware; often weaker classification/summarization; local software still needs a trust review |
+| On-device LLM | Notes stay on the device; offline; controllable retention | More setup and hardware; often weaker classification/summarization; local software still needs a trust review |
+| LAN LLM | Data stays on an explicitly selected private-network model host; can use stronger shared hardware | Other devices/Wi-Fi/VLAN and an exposed unauthenticated model port remain risks; private addressing is not proof of trust |
 | Cloud LLM | Often stronger language and classification; less local hardware | Note data leaves the device; provider retention/policy, credentials, cost, latency, prompt injection, and confidential/PHI restrictions |
 | No LLM | Reproducible, fast, private, easy to audit | Generic descriptions/types require later human refinement |
 
-The implemented policy is local-first for non-public notes, explicit per-run
-cloud consent, minimum-necessary bounded excerpts, no cloud fallback on local
-failure, no governance-authority fields in the model schema, and a pending
+The implemented policy is on-device/LAN-first for non-public notes, explicit
+per-run LAN/cloud consent, minimum-necessary bounded excerpts, no cloud
+fallback on on-device/LAN failure, no governance-authority fields in the model
+schema, and a pending
 review queue rather than automatic frontmatter writes. See
 [OKF+ Content-Assisted Enrichment](OKF-ENRICHMENT.md). The universal read-only
 MCP connector remains separate and does not grant a model write authority over
@@ -142,15 +144,22 @@ The enrichment action is a re-scan, not a one-time migration stage. Every time
 notes again. Already-upgraded notes are included. Unchanged notes may produce
 the same proposal, and duplicate queue records are suppressed by proposal ID.
 
+OKF processing can exclude custom glob-style paths, and an opt-in developer
+preset covers common agent instruction/control files. These rules do not hide
+notes from the cosmos or Agent API. Every excluded migration path and matching
+pattern appears in the preview.
+
 Blocked migration entries are different: their frontmatter is not safe to
-rewrite mechanically. When a loopback Local LLM is configured, the migration
-preview offers advisory blocked-note triage. It sends only deterministic
-finding codes and bounded frontmatter whose closing boundary can be proven;
+rewrite mechanically. When an on-device or explicitly approved private-IP LAN
+LLM is configured, the migration preview offers advisory blocked-note triage.
+It sends only deterministic finding codes and bounded frontmatter whose
+closing boundary can be proven;
 likely credential-key values are redacted. Unterminated frontmatter is
-omitted. The model may explain the
-blockers, suggest manual inspection steps, and ask questions; it cannot provide
+omitted. The model may explain the blockers, suggest manual inspection steps,
+and ask questions; it cannot provide
 a retained executable YAML patch or write a note. Cloud blocked-note review is
-not offered because these notes may lack trustworthy sensitivity metadata.
+not offered because these notes may lack trustworthy sensitivity metadata. LAN
+review requires its own fresh acknowledgement of that uncertainty.
 
 ## Recovery
 

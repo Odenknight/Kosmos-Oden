@@ -9,8 +9,9 @@ note frontmatter automatically. The proposal preview may be saved to
 `.okf/review-queue.jsonl`, or a human can explicitly review each suggestion
 and build a governed apply plan.
 
-The deterministic pass always runs first. A second OpenAI-compatible local or
-cloud LLM pass is optional and disabled by default.
+The deterministic pass always runs first. A second OpenAI-compatible
+on-device, private-IP LAN, or cloud LLM pass is optional and disabled by
+default.
 
 This is explicitly a **scan / re-scan** operation. Migration does not mark a
 2.2 note as permanently processed. Each run reads every currently eligible
@@ -44,8 +45,13 @@ author did not express.
 The optional model is a bounded proposal generator, not an agent with write
 authority:
 
-- provider is explicitly `none`, loopback-only `local`, or HTTPS-only `cloud`;
-- cloud runs require fresh confirmation showing their maximum exposure;
+- provider is explicitly `none`, loopback-only `local`, private-IP-only `lan`,
+  or HTTPS-only `cloud`;
+- LAN and cloud runs require fresh confirmation showing the exact endpoint and
+  maximum exposure;
+- LAN rejects DNS hostnames, public IPs, bind-all addresses, and loopback
+  addresses; its sensitivity ceiling defaults to internal, confidential is an
+  explicit opt-in, and PHI is always blocked;
 - confidential and PHI notes are never sent to cloud; the configurable cloud
   ceiling is otherwise public-only by default;
 - the API key is read from a named environment variable and never stored in
@@ -67,6 +73,16 @@ authority:
 Provider retention, account, billing, and privacy policies still apply to a
 confirmed cloud run. A timeout stops waiting and prevents retry; the remote
 provider may still finish a request already received.
+
+## OKF processing exclusions
+
+Custom case-insensitive patterns support `*`, `**`, and `?`; a bare filename
+matches at any depth. An opt-in developer preset covers common agent control
+files and directories such as `AGENT.md`, `AGENTS.md`, `CLAUDE.md`, `CODEX.md`,
+`GEMINI.md`, Copilot instructions, `.claude/**`, and `_Claude-Code/**`.
+Exclusions apply consistently to migration, enrichment, and blocked-note
+review. They do not hide notes from the visualization or read-only Agent API.
+The migration preview lists every excluded path and the pattern that matched.
 
 ## Review record
 
@@ -117,8 +133,8 @@ byte-for-byte. The decision plan and result audit are stored under
 
 Migration-blocked notes do not enter ordinary enrichment because their
 frontmatter is not yet canonical OKF+ 2.2. The migration preview can ask the
-configured loopback Local LLM for advisory triage. This is intentionally more
-limited than enrichment: bounded frontmatter and deterministic blocker codes
+configured on-device or explicitly approved LAN LLM for advisory triage. This
+is intentionally more limited than enrichment: bounded frontmatter and deterministic blocker codes
 are sent, with likely credential-key values redacted. The result must cite the
 supplied codes, and the
 model can return explanations, manual steps, and questions only. The saved
@@ -126,4 +142,6 @@ report contains no transmitted frontmatter excerpt and has no apply action.
 
 Cloud blocked-note review is unavailable. A missing or invalid sensitivity
 field is itself a common blocker, so using that field to authorize cloud
-disclosure would be circular and unsafe.
+disclosure would be circular and unsafe. LAN blocked review instead requires a
+fresh warning that treats every blocked note as potentially sensitive and
+discloses only the bounded/redacted advisory input.

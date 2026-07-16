@@ -7,6 +7,29 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.5] — 2026-07-16 (pre-release)
+
+### Added
+- Added OKF-processing-only exclusion patterns with `*`, `**`, and `?`, plus
+  an opt-in developer preset for common agent instruction/control files. The
+  migration preview lists every exclusion and matching pattern.
+- Added a distinct **LAN LLM** provider for OpenAI-compatible models on a
+  private network, with a separate public/internal/confidential sensitivity
+  ceiling and fresh per-run disclosure.
+- Blocked-note advisory review now supports either an on-device loopback model
+  or an explicitly approved LAN model. Cloud remains prohibited.
+
+### Security
+- LAN endpoints require literal RFC1918, IPv4 link-local, IPv6 ULA, or IPv6
+  link-local addresses. DNS hostnames, public IPs, bind-all addresses, and
+  loopback addresses in LAN mode are rejected.
+- PHI is always excluded from LAN and Cloud enrichment. Confidential LAN input
+  requires an explicit ceiling change plus per-run confirmation. The consent
+  screen displays the exact endpoint and warns that a private address does not
+  prove the device, Wi-Fi/VLAN, firewall, or service is trusted.
+- Exclusions default off to prevent silent omissions during upgrade and affect
+  only OKF migration/enrichment—not visualization or the read-only Agent API.
+
 ## [0.6.5-alpha.4] — 2026-07-16 (pre-release)
 
 ### Added

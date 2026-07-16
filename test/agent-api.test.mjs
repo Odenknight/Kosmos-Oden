@@ -496,6 +496,13 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   assert.equal(migrated.agentSensitivityCeiling, "internal");
   assert.equal(migrated.agentToken, "keepme");        // existing token preserved
   assert.equal(migrated.agentPort, 5000);
+  assert.equal(migrated.okfEnrichmentLanCeiling, "internal");
+  assert.equal(migrated.okfDeveloperExclusions, false); // no silent file omission on upgrade
+  assert.deepEqual(migrated.okfExcludePatterns, []);
+  const lan = migrateAgentSettings({ okfEnrichmentProvider: "lan", okfEnrichmentLanCeiling: "confidential", okfExcludePatterns: ["**/AGENTS.md"] });
+  assert.equal(lan.okfEnrichmentProvider, "lan");
+  assert.equal(lan.okfEnrichmentLanCeiling, "confidential");
+  assert.deepEqual(lan.okfExcludePatterns, ["**/AGENTS.md"]);
   // defaults fill in for a null load
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);

@@ -1,5 +1,6 @@
 /** Obsidian host for the safety-first OKF+ audit/backup/apply workflow. */
 import { App, Modal, Notice, Setting, TFile, normalizePath } from "obsidian";
+import { matchedOkfExclusion } from "../core/okf-exclusions";
 import {
   createOkfMigrationPlan,
   publicOkfMigrationPlan,
@@ -37,11 +38,16 @@ async function ensureFolder(app: App, path: string): Promise<void> {
   }
 }
 
-export async function scanVaultForOkf(app: App, mode: OkfMigrationMode = "safe-onboarding"): Promise<OkfMigrationPlan> {
+export interface OkfMigrationScanResult { plan: OkfMigrationPlan; excluded: Array<{ path: string; pattern: string }> }
+
+export async function scanVaultForOkf(app: App, mode: OkfMigrationMode = "safe-onboarding", settings?: AgentSettings): Promise<OkfMigrationScanResult> {
   const files = app.vault.getMarkdownFiles()
     .filter((f) => !f.path.toLowerCase().startsWith(".okf/"));
   const sources: OkfMigrationSource[] = [];
+  const excluded: Array<{ path: string; pattern: string }> = [];
   for (const file of files) {
+    const pattern = matchedOkfExclusion(file.path, settings?.okfExcludePatterns ?? [], settings?.okfDeveloperExclusions === true);
+    if (pattern) { excluded.push({ path: file.path, pattern }); continue; }
     sources.push({
       path: file.path,
       content: await app.vault.read(file),
@@ -49,7 +55,7 @@ export async function scanVaultForOkf(app: App, mode: OkfMigrationMode = "safe-o
       modifiedTime: file.stat.mtime,
     });
   }
-  return createOkfMigrationPlan(sources, { mode });
+  return { plan: await createOkfMigrationPlan(sources, { mode }), excluded };
 }
 
 function persistedResult(result: OkfMigrationApplyResult): string {
@@ -156,7 +162,7 @@ export class OkfMigrationPreviewModal extends Modal {
   private onApply: (plan: OkfMigrationPlan) => Promise<void>;
   private applying = false;
 
-  constructor(app: App, plan: OkfMigrationPlan, onApply: (plan: OkfMigrationPlan) => Promise<void>, private settings?: AgentSettings) {
+  constructor(app: App, plan: OkfMigrationPlan, onApply: (plan: OkfMigrationPlan) => Promise<void>, private settings?: AgentSettings, private excluded: Array<{ path: string; pattern: string }> = []) {
     super(app); this.plan = plan; this.onApply = onApply;
   }
 
@@ -173,6 +179,13 @@ export class OkfMigrationPreviewModal extends Modal {
     summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files${upgradeAll ? " remain outside the recoverable set" : " will be left unchanged"}` });
     summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely onboarded to OKF+ 2.2` });
     summary.createEl("li", { text: `${plan.totals.blocked} need manual review and will not be changed` });
+    summary.createEl("li", { text: `${this.excluded.length} excluded by OKF processing rules` });
+    if (this.excluded.length) {
+      const details = contentEl.createEl("details"); details.createEl("summary", { text: `Excluded from this OKF scan (${this.excluded.length})` });
+      const list = details.createEl("ul");
+      for (const item of this.excluded.slice(0, 100)) list.createEl("li", { text: `${item.path} — ${item.pattern}` });
+      if (this.excluded.length > 100) list.createEl("li", { text: `…and ${this.excluded.length - 100} more.` });
+    }
 
     warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .okf/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
     warningBox(contentEl, "This migration preview is deterministic; model enrichment is a separate re-scan.", "This screen does not call any model or send note content anywhere. It can create structurally valid OKF+ 2.2 metadata using conservative defaults without an LLM. After migration, choose a second-pass provider in Settings and run Scan / re-scan all 2.2 notes for richer, review-only proposals. Already-upgraded 2.2 notes are included each time. Model proposals are never accepted or written automatically.");
@@ -187,15 +200,16 @@ export class OkfMigrationPreviewModal extends Modal {
     const blocked = plan.entries.filter((e) => e.status === "blocked");
     if (blocked.length) this.renderEntries(contentEl, "Blocked for review", blocked);
     if (blocked.length) {
-      const localConfigured = this.settings?.okfEnrichmentProvider === "local";
+      const advisoryProvider = this.settings?.okfEnrichmentProvider;
+      const advisoryConfigured = advisoryProvider === "local" || advisoryProvider === "lan";
       new Setting(contentEl)
-        .setName("Local model advisory review of blocked notes")
-        .setDesc(localConfigured
-          ? "Sends bounded frontmatter with likely credential-key values redacted, plus deterministic blocker codes, to your configured loopback model. It returns explanations, manual steps, and questions only—never YAML, an executable patch, or a note write."
-          : "Choose Local LLM under Content-assisted enrichment first. Cloud review is intentionally unavailable because blocked notes may have missing or invalid sensitivity labels.")
+        .setName("On-device/LAN advisory review of blocked notes")
+        .setDesc(advisoryConfigured
+          ? `Sends bounded frontmatter with likely credential-key values redacted, plus deterministic blocker codes, to your configured ${advisoryProvider === "lan" ? "private-IP LAN" : "loopback"} model. LAN requires a fresh disclosure confirmation. The model returns explanations, manual steps, and questions only—never YAML, an executable patch, or a note write.`
+          : "Choose On-device LLM or LAN LLM under Content-assisted enrichment first. Cloud review is prohibited because blocked notes may have missing or invalid sensitivity labels.")
         .addButton((button) => button
-          .setButtonText(localConfigured ? `Review ${Math.min(blocked.length, this.settings!.okfEnrichmentMaxNotes)} blocked notes locally` : "Local LLM required")
-          .setDisabled(!localConfigured)
+          .setButtonText(advisoryConfigured ? `Review ${Math.min(blocked.length, this.settings!.okfEnrichmentMaxNotes)} blocked notes` : "On-device or LAN LLM required")
+          .setDisabled(!advisoryConfigured)
           .onClick(async () => { if (this.settings) await openOkfBlockedReview(this.app, plan, this.settings); }));
     }
 
@@ -261,7 +275,8 @@ export async function openOkfMigrationWorkflow(
 ): Promise<void> {
   const scanning = new Notice("Vault Kosmos: scanning notes for OKF/OKF+ frontmatter…", 0);
   try {
-    const plan = await scanVaultForOkf(app, mode);
+    const scan = await scanVaultForOkf(app, mode, settings);
+    const plan = scan.plan;
     scanning.hide();
     new OkfMigrationPreviewModal(app, plan, async (approved) => {
       const running = new Notice(`Vault Kosmos: backing up and applying ${approved.totals.changes} OKF+ changes…`, 0);
@@ -276,7 +291,7 @@ export async function openOkfMigrationWorkflow(
         new Notice(`Vault Kosmos OKF+ migration stopped: ${String(error?.message || error)}. No unbacked note is intentionally written.`, 15000);
         throw error;
       }
-    }, settings).open();
+    }, settings, scan.excluded).open();
   } catch (error: any) {
     scanning.hide();
     new Notice(`Vault Kosmos could not scan OKF+ frontmatter: ${String(error?.message || error)}`, 15000);

@@ -1,5 +1,6 @@
 /** Kosmos plugin — settings tab + Agent API setup guide (one source of truth). */
 import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
+import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "../core/okf-exclusions";
 import { KOSMOS_VERSION } from "../core/version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
 
@@ -236,6 +237,17 @@ export class KosmosSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
     new Setting(containerEl)
+      .setName("Developer-file exclusion preset")
+      .setDesc(`Opt in to excluding common agent instruction/control files from OKF migration and enrichment only: ${COMMON_OKF_DEVELOPER_EXCLUSIONS.join(", ")}. They remain visible in the cosmos and Agent API.`)
+      .addToggle((toggle) => toggle.setValue(s.okfDeveloperExclusions).onChange(async (value) => { s.okfDeveloperExclusions = value; await this.plugin.saveAgentSettings(); }));
+    new Setting(containerEl)
+      .setName("Custom OKF exclusions")
+      .setDesc("Optional, one case-insensitive pattern per line. Supports *, **, and ?. A bare filename matches at any depth. These exclusions affect only OKF migration, enrichment, and blocked-note review.")
+      .addTextArea((area) => {
+        area.setPlaceholder("private/**\nDRAFT.md\nprojects/*/generated-?.md").setValue(s.okfExcludePatterns.join("\n")).onChange(async (value) => { s.okfExcludePatterns = normalizeOkfExclusionPatterns(value); await this.plugin.saveAgentSettings(); });
+        area.inputEl.rows = 5; area.inputEl.cols = 48;
+      });
+    new Setting(containerEl)
       .setName("Mark notes in OKF+ format")
       .setDesc("Safe scan leaves Google OKF notes alone. Upgrade-all converts recoverable legacy/2.1 notes and shows a deterministic confidence score plus every manual-review reason.")
       .addButton((b) => b.setButtonText("Safe scan").onClick(async () => {
@@ -247,12 +259,18 @@ export class KosmosSettingTab extends PluginSettingTab {
 
     containerEl.createEl("h4", { text: "Content-assisted enrichment proposals" });
     containerEl.createEl("p", { text: "Runs after notes are OKF+ 2.2 and deliberately scans them again on every run—even if migration already processed them. Deterministic evidence selection proposes tags, descriptions, types, and explicit supersession candidates. An optional OpenAI-compatible local/cloud model may add schema-validated proposals. Governance authority fields are outside the model's schema, and no proposal writes frontmatter automatically.", cls: "setting-item-description" });
-    new Setting(containerEl).setName("Second-pass provider").setDesc("Disabled means deterministic proposals only. Local endpoints must be loopback; cloud endpoints must use HTTPS.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "Local LLM (loopback)").addOption("cloud", "Cloud LLM (HTTPS)").setValue(s.okfEnrichmentProvider).onChange(async (v: any) => { s.okfEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
+    new Setting(containerEl).setName("Second-pass provider").setDesc("On-device uses loopback. LAN uses a private IP literal with fresh disclosure. Cloud requires HTTPS and the strictest disclosure policy.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "On-device LLM (loopback)").addOption("lan", "LAN LLM (private IP)").addOption("cloud", "Cloud LLM (HTTPS)").setValue(s.okfEnrichmentProvider).onChange(async (v: any) => { s.okfEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
     if (s.okfEnrichmentProvider !== "none") {
-      new Setting(containerEl).setName("OpenAI-compatible endpoint").setDesc(s.okfEnrichmentProvider === "local" ? "Loopback only, for example Ollama /v1/chat/completions." : "HTTPS only. Confidential and PHI notes are always excluded.").addText((t) => t.setValue(s.okfEnrichmentEndpoint).onChange(async (v) => { s.okfEnrichmentEndpoint = v.trim(); await this.plugin.saveAgentSettings(); }));
+      const endpointDescription = s.okfEnrichmentProvider === "local"
+        ? "Loopback only, for example http://127.0.0.1:11434/v1/chat/completions."
+        : s.okfEnrichmentProvider === "lan"
+          ? "Literal private IP only, for example http://192.168.1.40:11434/v1/chat/completions. DNS names and public/bind-all addresses are rejected."
+          : "HTTPS only. Confidential and PHI notes are always excluded.";
+      new Setting(containerEl).setName("OpenAI-compatible endpoint").setDesc(endpointDescription).addText((t) => t.setValue(s.okfEnrichmentEndpoint).onChange(async (v) => { s.okfEnrichmentEndpoint = v.trim(); await this.plugin.saveAgentSettings(); }));
       new Setting(containerEl).setName("Model").addText((t) => t.setValue(s.okfEnrichmentModel).onChange(async (v) => { s.okfEnrichmentModel = v.trim(); await this.plugin.saveAgentSettings(); }));
-      new Setting(containerEl).setName("API key environment variable").setDesc("Variable name only; the secret is never stored in plugin settings. Optional for local endpoints, required for cloud.").addText((t) => t.setPlaceholder("OPENAI_API_KEY").setValue(s.okfEnrichmentApiKeyEnv).onChange(async (v) => { s.okfEnrichmentApiKeyEnv = v.trim(); await this.plugin.saveAgentSettings(); }));
+      new Setting(containerEl).setName("API key environment variable").setDesc("Variable name only; the secret is never stored in plugin settings. Optional for on-device/LAN endpoints, strongly recommended for LAN, and required for cloud.").addText((t) => t.setPlaceholder("OPENAI_API_KEY").setValue(s.okfEnrichmentApiKeyEnv).onChange(async (v) => { s.okfEnrichmentApiKeyEnv = v.trim(); await this.plugin.saveAgentSettings(); }));
       if (s.okfEnrichmentProvider === "cloud") new Setting(containerEl).setName("Cloud sensitivity ceiling").setDesc("Confidential and PHI are hard-blocked regardless of this setting.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").setValue(s.okfEnrichmentCloudCeiling).onChange(async (v: any) => { s.okfEnrichmentCloudCeiling = v; await this.plugin.saveAgentSettings(); }));
+      if (s.okfEnrichmentProvider === "lan") new Setting(containerEl).setName("LAN sensitivity ceiling").setDesc("Default is internal. Confidential requires explicit selection and per-run approval. PHI is always excluded from LAN and cloud.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").addOption("confidential", "Include confidential").setValue(s.okfEnrichmentLanCeiling).onChange(async (v: any) => { s.okfEnrichmentLanCeiling = v; await this.plugin.saveAgentSettings(); }));
     }
     new Setting(containerEl).setName("Per-run note cap").setDesc("Hard cap: 1–500. Processing is sequential; there are no automatic retries, and three consecutive provider errors stop the run.").addText((t) => t.setValue(String(s.okfEnrichmentMaxNotes)).onChange(async (v) => { s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(v) || 25)); await this.plugin.saveAgentSettings(); }));
     new Setting(containerEl).setName("Evidence limits").setDesc("Objective prose-shaped selection only; this cannot guarantee that an author placed meaningful content early.").addText((t) => t.setPlaceholder("paragraphs").setValue(String(s.okfEnrichmentMaxParagraphs)).onChange(async (v) => { s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(v) || 4)); await this.plugin.saveAgentSettings(); })).addText((t) => t.setPlaceholder("characters").setValue(String(s.okfEnrichmentMaxInputChars)).onChange(async (v) => { s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(v) || 4000)); await this.plugin.saveAgentSettings(); }));
