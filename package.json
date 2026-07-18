@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-beta.5",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.5) — a governed context projection with UTC note timestamps, OKF+ 2.3, Graphiti 0.29 adapter, and native Nextcloud sync.",
+  "version": "0.6.5-beta.6",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.6) — a governed context projection with live MCP traversal comet trails, UTC timestamps, OKF+ 2.3, and Nextcloud sync.",
   "main": "main.js",
   "type": "module",
   "engines": {
@@ -28,6 +28,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",
     "esbuild": "0.21.5",
     "obsidian": "1.13.1",

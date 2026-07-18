@@ -292,3 +292,8 @@ base64-embedded single HTML string.
 - Upgrades the Graphiti adapter schema to `okf-plus-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
 - Pins the generated Graphiti sample to tested `graphiti-core==0.29.0`, defaults to FalkorDB, keeps Neo4j available, and intentionally excludes deprecated Kuzu.
 - Adds honest combined-extraction benchmarking and ingestion-readiness contracts without treating queued acceptance as searchable completion.
+# 0.6.5-beta.6
+
+- Extends the functioning per-agent MCP traversal breadcrumb with a bounded additive comet-tail particle pool and lingering snow-dust around visited notes.
+- Keeps agent trails independent and color-stable when multiple MCP clients traverse concurrently.
+- Adds renderer diagnostics and a real-browser test proving traversal hops produce visible bounded dust particles.

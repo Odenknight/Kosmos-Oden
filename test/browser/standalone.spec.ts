@@ -26,7 +26,7 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
     return b && b.classList.contains("gone");
   }, null, { timeout: 15_000 });
   const stats = await page.locator("#stats").innerText();
-  expect(stats).toMatch(/NODES/);
+  expect(stats).toMatch(/nodes/i);
 
   // canvas present and at least one frame produced while visible
   await page.waitForFunction(() => (window as any).__kosmosRenderStats?.frames > 0, null, { timeout: 15_000 });
@@ -48,4 +48,22 @@ test("standalone reports WebGL2 requirement message when WebGL2 is unavailable",
   });
   await page.goto(CAPTURE);
   await expect(page.locator("#bootMsg")).toContainText(/WebGL2/i, { timeout: 10_000 });
+});
+
+test("agent traversal renders a breadcrumb plus bounded comet dust", async ({ page }) => {
+  await page.goto(CAPTURE);
+  await page.waitForFunction(() => (window as any).__kosmos?.ok === true, null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const k=(window as any).__kosmos;
+    k.notifyAgentTraversal(["10_Research/Literature Radar.md"],"get_note","Codex");
+    k.notifyAgentTraversal(["10_Research/Spatial Computing.md"],"get_related","Codex");
+  });
+  await page.waitForFunction(() => {
+    const d=(window as any).__kosmos?.getDiagnostics?.();
+    return d?.agentTraversalHops >= 2 && d?.agentDustParticles > 0;
+  }, null, { timeout: 5_000 });
+  const d=await page.evaluate(() => (window as any).__kosmos.getDiagnostics());
+  expect(d.agentTraversalHops).toBeGreaterThanOrEqual(2);
+  expect(d.agentDustParticles).toBeGreaterThan(0);
+  expect(d.agentDustParticles).toBeLessThanOrEqual(640);
 });

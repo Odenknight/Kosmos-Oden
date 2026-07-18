@@ -65,7 +65,10 @@ versions/types instead of acting on arbitrary `postMessage` data.
 `agent-traversal` carries the note paths one Agent API query touched. The
 renderer keeps a breadcrumb of the last 24 hops for 30 seconds, draws fading
 emerald line segments between consecutive hops, and pulses recently visited
-notes (8 s window) with emerald halos (v0.5.1 behavior). Emission is post-hoc
+notes (8 s window) with per-agent halos, places a rocket at each agent head,
+and emits a bounded additive comet tail plus residual snow-dust that fades in
+place. Particle pools are capped at 640 desktop / 192 low-power mobile and are
+reused without per-frame allocation. Emission is post-hoc
 from result objects and **capped per tool** (lineage 12, related 11, search 8,
 `graph_at_time` 6) so a broad result never floods the halo budget; whole-vault
 queries (`vault_overview`, `export_graphiti_episodes`, diagnostics) do not
