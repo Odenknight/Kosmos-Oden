@@ -140,6 +140,7 @@ REST mirrors: \`/overview /diagnostics /graph /notes /note /lineage /related /at
 
 export class KosmosSettingTab extends PluginSettingTab {
   plugin: any;
+  private openSections = new Set<string>(["nextcloud-vault-sync-native-webdav"]);
   constructor(app: App, plugin: any) {
     super(app, plugin);
     this.plugin = plugin;
@@ -374,5 +375,67 @@ export class KosmosSettingTab extends PluginSettingTab {
       .addButton((b) => b.setButtonText("Write guide to vault").setCta().onClick(async () => {
         await this.plugin.writeAgentGuide();
       }));
+    this.enhanceSectionNavigation(containerEl);
+  }
+
+  private enhanceSectionNavigation(containerEl: HTMLElement): void {
+    const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const headings = Array.from(containerEl.children).filter((el): el is HTMLHeadingElement => el.tagName === "H2");
+    if (!headings.length) return;
+
+    const destinations: Array<{ label: string; target: HTMLElement; section: HTMLDetailsElement }> = [];
+    for (const heading of headings) {
+      const title = heading.textContent?.trim() || "Settings";
+      const id = slug(title);
+      const details = document.createElement("details");
+      details.className = "kosmos-settings-section";
+      details.dataset.sectionId = id;
+      details.open = this.openSections.has(id);
+      const summary = document.createElement("summary");
+      summary.className = "kosmos-settings-section-summary";
+      summary.textContent = title;
+      const body = document.createElement("div");
+      body.className = "kosmos-settings-section-body";
+
+      containerEl.insertBefore(details, heading);
+      let sibling = heading.nextSibling;
+      while (sibling && !(sibling instanceof HTMLElement && sibling.tagName === "H2")) {
+        const next = sibling.nextSibling;
+        body.appendChild(sibling);
+        sibling = next;
+      }
+      heading.remove();
+      details.append(summary, body);
+      details.addEventListener("toggle", () => {
+        if (details.open) this.openSections.add(id); else this.openSections.delete(id);
+      });
+      destinations.push({ label: title.replace(/\s*\([^)]*\)\s*$/, ""), target: details, section: details });
+
+      for (const subheading of Array.from(body.querySelectorAll("h3"))) {
+        const subtitle = subheading.textContent?.trim();
+        if (!subtitle) continue;
+        subheading.id = `kosmos-setting-${slug(subtitle)}`;
+        destinations.push({ label: subtitle.replace(/\s+—.+$/, ""), target: subheading, section: details });
+      }
+    }
+
+    const nav = document.createElement("nav");
+    nav.className = "kosmos-settings-jump";
+    nav.setAttribute("aria-label", "Jump to settings section");
+    const label = document.createElement("span");
+    label.textContent = "Jump to:";
+    nav.appendChild(label);
+    for (const destination of destinations) {
+      const link = document.createElement("a");
+      link.href = "#";
+      link.textContent = destination.label;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        destination.section.open = true;
+        destination.target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      nav.appendChild(link);
+    }
+    containerEl.insertBefore(nav, containerEl.firstChild);
   }
 }

@@ -7,6 +7,13 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.3] — 2026-07-18 (pre-release)
+
+### Added
+- Made the primary Options sections collapsible and added a sticky **Jump to**
+  row for Nextcloud sync, Agent API, OKF+ formatting, and quick-connect
+  controls. Section open/closed state is retained while the plugin is loaded.
+
 ## [0.6.5-beta.2] — 2026-07-18 (pre-release)
 
 ### Added
