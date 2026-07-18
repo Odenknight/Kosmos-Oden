@@ -7,6 +7,19 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.2] — 2026-07-18 (pre-release)
+
+### Added
+- Added a dedicated **Sync Obsidian configuration (.obsidian)** toggle. It is
+  off by default and can be enabled independently of the editable per-path
+  exclusion list, allowing themes, snippets, hotkeys, and selected plugin data
+  to travel with the vault.
+
+### Security
+- `.obsidian/plugins/vault-kosmos/data.json` remains a non-overridable
+  exclusion even when `.obsidian` sync is enabled, preventing local sync state
+  and Agent API credentials from being copied or recursively synchronized.
+
 ## [0.6.5-beta.1] — 2026-07-18 (pre-release)
 
 ### Added

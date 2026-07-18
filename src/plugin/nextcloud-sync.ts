@@ -8,7 +8,7 @@
  */
 import { App, normalizePath, requestUrl, type RequestUrlResponse } from "obsidian";
 import {
-  buildNextcloudDavRoot, encodePath, emptyNextcloudState, isExcluded,
+  buildNextcloudDavRoot, effectiveSyncExcludes, encodePath, emptyNextcloudState, isExcluded,
   migrateNextcloudSettings, migrateNextcloudState, planSync, safeRelativePath,
   syncScope,
   type LocalEntry, type NextcloudSettings, type NextcloudSyncState,
@@ -16,6 +16,7 @@ import {
 } from "./nextcloud-sync-core";
 export {
   DEFAULT_NEXTCLOUD_SETTINGS, DEFAULT_SYNC_EXCLUDES, NEXTCLOUD_SYNC_SCHEMA,
+  OBSIDIAN_CONFIG_PATTERN, PROTECTED_SYNC_EXCLUDES, effectiveSyncExcludes,
   buildNextcloudDavRoot, emptyNextcloudState, isExcluded, migrateNextcloudSettings,
   migrateNextcloudState, normalizeRemotePath, planSync, safeRelativePath, syncScope,
 } from "./nextcloud-sync-core";
@@ -170,9 +171,10 @@ export class NextcloudSyncEngine {
     try {
       const client = new NextcloudWebDavClient(this.settings, this.password);
       await client.ensureRoot();
+      const excludes = effectiveSyncExcludes(this.settings);
       const local = await this.scanLocal();
       const allRemote = await client.listTree();
-      const remote = Object.fromEntries(Object.entries(allRemote).filter(([p]) => !isExcluded(p, this.settings.excludePatterns)));
+      const remote = Object.fromEntries(Object.entries(allRemote).filter(([p]) => !isExcluded(p, excludes)));
       const actions = planSync(local, remote, this.state.files, this.settings.propagateDeletes);
       summary.unchanged = Math.max(0, new Set([...Object.keys(local), ...Object.keys(remote)]).size - actions.length);
       for (const action of actions) {
@@ -186,9 +188,10 @@ export class NextcloudSyncEngine {
 
   private async scanLocal(): Promise<Record<string, LocalEntry>> {
     const out: Record<string, LocalEntry> = {};
+    const excludes = effectiveSyncExcludes(this.settings);
     for (const file of this.app.vault.getFiles()) {
       const path = file.path.replace(/\\/g, "/");
-      if (!safeRelativePath(path) || isExcluded(path, this.settings.excludePatterns)) continue;
+      if (!safeRelativePath(path) || isExcluded(path, excludes)) continue;
       const data = await this.app.vault.readBinary(file);
       out[path] = { hash: await sha256Hex(data), size: data.byteLength };
     }

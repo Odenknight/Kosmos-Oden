@@ -1,16 +1,18 @@
 /** Pure, DOM-free Nextcloud sync settings, URL, exclusion, and three-way planning logic. */
-export const NEXTCLOUD_SYNC_SCHEMA = 1;
-export const DEFAULT_SYNC_EXCLUDES = [".obsidian/**", ".git/**", ".trash/**"];
+export const NEXTCLOUD_SYNC_SCHEMA = 2;
+export const OBSIDIAN_CONFIG_PATTERN = ".obsidian/**";
+export const PROTECTED_SYNC_EXCLUDES = [".obsidian/plugins/vault-kosmos/data.json"];
+export const DEFAULT_SYNC_EXCLUDES = [".git/**", ".trash/**"];
 
 export interface NextcloudSettings {
   schemaVersion: number; enabled: boolean; serverUrl: string; username: string;
   remoteFolder: string; syncOnStartup: boolean; intervalMinutes: number;
-  propagateDeletes: boolean; excludePatterns: string[];
+  propagateDeletes: boolean; syncObsidianConfig: boolean; excludePatterns: string[];
 }
 export const DEFAULT_NEXTCLOUD_SETTINGS: NextcloudSettings = {
   schemaVersion: NEXTCLOUD_SYNC_SCHEMA, enabled: false, serverUrl: "", username: "",
   remoteFolder: "Kosmos-Oden", syncOnStartup: false, intervalMinutes: 0,
-  propagateDeletes: false, excludePatterns: [...DEFAULT_SYNC_EXCLUDES],
+  propagateDeletes: false, syncObsidianConfig: false, excludePatterns: [...DEFAULT_SYNC_EXCLUDES],
 };
 export interface SyncRecord { localHash: string; remoteEtag: string; remoteMtime: number; remoteSize: number; syncedAt: number; }
 export interface NextcloudSyncState { schemaVersion: number; scope: string; files: Record<string, SyncRecord>; }
@@ -23,10 +25,13 @@ export interface SyncSummary { uploaded: number; downloaded: number; deletedLoca
 export function migrateNextcloudSettings(raw: any): NextcloudSettings {
   const s = Object.assign({}, DEFAULT_NEXTCLOUD_SETTINGS, raw || {}) as NextcloudSettings;
   s.enabled = s.enabled === true; s.syncOnStartup = s.syncOnStartup === true; s.propagateDeletes = s.propagateDeletes === true;
+  s.syncObsidianConfig = s.syncObsidianConfig === true;
   s.intervalMinutes = Math.max(0, Math.min(1440, Math.floor(Number(s.intervalMinutes) || 0)));
   s.serverUrl = String(s.serverUrl || "").trim(); s.username = String(s.username || "").trim();
   s.remoteFolder = normalizeRemotePath(String(s.remoteFolder || "Kosmos-Oden")) || "Kosmos-Oden";
-  s.excludePatterns = Array.isArray(s.excludePatterns) ? s.excludePatterns.map(String).map((v) => v.trim()).filter(Boolean).slice(0, 200) : [...DEFAULT_SYNC_EXCLUDES];
+  s.excludePatterns = Array.isArray(s.excludePatterns)
+    ? s.excludePatterns.map(String).map((v) => v.trim()).filter((v) => v && v.toLowerCase() !== OBSIDIAN_CONFIG_PATTERN).slice(0, 200)
+    : [...DEFAULT_SYNC_EXCLUDES];
   s.schemaVersion = NEXTCLOUD_SYNC_SCHEMA; return s;
 }
 export function emptyNextcloudState(scope = ""): NextcloudSyncState { return { schemaVersion: NEXTCLOUD_SYNC_SCHEMA, scope, files: {} }; }
@@ -57,6 +62,14 @@ function globRegex(pattern: string): RegExp {
 export function isExcluded(path: string, patterns: string[]): boolean {
   const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
   return patterns.some((pattern) => { const p = pattern.replace(/\\/g, "/").replace(/^\/+/, "").trim(); return Boolean(p) && (globRegex(p).test(normalized) || (!p.includes("/") && normalized.split("/").includes(p))); });
+}
+export function effectiveSyncExcludes(settings: NextcloudSettings): string[] {
+  const patterns = [...settings.excludePatterns];
+  if (!settings.syncObsidianConfig) patterns.push(OBSIDIAN_CONFIG_PATTERN);
+  for (const protectedPath of PROTECTED_SYNC_EXCLUDES) {
+    if (!patterns.some((p) => p.toLowerCase() === protectedPath.toLowerCase())) patterns.push(protectedPath);
+  }
+  return patterns;
 }
 export function planSync(local: Record<string, LocalEntry>, remote: Record<string, RemoteEntry>, previous: Record<string, SyncRecord>, propagateDeletes: boolean): SyncAction[] {
   const paths = [...new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(previous)])].sort(); const actions: SyncAction[] = [];

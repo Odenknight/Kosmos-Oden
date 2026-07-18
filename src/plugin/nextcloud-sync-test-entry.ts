@@ -1,6 +1,7 @@
 /** DOM/Obsidian-free public surface used by the sync planner tests. */
 export {
   buildNextcloudDavRoot,
+  effectiveSyncExcludes,
   emptyNextcloudState,
   isExcluded,
   migrateNextcloudSettings,

@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildNextcloudDavRoot,
+  effectiveSyncExcludes,
   isExcluded,
+  migrateNextcloudSettings,
   migrateNextcloudState,
   planSync,
   safeRelativePath,
@@ -59,8 +61,20 @@ test("exclusions and path validation block plugin metadata and traversal", () =>
   assert.equal(safeRelativePath("../outside.md"), false);
 });
 
+test(".obsidian sync is selectable while Kosmos credential state stays protected", () => {
+  const disabled = migrateNextcloudSettings({ syncObsidianConfig: false, excludePatterns: [".obsidian/**", ".git/**"] });
+  const disabledPatterns = effectiveSyncExcludes(disabled);
+  assert.equal(isExcluded(".obsidian/hotkeys.json", disabledPatterns), true);
+
+  const enabled = migrateNextcloudSettings({ syncObsidianConfig: true, excludePatterns: [".obsidian/**", ".git/**"] });
+  const enabledPatterns = effectiveSyncExcludes(enabled);
+  assert.equal(isExcluded(".obsidian/hotkeys.json", enabledPatterns), false);
+  assert.equal(isExcluded(".obsidian/plugins/example/data.json", enabledPatterns), false);
+  assert.equal(isExcluded(".obsidian/plugins/vault-kosmos/data.json", enabledPatterns), true);
+});
+
 test("sync state resets when the remote scope changes", () => {
-  const old = { schemaVersion: 1, scope: "one", files: { "a.md": S("a", "1") } };
+  const old = { schemaVersion: 2, scope: "one", files: { "a.md": S("a", "1") } };
   assert.equal(Object.keys(migrateNextcloudState(old, "one").files).length, 1);
   assert.equal(Object.keys(migrateNextcloudState(old, "two").files).length, 0);
 });

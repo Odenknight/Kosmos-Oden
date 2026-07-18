@@ -3,7 +3,7 @@ import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
 import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "../core/okf-exclusions";
 import { KOSMOS_VERSION } from "../core/version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
-import { DEFAULT_SYNC_EXCLUDES } from "./nextcloud-sync";
+import { DEFAULT_SYNC_EXCLUDES, PROTECTED_SYNC_EXCLUDES } from "./nextcloud-sync";
 
 export function installedBridgePath(app: App, plugin: any): string {
   try {
@@ -189,8 +189,11 @@ export class KosmosSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Propagate deletions")
       .setDesc("Off by default: a file missing on one side is restored from the other. When on, an unchanged file deleted on one side is deleted on the other; changed-vs-deleted cases remain conflicts.")
       .addToggle((t) => t.setValue(nc.propagateDeletes).onChange(async (v) => { nc.propagateDeletes = v; await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Sync Obsidian configuration (.obsidian)")
+      .setDesc(`Off by default. Enable to sync themes, snippets, hotkeys, and plugin files under .obsidian. Kosmos-Oden's own ${PROTECTED_SYNC_EXCLUDES[0]} always remains excluded because it contains local sync state and Agent API credentials.`)
+      .addToggle((t) => t.setValue(nc.syncObsidianConfig).onChange(async (v) => { nc.syncObsidianConfig = v; await this.plugin.saveNextcloudSettings(); }));
     new Setting(containerEl).setName("Sync exclusions")
-      .setDesc(`One case-insensitive glob per line. Defaults protect plugin credentials/state and local metadata: ${DEFAULT_SYNC_EXCLUDES.join(", ")}`)
+      .setDesc(`One case-insensitive glob per line for individual hidden files or folders. The .obsidian toggle above controls the whole configuration folder. Other defaults: ${DEFAULT_SYNC_EXCLUDES.join(", ")}. Protected paths cannot be overridden.`)
       .addTextArea((area) => {
         area.setValue(nc.excludePatterns.join("\n")).onChange(async (v) => { nc.excludePatterns = v.split(/\r?\n/).map((p: string) => p.trim()).filter(Boolean); await this.plugin.saveNextcloudSettings(); });
         area.inputEl.rows = 4; area.inputEl.cols = 48;

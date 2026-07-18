@@ -110,3 +110,5 @@ reviewed source before its guarded write.
 The separately configured Nextcloud workflow can write local vault files and
 the selected remote folder. It is disabled by default, excludes `.obsidian`,
 uses conditional WebDAV requests, and defaults deletion propagation off.
+Users can opt into `.obsidian` synchronization independently of custom path
+globs; the plugin's own `data.json` remains a mandatory exclusion.

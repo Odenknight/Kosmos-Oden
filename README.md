@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.1
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.2
 
-**Version 0.6.5-beta.1** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.2** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -156,6 +156,10 @@ remote ETag. If both changed, the Nextcloud version is first saved locally as
 common version on both sides. Deletion
 propagation is off by default; changed-versus-deleted cases always remain
 conflicts. `.obsidian/**`, `.git/**`, and `.trash/**` are excluded by default.
+The settings page exposes a dedicated `.obsidian` toggle plus per-path globs,
+so configuration files can be included selectively. Kosmos-Oden's own
+`.obsidian/plugins/vault-kosmos/data.json` always remains excluded because it
+contains device-local sync state and Agent API credentials.
 
 HTTPS is required for public hostnames. Plain HTTP is accepted only for a
 literal private or loopback address. The beta performs full remote metadata
@@ -257,7 +261,7 @@ npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
 npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
 npm run build:standalone # just vault-kosmos.html
-npm test                 # 164 unit/API/artifact/classification/sync tests (node --test)
+npm test                 # 165 unit/API/artifact/classification/sync tests (node --test)
 npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
 ```
