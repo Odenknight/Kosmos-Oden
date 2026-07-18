@@ -138,6 +138,15 @@
   .chronoBar.show{display:flex}
   .chronoBar input{width:min(46vw,340px);accent-color:#c084fc}
   .chronoBar span{font:600 11px/1 var(--mono);color:var(--muted);min-width:84px;text-align:center}
+  @media (max-width:1320px){
+    .legend,.mmwrap{display:none}
+  }
+  @media (max-width:1000px){
+    .stats{display:none}
+    .deck{flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100vw - 24px);gap:6px;padding:6px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+    .deck .div{display:none}
+    .seg button{padding:9px 10px}
+  }
   @media (max-width:760px),(pointer:coarse){
     .stats,.legend,.mmwrap{display:none}
     .brand h1{font-size:13.5px}

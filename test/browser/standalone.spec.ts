@@ -67,3 +67,36 @@ test("agent traversal renders a breadcrumb plus bounded comet dust", async ({ pa
   expect(d.agentDustParticles).toBeGreaterThan(0);
   expect(d.agentDustParticles).toBeLessThanOrEqual(640);
 });
+
+test("primary controls remain inside compact-desktop and mobile viewports", async ({ page }) => {
+  await page.goto("/vault-kosmos.html");
+  for (const viewport of [
+    { width: 1468, height: 891 },
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+    { width: 800, height: 600 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const layout = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const element = document.querySelector(selector) as HTMLElement | null;
+        if (!element || getComputedStyle(element).display === "none") return null;
+        const box = element.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
+      };
+      const buttons = Array.from(document.querySelectorAll(".deck button"))
+        .filter((element) => getComputedStyle(element).display !== "none")
+        .map((element) => { const box = element.getBoundingClientRect(); return { left: box.left, top: box.top, right: box.right, bottom: box.bottom }; });
+      return { deck: rect(".deck"), brand: rect(".brand"), toolbar: rect(".toolbar"), legend: rect(".legend"), buttons };
+    });
+    for (const box of [layout.deck, layout.brand, layout.toolbar, ...layout.buttons]) {
+      expect(box).not.toBeNull();
+      expect(box!.left).toBeGreaterThanOrEqual(-0.5);
+      expect(box!.top).toBeGreaterThanOrEqual(-0.5);
+      expect(box!.right).toBeLessThanOrEqual(viewport.width + 0.5);
+      expect(box!.bottom).toBeLessThanOrEqual(viewport.height + 0.5);
+    }
+    if (layout.legend) expect(layout.deck!.right).toBeLessThanOrEqual(layout.legend.left);
+  }
+});

@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-beta.6",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.6) — a governed context projection with live MCP traversal comet trails, UTC timestamps, OKF+ 2.3, and Nextcloud sync.",
+  "version": "0.6.5-beta.7",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.7) — a responsive governed knowledge projection with MCP traversal visualization, OKF+ v2.3, and native Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
   "engines": {

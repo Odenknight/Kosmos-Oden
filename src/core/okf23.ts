@@ -32,7 +32,7 @@ const obj = (v: unknown): Record<string, unknown> => v && typeof v === "object" 
 const diag = (code: string, severity: DiagnosticSeverity, field: string, message: string, sourcePath?: string): OkfDiagnostic => ({ code, severity, field, message, deterministic: true, sourcePath });
 const score = (n: number) => Math.max(0, Math.min(1, Math.round(n * 10000) / 10000));
 
-export function projectOkf23(data: Frontmatter, rawContent: string, sourcePath = "", mode: Okf23Projection["mode"] = "compatible", engineVersion = "0.6.5-beta.6"): Okf23Projection {
+export function projectOkf23(data: Frontmatter, rawContent: string, sourcePath = "", mode: Okf23Projection["mode"] = "compatible", engineVersion = "0.6.5-beta.7"): Okf23Projection {
   const raw = data as Record<string, unknown>; const diagnostics: OkfDiagnostic[] = [];
   const version = s(raw.okf_version); const uid = s(raw.uid); const is23 = version === "2.3" || version?.startsWith("2.3.");
   if (!uid) diagnostics.push(diag("OKF-IDENTITY-001", mode === "strict-v2.3" ? "error" : "warning", "uid", "Missing UID; legacy path identity remains readable but is not canonical.", sourcePath));

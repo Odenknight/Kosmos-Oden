@@ -329,13 +329,13 @@ export default class VaultKosmosPlugin extends Plugin {
     this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
     this.addCommand({
       id: "mark-notes-okf-plus",
-      name: "Mark notes in OKF+ format (scan, back up, and preview)",
+      name: "Audit OKF+ compatibility formatting (back up and preview)",
       callback: () => void this.markNotesInOkf(),
     });
-    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Scan / re-scan all OKF+ 2.2 notes for enrichment proposals", callback: () => void this.proposeOkfEnrichment() });
+    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Re-scan OKF+ compatibility notes for governed proposals", callback: () => void this.proposeOkfEnrichment() });
     this.addCommand({
       id: "upgrade-all-notes-okf-plus-2-2",
-      name: "Upgrade all recoverable notes to OKF+ 2.2 (preview first)",
+      name: "Upgrade recoverable notes to the OKF+ 2.2 compatibility baseline (preview first)",
       callback: () => void this.markNotesInOkf("upgrade-all"),
     });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });

@@ -7,6 +7,28 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.7] — 2026-07-18 (pre-release)
+
+### Fixed
+- Replaced the inferred heading/accordion Options layout with four explicit,
+  accessible tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**,
+  **Quick Connect — Anthropic, OpenAI, and Universal MCP**, and
+  **Connectivity to Sync Vault**. Nextcloud configuration is now always
+  discoverable from its own tab.
+- Added compact-desktop renderer breakpoints so the bottom command deck wraps
+  before clipping and the minimap/constellation key withdraw before colliding
+  with primary controls.
+
+### Changed
+- Added mobile tab scrolling, stacked full-width setting controls, keyboard tab
+  navigation, and active-tab retention when a setting redraws the Options page.
+- Updated UI, manifest, generated Agent API guide, and README nomenclature to
+  identify the **OKF+ v2.3 Validating Projection Profile** under GKOS, distinguish
+  the current OKF+ 2.2 compatibility writer, use MCP Streamable HTTP terminology,
+  and describe native Nextcloud Files synchronization over WebDAV.
+- Updated the Graphiti setup example to the tested `graphiti-core==0.29.0` pin
+  with FalkorDB for simple local operation or Neo4j for mature deployments.
+
 ## [0.6.5-beta.3] — 2026-07-18 (pre-release)
 
 ### Added
@@ -285,14 +307,14 @@ engineering assessments (`docs/assessments/`).
 Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, OKF+
 temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
 base64-embedded single HTML string.
-# 0.6.5-beta.5
+## [0.6.5-beta.5] — 2026-07-18 (pre-release)
 
 - Adds opt-out `created_at` and `updated_at` ISO-8601 UTC note stamping through Obsidian's frontmatter API.
 - Names the deterministic agent surface the Kosmos Governed Context Projection (KGCP).
 - Upgrades the Graphiti adapter schema to `okf-plus-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
 - Pins the generated Graphiti sample to tested `graphiti-core==0.29.0`, defaults to FalkorDB, keeps Neo4j available, and intentionally excludes deprecated Kuzu.
 - Adds honest combined-extraction benchmarking and ingestion-readiness contracts without treating queued acceptance as searchable completion.
-# 0.6.5-beta.6
+## [0.6.5-beta.6] — 2026-07-18 (pre-release)
 
 - Extends the functioning per-agent MCP traversal breadcrumb with a bounded additive comet-tail particle pool and lingering snow-dust around visited notes.
 - Keeps agent trails independent and color-stable when multiple MCP clients traverse concurrently.
