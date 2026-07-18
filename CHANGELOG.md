@@ -7,6 +7,33 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.1] — 2026-07-18 (pre-release)
+
+### Added
+- Added an original, native Nextcloud WebDAV sync backend for desktop and
+  mobile Obsidian. It accepts an instance URL or complete DAV files URL,
+  supports app-password authentication through Obsidian Secret Storage,
+  startup/manual/interval sync, binary attachments, nested folders, and
+  case-insensitive glob exclusions.
+- Added a deterministic three-way planner using the last common local hash and
+  remote ETag. First-sync collisions are compared by content; simultaneous
+  edits preserve the Nextcloud version as a timestamped local conflict copy.
+- Added conditional `If-Match`/`If-None-Match` writes, bounded WebDAV traversal,
+  traversal-safe paths, HTTPS enforcement (except literal private/loopback
+  addresses), and 7 focused planner/security tests.
+
+### Security
+- Nextcloud credentials are never placed in plugin `data.json`; app passwords
+  use Obsidian Secret Storage. `.obsidian/**`, `.git/**`, and `.trash/**` are
+  excluded by default, preventing credential/state recursion.
+- Deletion propagation defaults off. When explicitly enabled, only an
+  unchanged file deleted on one side is deleted on the other; changed-versus-
+  deleted cases remain conflicts.
+
+### Compatibility
+- Minimum Obsidian version is now 1.11.4 because native Secret Storage is a
+  hard requirement for persistent Nextcloud credentials.
+
 ## [0.6.5-alpha.7] — 2026-07-16 (pre-release)
 
 ### Fixed

@@ -3,6 +3,7 @@ import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
 import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "../core/okf-exclusions";
 import { KOSMOS_VERSION } from "../core/version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
+import { DEFAULT_SYNC_EXCLUDES } from "./nextcloud-sync";
 
 export function installedBridgePath(app: App, plugin: any): string {
   try {
@@ -148,6 +149,53 @@ export class KosmosSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const s: AgentSettings = this.plugin.agentSettings;
+    const nc = this.plugin.nextcloudSettings;
+
+    containerEl.createEl("h2", { text: "Nextcloud vault sync (native WebDAV)" });
+    containerEl.createEl("p", {
+      text: "Two-way sync built into Kosmos-Oden. It compares local and Nextcloud state before every write, uses conditional requests, and saves the Nextcloud version as a conflict copy when both sides changed.",
+      cls: "setting-item-description",
+    });
+    const ncStatus = containerEl.createEl("p", { text: `Status: ${this.plugin.nextcloudStatus}` });
+    const refreshNc = () => ncStatus.setText(`Status: ${this.plugin.nextcloudStatus}`);
+    new Setting(containerEl).setName("Enable Nextcloud sync").setDesc("Allows startup and scheduled sync. The Sync now command remains available for testing.")
+      .addToggle((t) => t.setValue(nc.enabled).onChange(async (v) => { nc.enabled = v; await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Nextcloud address")
+      .setDesc("Your instance URL, for example https://cloud.example.com. A complete /remote.php/dav/files/... URL is also accepted. HTTPS is required except for literal private/loopback addresses.")
+      .addText((t) => t.setPlaceholder("https://cloud.example.com").setValue(nc.serverUrl).onChange(async (v) => { nc.serverUrl = v.trim(); await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Nextcloud username")
+      .addText((t) => t.setValue(nc.username).onChange(async (v) => { nc.username = v.trim(); await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Nextcloud app password")
+      .setDesc(this.plugin.getNextcloudPassword() ? "Stored in Obsidian Secret Storage. Enter a value only to replace it." : "Create an app password in Nextcloud security settings. It is stored in Obsidian Secret Storage, not data.json.")
+      .addText((t) => {
+        t.setPlaceholder(this.plugin.getNextcloudPassword() ? "•••••••• (stored)" : "App password");
+        t.inputEl.type = "password";
+        t.onChange((v) => { if (v) this.plugin.setNextcloudPassword(v); });
+      })
+      .addButton((b) => b.setButtonText("Clear").setWarning().onClick(() => { this.plugin.setNextcloudPassword(""); new Notice("Nextcloud app password cleared"); this.display(); }));
+    new Setting(containerEl).setName("Remote vault folder")
+      .setDesc("Folder beneath your Nextcloud files root. Use the same value on every device that shares this vault.")
+      .addText((t) => t.setValue(nc.remoteFolder).onChange(async (v) => { nc.remoteFolder = v; await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Connection and sync")
+      .setDesc("Sync is serialized; a second run cannot overlap an active one.")
+      .addButton((b) => b.setButtonText("Test connection").onClick(async () => { await this.plugin.testNextcloudConnection(); refreshNc(); }))
+      .addButton((b) => b.setButtonText("Sync now").setCta().onClick(async () => { await this.plugin.runNextcloudSync(true); refreshNc(); }));
+    new Setting(containerEl).setName("Sync on startup").setDesc("Runs after Obsidian finishes opening the vault.")
+      .addToggle((t) => t.setValue(nc.syncOnStartup).onChange(async (v) => { nc.syncOnStartup = v; await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Scheduled sync")
+      .setDesc("Applies after the plugin reloads. Sync never runs concurrently.")
+      .addDropdown((d) => d.addOption("0", "Off").addOption("5", "Every 5 minutes").addOption("15", "Every 15 minutes").addOption("30", "Every 30 minutes").addOption("60", "Every hour")
+        .setValue(String(nc.intervalMinutes)).onChange(async (v) => { nc.intervalMinutes = Number(v); await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Propagate deletions")
+      .setDesc("Off by default: a file missing on one side is restored from the other. When on, an unchanged file deleted on one side is deleted on the other; changed-vs-deleted cases remain conflicts.")
+      .addToggle((t) => t.setValue(nc.propagateDeletes).onChange(async (v) => { nc.propagateDeletes = v; await this.plugin.saveNextcloudSettings(); }));
+    new Setting(containerEl).setName("Sync exclusions")
+      .setDesc(`One case-insensitive glob per line. Defaults protect plugin credentials/state and local metadata: ${DEFAULT_SYNC_EXCLUDES.join(", ")}`)
+      .addTextArea((area) => {
+        area.setValue(nc.excludePatterns.join("\n")).onChange(async (v) => { nc.excludePatterns = v.split(/\r?\n/).map((p: string) => p.trim()).filter(Boolean); await this.plugin.saveNextcloudSettings(); });
+        area.inputEl.rows = 4; area.inputEl.cols = 48;
+      });
+
     containerEl.createEl("h2", { text: "Vault Kosmos — Agent API (HTTP + MCP)" });
     containerEl.createEl("p", { text: "Lets AI agents query this vault's OKF+ knowledge graph. Read-only, localhost-only by default, token-protected. Desktop only." });
 

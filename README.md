@@ -1,10 +1,10 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.7
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.1
 
-**Version 0.6.5-alpha.7** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.1** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-Nothing is changed or moved — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Everything runs locally, and a single `.html` file can render your notes without Obsidian at all.
+The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate OKF+ write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
 
 ## Two ways to use it
 
@@ -135,6 +135,32 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 
 **Battery-friendly:** the 3D view fully stops rendering the moment its tab is hidden or Obsidian is minimized — the plugin tells the iframe about leaf visibility, so even a background Kosmos tab inside a visible Obsidian window costs ~zero CPU/GPU — and resumes instantly when you come back. Idle bookkeeping (highlight halos, GPU uploads, label scans) is skipped when nothing is selected or pulsing.
 
+## Native Nextcloud sync (optional)
+
+Kosmos-Oden can sync the Obsidian vault directly to a Nextcloud Files folder
+through Nextcloud's WebDAV endpoint. This backend was written for Kosmos-Oden;
+it does not include or depend on code from Remotely Save.
+
+1. In Nextcloud, open **Personal settings → Security** and create an app
+   password for this device.
+2. In Obsidian, open **Settings → Vault Kosmos → Nextcloud vault sync**.
+3. Enter the instance address (for example `https://cloud.example.com`), your
+   username, app password, and a remote vault-folder name.
+4. Select **Test connection**, then **Sync now**. Enable startup or scheduled
+   sync only after the first run looks correct on both sides.
+
+The app password is stored through Obsidian Secret Storage, never in plugin
+`data.json`. Every file is compared against the last common local SHA-256 and
+remote ETag. If both changed, the Nextcloud version is first saved locally as
+`name.nextcloud-conflict-<timestamp>.ext`, then the local original becomes the
+common version on both sides. Deletion
+propagation is off by default; changed-versus-deleted cases always remain
+conflicts. `.obsidian/**`, `.git/**`, and `.trash/**` are excluded by default.
+
+HTTPS is required for public hostnames. Plain HTTP is accepted only for a
+literal private or loopback address. The beta performs full remote metadata
+enumeration and local hashing on each run, favoring correctness over speed.
+
 ## Flying around
 
 - **Drag** to orbit · **scroll / pinch** to zoom · **right-drag / two-finger** to pan.
@@ -215,11 +241,11 @@ Uses the same bundled Kosmos Core as the plugin and the standalone page — not 
 
 **Never modify existing notes:** the 3D visualization, ordinary directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
 
-**Write only through explicit commands:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Visualization and Agent API queries remain read-only.
+**Write only through explicit or configured workflows:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Nextcloud writes run only through **Sync now** or explicitly enabled startup/scheduled sync, guarded by common-state comparison and conditional requests. Visualization and Agent API queries remain read-only.
 
 ## Private by design
 
-Everything runs locally. The plugin and the standalone viewer make **no external network requests, collect nothing, and never write to your notes** — fully offline. The optional Agent API is off by default, reachable only from your own computer unless you explicitly say otherwise, and is read-only: there are no endpoints that can modify your vault.
+Visualization, the standalone viewer, and the Agent API run locally and collect nothing. The standalone viewer remains fully offline. Optional Nextcloud sync is disabled by default and contacts only the configured server; optional model enrichment contacts only its configured endpoint. The Agent API is off by default, reachable only from your own computer unless you explicitly say otherwise, and is read-only.
 
 ---
 
@@ -231,7 +257,7 @@ npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
 npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
 npm run build:standalone # just vault-kosmos.html
-npm test                 # 119 unit/API/artifact/classification tests (node --test)
+npm test                 # 164 unit/API/artifact/classification/sync tests (node --test)
 npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
 ```

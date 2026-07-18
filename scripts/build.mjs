@@ -67,7 +67,9 @@ async function buildNodeBundles() {
   // host<->renderer protocol validation is DOM-free and unit-testable
   const protocol = await bundle("src/plugin/protocol.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-protocol.mjs"), protocol);
-  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs");
+  const nextcloudSync = await bundle("src/plugin/nextcloud-sync-test-entry.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-nextcloud-sync.mjs"), nextcloudSync);
+  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-nextcloud-sync.mjs");
 }
 
 const RENDERER_PROVENANCE = JSON.parse(readFileSync(resolve(root, "renderer-provenance.json"), "utf8"));

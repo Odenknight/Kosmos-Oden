@@ -1,9 +1,9 @@
 {
   "id": "vault-kosmos",
   "name": "Vault Kosmos (Kosmos-Oden)",
-  "version": "0.6.5-alpha.7",
-  "minAppVersion": "1.4.0",
-  "description": "A 3D constellation view of your notes: major hubs become stars, related notes become planets and moons, and unresolved links become asteroids. Includes a read-only Agent API (REST + MCP) and Graphiti export.",
+  "version": "0.6.5-beta.1",
+  "minAppVersion": "1.11.4",
+  "description": "A 3D constellation view with governed OKF+ workflows, a read-only Agent API, Graphiti export, and native Nextcloud vault sync.",
   "author": "OdenKnight",
   "authorUrl": "https://github.com/Odenknight/Kosmos-Oden",
   "isDesktopOnly": false

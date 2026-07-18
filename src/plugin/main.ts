@@ -20,6 +20,18 @@ import { openOkfMigrationWorkflow } from "./okf-migration";
 import { openOkfEnrichmentWorkflow } from "./okf-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
+import {
+  DEFAULT_NEXTCLOUD_SETTINGS,
+  NextcloudSyncEngine,
+  NextcloudWebDavClient,
+  emptyNextcloudState,
+  migrateNextcloudSettings,
+  migrateNextcloudState,
+  syncScope,
+  type NextcloudSettings,
+  type NextcloudSyncState,
+  type SyncSummary,
+} from "./nextcloud-sync";
 
 const VIEW_TYPE = "vault-kosmos-view";
 
@@ -231,10 +243,14 @@ class KosmosView extends ItemView {
 
 export default class VaultKosmosPlugin extends Plugin {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
+  nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
+  nextcloudState: NextcloudSyncState = emptyNextcloudState();
+  nextcloudStatus = "Not configured";
   agentApi!: KosmosAgentServer;
   provider!: VaultDataProvider;
 
   private eventsLive = false;
+  private nextcloudSyncRunning = false;
 
   agentLanUrls(): string[] {
     return this.provider.lanAddresses().map((ip) => `http://${ip}:${this.agentSettings.agentPort}`);
@@ -248,7 +264,13 @@ export default class VaultKosmosPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
-    this.agentSettings = migrateAgentSettings(await this.loadData());
+    const persisted = await this.loadData();
+    this.agentSettings = migrateAgentSettings(persisted);
+    this.nextcloudSettings = migrateNextcloudSettings(persisted?.nextcloud);
+    if (!persisted?.nextcloud) this.nextcloudSettings.remoteFolder = `Kosmos-Oden/${this.app.vault.getName()}`;
+    const scope = syncScope(this.nextcloudSettings);
+    this.nextcloudState = migrateNextcloudState(persisted?.nextcloudState, scope);
+    this.nextcloudStatus = this.nextcloudSettings.serverUrl ? "Ready" : "Not configured";
     let settingsChanged = false;
     if (!this.agentSettings.agentToken) {
       try {
@@ -289,10 +311,24 @@ export default class VaultKosmosPlugin extends Plugin {
       callback: () => void this.markNotesInOkf("upgrade-all"),
     });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });
+    this.addCommand({ id: "sync-nextcloud-now", name: "Sync vault with Nextcloud now", callback: () => void this.runNextcloudSync(true) });
 
     // Don't react to the startup metadata-resolve storm; the view's initial load already
     // captures the fully-resolved vault. Only go live once the workspace has settled.
-    this.app.workspace.onLayoutReady(() => { this.eventsLive = true; this.provider.markFullDirty(); });
+    this.app.workspace.onLayoutReady(() => {
+      this.eventsLive = true;
+      this.provider.markFullDirty();
+      if (this.nextcloudSettings.enabled && this.nextcloudSettings.syncOnStartup) {
+        window.setTimeout(() => void this.runNextcloudSync(false), 1500);
+      }
+    });
+
+    if (this.nextcloudSettings.enabled && this.nextcloudSettings.intervalMinutes > 0) {
+      this.registerInterval(window.setInterval(
+        () => void this.runNextcloudSync(false),
+        this.nextcloudSettings.intervalMinutes * 60_000,
+      ));
+    }
 
     const views = (): KosmosView[] =>
       this.app.workspace.getLeavesOfType(VIEW_TYPE)
@@ -339,7 +375,66 @@ export default class VaultKosmosPlugin extends Plugin {
     ws.revealLeaf(leaf);
   }
 
-  async saveAgentSettings(): Promise<void> { await this.saveData(this.agentSettings); }
+  async saveAgentSettings(): Promise<void> { await this.savePluginData(); }
+
+  async saveNextcloudSettings(): Promise<void> {
+    const scope = syncScope(this.nextcloudSettings);
+    if (scope !== this.nextcloudState.scope) this.nextcloudState = emptyNextcloudState(scope);
+    await this.savePluginData();
+  }
+
+  private async savePluginData(): Promise<void> {
+    await this.saveData({ ...this.agentSettings, nextcloud: this.nextcloudSettings, nextcloudState: this.nextcloudState });
+  }
+
+  nextcloudSecretId(): string {
+    const source = `${this.manifest.id}-${this.app.vault.getName()}`.toLowerCase();
+    let hash = 2166136261;
+    for (let i = 0; i < source.length; i++) { hash ^= source.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return `vault-kosmos-nextcloud-${(hash >>> 0).toString(16)}`;
+  }
+
+  getNextcloudPassword(): string { return this.app.secretStorage.getSecret(this.nextcloudSecretId()) || ""; }
+
+  setNextcloudPassword(value: string): void { this.app.secretStorage.setSecret(this.nextcloudSecretId(), value); }
+
+  async testNextcloudConnection(): Promise<void> {
+    this.nextcloudStatus = "Testing…";
+    try {
+      await new NextcloudWebDavClient(this.nextcloudSettings, this.getNextcloudPassword()).test();
+      this.nextcloudStatus = "Connection successful";
+      new Notice("Vault Kosmos: Nextcloud connection successful");
+    } catch (e: any) {
+      this.nextcloudStatus = `Connection failed: ${e?.message || String(e)}`;
+      new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+    }
+  }
+
+  async runNextcloudSync(showNotice = true): Promise<SyncSummary | null> {
+    if (this.nextcloudSyncRunning) {
+      if (showNotice) new Notice("Vault Kosmos: a Nextcloud sync is already running");
+      return null;
+    }
+    this.nextcloudSyncRunning = true;
+    this.nextcloudStatus = "Syncing…";
+    try {
+      const engine = new NextcloudSyncEngine(
+        this.app, this.nextcloudSettings, this.nextcloudState, this.getNextcloudPassword(),
+        async (state) => { this.nextcloudState = state; await this.savePluginData(); },
+      );
+      const result = await engine.run();
+      this.provider.markFullDirty();
+      this.nextcloudStatus = result.errors.length
+        ? `Completed with ${result.errors.length} error(s)`
+        : `Synced: ${result.uploaded} up, ${result.downloaded} down, ${result.conflicts.length} conflict(s)`;
+      if (showNotice || result.errors.length || result.conflicts.length) new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+      return result;
+    } catch (e: any) {
+      this.nextcloudStatus = `Sync failed: ${e?.message || String(e)}`;
+      if (showNotice) new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+      return null;
+    } finally { this.nextcloudSyncRunning = false; }
+  }
 
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
