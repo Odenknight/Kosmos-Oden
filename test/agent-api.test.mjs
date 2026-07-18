@@ -207,12 +207,12 @@ test("agent api", async (t) => {
     assert.equal(r.status, 202);
   });
 
-  await t.test("MCP tools/list exposes the seven read-only tools", async () => {
+  await t.test("MCP tools/list exposes the read-only KGCP tools", async () => {
     const r = await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list" });
     const names = r.json().result.tools.map((x) => x.name);
     assert.deepEqual(names.sort(), [
       "export_graphiti_episodes", "get_lineage", "get_note", "get_related",
-      "graph_at_time", "search_notes", "vault_overview",
+      "graph_at_time", "graphiti_ingestion_status", "search_notes", "vault_overview",
     ]);
     assert.ok(r.json().result.tools.every((x) => x.annotations.readOnlyHint === true));
   });
@@ -223,6 +223,14 @@ test("agent api", async (t) => {
     assert.equal(payload.chainLength, 2);
     assert.equal(payload.chain[1].head, true);
     assert.equal(r.json().result.structuredContent.chainLength, 2);
+  });
+
+  await t.test("Graphiti readiness never equates queue acceptance with searchability", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 51, method: "tools/call", params: { name: "graphiti_ingestion_status", arguments: {} } });
+    const payload = JSON.parse(r.json().result.content[0].text);
+    assert.equal(payload.state, "export-ready");
+    assert.equal(payload.searchable, false);
+    assert.equal(payload.upstreamCheckRequired, true);
   });
 
   await t.test("MCP unknown method -> -32601", async () => {
@@ -498,6 +506,8 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   assert.equal(migrated.agentPort, 5000);
   assert.equal(migrated.okfEnrichmentLanCeiling, "internal");
   assert.equal(migrated.okfDeveloperExclusions, false); // no silent file omission on upgrade
+  assert.equal(migrated.noteTimestampsEnabled, true);
+  assert.equal(migrated.graphitiCombinedExtraction, false);
   assert.deepEqual(migrated.okfExcludePatterns, []);
   const lan = migrateAgentSettings({ okfEnrichmentProvider: "lan", okfEnrichmentLanCeiling: "confidential", okfExcludePatterns: ["**/AGENTS.md"] });
   assert.equal(lan.okfEnrichmentProvider, "lan");

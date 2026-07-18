@@ -20,6 +20,7 @@ export * from "./okf-network";
 export * from "./resolver";
 export * from "./lineage";
 export * from "./temporal";
+export * from "./timestamps";
 export * from "./graph";
 export * from "./graphiti";
 export * from "./incremental";

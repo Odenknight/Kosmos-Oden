@@ -20,6 +20,7 @@ export interface Okf23Projection {
   proposed: Record<string, unknown>; approved: Record<string, unknown>;
   labels: OriginSet<string[]>; extensions: Record<string, unknown>;
   diagnostics: OkfDiagnostic[]; assessment: OkfAssessment;
+  schema: { id: "okf-plus-2.3-validating-projection"; version: "2.3"; hash: string };
 }
 
 const KNOWN = new Set(["okf_version","uid","title","type","created_at","updated_at","timestamp","authorship","epistemic","epistemic_state","sensitivity","provenance","relationships","evidence","lineage","review","assessment","authorization","labels","supersedes","superseded_by","supersededBy","forked_from","forked_to","description","scope","scope_id","resource","tags","aliases"]);
@@ -31,7 +32,7 @@ const obj = (v: unknown): Record<string, unknown> => v && typeof v === "object" 
 const diag = (code: string, severity: DiagnosticSeverity, field: string, message: string, sourcePath?: string): OkfDiagnostic => ({ code, severity, field, message, deterministic: true, sourcePath });
 const score = (n: number) => Math.max(0, Math.min(1, Math.round(n * 10000) / 10000));
 
-export function projectOkf23(data: Frontmatter, rawContent: string, sourcePath = "", mode: Okf23Projection["mode"] = "compatible", engineVersion = "0.6.5-beta.4"): Okf23Projection {
+export function projectOkf23(data: Frontmatter, rawContent: string, sourcePath = "", mode: Okf23Projection["mode"] = "compatible", engineVersion = "0.6.5-beta.5"): Okf23Projection {
   const raw = data as Record<string, unknown>; const diagnostics: OkfDiagnostic[] = [];
   const version = s(raw.okf_version); const uid = s(raw.uid); const is23 = version === "2.3" || version?.startsWith("2.3.");
   if (!uid) diagnostics.push(diag("OKF-IDENTITY-001", mode === "strict-v2.3" ? "error" : "warning", "uid", "Missing UID; legacy path identity remains readable but is not canonical.", sourcePath));
@@ -57,5 +58,5 @@ export function projectOkf23(data: Frontmatter, rawContent: string, sourcePath =
   const derivedLabels = [uid ? "identity:stable" : "identity:missing", `sensitivity:${sensitivity ?? "internal"}`, overall == null ? "assessment:not-assessable" : overall >= .85 ? "assessment:strongly-documented" : overall >= .7 ? "assessment:well-documented" : overall >= .45 ? "assessment:partially-supported" : "assessment:weakly-supported"];
   const authoredLabels = obj(raw.labels); const extensions = Object.fromEntries(Object.entries(raw).filter(([k]) => !KNOWN.has(k)));
   const inputHash = contentHash(JSON.stringify(raw));
-  return { profile:"OKF+ v2.3 Validating Projection Profile", mode, okfVersion:version, uid, title:s(raw.title), type:s(raw.type), createdAt:s(raw.created_at) ?? s(raw.timestamp), updatedAt:s(raw.updated_at), contentHash:contentHash(rawContent), authored:raw, derived:{ effectiveSensitivity:sensitivity ?? "internal", epistemicState:epistemic }, proposed:{}, approved:{}, labels:{ authored:Array.isArray(authoredLabels.authored) ? authoredLabels.authored.filter((x):x is string=>typeof x==="string") : [], derived:derivedLabels, proposed:[], approved:[] }, extensions, diagnostics, assessment:{ policyId:"okf23-default", policyVersion:"1.0.0", policyHash:contentHash(JSON.stringify(weights)), assessor:"kosmos-oden", engineVersion, inputHash, calculatedAt:"deterministic-at-index-time", components, exclusions, overall, meaning:"documentation-and-support-quality-not-truth" } };
+  return { profile:"OKF+ v2.3 Validating Projection Profile", mode, okfVersion:version, uid, title:s(raw.title), type:s(raw.type), createdAt:s(raw.created_at) ?? s(raw.timestamp), updatedAt:s(raw.updated_at), contentHash:contentHash(rawContent), authored:raw, derived:{ effectiveSensitivity:sensitivity ?? "internal", epistemicState:epistemic }, proposed:{}, approved:{}, labels:{ authored:Array.isArray(authoredLabels.authored) ? authoredLabels.authored.filter((x):x is string=>typeof x==="string") : [], derived:derivedLabels, proposed:[], approved:[] }, extensions, diagnostics, assessment:{ policyId:"okf23-default", policyVersion:"1.0.0", policyHash:contentHash(JSON.stringify(weights)), assessor:"kosmos-oden", engineVersion, inputHash, calculatedAt:"deterministic-at-index-time", components, exclusions, overall, meaning:"documentation-and-support-quality-not-truth" }, schema:{ id:"okf-plus-2.3-validating-projection", version:"2.3", hash:contentHash("okf-plus-2.3-validating-projection/1") } };
 }

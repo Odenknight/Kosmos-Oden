@@ -21,7 +21,7 @@
  *    endpoints exist (§18).
  */
 import { projectAtTime, type ProjectableNote } from "../core/temporal";
-import { attachGraphitiContent, buildGraphitiEpisodes } from "../core/graphiti";
+import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "../core/graphiti";
 import { KOSMOS_VERSION } from "../core/version";
 import type { KosmosGraph, KosmosNode, OkfSensitivity } from "../core/types";
 
@@ -36,7 +36,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 5;
+export const AGENT_SETTINGS_SCHEMA = 6;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -53,6 +53,12 @@ export interface AgentSettings {
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
    *  always rejected in LAN mode regardless of this flag. */
   agentAllowQueryToken: boolean;
+  /** Maintain portable ISO-8601 UTC created_at/updated_at note fields. */
+  noteTimestampsEnabled: boolean;
+  /** Graphiti 0.29 combined extraction is opt-in until benchmarked. */
+  graphitiCombinedExtraction: boolean;
+  /** Add deterministic saga hints to exported episodes. */
+  graphitiSagaMapping: boolean;
   okfEnrichmentProvider: "none" | "local" | "lan" | "cloud";
   okfEnrichmentEndpoint: string;
   okfEnrichmentModel: string;
@@ -81,6 +87,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentSensitivityCeiling: "internal",
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
+  noteTimestampsEnabled: true,
+  graphitiCombinedExtraction: false,
+  graphitiSagaMapping: false,
   okfEnrichmentProvider: "none",
   okfEnrichmentEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
   okfEnrichmentModel: "",
@@ -103,7 +112,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   // v1 had no agentAllowQueryToken and accepted query tokens implicitly. Migrating
   // to v2 turns that OFF by default; the user can re-enable it explicitly.
   if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
-  if (!raw || !["public", "internal", "confidential", "phi"].includes(raw.agentSensitivityCeiling)) {
+  if (!raw || !["public", "internal", "restricted", "confidential", "regulated", "phi", "secret"].includes(raw.agentSensitivityCeiling)) {
     // Existing unlabeled vaults are treated as internal, preserving local
     // behavior while keeping confidential/PHI notes opt-in.
     s.agentSensitivityCeiling = "internal";
@@ -113,6 +122,9 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   if (!["public", "internal", "confidential"].includes(s.okfEnrichmentLanCeiling)) s.okfEnrichmentLanCeiling = "internal";
   s.okfExcludePatterns = Array.isArray(s.okfExcludePatterns) ? s.okfExcludePatterns.map(String).slice(0, 200) : [];
   s.okfDeveloperExclusions = s.okfDeveloperExclusions === true;
+  s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
+  s.graphitiCombinedExtraction = s.graphitiCombinedExtraction === true;
+  s.graphitiSagaMapping = s.graphitiSagaMapping === true;
   s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));
   s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.okfEnrichmentMaxParagraphs) || 4));
   s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.okfEnrichmentMaxInputChars) || 4000));
@@ -733,6 +745,10 @@ export class KosmosAgentServer {
       groupId: this.settings.agentGraphNamespace
         ? `okf-${this.provider.vaultName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "vault"}-${this.settings.agentGraphNamespace.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}-assertions`
         : undefined,
+      corpusId: this.settings.agentGraphNamespace || this.provider.vaultIdentity?.(),
+      combinedExtraction: this.settings.graphitiCombinedExtraction,
+      sagaMapping: this.settings.graphitiSagaMapping,
+      processingTime: graph.stats.indexedAt,
     });
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const cap = limit == null || !Number.isFinite(limit) ? MAX_EPISODES : Math.max(1, Math.min(Math.floor(limit), MAX_EPISODES));
@@ -750,18 +766,40 @@ export class KosmosAgentServer {
 
   async qEpisodePage(offset = 0, limit = DEFAULT_EPISODE_PAGE): Promise<any> {
     const graph = await this.provider.getGraph();
-    const total = this.fileNodes(graph).length;
+    const visibleGraph = this.graphForVisibleNodes(graph);
+    const profile = graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction });
+    const total = buildGraphitiEpisodes(visibleGraph, {
+      vault: this.provider.vaultName(), vaultIdentity: this.provider.vaultIdentity?.(),
+      combinedExtraction: this.settings.graphitiCombinedExtraction, sagaMapping: this.settings.graphitiSagaMapping,
+      processingTime: graph.stats.indexedAt,
+    }).length;
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const pageSize = Math.max(1, Math.min(Math.floor(Number.isFinite(limit) ? limit : DEFAULT_EPISODE_PAGE), MAX_EPISODE_PAGE));
     const episodes = await this.qEpisodes(pageSize, start);
     const next = start + episodes.length;
     return {
       authority: "non-authoritative Graphiti projection of explicit user assertions",
+      adapter: "Kosmos Governed Context Projection",
+      ingestionProfile: profile,
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       total,
       cursor: start,
       nextCursor: next < total ? next : null,
       episodes,
+    };
+  }
+
+  async qGraphitiIngestionStatus(): Promise<any> {
+    const graph = await this.provider.getGraph();
+    return {
+      state: "export-ready",
+      searchable: false,
+      reason: "Kosmos-Oden prepares episodes but does not assume a queued Graphiti MCP ingestion is searchable.",
+      sourceIndexedAt: graph.stats.indexedAt,
+      profile: graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction }),
+      upstreamCheckRequired: true,
+      readyWhen: "Graphiti reports the queued job completed and a read-after-ingest query can retrieve the episode UUID.",
+      benchmark: this.settings.graphitiCombinedExtraction ? { state: "measurement-required", metrics: ["token_cost","ingestion_duration_ms","entity_recall","edge_accuracy"] } : { state: "disabled" },
     };
   }
 
@@ -799,6 +837,7 @@ export class KosmosAgentServer {
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
       tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti projection of readable explicit user assertions. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
+      tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
     ];
   }
 
@@ -815,6 +854,7 @@ export class KosmosAgentServer {
       get_related: ["path", "title"],
       graph_at_time: ["time", "limit"],
       export_graphiti_episodes: ["cursor", "limit"],
+      graphiti_ingestion_status: [],
     };
     for (const key of Object.keys(a)) if (!allowed[name].includes(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
     for (const key of ["query", "tag", "area", "path", "title", "time"]) {
@@ -848,6 +888,7 @@ export class KosmosAgentServer {
       case "get_related": return done(await this.qRelated(args));
       case "graph_at_time": return done(await this.qAtTime(args.time, args.limit));
       case "export_graphiti_episodes": return this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE);
+      case "graphiti_ingestion_status": return this.qGraphitiIngestionStatus();
       default: throw new McpRpcError(-32602, "Unknown tool: " + name);
     }
   }
@@ -1054,7 +1095,7 @@ export class KosmosAgentServer {
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
-          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes"],
+          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status"],
         });
         return;
       case "/health": this.json(res, 200, { ok: true, name: "vault-kosmos", version: KOSMOS_VERSION, vault: this.provider.vaultName() }); return;
@@ -1067,6 +1108,7 @@ export class KosmosAgentServer {
       case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
       case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
       case "/episodes": this.json(res, 200, await this.qEpisodePage(q("cursor") ? Number(q("cursor")) : 0, q("limit") ? Number(q("limit")) : DEFAULT_EPISODE_PAGE)); return;
+      case "/graphiti/status": this.json(res, 200, await this.qGraphitiIngestionStatus()); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }
   }

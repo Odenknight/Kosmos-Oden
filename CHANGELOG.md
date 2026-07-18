@@ -285,3 +285,10 @@ engineering assessments (`docs/assessments/`).
 Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, OKF+
 temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
 base64-embedded single HTML string.
+# 0.6.5-beta.5
+
+- Adds opt-out `created_at` and `updated_at` ISO-8601 UTC note stamping through Obsidian's frontmatter API.
+- Names the deterministic agent surface the Kosmos Governed Context Projection (KGCP).
+- Upgrades the Graphiti adapter schema to `okf-plus-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
+- Pins the generated Graphiti sample to tested `graphiti-core==0.29.0`, defaults to FalkorDB, keeps Neo4j available, and intentionally excludes deprecated Kuzu.
+- Adds honest combined-extraction benchmarking and ingestion-readiness contracts without treating queued acceptance as searchable completion.

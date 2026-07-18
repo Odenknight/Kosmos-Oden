@@ -13,8 +13,7 @@ import type { OkfData, OkfRelation, OkfSensitivity } from "./types";
 import { projectOkf23 } from "./okf23";
 
 const RELATIONS: OkfRelation[] = [
-  "depends_on", "derives_from", "contradicts", "refines", "implements",
-  "blocks", "documents", "cites", "related_to",
+  "supports", "contradicts", "depends_on", "derived_from", "derives_from", "cites", "quotes", "interprets", "tests", "replicates", "fails_to_replicate", "extends", "narrows", "generalizes", "implements", "governed_by", "reviewed_by", "approved_by", "supersedes", "superseded_by", "related_to", "part_of", "has_part", "refines", "blocks", "documents",
 ];
 
 /** Normalize a flat OKF list and unwrap canonical `"[[Target]]"` entries.
@@ -86,7 +85,8 @@ export function parseOkfPlus(data: Frontmatter, content: string): OkfData | null
 
 /** Parse an OKF+ timestamp; returns ms since epoch or null when invalid/absent. */
 export function parseOkfTimestamp(okf: OkfData | null | undefined): number | null {
-  if (!okf || typeof okf.timestamp !== "string") return null;
-  const t = Date.parse(okf.timestamp);
+  const value = okf?.governance?.createdAt ?? okf?.timestamp;
+  if (typeof value !== "string") return null;
+  const t = Date.parse(value);
   return Number.isNaN(t) ? null : t;
 }

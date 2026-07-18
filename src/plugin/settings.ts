@@ -30,7 +30,7 @@ export function buildAgentGuide(port: string | number, token: string, bindMode =
 
 **Read-only · localhost by default · token-protected**
 
-This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, OpenAI Codex/ChatGPT desktop, Cursor, and other agent harnesses. It exposes a sensitivity-filtered **OKF+ temporal projection** plus paginated Graphiti episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
+This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, OpenAI Codex/ChatGPT desktop, Cursor, and other agent harnesses. It exposes the sensitivity-filtered **Kosmos Governed Context Projection (KGCP)** plus paginated OKF+ 2.3 Graphiti-adapter episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
 
 ## 1 · Turn it on (about 30 seconds)
 
@@ -115,17 +115,18 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | --- | --- |
 | \`vault_overview\` | Sensitivity-filtered projection statistics and diagnostics |
 | \`search_notes\` | Lexical search over readable title/alias/tag/path values |
-| \`get_note\` | Readable source content, OKF+ 2.2 metadata, lineage projection, and links |
+| \`get_note\` | Readable source content, OKF+ metadata, governance projection, lineage, and links |
 | \`get_lineage\` | Readable supersession chain oldest → newest |
 | \`get_related\` | Explicit \`related_to\`, legacy Related, wikilink, and backlink neighbors |
 | \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
 | \`export_graphiti_episodes\` | Paginated Graphiti JSON episodes with stable UUIDs and no future-state leakage |
+| \`graphiti_ingestion_status\` | Export readiness and the required upstream read-after-ingest check |
 
 REST mirrors: \`/overview /diagnostics /graph /notes /note /lineage /related /at /episodes\` (see \`${URLB}/\`).
 
 ## 4 · Direct vs. indirect Graphiti
 
-- **Direct (this server):** agents read a sensitivity-filtered OKF+ temporal projection live — no database, no LLM. Search is lexical, not embeddings.
+- **Direct (KGCP):** agents read a sensitivity-filtered deterministic projection live — no database, no LLM. Search is lexical, not embeddings.
 - **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative user-assertion projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
 
 ## 5 · Safety & troubleshooting
@@ -199,6 +200,12 @@ export class KosmosSettingTab extends PluginSettingTab {
         area.setValue(nc.excludePatterns.join("\n")).onChange(async (v) => { nc.excludePatterns = v.split(/\r?\n/).map((p: string) => p.trim()).filter(Boolean); await this.plugin.saveNextcloudSettings(); });
         area.inputEl.rows = 4; area.inputEl.cols = 48;
       });
+
+    containerEl.createEl("h2", { text: "Portable note timestamps (UTC/Zulu)" });
+    containerEl.createEl("p", { text: "Maintains created_at and updated_at as ISO-8601 UTC values ending in Z. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .okf files are excluded." });
+    new Setting(containerEl).setName("Stamp note creation and modification times")
+      .setDesc("Enabled by default. New Markdown notes receive both fields; existing notes receive created_at on their next edit if it is absent.")
+      .addToggle((t) => t.setValue(s.noteTimestampsEnabled).onChange(async (v) => { s.noteTimestampsEnabled = v; await this.plugin.saveAgentSettings(); }));
 
     containerEl.createEl("h2", { text: "Vault Kosmos — Agent API (HTTP + MCP)" });
     containerEl.createEl("p", { text: "Lets AI agents query this vault's OKF+ knowledge graph. Read-only, localhost-only by default, token-protected. Desktop only." });
@@ -278,10 +285,22 @@ export class KosmosSettingTab extends PluginSettingTab {
       .addDropdown((d) => d
         .addOption("public", "Public only")
         .addOption("internal", "Internal (recommended)")
+        .addOption("restricted", "Include restricted")
         .addOption("confidential", "Include confidential")
+        .addOption("regulated", "Include regulated")
         .addOption("phi", "Include PHI (local policy required)")
+        .addOption("secret", "Include secret (explicit local policy required)")
         .setValue(s.agentSensitivityCeiling)
         .onChange(async (v: any) => { s.agentSensitivityCeiling = v; await this.plugin.saveAgentSettings(); }));
+
+    containerEl.createEl("h3", { text: "Kosmos Governed Context Projection" });
+    containerEl.createEl("p", { text: "The deterministic agent-facing graph is the Kosmos Governed Context Projection (KGCP). Graphiti export is an optional, non-authoritative semantic-memory adapter over KGCP." });
+    new Setting(containerEl).setName("Graphiti combined extraction")
+      .setDesc("Experimental and off by default. Graphiti 0.29 exposes this only through a low-level bulk utility, not add_episode. The adapter records the request and required benchmark fields without pretending the standard ingestion path enabled it.")
+      .addToggle((t) => t.setValue(s.graphitiCombinedExtraction).onChange(async (v) => { s.graphitiCombinedExtraction = v; await this.plugin.saveAgentSettings(); }));
+    new Setting(containerEl).setName("Graphiti saga mapping")
+      .setDesc("Off by default. Adds deterministic saga hints for lineage, project history, recurring meetings, research threads, and versioned specifications.")
+      .addToggle((t) => t.setValue(s.graphitiSagaMapping).onChange(async (v) => { s.graphitiSagaMapping = v; await this.plugin.saveAgentSettings(); }));
 
     containerEl.createEl("h3", { text: "OKF+ note formatting" });
     containerEl.createEl("p", {

@@ -40,13 +40,30 @@ export type OkfSensitivity = "public" | "internal" | "restricted" | "confidentia
 
 export type OkfRelation =
   | "depends_on"
+  | "supports"
   | "derives_from"
+  | "derived_from"
   | "contradicts"
   | "refines"
   | "implements"
   | "blocks"
   | "documents"
   | "cites"
+  | "quotes"
+  | "interprets"
+  | "tests"
+  | "replicates"
+  | "fails_to_replicate"
+  | "extends"
+  | "narrows"
+  | "generalizes"
+  | "governed_by"
+  | "reviewed_by"
+  | "approved_by"
+  | "supersedes"
+  | "superseded_by"
+  | "part_of"
+  | "has_part"
   | "related_to";
 
 /** OKF+ (Open Knowledge Format Plus) data parsed from one note. */
@@ -211,10 +228,12 @@ export interface GraphitiEpisode {
   uuid: string;
   name: string;
   episode_body: string;
-  source: "json";
+  source: "json" | "fact_triple";
   source_description: string;
   reference_time: string;
   group_id: string;
+  /** Graphiti 0.29 filtering metadata; never treated as authored note data. */
+  episode_metadata: Record<string, string | number | boolean | null>;
 }
 
 /** Point-in-time projection buckets (§4.1). */

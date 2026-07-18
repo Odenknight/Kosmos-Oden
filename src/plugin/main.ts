@@ -13,9 +13,11 @@
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../core/version";
+import { GRAPHITI_CORE_VERSION, graphitiIngestionProfile } from "../core/graphiti";
 import type { OkfMigrationMode } from "../core/okf-migration";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
+import { applyNoteTimestamps, timestampEligible } from "../core/timestamps";
 import { openOkfMigrationWorkflow } from "./okf-migration";
 import { openOkfEnrichmentWorkflow } from "./okf-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
@@ -251,6 +253,32 @@ export default class VaultKosmosPlugin extends Plugin {
 
   private eventsLive = false;
   private nextcloudSyncRunning = false;
+  private timestampTimers = new Map<string, number>();
+  private timestampWriteUntil = new Map<string, number>();
+
+  scheduleTimestamp(file: any, delay = 350): void {
+    if (!this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
+    const previous = this.timestampTimers.get(file.path);
+    if (previous != null) window.clearTimeout(previous);
+    const timer = window.setTimeout(() => {
+      this.timestampTimers.delete(file.path);
+      void this.stampNote(file);
+    }, delay);
+    this.timestampTimers.set(file.path, timer);
+  }
+
+  async stampNote(file: any): Promise<void> {
+    if (!this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    try {
+      const created = Number(file.stat?.ctime) || Date.now();
+      const modified = Number(file.stat?.mtime) || Date.now();
+      this.timestampWriteUntil.set(file.path, Date.now() + 2500);
+      await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { applyNoteTimestamps(fm, created, modified); });
+    } catch (error) {
+      console.warn("Vault Kosmos: could not stamp note timestamps", file?.path, error);
+    }
+  }
 
   agentLanUrls(): string[] {
     return this.provider.lanAddresses().map((ip) => `http://${ip}:${this.agentSettings.agentPort}`);
@@ -345,8 +373,13 @@ export default class VaultKosmosPlugin extends Plugin {
     }));
     this.registerEvent(this.app.vault.on("create", (file: any) => {
       this.provider.markChanged(file.path);
+      this.scheduleTimestamp(file, 150);
       if (!this.eventsLive || file.extension !== "md") return;
       for (const v of views()) v.noteCreated(file.path);
+    }));
+    this.registerEvent(this.app.vault.on("modify", (file: any) => {
+      this.provider.markChanged(file.path);
+      this.scheduleTimestamp(file, 900);
     }));
     this.registerEvent(this.app.vault.on("delete", (file: any) => {
       this.provider.markRemoved(file.path);
@@ -466,8 +499,9 @@ export default class VaultKosmosPlugin extends Plugin {
   async exportGraphitiEpisodes(): Promise<void> {
     const episodes = await this.agentApi.qEpisodes();
     await this.app.vault.adapter.write("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
+    await this.app.vault.adapter.write("graphiti-ingestion-profile.json", JSON.stringify(graphitiIngestionProfile({ combinedExtraction: this.agentSettings.graphitiCombinedExtraction }), null, 2));
     await this.app.vault.adapter.write("graphiti-ingest-sample.py", SAMPLE_INGEST_PY);
-    new Notice(`Vault Kosmos: exported ${episodes.length} Graphiti episodes → graphiti-episodes.json (+ sample ingest script)`);
+    new Notice(`Vault Kosmos: exported ${episodes.length} KGCP/Graphiti episodes, ingestion profile, and pinned sample script`);
   }
 }
 
@@ -476,35 +510,76 @@ const SAMPLE_INGEST_PY = `#!/usr/bin/env python3
 # Ingest an Obsidian vault (exported by Vault Kosmos v${KOSMOS_VERSION}, OKF+) into Graphiti.
 # Graphiti: https://github.com/getzep/graphiti
 #
-#   pip install "graphiti-core>=0.28.2"   # needs Python 3.10+; >=0.28.2 includes upstream security hardening
+#   pip install "graphiti-core[falkordb]==${GRAPHITI_CORE_VERSION}"   # tested pin; security floor is >=0.28.2
+#   docker run -p 6379:6379 -p 3000:3000 --rm falkordb/falkordb:latest
 #   export OPENAI_API_KEY=...          # or configure another LLM per the Graphiti docs
 #   export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=password
 #   python graphiti-ingest-sample.py graphiti-episodes.json
-import asyncio, json, os, sys
+import asyncio, json, os, sys, time
 from datetime import datetime
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType
 
 async def main(path: str) -> None:
     episodes = json.load(open(path, encoding="utf-8"))
-    g = Graphiti(os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
-                 os.environ.get("NEO4J_USER", "neo4j"),
-                 os.environ.get("NEO4J_PASSWORD", "password"))
+    profile_path = os.path.join(os.path.dirname(path) or ".", "graphiti-ingestion-profile.json")
+    profile = json.load(open(profile_path, encoding="utf-8")) if os.path.exists(profile_path) else {}
+    if profile.get("combinedExtraction"):
+        print("NOTICE: combined extraction was requested, but Graphiti ${GRAPHITI_CORE_VERSION} exposes it only through extract_nodes_and_edges_bulk().")
+        print("The stable add_episode API below will remain standard extraction; benchmark results must not claim combined extraction was applied.")
+    backend = os.environ.get("GRAPHITI_DB", "falkordb").lower()
+    if backend == "falkordb":
+        from graphiti_core.driver.falkordb_driver import FalkorDriver
+        driver = FalkorDriver(host=os.environ.get("FALKORDB_HOST", "localhost"),
+                              port=int(os.environ.get("FALKORDB_PORT", "6379")),
+                              username=os.environ.get("FALKORDB_USER"),
+                              password=os.environ.get("FALKORDB_PASSWORD"),
+                              database=os.environ.get("FALKORDB_DATABASE", "kosmos_oden"))
+    elif backend == "neo4j":
+        from graphiti_core.driver.neo4j_driver import Neo4jDriver
+        driver = Neo4jDriver(uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+                             user=os.environ.get("NEO4J_USER", "neo4j"),
+                             password=os.environ.get("NEO4J_PASSWORD", "password"))
+    else:
+        raise SystemExit("GRAPHITI_DB must be falkordb or neo4j; Kuzu is intentionally unsupported")
+    g = Graphiti(graph_driver=driver)
     await g.build_indices_and_constraints()
+    started = time.perf_counter()
+    completed = 0
     try:
         for e in episodes:  # chronological order preserves OKF+ knowledge chains
+            body = json.loads(e["episode_body"])
+            saga = body.get("saga") or {}
             await g.add_episode(
                 uuid=e["uuid"],
                 name=e["name"],
                 episode_body=e["episode_body"],
-                source=EpisodeType.json,
+                source=EpisodeType.from_str(e.get("source", "json")),
                 source_description=e["source_description"],
                 reference_time=datetime.fromisoformat(e["reference_time"].replace("Z", "+00:00")),
                 group_id=e.get("group_id"),
+                saga=saga.get("id"),
             )
-            print("ingested:", e["name"])
+            completed += 1
+            print("completed and searchable through the direct core API:", e["name"])
     finally:
         await g.close()
+    report = {
+        "graphiti_core": "${GRAPHITI_CORE_VERSION}",
+        "readiness_boundary": "await Graphiti.add_episode returned",
+        "accepted_is_searchable": True,
+        "episodes_completed": completed,
+        "ingestion_duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "combined_extraction_requested": bool(profile.get("combinedExtraction")),
+        "combined_extraction_applied": False,
+        "token_cost": None,
+        "entity_recall": None,
+        "edge_accuracy": None,
+        "measurement_notes": "Token telemetry and labeled evaluation fixtures are required for the null quality/cost metrics. Do not invent them."
+    }
+    report_path = os.path.join(os.path.dirname(path) or ".", "graphiti-ingestion-report.json")
+    json.dump(report, open(report_path, "w", encoding="utf-8"), indent=2)
+    print("wrote:", report_path)
 
 if __name__ == "__main__":
     asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "graphiti-episodes.json"))

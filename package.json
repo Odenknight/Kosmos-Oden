@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-beta.4",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.4) — a 3D Local Cluster view with an OKF+ 2.3 validating projection, native Nextcloud sync, and a shared Kosmos Core.",
+  "version": "0.6.5-beta.5",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.5) — a governed context projection with UTC note timestamps, OKF+ 2.3, Graphiti 0.29 adapter, and native Nextcloud sync.",
   "main": "main.js",
   "type": "module",
   "engines": {

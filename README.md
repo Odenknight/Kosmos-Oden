@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.4
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.5
 
-**Version 0.6.5-beta.4** — a pre-release 3D "Local Cluster of Galaxies" view with an OKF+ v2.3 Validating Projection Profile, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.5** — a pre-release 3D "Local Cluster of Galaxies" view with portable UTC note timestamps, the Kosmos Governed Context Projection, an OKF+ v2.3 Validating Projection Profile, and a Graphiti 0.29 adapter, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -222,7 +222,15 @@ Security: tokens are generated from a cryptographically secure RNG only (32 byte
 
 ## Graphiti export
 
+The built-in agent functionality is formally named the **Kosmos Governed Context Projection (KGCP)**. KGCP is deterministic and works without Graphiti. Graphiti is an optional semantic-memory and hybrid-retrieval adapter; its inferred facts remain derived proposals, never authored OKF+ data.
+
 Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the OKF+ `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, and explicit non-authoritative governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the OKF+ authority.
+
+The OKF+ 2.3 adapter also exports origin-separated governance, effective sensitivity, assessment summaries, diagnostic codes, evidence/contradictions, policy and schema hashes, filter metadata, authored `fact_triple` relationships, event/processing time, a 250-character derived-attribute cap, and optional saga hints. The generated ingestion script pins tested `graphiti-core==0.29.0`, prefers FalkorDB for local use or Neo4j for mature deployments, and reports readiness/benchmark fields honestly.
+
+## Portable UTC note timestamps
+
+With **Stamp note creation and modification times** enabled (the default), the Obsidian plugin adds `created_at` and `updated_at` frontmatter values in canonical ISO-8601 UTC/Zulu form, for example `2026-07-18T16:42:03.125Z`. Existing `created_at` values are preserved. `.obsidian/` and `.okf/` internals are excluded.
 
 - **Plugin:** command palette → *Export Graphiti episodes (OKF+)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
 - **Standalone:** the **Export Graphiti Episodes** button downloads the same payload.
