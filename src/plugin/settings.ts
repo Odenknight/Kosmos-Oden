@@ -206,6 +206,24 @@ export class KosmosSettingTab extends PluginSettingTab {
         area.inputEl.rows = 4; area.inputEl.cols = 48;
       });
 
+    syncEl.createEl("h3", { text: "Additional storage connectors" });
+    syncEl.createEl("p", {
+      text: "The four measured follow-on connectors are shown here so availability is explicit. They remain disabled in this beta until their clean-room adapters, authentication flows, conflict recovery, and n+1 partial-failure handling pass the same safety tests as Nextcloud.",
+      cls: "setting-item-description",
+    });
+    for (const provider of [
+      ["S3-compatible object storage", "Next implementation target · AWS S3, Cloudflare R2, Backblaze B2, MinIO, and compatible endpoints"],
+      ["Dropbox", "Planned · OAuth 2.0 with PKCE and App Folder access"],
+      ["Microsoft OneDrive", "Planned · Microsoft Graph App Folder with OAuth 2.0 and PKCE"],
+      ["Google Drive", "Planned · Drive file-ID/path mapping with OAuth 2.0 and PKCE"],
+    ]) {
+      new Setting(syncEl).setName(provider[0]).setDesc(provider[1])
+        .addButton((b) => b.setButtonText("Not available in this beta").setDisabled(true));
+    }
+    new Setting(syncEl).setName("Simultaneous multi-service sync (n+1)")
+      .setDesc("Designed as independent replica journals with per-target checkpoints. Disabled until crash-resume, partial failure, conflict fan-out, and deletion propagation are verified across providers.")
+      .addButton((b) => b.setButtonText("Safety validation pending").setDisabled(true));
+
     okfEl.createEl("h2", { text: "OKF+ Note Formatting" });
     okfEl.createEl("p", { text: "Kosmos-Oden implements the OKF+ v2.3 Validating Projection Profile under GKOS. It preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
     okfEl.createEl("h3", { text: "Portable note timestamps (UTC/Zulu)" });
@@ -408,7 +426,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const definitions = [
       { id: "agent-api", label: "Agent API (HTTP + MCP)" },
       { id: "okf-formatting", label: "OKF+ Note Formatting" },
-      { id: "quick-connect", label: "Quick Connect — Anthropic, OpenAI, and Universal MCP" },
+      { id: "quick-connect", label: "Quick Connect MCP" },
       { id: "vault-sync", label: "Connectivity to Sync Vault" },
     ];
     if (!definitions.some((item) => item.id === this.activeSection)) this.activeSection = definitions[0].id;

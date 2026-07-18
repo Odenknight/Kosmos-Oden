@@ -10,13 +10,14 @@ test("Options exposes the four required first-class tabs and routes Sync control
   for (const label of [
     "Agent API (HTTP + MCP)",
     "OKF+ Note Formatting",
-    "Quick Connect — Anthropic, OpenAI, and Universal MCP",
+    "Quick Connect MCP",
     "Connectivity to Sync Vault",
   ]) assert.match(source, new RegExp(label.replace(/[+()]/g, "\\$&")));
   assert.match(source, /role\", \"tablist/);
   assert.match(source, /role\", \"tabpanel/);
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Nextcloud server URL\"\)/);
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Sync hidden Obsidian configuration \(\.obsidian\)\"\)/);
+  for (const provider of ["S3-compatible object storage", "Dropbox", "Microsoft OneDrive", "Google Drive"]) assert.match(source, new RegExp(provider));
   assert.doesNotMatch(source, /enhanceSectionNavigation|openSections/);
 });
 

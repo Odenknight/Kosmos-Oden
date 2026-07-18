@@ -7,6 +7,14 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.8] — 2026-07-18 (pre-release)
+
+- Shortened the Options tab label to **Quick Connect MCP** so it remains readable at desktop and mobile widths.
+- Added visible status rows for the measured S3-compatible, Dropbox, OneDrive, and Google Drive connector roadmap, plus the n+1 safety gate. Nextcloud remains the only operational storage connector in this beta.
+- Added a **Key** toolbar button that shows or hides both the minimap and constellation legend, including compact desktop and mobile layouts.
+- Removed the Timeline toolbar button while preserving the `T` shortcut and internal timeline capability.
+- Moved the desktop brand, statistics, toolbar, and filter panel farther below the top edge and included safe-area offsets to prevent host-frame clipping.
+
 ## [0.6.5-beta.7] — 2026-07-18 (pre-release)
 
 ### Fixed

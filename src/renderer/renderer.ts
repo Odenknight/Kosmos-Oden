@@ -1385,6 +1385,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const growBtn = document.getElementById("growBtn"), timelineBtn = document.getElementById("timelineBtn");
   if (growBtn) growBtn.addEventListener("click", () => { (playback && playback.mode === "grow") ? stopPlayback() : startGrowth(); });
   if (timelineBtn) timelineBtn.addEventListener("click", () => { (playback && playback.mode === "timeline") ? stopPlayback() : startTimeline(); });
+  const legendToggle = document.getElementById("legendToggle");
+  if (legendToggle) legendToggle.addEventListener("click", () => {
+    const open = document.body.classList.toggle("legend-open");
+    legendToggle.classList.toggle("on", open);
+    legendToggle.setAttribute("aria-pressed", String(open));
+  });
   const trailerBtn = document.getElementById("trailerBtn");
   if (trailerBtn) trailerBtn.addEventListener("click", () => { trailer ? stopTrailer() : startTrailer(false); });
 

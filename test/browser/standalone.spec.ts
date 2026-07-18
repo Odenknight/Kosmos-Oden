@@ -70,6 +70,8 @@ test("agent traversal renders a breadcrumb plus bounded comet dust", async ({ pa
 
 test("primary controls remain inside compact-desktop and mobile viewports", async ({ page }) => {
   await page.goto("/vault-kosmos.html");
+  await page.getByRole("button", { name: /Load Demo/ }).click();
+  await page.waitForFunction(() => document.getElementById("boot")?.classList.contains("gone"), null, { timeout: 15_000 });
   for (const viewport of [
     { width: 1468, height: 891 },
     { width: 1280, height: 720 },
@@ -99,4 +101,17 @@ test("primary controls remain inside compact-desktop and mobile viewports", asyn
     }
     if (layout.legend) expect(layout.deck!.right).toBeLessThanOrEqual(layout.legend.left);
   }
+});
+
+test("constellation key and minimap can be shown from the toolbar", async ({ page }) => {
+  await page.goto("/vault-kosmos.html");
+  await page.getByRole("button", { name: /Load Demo/ }).click();
+  await page.waitForFunction(() => document.getElementById("boot")?.classList.contains("gone"), null, { timeout: 15_000 });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(page.locator(".legend")).toBeHidden();
+  await page.locator("#legendToggle").click();
+  await expect(page.locator(".legend")).toBeVisible();
+  await expect(page.locator(".mmwrap")).toBeVisible();
+  await expect(page.locator("#legendToggle")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#timelineBtn")).toHaveCount(0);
 });

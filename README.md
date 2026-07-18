@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.7
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.8
 
-**Version 0.6.5-beta.7** — a pre-release responsive 3D "Local Cluster of Galaxies" view with live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection Profile**, a tested Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.8** — a pre-release responsive 3D "Local Cluster of Galaxies" view with live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection Profile**, a tested Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -131,7 +131,7 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
 3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
 
-The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**, **Quick Connect — Anthropic, OpenAI, and Universal MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
+The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
 
 **Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden.
 
@@ -172,7 +172,7 @@ enumeration and local hashing on each run, favoring correctness over speed.
 - **Drag** to orbit · **scroll / pinch** to zoom · **right-drag / two-finger** to pan.
 - **Tap a body** to focus it — everything connected to it lights up.
 - **Right-click** (long-press on iPhone/iPad) a body → **Go to Note** opens that note in a new tab. Right-clicking a **galaxy that is only a folder** (no manifest note) offers **Expand Folder** instead — it reveals and expands that folder in Obsidian's file explorer. It will never create or open a stray note for a folder.
-- **Labels** `R` · **All links** `C` · **All objects** `O` · **Chrono** `H` · **Grow** `G` · **Timeline** `T` · **Trailer**.
+- **Labels** `R` · **All links** `C` · **All objects** `O` · **Chrono** `H` · **Grow** `G` · **Trailer** · **Key** (show/hide minimap and constellation legend). Timeline remains available through `T` and the renderer API, but its toolbar button is intentionally hidden.
 - **Modes:** Overview `A` · Focus `S` · Depth `D` · Fly `F` (WASD + mouse; touch pads on mobile) · Clear `Q`.
 - Zoom out as far as you like — once the whole cluster shrinks to ~10% of the screen it gently re-centers itself.
 - Mobile: adaptive pixel-ratio and geometry LOD keep the view smooth.
@@ -211,7 +211,7 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → toggle **Enable local Agent API**.
 
 **Connecting an agent (no reimplementation required):**
-1. Open **Quick Connect — Anthropic, OpenAI, and Universal MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
+1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
 2. Paste the copied configuration into that product.
 
 That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong. Want a reference for later? Run **"Write Agent API guide"** from the command palette and the plugin drops a ready-to-read `AGENT-API.md` into your vault with your connection details already filled in. Full guide: [AGENT-API.md](AGENT-API.md).
