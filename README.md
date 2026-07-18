@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.3
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.4
 
-**Version 0.6.5-beta.3** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.4** — a pre-release 3D "Local Cluster of Galaxies" view with an OKF+ v2.3 Validating Projection Profile, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 

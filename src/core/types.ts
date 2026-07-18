@@ -36,7 +36,7 @@ export interface ParsedLink {
   heading?: string;
 }
 
-export type OkfSensitivity = "public" | "internal" | "confidential" | "phi";
+export type OkfSensitivity = "public" | "internal" | "restricted" | "confidential" | "regulated" | "phi" | "secret";
 
 export type OkfRelation =
   | "depends_on"
@@ -72,6 +72,9 @@ export interface OkfData {
   relations: Partial<Record<OkfRelation, string[]>>;
   /** Titles from the footer `**Related:**` line. */
   related: string[];
+  /** Loss-preserving OKF+ 2.3 validating projection. Never authoritatively
+   * mutates the source fields above. */
+  governance?: import("./okf23").Okf23Projection;
 }
 
 /** Node-level OKF+ projection attached to graph nodes after lineage/temporal passes. */

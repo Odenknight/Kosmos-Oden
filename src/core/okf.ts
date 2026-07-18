@@ -10,6 +10,7 @@
 import type { Frontmatter } from "./markdown";
 import { normalizeStringList, parseWikiLinks } from "./markdown";
 import type { OkfData, OkfRelation, OkfSensitivity } from "./types";
+import { projectOkf23 } from "./okf23";
 
 const RELATIONS: OkfRelation[] = [
   "depends_on", "derives_from", "contradicts", "refines", "implements",
@@ -33,7 +34,7 @@ function normalizeOkfRefs(v: unknown): string[] {
 const scalar = (v: unknown): string | undefined => typeof v === "string" && v !== "" ? v : undefined;
 
 function sensitivity(v: unknown): OkfSensitivity | undefined {
-  if (v === "public" || v === "internal" || v === "confidential" || v === "phi") return v;
+  if (v === "public" || v === "internal" || v === "restricted" || v === "confidential" || v === "regulated" || v === "phi" || v === "secret") return v;
   // An explicit but invalid label must not silently downgrade access. The
   // read-only projector fails closed at the highest sensitivity; a governed
   // processor can separately route the malformed value to salvage/review.
@@ -57,7 +58,7 @@ export function parseOkfPlus(data: Frontmatter, content: string): OkfData | null
     const refs = normalizeOkfRefs(raw[key]);
     if (refs.length) relations[key] = refs;
   }
-  return {
+  const parsed: OkfData = {
     okfVersion: scalar(raw.okf_version),
     uid: scalar(raw.uid),
     type: scalar(data.type),
@@ -79,6 +80,8 @@ export function parseOkfPlus(data: Frontmatter, content: string): OkfData | null
     relations,
     related: [...new Set([...related, ...(relations.related_to ?? [])])],
   };
+  parsed.governance = projectOkf23(data, content);
+  return parsed;
 }
 
 /** Parse an OKF+ timestamp; returns ms since epoch or null when invalid/absent. */

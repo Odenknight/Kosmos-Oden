@@ -7,7 +7,7 @@
 import type { ParsedLink } from "./types";
 
 export interface Frontmatter {
-  [key: string]: string | string[] | undefined;
+  [key: string]: unknown;
 }
 
 export interface ParsedMarkdown {
@@ -20,6 +20,52 @@ export interface ParsedMarkdown {
 
 const unquote = (s: string): string => s.replace(/^['"]/, "").replace(/['"]$/, "");
 
+function yamlScalar(raw: string): unknown {
+  const s = raw.replace(/\s+#.*$/, "").trim();
+  if (s === "null" || s === "~") return null;
+  if (s === "true") return true;
+  if (s === "false") return false;
+  if (/^-?\d+(?:\.\d+)?$/.test(s)) return Number(s);
+  if (s.startsWith("[") && s.endsWith("]")) return s.slice(1, -1).split(",").map((x) => yamlScalar(x.trim())).filter((x) => x !== "");
+  return unquote(s);
+}
+
+/** Small, non-executing YAML subset for OKF frontmatter. It supports nested
+ * maps and sequences of maps while preserving unknown fields. Unsupported
+ * syntax remains a string; it is never evaluated. */
+function parseYamlSubset(header: string): Frontmatter {
+  const lines = header.split(/\r?\n/).map((line) => line.replace(/\r$/, ""));
+  const root: Record<string, unknown> = {};
+  const stack: Array<{ indent: number; value: Record<string, unknown> | unknown[] }> = [{ indent: -1, value: root }];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const indent = line.length - line.trimStart().length;
+    while (stack.length > 1 && indent <= stack.at(-1)!.indent) stack.pop();
+    const parent = stack.at(-1)!.value;
+    const list = /^\s*-\s*(.*)$/.exec(line);
+    if (list && Array.isArray(parent)) {
+      const item = list[1];
+      const pair = /^([A-Za-z0-9_-]+):(?:\s+(.*)|\s*)$/.exec(item);
+      if (pair) {
+        const obj: Record<string, unknown> = {};
+        obj[pair[1]] = pair[2] ? yamlScalar(pair[2]) : {};
+        parent.push(obj); stack.push({ indent, value: obj });
+      } else parent.push(yamlScalar(item));
+      continue;
+    }
+    const m = /^\s*([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!m || Array.isArray(parent)) continue;
+    const [, key, rest] = m;
+    if (rest !== "" && rest !== "|" && rest !== ">") { parent[key] = yamlScalar(rest); continue; }
+    const next = lines.slice(i + 1).find((candidate) => candidate.trim() && !candidate.trim().startsWith("#"));
+    const child: Record<string, unknown> | unknown[] = next && /^\s*-\s*/.test(next) && next.length - next.trimStart().length > indent ? [] : {};
+    parent[key] = child;
+    stack.push({ indent, value: child });
+  }
+  return root;
+}
+
 export function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
   // Windows editors commonly write a UTF-8 BOM; it must not break frontmatter.
   if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
@@ -28,8 +74,12 @@ export function parseFrontmatter(raw: string): { data: Frontmatter; content: str
   if (end === -1) return { data: {}, content: raw };
   const header = raw.slice(3, end).replace(/^\r?\n/, "");
   const content = raw.slice(end + 4).replace(/^\r?\n/, "");
-  const data: Frontmatter = {};
+  let data: Frontmatter = {};
   try {
+    data = parseYamlSubset(header);
+    return { data, content };
+    /* Legacy parser retained below as unreachable documentation of the
+       accepted subset; parseYamlSubset is backward compatible with it. */
     // CRLF: the delimiter search consumes only "\n---", so the last header
     // line (and lookahead list items) may keep a trailing "\r" — strip it.
     const lines = header.split(/\r?\n/).map((l) => l.replace(/\r$/, ""));

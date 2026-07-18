@@ -448,7 +448,7 @@ export class KosmosAgentServer {
 
   private sensitivityRank(value: OkfSensitivity | undefined): number {
     // Unlabeled legacy notes are private workspace material, not public data.
-    return ({ public: 0, internal: 1, confidential: 2, phi: 3 } as Record<string, number>)[value || "internal"] ?? 1;
+    return ({ public: 0, internal: 1, restricted: 2, confidential: 3, regulated: 4, phi: 5, secret: 6 } as Record<string, number>)[value || "internal"] ?? 6;
   }
 
   private canRead(n: KosmosNode): boolean {

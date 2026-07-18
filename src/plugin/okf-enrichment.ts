@@ -34,7 +34,7 @@ interface OkfEnrichmentIssue {
   action: string;
 }
 
-const sensitivityRank: Record<OkfSensitivity, number> = { public: 0, internal: 1, confidential: 2, phi: 3 };
+const sensitivityRank: Record<OkfSensitivity, number> = { public: 0, internal: 1, restricted: 2, confidential: 3, regulated: 4, phi: 5, secret: 6 };
 
 async function llmSuggestions(settings: AgentSettings, path: string, sensitivity: OkfSensitivity, blocks: OkfEvidenceBlock[]): Promise<OkfEnrichmentSuggestion[]> {
   const provider = settings.okfEnrichmentProvider;

@@ -244,6 +244,17 @@ export function assembleGraph(
     .map((li) => ({ id: li.id, validAtMs: li.validAtMs as number }));
   const temporal = computeTemporalState(temporalInputs, lineage);
 
+  // UID is canonical identity in OKF+ 2.3. Keep paths readable, but diagnose
+  // collisions rather than silently merging or repairing their source notes.
+  const uidNodes = new Map<string, KosmosNode[]>();
+  for (const node of nodes.values()) if (node.okf?.uid) {
+    const group = uidNodes.get(node.okf.uid) ?? []; group.push(node); uidNodes.set(node.okf.uid, group);
+  }
+  for (const [uid, group] of uidNodes) if (group.length > 1) for (const node of group) {
+    node.okf?.governance?.diagnostics.push({ code: "OKF-IDENTITY-003", severity: "error", field: "uid", message: `Duplicate UID ${uid} is used by ${group.map((n) => n.path).join(", ")}.`, deterministic: true, sourcePath: node.path, targetUid: uid });
+    node.okf?.governance?.labels.derived.push("identity:duplicate");
+  }
+
   for (const rec of records) {
     const id = fileNodeId(rec.relativePath);
     const node = nodes.get(id);
