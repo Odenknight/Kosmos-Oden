@@ -56,6 +56,9 @@ export interface KosmosApp {
   renderGraph(graph: any, label?: string): void;
   showDemo(): void;
   setConn(label: string, live: boolean): void;
+  /** Live vault-connectivity signal: green dot + "connected" tooltip when the
+   *  host can read the vault, red + "unreachable" when it cannot. */
+  setVaultStatus(connected: boolean): void;
   setAttachments(paths: string[]): void;
   notifyLiveEvent(ev: { path: string; type?: string }): void;
   /** Highlight the notes touched by one Agent API query with a fading trail.
@@ -75,7 +78,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, setHostVisible() {},
+    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -1409,9 +1412,22 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (!idToRender.has(primaryLiveId)) primaryLiveId = null;
     applyLive(); applyHighlight();
   }
+  // null = no host connectivity probe has reported yet (demo / standalone snapshot).
+  // Once a probe reports, it OWNS the dot colour; setConn's live/demo colour yields.
+  let vaultConnected: boolean | null = null;
+  function paintVaultDot() {
+    if (vaultConnected === null) return;
+    const d = document.querySelector(".brand .dot"); if (d) (d as HTMLElement).style.background = vaultConnected ? "#34d399" : "#f87171";
+    const badge = document.getElementById("vaultBadge");
+    if (badge) badge.setAttribute("title", vaultConnected
+      ? (LANG === "de" ? "Vault verbunden" : "Vault connected")
+      : (LANG === "de" ? "Vault nicht erreichbar" : "Vault unreachable"));
+  }
+  function setVaultStatus(connected: boolean) { vaultConnected = !!connected; paintVaultDot(); }
   function setConn(txt: string, live: boolean) {
     const l = document.getElementById("connlbl"); if (l) l.textContent = txt;
-    const d = document.querySelector(".brand .dot"); if (d) (d as HTMLElement).style.background = live ? "#34d399" : "#fbbf24";
+    if (vaultConnected === null) { const d = document.querySelector(".brand .dot"); if (d) (d as HTMLElement).style.background = live ? "#34d399" : "#fbbf24"; }
+    else paintVaultDot();
   }
   function onLiveEvent(msg: any) {
     const ev = msg && msg.event ? msg.event : msg; if (!ev || !ev.path) return;
@@ -1998,6 +2014,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       try { buildDemo(); ensureFrame(); } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
     },
     setConn,
+    setVaultStatus,
     setAttachments(paths: string[]) { __attach = (paths || []).slice(); },
     notifyLiveEvent: onLiveEvent,
     notifyAgentTraversal,
