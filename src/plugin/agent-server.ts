@@ -231,6 +231,7 @@ export class KosmosAgentServer {
   status = "stopped";
   private inFlight = 0;
   private hits = new Map<string, number[]>(); // client -> recent request timestamps
+  private lastSweep = -Infinity; // last time stale client keys were swept from `hits`
   private perAgentInFlight = new Map<string, number>(); // agent identity -> in-flight count (Mitigation 4)
   private sessions = new Map<string, { name: string; at: number; protocolVersion: string; initialized: boolean }>();
   private lanCache: { at: number; ips: string[] } = { at: 0, ips: [] }; // Host validation runs per request; cache the NIC scan
@@ -377,11 +378,23 @@ export class KosmosAgentServer {
     if (isLoopback) return { limited: false }; // local agents are trusted for throughput
     if (this.inFlight >= MAX_CONCURRENT_REQUESTS) return { limited: true, reason: "too many concurrent requests" };
     const now = performance.now();
+    // Bounded housekeeping: periodically drop client keys whose timestamps are all stale so the
+    // map can't grow one permanent entry per distinct LAN client IP over a long-running server.
+    this.sweepStaleHits(now);
     const arr = (this.hits.get(remote) || []).filter((t) => now - t < RATE_WINDOW_MS);
     if (arr.length >= RATE_MAX_REQUESTS) { this.hits.set(remote, arr); return { limited: true, reason: "rate limit exceeded" }; }
     arr.push(now);
     this.hits.set(remote, arr);
     return { limited: false };
+  }
+
+  /** Drop client keys whose recent-hit windows have fully expired. Runs at most once per window. */
+  private sweepStaleHits(now: number): void {
+    if (now - this.lastSweep < RATE_WINDOW_MS) return;
+    this.lastSweep = now;
+    for (const [key, arr] of this.hits) {
+      if (!arr.some((t) => now - t < RATE_WINDOW_MS)) this.hits.delete(key);
+    }
   }
 
   /* ---------------- security gates ---------------- */
