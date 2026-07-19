@@ -43,12 +43,18 @@ export interface AgentTraversalPayload {
 export interface VisibilityPayload {
   visible: boolean;
 }
+/** Live vault-connectivity signal from a cheap host-side read probe: the dot in
+ *  the header VAULT pill turns green (readable) or red (unreachable). */
+export interface VaultStatusPayload {
+  connected: boolean;
+}
 
 export type HostToRenderer =
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-snapshot"; payload: FilesPayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "agent-traversal"; payload: AgentTraversalPayload }
-  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "visibility"; payload: VisibilityPayload };
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "visibility"; payload: VisibilityPayload }
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-status"; payload: VaultStatusPayload };
 
 export type RendererToHost =
   /** A note was chosen ("Go to Note") — open it in a new tab. */
@@ -113,6 +119,10 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   }
   if (m.type === "visibility") {
     if (typeof p.visible !== "boolean") return { ok: false, reason: "visibility payload.visible must be a boolean" };
+    return { ok: true, message: m as any };
+  }
+  if (m.type === "vault-status") {
+    if (typeof p.connected !== "boolean") return { ok: false, reason: "vault-status payload.connected must be a boolean" };
     return { ok: true, message: m as any };
   }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };

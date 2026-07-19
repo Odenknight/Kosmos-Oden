@@ -70,7 +70,7 @@ class KosmosView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf) { super(leaf); }
   getViewType(): string { return VIEW_TYPE; }
-  getDisplayText(): string { return "Vault Kosmos"; }
+  getDisplayText(): string { return "Kosmos-Oden"; }
   getIcon(): string { return "orbit"; }
 
   async onOpen(): Promise<void> {
@@ -78,7 +78,7 @@ class KosmosView extends ItemView {
     root.empty();
     root.addClass("vault-kosmos-root");
     const frame = document.createElement("iframe");
-    frame.setAttribute("title", "Vault Kosmos");
+    frame.setAttribute("title", "Kosmos-Oden");
     // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
     // context. It needs scripts (WebGL/Three.js), pointer lock (fly mode) and
     // downloads (exports); it does NOT get allow-same-origin, so it cannot reach
@@ -147,6 +147,9 @@ class KosmosView extends ItemView {
 
   /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
   syncVisibility(): void { this.post(wrap("visibility", { visible: this.isVisible() })); }
+
+  /** Live vault-connectivity signal from the host probe: green/red dot in the header VAULT pill. */
+  setVaultStatus(connected: boolean): void { if (this.ready) this.post(wrap("vault-status", { connected })); }
 
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
@@ -274,7 +277,13 @@ export default class VaultKosmosPlugin extends Plugin {
       const created = Number(file.stat?.ctime) || Date.now();
       const modified = Number(file.stat?.mtime) || Date.now();
       this.timestampWriteUntil.set(file.path, Date.now() + 2500);
-      await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => { applyNoteTimestamps(fm, created, modified); });
+      await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+        applyNoteTimestamps(fm, created, modified, {
+          useLocalTimezone: this.agentSettings.timestampUseLocalTimezone,
+          createdKey: this.agentSettings.timestampCreatedKey,
+          updatedKey: this.agentSettings.timestampUpdatedKey,
+        });
+      });
     } catch (error) {
       console.warn("Vault Kosmos: could not stamp note timestamps", file?.path, error);
     }
@@ -370,6 +379,25 @@ export default class VaultKosmosPlugin extends Plugin {
 
     // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
     this.agentApi.onTraversal = (paths, tool, agent) => { for (const v of views()) v.agentTraversal(paths, tool, agent); };
+
+    // Live vault-connectivity indicator: a cheap read probe (no network stack) —
+    // readability of the vault files IS the signal. Green when the adapter can
+    // stat the vault root within a short timeout, red on failure/timeout.
+    const probeVaultConnectivity = async (): Promise<void> => {
+      const leaves = views();
+      if (!leaves.length) return; // nothing to paint
+      let connected = false;
+      try {
+        const adapter: any = this.app.vault.adapter;
+        const probe = Promise.resolve().then(() => adapter.stat ? adapter.stat(".") : adapter.list?.("."));
+        const timeout = new Promise((_, reject) => window.setTimeout(() => reject(new Error("probe timeout")), 2000));
+        await Promise.race([probe, timeout]);
+        connected = true;
+      } catch (_) { connected = false; }
+      for (const v of leaves) v.setVaultStatus(connected);
+    };
+    void probeVaultConnectivity();
+    this.registerInterval(window.setInterval(() => void probeVaultConnectivity(), 10_000));
 
     this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
       this.provider.markChanged(file.path);

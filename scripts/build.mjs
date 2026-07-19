@@ -138,7 +138,7 @@ async function buildStandalone() {
 
 async function buildEmbed() {
   const app = await bundle("src/plugin/embed.ts");
-  const html = composePage(`Vault Kosmos ${VERSION} (plugin)`, app);
+  const html = composePage(`Kosmos-Oden ${VERSION} (plugin)`, app);
   writeFileSync(resolve(root, "dist/kosmos-embed.html"), html);
   console.log(`built dist/kosmos-embed.html (${(html.length / 1024).toFixed(0)} KB)`);
 }

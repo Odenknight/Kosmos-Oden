@@ -9,7 +9,7 @@ test("Options exposes the four required first-class tabs and routes Sync control
   const source = await readFile(settingsPath, "utf8");
   for (const label of [
     "Agent API (HTTP + MCP)",
-    "OKF+ Note Formatting",
+    "GKOS Note Formatting",
     "Quick Connect MCP",
     "Connectivity to Sync Vault",
   ]) assert.match(source, new RegExp(label.replace(/[+()]/g, "\\$&")));

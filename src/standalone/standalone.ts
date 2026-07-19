@@ -35,6 +35,23 @@ const index = new KosmosIndex();
 let source: KnowledgeSource | null = null;
 let monitor: DirectoryMonitor | null = null;
 let sourceName = "Vault";
+let connectivityTimer = 0;
+
+/** Live connectivity dot. Snapshot/demo/graph.json are static data: always green.
+ *  A live directory handle is probed by re-checking its read permission. */
+function stopConnectivityProbe(): void {
+  if (connectivityTimer) { clearInterval(connectivityTimer); connectivityTimer = 0; }
+}
+function startHandleConnectivityProbe(handle: any): void {
+  stopConnectivityProbe();
+  const probe = async () => {
+    let connected = false;
+    try { connected = (await permissionState(handle)) === "granted"; } catch (_) { connected = false; }
+    app.setVaultStatus(connected);
+  };
+  void probe();
+  connectivityTimer = (setInterval(() => void probe(), 10_000) as unknown) as number;
+}
 
 /* ---------------- status plumbing ---------------- */
 
@@ -110,6 +127,10 @@ async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Pr
     lastScanAt: snapshot.scannedAt,
     ...statusFromGraph(index.graph!),
   });
+  // Connectivity dot: a live directory handle is probed for read permission;
+  // a file-snapshot import is static data and stays green.
+  if (src.canRescan && (src as any).handle) startHandleConnectivityProbe((src as any).handle);
+  else { stopConnectivityProbe(); app.setVaultStatus(true); }
 }
 
 /** Incremental pipeline (§10): only changed notes are re-parsed by the index. */
@@ -190,7 +211,9 @@ const ui: StandaloneUI = createStandaloneUI({
   onLoadDemo: () => {
     sourceName = "Demo vault";
     ui.hideStartup();
+    stopConnectivityProbe();
     app.showDemo();
+    app.setVaultStatus(true);
     ui.setStatus({ source: "Demo vault", mode: "demo", monitoring: "unavailable", lastScanAt: Date.now() });
   },
   onRescan: () => { void monitor?.scanNow("manual"); },
@@ -237,6 +260,8 @@ async function tryLocalGraphJson(): Promise<boolean> {
     ui.hideStartup();
     app.setAttachments(g.attachments || []);
     app.renderGraph(g, "graph.json");
+    stopConnectivityProbe();
+    app.setVaultStatus(true);
     ui.setStatus({ source: "graph.json", mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now() });
     return true;
   } catch {
@@ -268,6 +293,7 @@ void boot();
     const update = index.setFiles(files, folders, attachments);
     app.setAttachments(attachments);
     app.renderGraph(update.graph, label);
+    app.setVaultStatus(true);
     ui.setStatus({ mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now(), ...statusFromGraph(update.graph) });
   },
   applyChanges(changes: IndexChanges): any {
