@@ -7,6 +7,22 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.5.7] — 2026-07-19 (GKOS-Engine-Lite — final feature update for the 0.5.x line)
+
+This release brings the 0.5.x line to feature parity with 0.6.5 under the
+**GKOS-Engine-Lite schema**: human-editable **OKF+ Notes (2.2)** plus the
+**Agent-Ready flat 2.3** profile, with the full new Options UI (tabbed
+settings: Agent API HTTP+MCP, OKF+ Note Formatting, Quick Connect MCP,
+Connectivity to Sync Vault). Nested 2.3 remains read-only compatibility.
+
+**Feature freeze:** outside of bug fixes, this is the final feature update
+for the 0.5.x line. New feature work (governance sidecars, proposals and
+decision records, the standalone engine) continues on the 0.6.x line. The
+version is 0.5.7 because 0.5.5 (tag) and 0.5.6 are already released; this is
+the 0.5.5 product line's closing update. See the 0.6.5 entry below for the
+complete change list, re-branding rationale, and testing record — this
+release is the same engine at the same commit lineage.
+
 ## [0.6.5] — 2026-07-19
 
 **Out of beta.** This release closes the 0.6.5 beta series and re-brands the
