@@ -8,10 +8,10 @@
  * a full rebuild.
  */
 import type { App, TFile } from "obsidian";
-import { KosmosIndex } from "../core/incremental";
-import { stripFrontmatter } from "../core/graphiti";
+import { KosmosIndex } from "gkos-engine";
+import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider } from "./agent-server";
-import type { KosmosGraph, SourceFile } from "../core/types";
+import type { KosmosGraph, SourceFile } from "gkos-engine";
 
 declare const require: any;
 

@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { isOkfLoopbackHost, isOkfPrivateLanIpLiteral } from "../core/okf-network";
+import { isOkfLoopbackHost, isOkfPrivateLanIpLiteral } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 
 export function validatedOkfLlmEndpoint(provider: AgentSettings["okfEnrichmentProvider"], raw: string): string {

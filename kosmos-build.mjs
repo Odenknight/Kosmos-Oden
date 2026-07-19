@@ -30,7 +30,6 @@ try {
 }
 
 const {
-  KOSMOS_VERSION,
   buildGraph,
   buildGraphitiEpisodesWithContent,
   isAttachmentPath,
@@ -38,6 +37,11 @@ const {
   shouldIgnoreVaultPath,
   stripFrontmatter,
 } = core;
+
+// This is Kosmos-Oden's own version identity, not the gkos-engine dependency's.
+const KOSMOS_VERSION = JSON.parse(
+  await readFile(new URL("./package.json", import.meta.url), "utf8")
+).version;
 
 /* ---------------- CLI parsing ---------------- */
 const argv = process.argv.slice(2);

@@ -12,12 +12,12 @@
  */
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
-import { KOSMOS_VERSION } from "../core/version";
-import { GRAPHITI_CORE_VERSION, graphitiIngestionProfile } from "../core/graphiti";
-import type { OkfMigrationMode } from "../core/okf-migration";
+import { KOSMOS_VERSION } from "../kosmos-version";
+import { GRAPHITI_CORE_VERSION, graphitiIngestionProfile } from "gkos-engine";
+import type { OkfMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
-import { applyNoteTimestamps, timestampEligible } from "../core/timestamps";
+import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
 import { openOkfMigrationWorkflow } from "./okf-migration";
 import { openOkfEnrichmentWorkflow } from "./okf-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";

@@ -1,9 +1,9 @@
 import { App, Modal, Notice, Setting, TFile } from "obsidian";
-import { assessOkfEvidence, createOkfEnrichmentApplyPlan, deterministicOkfSuggestions, selectOkfEvidenceWindow, validateLlmEnrichmentResponse, type OkfEnrichmentApplySource, type OkfEnrichmentField, type OkfEnrichmentReviewDecision, type OkfEnrichmentSuggestion, type OkfEvidenceAssessment, type OkfEvidenceBlock } from "../core/okf-enrichment";
-import { matchedOkfExclusion } from "../core/okf-exclusions";
-import { parseOkf23Frontmatter } from "../core/okf23";
-import { sha256Text } from "../core/okf-migration";
-import type { OkfSensitivity } from "../core/types";
+import { assessOkfEvidence, createOkfEnrichmentApplyPlan, deterministicOkfSuggestions, selectOkfEvidenceWindow, validateLlmEnrichmentResponse, type OkfEnrichmentApplySource, type OkfEnrichmentField, type OkfEnrichmentReviewDecision, type OkfEnrichmentSuggestion, type OkfEvidenceAssessment, type OkfEvidenceBlock } from "gkos-engine";
+import { matchedOkfExclusion } from "gkos-engine";
+import { parseOkf23Frontmatter } from "gkos-engine";
+import { sha256Text } from "gkos-engine";
+import type { OkfSensitivity } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { OkfEnrichmentApplyPreviewModal } from "./okf-enrichment-apply";
 import { requestOkfLlmJson, validateOkfLlmConfiguration } from "./okf-llm";

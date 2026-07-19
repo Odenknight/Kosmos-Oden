@@ -6,9 +6,12 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(resolve(root, p), "utf8");
 
-const versionTs = read("src/core/version.ts");
+// Kosmos-Oden's own version source of truth — distinct from the gkos-engine
+// dependency's own version (that package has its own release lifecycle).
+const VERSION_TS = "src/kosmos-version.ts";
+const versionTs = read(VERSION_TS);
 const m = /KOSMOS_VERSION\s*=\s*"([^"]+)"/.exec(versionTs);
-if (!m) { console.error("check-versions: KOSMOS_VERSION not found in src/core/version.ts"); process.exit(1); }
+if (!m) { console.error(`check-versions: KOSMOS_VERSION not found in ${VERSION_TS}`); process.exit(1); }
 const version = m[1];
 
 const pkg = JSON.parse(read("package.json"));

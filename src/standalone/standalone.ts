@@ -6,10 +6,10 @@
  * same Kosmos Core semantics as the Obsidian plugin, the Agent API and the
  * kosmos-build CLI. No Obsidian, Node, server or network required.
  */
-import { KosmosIndex, type IndexChanges } from "../core/incremental";
-import { buildGraphitiEpisodesWithContent } from "../core/graphiti";
-import { isNotePath } from "../core/paths";
-import type { KosmosGraph, SourceFile } from "../core/types";
+import { KosmosIndex, type IndexChanges } from "gkos-engine";
+import { buildGraphitiEpisodesWithContent } from "gkos-engine";
+import { isNotePath } from "gkos-engine";
+import type { KosmosGraph, SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import {
   openDirectoryPersistent,

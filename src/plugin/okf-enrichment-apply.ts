@@ -1,5 +1,5 @@
 import { App, Modal, Notice, Setting, TFile, normalizePath } from "obsidian";
-import { publicOkfEnrichmentApplyPlan, verifyOkfEnrichmentApplyPlan, type OkfEnrichmentApplyEntry, type OkfEnrichmentApplyPlan } from "../core/okf-enrichment";
+import { publicOkfEnrichmentApplyPlan, verifyOkfEnrichmentApplyPlan, type OkfEnrichmentApplyEntry, type OkfEnrichmentApplyPlan } from "gkos-engine";
 
 export interface OkfEnrichmentApplyResult {
   runId: string;

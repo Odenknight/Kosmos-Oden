@@ -36,6 +36,7 @@
   },
   "author": "OdenKnight",
   "dependencies": {
+    "gkos-engine": "github:Odenknight/GKOS-Engine#v1.0.4",
     "three": "0.185.1"
   }
 }
