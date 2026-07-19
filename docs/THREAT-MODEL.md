@@ -1,6 +1,6 @@
 # Threat Model
 
-An iterative model (Doc1 §5.3). It reflects v0.5.5 and is revised whenever
+An iterative model (Doc1 §5.3). It reflects v0.6.5-alpha.8 and is revised whenever
 network or data-access behavior changes.
 
 ## Assets
@@ -43,7 +43,11 @@ network or data-access behavior changes.
 | Oversized / malformed request (DoS) | 4 MiB byte-accurate body cap; JSON/MCP envelope validation; request timeouts; per-client rate + concurrency limits; capped response sizes. |
 | Stale, forged, or cross-client MCP session | Server-issued session IDs; negotiated `MCP-Protocol-Version` required after initialization; unknown/expired sessions return 404; DELETE actually terminates the session. |
 | Confidential/PHI disclosure through graph metadata | Sensitivity ceiling filters search, bodies, nodes, links, lineage/temporal state, diagnostics, and Graphiti pages. Invalid explicit sensitivity labels fail closed as PHI. |
-| A Graphiti projection is mistaken for accepted truth | Exported episodes identify themselves as non-authoritative explicit-user-assertion projections and omit later state from earlier episodes. |
+| Invalid 2.3 sensitivity bypasses the connector | The v2.3 effective projection supports all seven levels; missing labels default to internal and invalid values fail closed to secret before connector filtering. |
+| A score is mistaken for truth or authorization | Every assessment carries a policy ID/hash and the interpretation `documentation-and-support-quality-not-truth`; no score promotes epistemic state or authorizes use. |
+| Proposed or derived values are mistaken for authored/approved values | API and Graphiti projections retain separate authored, derived, proposed, approved, and effective containers; proposed relationships do not enter the effective graph. |
+| Ambiguous UID/title resolution creates a false semantic edge | Duplicate UIDs are excluded from the UID index; ambiguous v2.3 relationship and lineage targets emit diagnostics and project no edge. |
+| A Graphiti projection is mistaken for accepted truth | Exported episodes identify themselves as non-authoritative origin-separated adapter projections and omit later state from earlier episodes. |
 | Path traversal via renderer messages | Message paths validated: no absolute paths, no `..` segments. |
 | Malformed note content | Tolerant parser never throws the graph away; lineage validation degrades gracefully and reports via diagnostics. |
 | Bulk OKF+ migration damages notes | Read-only dry run; SHA-256-bound plan; independent-backup warning and acknowledgement; byte-exact per-file backup; source equality recheck; Obsidian atomic processor; human-authored body preserved; changed/missing notes skipped; result audit. |
@@ -64,3 +68,5 @@ network or data-access behavior changes.
   attribute is what provides isolation (see `RENDERER-PROTOCOL.md`).
 - No claim of bit-for-bit reproducibility of release *metadata* (build time
   differs); executable artifacts are byte-reproducible.
+- No full GKOS, Governed Writer, authority-verification, human-attestation, or
+  remote schema-update conformance claim. The bundled 2.3 policy is read-only.

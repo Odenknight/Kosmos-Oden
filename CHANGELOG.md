@@ -7,6 +7,38 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-alpha.8] — 2026-07-19 (pre-release)
+
+### Added
+- Added the **OKF+ v2.3 Validating Projection Profile**: source-preserving
+  nested metadata parsing, UID-first identity, typed relationships, stable
+  diagnostics, namespace-aware labels, and origin-separated authored,
+  derived, proposed, approved, and effective projections.
+- Added deterministic, policy-hash-bound assessments across structural
+  completeness, provenance, evidence, relationship integrity, temporal
+  freshness, contradiction status, and review readiness. Scores explicitly
+  measure documentation/support quality—not truth or authorization.
+- Added read-only REST and MCP access to OKF+ notes, assessments, diagnostics,
+  effective labels, evidence, relationships, policy, in-memory validation, and
+  bounded vault assessment.
+- Added UUIDv7-compatible Graphiti identity and governance summaries that
+  preserve origin instead of labeling every source as an explicit assertion.
+
+### Security
+- Expanded effective sensitivity to public, internal, restricted,
+  confidential, regulated, PHI, and secret. Missing values default to internal;
+  invalid values fail closed to secret.
+- Ambiguous v2.3 relationships and lineage targets no longer produce a chosen
+  edge. Proposed relationships remain outside the effective graph.
+- The Agent API remains opt-in, authenticated, sensitivity-filtered, and
+  read-only. Assess/validate tools compute in memory and write no notes or
+  sidecars.
+
+### Compatibility
+- Existing OKF+ 2.2 and legacy notes remain readable through compatibility
+  projections. The existing explicit, backed-up 2.2 migration workflow remains
+  available; alpha.8 does not silently rewrite source notes to 2.3.
+
 ## [0.6.5-alpha.7] — 2026-07-16 (pre-release)
 
 ### Fixed

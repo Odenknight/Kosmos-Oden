@@ -21,6 +21,7 @@ security:
   # confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
   invalid_sensitivity_fails_closed_as: phi
+  invalid_v23_sensitivity_fails_closed_as: secret
   # The Agent API is read-only: no write routes exist.
   api_write_routes_allowed: false
   # Request body cap, in bytes.
@@ -77,3 +78,17 @@ okf_migration:
   body_preserved: true
   llm_required: false
   network_dispatch_allowed: false
+
+okf23_projection:
+  profile: validating-projection
+  full_gkos_claimed: false
+  source_notes_silently_modified: false
+  origins_preserved:
+    - authored
+    - derived
+    - proposed
+    - approved
+  proposed_values_effective_without_approval: false
+  scores_are_truth: false
+  policy_hash_required: true
+  remote_schema_updates_enabled: false

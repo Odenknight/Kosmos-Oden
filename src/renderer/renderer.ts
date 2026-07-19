@@ -1055,7 +1055,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const box = document.createElement("div"); box.className = "okfBox";
       const meta = document.createElement("div"); meta.className = "path";
       const dt = n.validAt ? new Date(n.validAt).toISOString().slice(0, 10) : "";
-      meta.textContent = "OKF+ " + (n.okf.type || "note") + (dt ? (" · " + dt) : "") + (n.okf.head ? " · HEAD" : "") + (n.okf.invalidAt ? (" · superseded " + new Date(n.okf.invalidAt).toISOString().slice(0, 10)) : "");
+      const projection = n.okf.projection;
+      const score = projection?.assessment?.scores?.overall;
+      const scoreText = typeof score === "number" ? ` · documentation ${Math.round(score * 100)}%` : projection ? " · not assessable" : "";
+      const governance = projection ? ` · ${projection.sourceVersion || "legacy"} · ${projection.effective?.sensitivity || "internal"} · ${projection.diagnostics?.length || 0} diagnostic${projection.diagnostics?.length === 1 ? "" : "s"}` : "";
+      meta.textContent = "OKF+ " + (n.okf.type || "note") + governance + scoreText + (dt ? (" · " + dt) : "") + (n.okf.head ? " · HEAD" : "") + (n.okf.invalidAt ? (" · superseded " + new Date(n.okf.invalidAt).toISOString().slice(0, 10)) : "");
+      if (projection) meta.title = "Governance overlay: assessment measures documentation and support quality, not truth or authorization. Proposed values are not included in effective state.";
       box.appendChild(meta);
       const chips = document.createElement("div"); chips.className = "linkchips";
       const nameOf = (i2: string) => { const x = G.nodeById.get(i2); return x ? x.label : i2; };

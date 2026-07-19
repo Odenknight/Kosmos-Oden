@@ -74,7 +74,17 @@ must(/originAllowed/.test(server), "Origin validation must be present");
 must(/timingSafeEqual/.test(server), "token comparison must be constant-time");
 const okfParser = read("src/core/okf.ts");
 must(sec.invalid_sensitivity_fails_closed_as === "phi" && /return typeof v === "string" && v\.trim\(\) \? "phi"/.test(okfParser), "invalid explicit sensitivity must fail closed as phi");
+const okf23 = read("src/core/okf23.ts");
+must(sec.invalid_v23_sensitivity_fails_closed_as === "secret" && /effectiveSensitivity = "secret"/.test(okf23), "invalid v2.3 sensitivity must fail closed as secret");
 must(/GET only \(read-only API\)/.test(server) && !/\bcase "\/write"|app\.post\(|writeFile/.test(server), "Agent API must expose no write routes");
+
+const projectionPolicy = policy.okf23_projection || {};
+must(projectionPolicy.profile === "validating-projection" && /OKF23_PROFILE/.test(okf23), "OKF+ 2.3 must identify the validating projection profile");
+must(projectionPolicy.full_gkos_claimed === false && /conformanceClaim: "reader-and-deterministic-assessor"/.test(okf23), "OKF+ 2.3 must not claim full GKOS conformance");
+must(projectionPolicy.proposed_values_effective_without_approval === false && /origins\.authored, origins\.derived, origins\.approved/.test(okf23), "proposed OKF+ values must not enter effective state");
+must(projectionPolicy.scores_are_truth === false && /documentation-and-support-quality-not-truth/.test(okf23), "assessment must disclaim truth scoring");
+must(projectionPolicy.policy_hash_required === true && /hash: "sha256:[0-9a-f]{64}"/.test(okf23), "OKF+ 2.3 policy must carry a SHA-256 hash");
+must(projectionPolicy.remote_schema_updates_enabled === false && /remoteUpdatesEnabled: false/.test(server), "remote schema updates must remain disabled");
 
 /* ---- build invariants ---- */
 const pkg = JSON.parse(read("package.json"));

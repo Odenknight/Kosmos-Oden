@@ -16,6 +16,7 @@
 import { colorForArea } from "./colors";
 import { parseMarkdownFile, type ParsedMarkdown } from "./markdown";
 import { parseOkfPlus, parseOkfTimestamp } from "./okf";
+import { buildOkf23Projection, okf23Inverse, okf23RelationTargets, refreshOkf23Assessment } from "./okf23";
 import {
   areaFromFilePath,
   areaFromPath,
@@ -78,6 +79,10 @@ export function parseSourceFile(f: SourceFile): NoteRecord {
   const parsed: ParsedMarkdown = parseable
     ? parseMarkdownFile(content)
     : { data: {}, content: "", links: [], tags: [], aliases: [] };
+  const hash = contentHash(content);
+  const okf = parseable ? parseOkfPlus(parsed.data, parsed.content) : null;
+  const projection = parseable ? buildOkf23Projection(content, normalizeVaultRelative(f.relativePath), hash, okf) : undefined;
+  if (okf && projection) okf.projection = projection;
   return {
     relativePath: normalizeVaultRelative(f.relativePath),
     ext,
@@ -85,9 +90,9 @@ export function parseSourceFile(f: SourceFile): NoteRecord {
     mtimeMs: f.modifiedTime,
     btimeMs: f.createdTime,
     firstSeenMs: Date.now(),
-    hash: contentHash(content),
+    hash,
     parsed,
-    okf: parseable ? parseOkfPlus(parsed.data, parsed.content) : null,
+    okf,
   };
 }
 
@@ -125,7 +130,7 @@ function makeFileNode(rec: NoteRecord, now: number): KosmosNode {
     createdAt: new Date(rec.btimeMs ?? rec.mtimeMs ?? stableNow).toISOString(),
     okf: rec.okf ? { ...rec.okf } : null,
     validAt: new Date(validAtMs).toISOString(),
-    type: asStr(rec.parsed.data.type), status: asStr(rec.parsed.data.status),
+    type: (rec.okf?.projection?.authored.type as string | null) || asStr(rec.parsed.data.type), status: asStr(rec.parsed.data.status),
     priority: asStr(rec.parsed.data.priority),
     tags: rec.parsed.tags, aliases: rec.parsed.aliases,
     color: colorForArea(area), outgoing: 0, incoming: 0,
@@ -190,6 +195,31 @@ export function assembleGraph(
     addFileToResolver(resolver, rec.relativePath, node.id, rec.parsed.aliases);
   }
 
+  // ---- OKF+ v2.3 UID index and corpus-level identity diagnostics ----
+  const uidCandidates = new Map<string, NoteRecord[]>();
+  for (const rec of records) {
+    const uid = rec.okf?.projection?.authored.uid;
+    if (typeof uid !== "string" || !uid) continue;
+    const arr = uidCandidates.get(uid);
+    if (arr) arr.push(rec); else uidCandidates.set(uid, [rec]);
+  }
+  const uidIndex = new Map<string, string>();
+  const addProjectionDiagnostic = (rec: NoteRecord, code: string, severity: "info" | "warning" | "error" | "critical", message: string, field?: string, targetUid?: string) => {
+    const projection = rec.okf?.projection;
+    if (!projection || projection.diagnostics.some((d) => d.code === code && d.field === field && d.targetUid === targetUid)) return;
+    projection.diagnostics.push({ code, severity, field, message, deterministic: true, sourcePath: rec.relativePath, targetUid });
+  };
+  for (const [uid, matches] of uidCandidates) {
+    if (matches.length === 1) uidIndex.set(uid, fileNodeId(matches[0].relativePath));
+    else {
+      const conflicting = new Set(matches.map((rec) => rec.hash)).size > 1;
+      for (const rec of matches) {
+        addProjectionDiagnostic(rec, "OKF-IDENTITY-003", "error", `UID ${uid} is declared by ${matches.length} notes; it is excluded from canonical UID resolution.`, "uid", uid);
+        if (conflicting) addProjectionDiagnostic(rec, "OKF-IDENTITY-004", "error", `UID ${uid} is reused with conflicting source content.`, "uid", uid);
+      }
+    }
+  }
+
   const children = childrenByParent(folders, records);
   for (const folder of ["", ...folders]) {
     const fid = folderNodeId(folder);
@@ -220,15 +250,33 @@ export function assembleGraph(
     const id = fileNodeId(rec.relativePath);
     const node = nodes.get(id);
     if (!node) continue;
+    const projectedRelations = rec.okf.projection ? okf23RelationTargets(rec.okf.projection) : [];
+    const canonicalV23 = rec.okf.projection?.sourceVersion === "2.3";
+    const lineageBlock = rec.okf.projection?.authored.lineage as Record<string, unknown> | undefined;
+    const predecessor = typeof lineageBlock?.predecessor_uid === "string" ? [lineageBlock.predecessor_uid] : [];
+    const successor = typeof lineageBlock?.successor_uid === "string" ? [lineageBlock.successor_uid] : [];
     lineageInputs.push({
       id,
       label: node.label,
-      declaredSupersedes: rec.okf.supersedes,
-      declaredSupersededBy: rec.okf.supersededBy,
+      declaredSupersedes: [...(canonicalV23 ? projectedRelations.filter((r) => r.type === "supersedes" && r.origin !== "proposed").map((r) => r.target) : rec.okf.supersedes), ...predecessor],
+      declaredSupersededBy: [...(canonicalV23 ? projectedRelations.filter((r) => r.type === "superseded_by" && r.origin !== "proposed").map((r) => r.target) : rec.okf.supersededBy), ...successor],
       validAtMs: node.validAt ? Date.parse(node.validAt) : null,
     });
   }
-  const lineage = normalizeLineage(lineageInputs, (ref) => resolveTitleRef(resolver, ref));
+  const lineage = normalizeLineage(lineageInputs, (ref) => uidIndex.has(ref) ? { id: uidIndex.get(ref), ambiguous: false } : resolveTitleRef(resolver, ref));
+
+  // Attach stable lineage diagnostics to the originating v2.3 projection.
+  const recordById = new Map(records.map((rec) => [fileNodeId(rec.relativePath), rec]));
+  const lineageCodes: Record<string, string> = {
+    "self-supersession": "OKF-LINEAGE-001", cycle: "OKF-LINEAGE-002",
+    "unresolved-target": "OKF-LINEAGE-003", "multiple-successors": "OKF-LINEAGE-004",
+    "successor-before-predecessor": "OKF-LINEAGE-005", "duplicate-declaration": "OKF-LINEAGE-006",
+    "ambiguous-resolution": "OKF-LINEAGE-007",
+  };
+  for (const warning of lineage.warnings) {
+    const rec = warning.nodeId ? recordById.get(warning.nodeId) : undefined;
+    if (rec) addProjectionDiagnostic(rec, lineageCodes[warning.code] ?? "OKF-LINEAGE-999", warning.code === "duplicate-declaration" ? "warning" : "error", warning.message, "lineage");
+  }
 
   // lineage edges render oldest -> newest (source = OLDER, target = NEWER)
   for (const e of lineage.edges) {
@@ -255,6 +303,41 @@ export function assembleGraph(
     node.okf.invalidAt = inv != null ? new Date(inv).toISOString() : null;
     node.okf.head = temporal.head.get(id) ?? false;
   }
+
+  // ---- typed v2.3 relationships: UID-first, origin-preserving, ambiguity-safe ----
+  const semanticKeys = new Set<string>();
+  for (const rec of records) {
+    const projection = rec.okf?.projection;
+    if (!projection) continue;
+    const sourceId = fileNodeId(rec.relativePath);
+    for (const relation of okf23RelationTargets(projection)) {
+      if (relation.origin === "proposed" || relation.type === "supersedes" || relation.type === "superseded_by") continue;
+      const resolved = uidIndex.get(relation.target) ? { id: uidIndex.get(relation.target), ambiguous: false } : resolveTitleRef(resolver, relation.target);
+      if (resolved.ambiguous) {
+        addProjectionDiagnostic(rec, "OKF-RELATIONSHIP-002", "error", `${relation.type} target ${relation.target} is ambiguous; no edge was projected.`, `relationships.${relation.type}`, relation.target);
+        continue;
+      }
+      if (!resolved.id) {
+        addProjectionDiagnostic(rec, "OKF-RELATIONSHIP-001", "warning", `${relation.type} target ${relation.target} is unresolved.`, `relationships.${relation.type}`, relation.target);
+        continue;
+      }
+      if (resolved.id === sourceId && relation.type !== "related_to") {
+        addProjectionDiagnostic(rec, "OKF-RELATIONSHIP-003", "error", `${relation.type} cannot target the source note itself.`, `relationships.${relation.type}`, relation.target);
+        continue;
+      }
+      const key = `${sourceId}\u0001${relation.type}\u0001${resolved.id}`;
+      if (semanticKeys.has(key)) continue;
+      semanticKeys.add(key);
+      links.push({ id: `semantic:${relation.type}:${sourceId}->${resolved.id}`, source: sourceId, target: resolved.id, kind: "semantic", label: relation.type, sourcePath: rec.relativePath });
+      const canonicalTarget = graphUid(nodes.get(resolved.id));
+      (projection.derived.relationships[relation.type] ??= []).push({ target_uid: canonicalTarget, target_node_id: resolved.id, origin: "derived", projected_from_origin: relation.origin });
+      const inverse = okf23Inverse(relation.type);
+      const targetProjection = nodes.get(resolved.id)?.okf?.projection;
+      if (inverse && targetProjection) (targetProjection.derived.relationships[inverse] ??= []).push({ target_uid: graphUid(nodes.get(sourceId)), target_node_id: sourceId, origin: "derived", inverse_of: relation.type });
+    }
+  }
+
+  for (const rec of records) if (rec.okf?.projection) refreshOkf23Assessment(rec.okf.projection);
 
   // ---- semantic relations: legacy **Related:** + canonical v2.2 related_to ----
   const linksBySource = new Map<string, KosmosLink[]>();
@@ -330,7 +413,16 @@ export function assembleGraph(
     // Core owns temporal semantics; consumers must not depend on a renderer
     // mutation to discover the graph's time range.
     __timeSpan: temporal.timeSpan,
+    okfProfile: "OKF+ v2.3 Validating Projection Profile",
+    okfUidIndex: Object.fromEntries([...uidIndex.entries()].sort(([a], [b]) => a.localeCompare(b))),
+    okfAssessments: records.flatMap((rec) => rec.okf?.projection ? [rec.okf.projection.assessment] : []),
+    okfDiagnostics: records.flatMap((rec) => rec.okf?.projection?.diagnostics ?? []),
   };
+}
+
+function graphUid(node: KosmosNode | undefined): string | null {
+  const uid = node?.okf?.projection?.authored.uid;
+  return typeof uid === "string" ? uid : node?.okf?.uid ?? null;
 }
 
 /** Full build convenience: parse every file, then assemble. */

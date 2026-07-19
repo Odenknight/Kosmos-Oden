@@ -114,18 +114,27 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | --- | --- |
 | \`vault_overview\` | Sensitivity-filtered projection statistics and diagnostics |
 | \`search_notes\` | Lexical search over readable title/alias/tag/path values |
-| \`get_note\` | Readable source content, OKF+ 2.2 metadata, lineage projection, and links |
+| \`get_note\` | Readable source content, legacy metadata, v2.3 projection, lineage, and links |
 | \`get_lineage\` | Readable supersession chain oldest → newest |
 | \`get_related\` | Explicit \`related_to\`, legacy Related, wikilink, and backlink neighbors |
 | \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
 | \`export_graphiti_episodes\` | Paginated Graphiti JSON episodes with stable UUIDs and no future-state leakage |
+| \`get_okf_note\` | Origin-separated authored/derived/proposed/approved/effective projection |
+| \`get_assessment\` / \`assess_note\` | Policy-bound documentation/support assessment; never truth or authorization |
+| \`get_diagnostics\` / \`validate_note\` | Stable diagnostics and in-memory validation |
+| \`get_effective_labels\` | Labels separated by origin plus effective labels |
+| \`get_evidence\` | Supporting and contradicting evidence separated by origin |
+| \`get_relationships\` | UID-resolved typed relationships; proposals remain non-effective |
+| \`get_policy\` | Bundled OKF+ 2.3 policy identity, hash, and trust state |
+| \`assess_vault\` | Bounded in-memory assessment summary with no writes |
 
-REST mirrors: \`/overview /diagnostics /graph /notes /note /lineage /related /at /episodes\` (see \`${URLB}/\`).
+REST mirrors include the legacy routes plus read-only \`/okf/*\` projection,
+assessment, diagnostics, label, evidence, relationship, validation, and policy routes (see \`${URLB}/\`).
 
 ## 4 · Direct vs. indirect Graphiti
 
 - **Direct (this server):** agents read a sensitivity-filtered OKF+ temporal projection live — no database, no LLM. Search is lexical, not embeddings.
-- **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative user-assertion projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
+- **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative, origin-separated adapter projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
 
 ## 5 · Safety & troubleshooting
 

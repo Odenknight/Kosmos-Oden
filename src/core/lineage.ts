@@ -71,8 +71,9 @@ export function normalizeLineage(
         warnings.push({
           code: "ambiguous-resolution",
           nodeId: n.id,
-          message: `"${n.label}" supersedes "${ref}" which matches multiple notes; using deterministic first match`,
+          message: `"${n.label}" supersedes "${ref}" which matches multiple notes; no lineage edge was projected`,
         });
+        continue;
       }
       if (!r.id) {
         warnings.push({
@@ -100,8 +101,9 @@ export function normalizeLineage(
         warnings.push({
           code: "ambiguous-resolution",
           nodeId: n.id,
-          message: `"${n.label}" superseded_by "${ref}" matches multiple notes; using deterministic first match`,
+          message: `"${n.label}" superseded_by "${ref}" matches multiple notes; no lineage edge was projected`,
         });
+        continue;
       }
       if (!r.id) {
         warnings.push({

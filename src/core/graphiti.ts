@@ -50,11 +50,11 @@ export function deterministicUuid(input: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function episodeUuid(n: KosmosNode, namespace: string): string {
   const uid = n.okf?.uid;
-  return uid && UUID_V4.test(uid) ? uid : deterministicUuid(`${namespace}\u0000${n.path}`);
+  return uid && UUID.test(uid) ? uid : deterministicUuid(`${namespace}\u0000${n.path}`);
 }
 
 function referenceTimeSource(n: KosmosNode): string {
@@ -81,12 +81,17 @@ export function buildGraphitiEpisodes(graph: KosmosGraph, opts: GraphitiOptions 
     const semantic = [...new Set(graph.links
       .filter((l) => l.kind === "semantic" && l.source === n.id)
       .map((l) => label(l.target)))];
+    const projection = okf?.projection;
+    const sourceOrigin = typeof (projection?.authored.authorship as any)?.origin === "string"
+      ? String((projection?.authored.authorship as any).origin)
+      : "unknown";
 
     out.push({
       uuid: episodeUuid(n, namespace),
       name: title,
       episode_body: JSON.stringify({
-        schema: "okf-plus-graphiti/2.2",
+        schema: "okf-plus-graphiti/2.3",
+        profile: "okf-plus-2.3-validating-projection",
         title,
         path: n.path,
         uid: okf?.uid ?? null,
@@ -100,11 +105,35 @@ export function buildGraphitiEpisodes(graph: KosmosGraph, opts: GraphitiOptions 
         timestamp: ts,
         reference_time_source: referenceTimeSource(n),
         authority: {
-          class: "explicit_user_assertion",
+          class: sourceOrigin,
           governance_status: "unadjudicated",
           projection_status: "non_authoritative",
           accepted_semantics: false,
+          origin_separation_preserved: true,
         },
+        governance: projection ? {
+          labels: {
+            authored: projection.authored.labels,
+            derived: projection.derived.labels,
+            proposed: projection.proposed.labels,
+            approved: projection.approved.labels,
+          },
+          relationships: {
+            authored: projection.authored.relationships,
+            derived: projection.derived.relationships,
+            proposed: projection.proposed.relationships,
+            approved: projection.approved.relationships,
+          },
+          effective_sensitivity: projection.effective.sensitivity,
+          assessment: {
+            overall: projection.assessment.scores.overall,
+            label: projection.assessment.labels.derived[0] ?? "assessment:not-assessable",
+            interpretation: projection.assessment.interpretation,
+            policy_id: projection.assessment.policy.id,
+            policy_hash: projection.assessment.policy.hash,
+          },
+          diagnostics_count: projection.diagnostics.length,
+        } : null,
         // Only forward-looking facts present by this episode time. Current
         // predecessor state (superseded_by/head/invalid_at) belongs to a later
         // projection and is deliberately excluded.
@@ -116,7 +145,7 @@ export function buildGraphitiEpisodes(graph: KosmosGraph, opts: GraphitiOptions 
         typed_relationships: okf?.relations ?? {},
       }),
       source: "json",
-      source_description: `OKF+ explicit user assertion · non-authoritative Graphiti projection · vault "${vault}" · ${n.path}`,
+      source_description: `OKF+ origin-separated source projection (${sourceOrigin}) · non-authoritative Graphiti adapter · vault "${vault}" · ${n.path}`,
       reference_time: ts,
       group_id: groupId,
     });

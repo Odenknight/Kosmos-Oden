@@ -207,14 +207,34 @@ test("agent api", async (t) => {
     assert.equal(r.status, 202);
   });
 
-  await t.test("MCP tools/list exposes the seven read-only tools", async () => {
+  await t.test("MCP tools/list exposes legacy and OKF+ 2.3 read-only tools", async () => {
     const r = await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list" });
     const names = r.json().result.tools.map((x) => x.name);
     assert.deepEqual(names.sort(), [
-      "export_graphiti_episodes", "get_lineage", "get_note", "get_related",
-      "graph_at_time", "search_notes", "vault_overview",
+      "assess_note", "assess_vault", "export_graphiti_episodes", "get_assessment",
+      "get_diagnostics", "get_effective_labels", "get_evidence", "get_lineage",
+      "get_note", "get_okf_note", "get_policy", "get_related", "get_relationships",
+      "graph_at_time", "search_notes", "validate_note", "vault_overview",
     ]);
     assert.ok(r.json().result.tools.every((x) => x.annotations.readOnlyHint === true));
+  });
+
+  await t.test("OKF+ 2.3 assessment has REST/MCP parity and preserves read-only semantics", async () => {
+    const m = await mcp({ jsonrpc: "2.0", id: 41, method: "tools/call", params: { name: "get_assessment", arguments: { title: "Engine v2" } } });
+    const viaMcp = m.json().result.structuredContent;
+    const r = await request(port, { path: "/okf/assessment?title=Engine%20v2", headers: auth });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json(), viaMcp);
+    assert.equal(viaMcp.profile, "okf-plus-2.3-validating-projection");
+    assert.equal(viaMcp.interpretation, "documentation-and-support-quality-not-truth");
+    assert.equal(viaMcp.policy.id, "policy:okf23-default-v1");
+  });
+
+  await t.test("OKF+ policy endpoint is bundled, deterministic, and remote updates are off", async () => {
+    const r = await request(port, { path: "/okf/policy", headers: auth });
+    assert.equal(r.status, 200);
+    assert.equal(r.json().remoteUpdatesEnabled, false);
+    assert.match(r.json().policy.hash, /^sha256:[0-9a-f]{64}$/);
   });
 
   await t.test("MCP tools/call get_lineage returns the canonical chain", async () => {

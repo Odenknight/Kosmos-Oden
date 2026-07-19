@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.7
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.8
 
-**Version 0.6.5-alpha.7** — a pre-release 3D "Local Cluster of Galaxies" view of your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-alpha.8** — a pre-release 3D "Local Cluster of Galaxies" view and OKF+ 2.3 Validating Projection Engine for your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -149,12 +149,25 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 
 ## OKF+ temporal knowledge graph
 
+Kosmos-Oden implements the **OKF+ v2.3 Validating Projection Profile**. It is
+not a full GKOS governance engine and does not authorize or apply consequential
+semantic changes. Canonical 2.3 nested blocks are parsed into separate
+`authored`, `derived`, `proposed`, `approved`, and `effective` projections;
+legacy and 2.2 notes remain readable through compatibility projections. The
+built-in deterministic assessment measures documentation, traceability, and
+support quality under a versioned policy—it is never a truth score or use
+authorization. See [the profile and limits](docs/OKF-PLUS-2.3-PROFILE.md).
+
 Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal features natively:
 
 - **Canonical knowledge chains** — `supersedes` / `superseded_by` frontmatter is normalized internally into one canonical lineage graph, so both fields are projected bidirectionally: declaring **either side** is enough. Superseded notes render as ghosts; the newest version of a chain is flagged **HEAD**. Malformed lineage (cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps) is detected and reported through diagnostics instead of silently breaking the graph.
 - **Temporal validity intervals** — each note is *valid* from its OKF+ `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
 - **Chrono time-travel** — the **Chrono** button (`H`) scrubs the cosmos to any moment: notes not yet written vanish, notes already superseded dim to dark ghosts. Chrono, the Agent API's `graph_at_time`, and the temporal tests all use the **same** projector.
-- **OKF+ 2.2 metadata** — flat `okf_version`, stable `uid`, epistemic state, scope, sensitivity, lineage/fork fields, and registered typed relationships are parsed without treating body wikilinks or Algorithmic Ties as governed semantics. Canonical `related_to` and the legacy `**Related:**` footer are tracked as semantic edges.
+- **OKF+ 2.3 validating projection** — canonical nested identity, authorship,
+  epistemic, sensitivity, provenance, evidence, relationships, lineage, review,
+  assessment, authorization, and origin-separated labels are parsed without
+  changing source notes. Flat 2.2 metadata and the legacy `**Related:**` footer
+  remain available through compatibility mode.
 - **Sensitivity-aware agent reads** — the Agent API defaults to an `internal` ceiling. `confidential` and `phi` notes are excluded from search, note reads, graph/lineage traversal, diagnostics, and Graphiti pages unless the user explicitly raises the ceiling.
 - The viewer is read-only: it never patches your notes.
 

@@ -23,6 +23,7 @@
 import { projectAtTime, type ProjectableNote } from "../core/temporal";
 import { attachGraphitiContent, buildGraphitiEpisodes } from "../core/graphiti";
 import { KOSMOS_VERSION } from "../core/version";
+import { OKF23_POLICY, OKF23_PROFILE } from "../core/okf23";
 import type { KosmosGraph, KosmosNode, OkfSensitivity } from "../core/types";
 
 // Newest first. 2025-11-25 is the current published MCP revision. Older
@@ -448,11 +449,12 @@ export class KosmosAgentServer {
 
   private sensitivityRank(value: OkfSensitivity | undefined): number {
     // Unlabeled legacy notes are private workspace material, not public data.
-    return ({ public: 0, internal: 1, confidential: 2, phi: 3 } as Record<string, number>)[value || "internal"] ?? 1;
+    return ({ public: 0, internal: 1, restricted: 2, confidential: 3, regulated: 4, phi: 5, secret: 6 } as Record<string, number>)[value || "internal"] ?? 6;
   }
 
   private canRead(n: KosmosNode): boolean {
-    return this.sensitivityRank(n.okf?.sensitivity) <= this.sensitivityRank(this.settings.agentSensitivityCeiling);
+    const effective = n.okf?.projection?.effective.sensitivity;
+    return this.sensitivityRank(typeof effective === "string" ? effective as OkfSensitivity : n.okf?.sensitivity) <= this.sensitivityRank(this.settings.agentSensitivityCeiling);
   }
 
   private fileNodes(graph: KosmosGraph): KosmosNode[] {
@@ -482,7 +484,7 @@ export class KosmosAgentServer {
     return {
       id: n.id, uid: n.okf?.uid ?? null,
       title: n.label, path: n.path, type: n.okf?.type || n.type || "note", area: n.area, tags: n.tags,
-      sensitivity: n.okf?.sensitivity ?? "internal",
+      sensitivity: n.okf?.projection?.effective.sensitivity ?? n.okf?.sensitivity ?? "internal",
       timestamp: n.validAt ?? null,
       head: temporal.head,
       superseded: temporal.invalidAt != null,
@@ -490,8 +492,13 @@ export class KosmosAgentServer {
     };
   }
 
-  private findNode(graph: KosmosGraph, sel: { path?: string; title?: string }): KosmosNode | null {
+  private findNode(graph: KosmosGraph, sel: { path?: string; title?: string; uid?: string }): KosmosNode | null {
     const files = this.fileNodes(graph);
+    if (sel.uid) {
+      const uid = sel.uid.trim();
+      const hit = files.find((n) => n.okf?.projection?.authored.uid === uid || n.okf?.uid === uid);
+      if (hit) return hit;
+    }
     if (sel.path) {
       const p = sel.path.trim();
       const hit = files.find((n) => n.path === p) ??
@@ -541,10 +548,13 @@ export class KosmosAgentServer {
       version: KOSMOS_VERSION,
       readOnly: true,
       okfAuthority: "source notes + accepted semantic events; this API is a read projection",
+      okfProfile: "OKF+ v2.3 Validating Projection Profile (not full GKOS; no governed writer)",
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       notes: ns.length,
       areas: [...new Set(ns.map((n) => n.area))].sort(),
       okfNotes: ns.filter((n) => n.okf).length,
+      okf23Notes: ns.filter((n) => n.okf?.projection?.sourceVersion === "2.3").length,
+      assessedNotes: ns.filter((n) => n.okf?.projection?.assessment).length,
       heads: temporal.filter((x) => x.head).length,
       superseded: temporal.filter((x) => x.invalidAt).length,
       lineageEdges: graph.links.filter((l) => l.kind === "lineage" && visible.has(l.source) && visible.has(l.target)).length,
@@ -575,6 +585,7 @@ export class KosmosAgentServer {
       warningsRedacted: graph.diagnostics.lineageWarnings.length > 0,
       lastFullBuildMs: graph.diagnostics.lastFullBuildMs,
       lastIncrementalUpdateMs: graph.diagnostics.lastIncrementalUpdateMs,
+      okf23Diagnostics: this.fileNodes(graph).reduce((sum, n) => sum + (n.okf?.projection?.diagnostics.length ?? 0), 0),
     };
   }
 
@@ -623,7 +634,7 @@ export class KosmosAgentServer {
         epistemic_state: n.okf.epistemicState,
         scope: n.okf.scope,
         scope_id: n.okf.scopeId,
-        sensitivity: n.okf.sensitivity ?? "internal",
+        sensitivity: n.okf.projection?.effective.sensitivity ?? n.okf.sensitivity ?? "internal",
         supersedes: (n.okf.supersedesIds ?? []).map(nameOf).filter(Boolean),
         superseded_by: (n.okf.supersededByIds ?? []).map(nameOf).filter(Boolean),
         declared_supersedes: n.okf.supersedes,
@@ -632,10 +643,90 @@ export class KosmosAgentServer {
         forked_to: n.okf.forkedTo,
         typed_relationships: n.okf.relations,
         related: n.okf.related,
+        validating_projection: n.okf.projection ? {
+          profile: n.okf.projection.profile,
+          source_version: n.okf.projection.sourceVersion,
+          authored: n.okf.projection.authored,
+          derived: n.okf.projection.derived,
+          proposed: n.okf.projection.proposed,
+          approved: n.okf.projection.approved,
+          effective: n.okf.projection.effective,
+          extensions: n.okf.projection.extensions,
+          assessment: n.okf.projection.assessment,
+          diagnostics: n.okf.projection.diagnostics,
+        } : null,
       } : null,
       links: { outgoing, backlinks, semantic },
       content: this.capContent(content ?? ""),
     };
+  }
+
+  private async okfNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: KosmosGraph; node: KosmosNode } | null> {
+    const graph = await this.provider.getGraph();
+    const node = this.findNode(graph, sel);
+    return node ? { graph, node } : null;
+  }
+
+  async qOkfNote(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    if (!found) return { error: "note not found" };
+    const p = found.node.okf?.projection;
+    if (!p) return { error: "note has no OKF+ validating projection", path: found.node.path };
+    return {
+      profile: p.profile, conformanceClaim: p.conformanceClaim, mode: p.mode,
+      source: { path: p.sourcePath, version: p.sourceVersion, contentHash: p.contentHash },
+      authored: p.authored, derived: p.derived, proposed: p.proposed,
+      approved: p.approved, effective: p.effective, extensions: p.extensions,
+    };
+  }
+
+  async qAssessment(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    return found?.node.okf?.projection?.assessment ?? { error: "assessment not found" };
+  }
+
+  async qOkfDiagnostics(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    const p = found?.node.okf?.projection;
+    return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: p.diagnostics } : { error: "diagnostics not found" };
+  }
+
+  async qEffectiveLabels(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    const p = found?.node.okf?.projection;
+    return p ? { targetUid: p.authored.uid ?? null, authored: p.authored.labels, derived: p.derived.labels, proposed: p.proposed.labels, approved: p.approved.labels, effective: p.effective.labels } : { error: "labels not found" };
+  }
+
+  async qEvidence(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    const p = found?.node.okf?.projection;
+    if (!p) return { error: "evidence not found" };
+    const pick = (origin: any) => origin.evidence ?? { supports: [], contradicts: [] };
+    return { targetUid: p.authored.uid ?? null, authored: pick(p.authored), derived: pick(p.derived), proposed: pick(p.proposed), approved: pick(p.approved), effective: pick(p.effective) };
+  }
+
+  async qRelationships(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.okfNode(sel);
+    const p = found?.node.okf?.projection;
+    return p ? { targetUid: p.authored.uid ?? null, authored: p.authored.relationships, derived: p.derived.relationships, proposed: p.proposed.relationships, approved: p.approved.relationships, effective: p.effective.relationships } : { error: "relationships not found" };
+  }
+
+  qPolicy(): any {
+    return { profile: OKF23_PROFILE, builtIn: true, source: "bundled-read-only-policy", policy: OKF23_POLICY, remoteUpdatesEnabled: false };
+  }
+
+  async qValidate(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const result = await this.qOkfDiagnostics(sel);
+    if (result.error) return result;
+    return { ...result, valid: !result.diagnostics.some((d: any) => d.severity === "error" || d.severity === "critical"), sourceUnchanged: true };
+  }
+
+  async qAssessVault(limit = 100): Promise<any> {
+    const graph = await this.provider.getGraph();
+    const assessments = this.fileNodes(graph).flatMap((n) => n.okf?.projection ? [{ path: n.path, ...n.okf.projection.assessment }] : []);
+    const cap = Math.max(1, Math.min(200, Number.isFinite(limit) ? Math.floor(limit) : 100));
+    const overall = assessments.map((a) => a.scores.overall).filter((x): x is number => typeof x === "number");
+    return { profile: OKF23_PROFILE, readOnly: true, total: assessments.length, returned: Math.min(cap, assessments.length), averageOverall: overall.length ? Math.round(overall.reduce((a, b) => a + b, 0) / overall.length * 10_000) / 10_000 : null, assessments: assessments.slice(0, cap) };
   }
 
   /** Cap a returned note body so one huge note cannot flood a client (Doc2 §5.6). */
@@ -756,7 +847,7 @@ export class KosmosAgentServer {
     const episodes = await this.qEpisodes(pageSize, start);
     const next = start + episodes.length;
     return {
-      authority: "non-authoritative Graphiti projection of explicit user assertions",
+      authority: "non-authoritative Graphiti adapter projection with authored/derived/proposed/approved origin separation",
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       total,
       cursor: start,
@@ -784,13 +875,14 @@ export class KosmosAgentServer {
     const sel = {
       path: { type: "string", description: "Vault-relative path, e.g. Ideas/Engine v2.md" },
       title: { type: "string", description: "Note title / basename / alias" },
+      uid: { type: "string", description: "Canonical OKF+ UID" },
     };
     const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
     const outputSchema = { type: "object", additionalProperties: true };
     const tool = (name: string, title: string, description: string, inputSchema: any) => ({
       name, title, description, inputSchema, outputSchema, annotations,
     });
-    const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }], additionalProperties: false };
+    const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
       tool("vault_overview", "Vault overview", "Sensitivity-filtered OKF+ projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, tags and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
@@ -798,7 +890,17 @@ export class KosmosAgentServer {
       tool("get_lineage", "Get lineage", "Readable OKF+ supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
-      tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti projection of readable explicit user assertions. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
+      tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
+      tool("get_okf_note", "Get OKF+ note projection", "Origin-separated authored, derived, proposed, approved, and effective OKF+ v2.3 projection.", selectionSchema),
+      tool("get_assessment", "Get assessment", "Policy-bound deterministic documentation-quality assessment; never a truth or use authorization.", selectionSchema),
+      tool("get_diagnostics", "Get OKF+ diagnostics", "Stable structured validation diagnostics for one readable note.", selectionSchema),
+      tool("get_effective_labels", "Get effective labels", "Origin-separated labels plus the effective non-proposed projection.", selectionSchema),
+      tool("get_evidence", "Get evidence", "Origin-separated supporting and contradicting evidence declarations.", selectionSchema),
+      tool("get_relationships", "Get typed relationships", "Authored, derived, proposed, approved, and effective typed relationships.", selectionSchema),
+      tool("get_policy", "Get OKF+ policy", "Built-in deterministic OKF+ 2.3 assessment policy and trust state.", { type: "object", properties: {}, additionalProperties: false }),
+      tool("validate_note", "Validate note", "Validate one note in memory without modifying source bytes.", selectionSchema),
+      tool("assess_note", "Assess note", "Calculate/read one deterministic assessment in memory without modifying source bytes.", selectionSchema),
+      tool("assess_vault", "Assess vault", "Bounded in-memory deterministic assessment summary; writes no notes or sidecars.", { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 200 } }, additionalProperties: false }),
     ];
   }
 
@@ -815,24 +917,29 @@ export class KosmosAgentServer {
       get_related: ["path", "title"],
       graph_at_time: ["time", "limit"],
       export_graphiti_episodes: ["cursor", "limit"],
+      get_okf_note: ["path", "title", "uid"], get_assessment: ["path", "title", "uid"],
+      get_diagnostics: ["path", "title", "uid"], get_effective_labels: ["path", "title", "uid"],
+      get_evidence: ["path", "title", "uid"], get_relationships: ["path", "title", "uid"],
+      get_policy: [], validate_note: ["path", "title", "uid"], assess_note: ["path", "title", "uid"],
+      assess_vault: ["limit"],
     };
     for (const key of Object.keys(a)) if (!allowed[name].includes(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
-    for (const key of ["query", "tag", "area", "path", "title", "time"]) {
+    for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
     }
     const requireSelector = () => {
-      if (!(typeof a.path === "string" && a.path.trim()) && !(typeof a.title === "string" && a.title.trim())) {
-        throw new McpRpcError(-32602, `${name} requires path or title`);
+      if (!(typeof a.path === "string" && a.path.trim()) && !(typeof a.title === "string" && a.title.trim()) && !(typeof a.uid === "string" && a.uid.trim())) {
+        throw new McpRpcError(-32602, `${name} requires path, title, or uid`);
       }
     };
     if (name === "search_notes" && typeof a.query !== "string") throw new McpRpcError(-32602, "search_notes requires string query");
-    if (name === "get_note" || name === "get_lineage" || name === "get_related") requireSelector();
+    if (["get_note", "get_lineage", "get_related", "get_okf_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
     if (name === "graph_at_time" && typeof a.time !== "string") throw new McpRpcError(-32602, "graph_at_time requires string time");
     const integer = (key: string, min: number, max: number) => {
       if (a[key] == null) return;
       if (!Number.isInteger(a[key]) || a[key] < min || a[key] > max) throw new McpRpcError(-32602, `${key} must be an integer from ${min} to ${max}`);
     };
-    integer("limit", 1, name === "export_graphiti_episodes" ? MAX_EPISODE_PAGE : MAX_SEARCH_RESULTS);
+    integer("limit", 1, name === "export_graphiti_episodes" ? MAX_EPISODE_PAGE : name === "assess_vault" ? 200 : MAX_SEARCH_RESULTS);
     if (name === "export_graphiti_episodes") integer("cursor", 0, Number.MAX_SAFE_INTEGER);
     return a;
   }
@@ -848,6 +955,16 @@ export class KosmosAgentServer {
       case "get_related": return done(await this.qRelated(args));
       case "graph_at_time": return done(await this.qAtTime(args.time, args.limit));
       case "export_graphiti_episodes": return this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE);
+      case "get_okf_note": return done(await this.qOkfNote(args));
+      case "get_assessment": return done(await this.qAssessment(args));
+      case "get_diagnostics": return done(await this.qOkfDiagnostics(args));
+      case "get_effective_labels": return done(await this.qEffectiveLabels(args));
+      case "get_evidence": return done(await this.qEvidence(args));
+      case "get_relationships": return done(await this.qRelationships(args));
+      case "get_policy": return this.qPolicy();
+      case "validate_note": return done(await this.qValidate(args));
+      case "assess_note": return done(await this.qAssessment(args));
+      case "assess_vault": return this.qAssessVault(args.limit ?? 100);
       default: throw new McpRpcError(-32602, "Unknown tool: " + name);
     }
   }
@@ -905,7 +1022,7 @@ export class KosmosAgentServer {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "vault-kosmos", title: "Vault Kosmos", version: KOSMOS_VERSION },
-          instructions: "Read-only, sensitivity-filtered OKF+ source projection. Source notes and accepted semantic events are authoritative; Graphiti exports are non-authoritative explicit-user-assertion projections. Use search/get_note for content, get_lineage/graph_at_time for temporal views, and paginate export_graphiti_episodes. The server never modifies notes.",
+          instructions: "Read-only, sensitivity-filtered OKF+ v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_okf_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.",
         });
       }
       if (method === "ping") return ok({});
@@ -1054,7 +1171,7 @@ export class KosmosAgentServer {
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
-          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes"],
+          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/okf/note?uid=|path=|title=", "/okf/assessment?uid=|path=|title=", "/okf/diagnostics?uid=|path=|title=", "/okf/labels?uid=|path=|title=", "/okf/evidence?uid=|path=|title=", "/okf/relationships?uid=|path=|title=", "/okf/validate?uid=|path=|title=", "/okf/policy", "/okf/assess-vault?limit="],
         });
         return;
       case "/health": this.json(res, 200, { ok: true, name: "vault-kosmos", version: KOSMOS_VERSION, vault: this.provider.vaultName() }); return;
@@ -1067,6 +1184,15 @@ export class KosmosAgentServer {
       case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
       case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
       case "/episodes": this.json(res, 200, await this.qEpisodePage(q("cursor") ? Number(q("cursor")) : 0, q("limit") ? Number(q("limit")) : DEFAULT_EPISODE_PAGE)); return;
+      case "/okf/note": this.json(res, 200, await this.qOkfNote({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/assessment": this.json(res, 200, await this.qAssessment({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/diagnostics": this.json(res, 200, await this.qOkfDiagnostics({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/labels": this.json(res, 200, await this.qEffectiveLabels({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/evidence": this.json(res, 200, await this.qEvidence({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/relationships": this.json(res, 200, await this.qRelationships({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/validate": this.json(res, 200, await this.qValidate({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/okf/policy": this.json(res, 200, this.qPolicy()); return;
+      case "/okf/assess-vault": this.json(res, 200, await this.qAssessVault(q("limit") ? Number(q("limit")) : 100)); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }
   }

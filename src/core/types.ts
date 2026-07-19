@@ -36,7 +36,80 @@ export interface ParsedLink {
   heading?: string;
 }
 
-export type OkfSensitivity = "public" | "internal" | "confidential" | "phi";
+export type OkfSensitivity =
+  | "public"
+  | "internal"
+  | "restricted"
+  | "confidential"
+  | "regulated"
+  | "phi"
+  | "secret";
+
+export type OkfOrigin = "authored" | "derived" | "proposed" | "approved";
+
+export interface OkfDiagnostic {
+  code: string;
+  severity: "info" | "warning" | "error" | "critical";
+  field?: string;
+  message: string;
+  deterministic: boolean;
+  remediation?: string;
+  sourcePath?: string;
+  targetUid?: string;
+}
+
+export interface OkfOriginProjection {
+  labels: unknown[];
+  relationships: Record<string, unknown[]>;
+  epistemicState?: string | null;
+  sensitivity?: OkfSensitivity | null;
+  [field: string]: unknown;
+}
+
+export interface OkfAssessmentScores {
+  structural_completeness: number | null;
+  provenance_quality: number | null;
+  evidence_support: number | null;
+  relationship_integrity: number | null;
+  temporal_freshness: number | null;
+  contradiction_status: number | null;
+  review_readiness: number | null;
+  overall: number | null;
+}
+
+export interface OkfAssessment {
+  assessmentId: string;
+  targetUid: string | null;
+  profile: "okf-plus-2.3-validating-projection";
+  policy: { id: string; version: string; hash: string; weights: Record<string, number>; missingValueBehavior: string };
+  assessor: { id: "tool:kosmos-oden"; engineVersion: string };
+  inputHash: string;
+  calculatedAt: string;
+  scores: OkfAssessmentScores;
+  exclusions: string[];
+  labels: { derived: string[] };
+  diagnostics: OkfDiagnostic[];
+  interpretation: "documentation-and-support-quality-not-truth";
+}
+
+/** OKF+ v2.3 Validating Projection Profile attached to a source note. */
+export interface OkfProjection {
+  profile: "okf-plus-2.3-validating-projection";
+  conformanceClaim: "reader-and-deterministic-assessor";
+  mode: "strict-v2.3" | "compatible" | "legacy";
+  sourceVersion: string | null;
+  sourcePath: string;
+  contentHash: string;
+  rawFrontmatter: Record<string, unknown>;
+  extensions: Record<string, unknown>;
+  authored: OkfOriginProjection;
+  derived: OkfOriginProjection;
+  proposed: OkfOriginProjection;
+  approved: OkfOriginProjection;
+  effective: OkfOriginProjection;
+  diagnostics: OkfDiagnostic[];
+  assessment: OkfAssessment;
+}
 
 export type OkfRelation =
   | "depends_on"
@@ -72,6 +145,8 @@ export interface OkfData {
   relations: Partial<Record<OkfRelation, string[]>>;
   /** Titles from the footer `**Related:**` line. */
   related: string[];
+  /** Origin-preserving OKF+ v2.3 validation and assessment projection. */
+  projection?: OkfProjection;
 }
 
 /** Node-level OKF+ projection attached to graph nodes after lineage/temporal passes. */

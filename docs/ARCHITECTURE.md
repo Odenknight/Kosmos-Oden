@@ -37,6 +37,7 @@ five different interpretations of the same vault.
 | `paths.ts` | POSIX path normalization, note/attachment classification, deterministic hashes. |
 | `markdown.ts` | Tolerant frontmatter + wikilink/markdown/property link parsing. |
 | `okf.ts` | Flat OKF+ 2.2 metadata, typed relations, compatibility aliases, and legacy `**Related:**` parsing (declarations only). |
+| `okf23.ts` | Source-preserving nested OKF+ 2.3 parser, origin-separated validating projection, deterministic policy/assessment, labels, and structured diagnostics. |
 | `okf-migration.ts` | Strict Google OKF/OKF+ conformance audit plus deterministic, hash-bound OKF+ onboarding proposals; no Obsidian or LLM dependency. |
 | `resolver.ts` | Link/title resolution with ambiguity tracking. |
 | `lineage.ts` | **Canonical lineage normalization** — one `NEWER→OLDER` edge set from either declared side; validation (cycles, self-ref, unresolved, multi-successor, ordering, duplicates, ambiguity). |
@@ -94,7 +95,9 @@ Writes happen only through explicit, named, user-triggered commands. The OKF+
 migrator has a separate approval boundary: save-audit writes only a content-free
 plan; apply requires backup/sensitivity confirmations, writes binary backups,
 and edits only sources still identical to the approved hash-bound plan.
-The enrichment path adds another boundary: proposals have no write authority,
+The v2.3 validating projection and all REST/MCP assess/validate tools are
+in-memory and read-only. They never insert assessment results into notes and
+never treat proposed values as effective. The enrichment path adds another boundary: proposals have no write authority,
 nothing is preselected, accepted relationship targets must resolve, and only a
 reviewer-approved plan can reach the backup/apply modal. Persisted enrichment
 plans omit note bodies and each live note is compared byte-for-byte with the

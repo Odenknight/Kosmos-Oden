@@ -33,7 +33,7 @@ function normalizeOkfRefs(v: unknown): string[] {
 const scalar = (v: unknown): string | undefined => typeof v === "string" && v !== "" ? v : undefined;
 
 function sensitivity(v: unknown): OkfSensitivity | undefined {
-  if (v === "public" || v === "internal" || v === "confidential" || v === "phi") return v;
+  if (v === "public" || v === "internal" || v === "restricted" || v === "confidential" || v === "regulated" || v === "phi" || v === "secret") return v;
   // An explicit but invalid label must not silently downgrade access. The
   // read-only projector fails closed at the highest sensitivity; a governed
   // processor can separately route the malformed value to salvage/review.
@@ -83,7 +83,10 @@ export function parseOkfPlus(data: Frontmatter, content: string): OkfData | null
 
 /** Parse an OKF+ timestamp; returns ms since epoch or null when invalid/absent. */
 export function parseOkfTimestamp(okf: OkfData | null | undefined): number | null {
-  if (!okf || typeof okf.timestamp !== "string") return null;
-  const t = Date.parse(okf.timestamp);
+  if (!okf) return null;
+  const projected = okf.projection?.authored?.createdAt;
+  const value = typeof projected === "string" ? projected : okf.timestamp;
+  if (typeof value !== "string") return null;
+  const t = Date.parse(value);
   return Number.isNaN(t) ? null : t;
 }
