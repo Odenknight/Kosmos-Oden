@@ -1,15 +1,17 @@
 /**
- * Safety-first OKF+ 2.2 note onboarding.
+ * Safety-first OKF+ 2.3 note onboarding.
  *
  * This module is deliberately deterministic and LLM-free. It audits strict,
- * flat frontmatter; accepts either OKF+ 2.2 or Google's minimal OKF v0.1;
+ * legacy flat frontmatter; accepts native OKF+ 2.3, OKF+ 2.2 compatibility
+ * notes, or Google's minimal OKF v0.1;
  * and proposes OKF+ only for notes that satisfy the mechanical safety gate.
  * Ambiguous YAML and invalid explicit governance values are never guessed.
  */
 import type { OkfSensitivity } from "./types";
+import { buildOkf23Projection, parseOkf23Frontmatter } from "./okf23";
 
 export type OkfAuditStatus =
-  | "okf-plus-2.2"
+  | "okf-plus-2.3"
   | "google-okf-0.1"
   | "google-reserved"
   | "needs-okf-plus"
@@ -60,7 +62,7 @@ export const DEFAULT_OKF_MIGRATION_DEFAULTS: OkfMigrationDefaults = {
 export interface OkfMigrationEntry {
   path: string;
   status: OkfAuditStatus;
-  standard: "OKF+ 2.2" | "Google OKF 0.1 draft" | "Google OKF reserved" | "none";
+  standard: "OKF+ 2.3" | "OKF+ 2.2 compatibility" | "Google OKF 0.1 draft" | "Google OKF reserved" | "none";
   findings: OkfMigrationFinding[];
   review: OkfMigrationReview;
   /** Original governed values replaced by upgrade-all; persisted in the bound plan. */
@@ -75,7 +77,7 @@ export interface OkfMigrationEntry {
 }
 
 export interface OkfMigrationPlan {
-  schema: "okf-plus-migration-plan/2";
+  schema: "okf-plus-migration-plan/3";
   runId: string;
   createdAt: string;
   planHash: string;
@@ -126,6 +128,7 @@ const EPISTEMIC = new Set(["fact", "verified_inference", "hypothesis", "deprecat
 const SCOPES = new Set(["global", "project", "tenant", "node", "agent", "entity"]);
 const SENSITIVITIES = new Set(["public", "internal", "confidential", "phi"]);
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const VALID_UID = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[a-z][a-z0-9._-]{1,31}:[A-Za-z0-9][A-Za-z0-9._:/-]{1,255})$/i;
 
 const yamlUnquote = (raw: string): string => {
   const s = raw.trim();
@@ -395,7 +398,7 @@ function upgradeOverrides(fm: StrictFrontmatter): {
     salvage.push({ field, originalValue, reason });
   };
   if (fm.byKey.has("okf_version") && scalar(fm, "okf_version") !== "2.2") {
-    replace("okf_version", "override-okf-version", "Existing okf_version will be upgraded to 2.2; the original value is retained in migration salvage.");
+    replace("okf_version", "override-okf-version", "Existing okf_version will be upgraded to 2.3; the original value is retained in migration salvage.");
   }
   if (fm.byKey.has("uid") && !UUID_V4.test(scalar(fm, "uid") ?? "")) {
     replace("uid", "override-invalid-uid", "Invalid legacy uid will be replaced with a new lowercase UUIDv4; the original value is retained in migration salvage.");
@@ -435,6 +438,56 @@ function emitList(key: string, values: string[], eol: string, wikilinks = false)
   return [`${key}:`, ...unique.map((v) => `  - ${yamlQuote(wikilinks && !/^\[\[.*\]\]$/.test(v) ? `[[${v}]]` : v)}`)];
 }
 
+function yaml23Scalar(value: unknown): string {
+  if (value == null) return "null";
+  if (typeof value === "boolean" || typeof value === "number") return String(value);
+  return JSON.stringify(String(value));
+}
+
+/** Serialize the bounded data model accepted by parseOkf23Frontmatter. */
+function emitYaml23Value(lines: string[], key: string | null, value: unknown, indent: number): void {
+  const pad = " ".repeat(indent);
+  const prefix = key == null ? `${pad}-` : `${pad}${key}:`;
+  if (Array.isArray(value)) {
+    if (!value.length) { lines.push(`${prefix} []`); return; }
+    lines.push(prefix);
+    for (const item of value) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        lines.push(`${" ".repeat(indent + 2)}-`);
+        for (const [childKey, child] of Object.entries(item as Record<string, unknown>)) emitYaml23Value(lines, childKey, child, indent + 4);
+      } else if (Array.isArray(item)) {
+        emitYaml23Value(lines, null, item, indent + 2);
+      } else lines.push(`${" ".repeat(indent + 2)}- ${yaml23Scalar(item)}`);
+    }
+    return;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (!entries.length) { lines.push(`${prefix} {}`); return; }
+    lines.push(prefix);
+    for (const [childKey, child] of entries) emitYaml23Value(lines, childKey, child, indent + 2);
+    return;
+  }
+  lines.push(`${prefix} ${yaml23Scalar(value)}`);
+}
+
+function serializeOkf23(data: Record<string, unknown>, fm: StrictFrontmatter): string {
+  const lines = ["---"];
+  for (const [key, value] of Object.entries(data)) emitYaml23Value(lines, key, value, 0);
+  const comments = new Set<string>();
+  for (const line of [...fm.fields.flatMap((field) => field.rawLines), ...fm.looseLines]) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) comments.add(trimmed);
+    else {
+      const comment = splitYamlComment(line).comment;
+      if (comment) comments.add(comment);
+    }
+  }
+  if (comments.size) lines.push(...comments);
+  lines.push("---");
+  return fm.bom + lines.join(fm.eol) + fm.eol + fm.body;
+}
+
 function proposedOkf(
   fm: StrictFrontmatter,
   source: OkfMigrationSource,
@@ -458,26 +511,78 @@ function proposedOkf(
   const existingScope = scalar(fm, "scope");
   const existingSensitivity = scalar(fm, "sensitivity");
   const existingTimestamp = scalar(fm, "timestamp");
+  const tags = list(fm, "tags") ?? (scalar(fm, "tags") ? [scalar(fm, "tags")!] : []);
+  const relationships = new Map<string, string[]>();
+  for (const key of ["supersedes", "superseded_by", ...RELATION_KEYS] as const) {
+    const values = list(fm, key) ?? [];
+    if (values.length) relationships.set(key, values);
+  }
+  const forkedFrom = list(fm, "forked_from") ?? [];
+  const forkedTo = list(fm, "forked_to") ?? [];
   const lines: string[] = [
     "---",
-    `okf_version: "2.2"`,
+    `okf_version: "2.3"`,
     `uid: ${yamlQuote(actualUid)}`,
-    `type: ${yamlQuote(existingType && TYPES.has(existingType) ? existingType : defaults.type)}`,
     `title: ${yamlQuote(title)}`,
+    `type: ${yamlQuote(existingType && TYPES.has(existingType) ? existingType : defaults.type)}`,
+    `created_at: ${yamlQuote(validTimestamp(existingTimestamp) ? existingTimestamp! : created)}`,
+    `updated_at: ${yamlQuote(Number.isFinite(source.modifiedTime) && (source.modifiedTime ?? 0) > 0 ? new Date(source.modifiedTime!).toISOString() : (validTimestamp(existingTimestamp) ? existingTimestamp! : created))}`,
     `description: ${yamlQuote(description)}`,
   ];
   const resource = scalar(fm, "resource");
   if (resource) lines.push(`resource: ${yamlQuote(resource)}`);
+  lines.push(...emitList("tags", tags, eol));
   lines.push(
-    `timestamp: ${yamlQuote(validTimestamp(existingTimestamp) ? existingTimestamp! : created)}`,
-    `epistemic_state: ${yamlQuote(existingEpistemic && EPISTEMIC.has(existingEpistemic) ? existingEpistemic : defaults.epistemicState)}`,
-    `scope: ${yamlQuote(existingScope && SCOPES.has(existingScope) ? existingScope : defaults.scope)}`,
-    `scope_id: ${yamlQuote((existingScope && SCOPES.has(existingScope) ? scalar(fm, "scope_id") : undefined) || actualUid)}`,
-    `sensitivity: ${yamlQuote(existingSensitivity && SENSITIVITIES.has(existingSensitivity) ? existingSensitivity : defaults.sensitivity)}`,
+    "authorship:",
+    `  origin: "authored"`,
+    `  author_id: "migration:human-review-required"`,
+    "epistemic:",
+    `  state: ${yamlQuote(existingEpistemic && EPISTEMIC.has(existingEpistemic) ? existingEpistemic : defaults.epistemicState)}`,
+    `  confidence_origin: "authored"`,
+    "sensitivity:",
+    `  level: ${yamlQuote(existingSensitivity && SENSITIVITIES.has(existingSensitivity) ? existingSensitivity : defaults.sensitivity)}`,
+    "  handling: []",
+    "provenance:",
+    `  source_kind: "migration"`,
+    "  source_refs: []",
+    "  extraction:",
+    `    method: "deterministic-migration"`,
   );
-  lines.push(...emitList("tags", list(fm, "tags") ?? (scalar(fm, "tags") ? [scalar(fm, "tags")!] : []), eol));
-  for (const key of LINEAGE_KEYS) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
-  for (const key of RELATION_KEYS) if (fm.byKey.has(key)) lines.push(...emitList(key, list(fm, key) ?? [], eol, true));
+  if (existingScope || scalar(fm, "scope_id")) lines.push(
+    "x-okf22-compatibility:",
+    `  scope: ${yamlQuote(existingScope && SCOPES.has(existingScope) ? existingScope : defaults.scope)}`,
+    `  scope_id: ${yamlQuote(scalar(fm, "scope_id") || actualUid)}`,
+  );
+  if (forkedFrom.length || forkedTo.length) {
+    lines.push("lineage:");
+    if (forkedFrom.length) lines.push("  forked_from:", ...[...new Set(forkedFrom)].map((value) => `    - ${yamlQuote(value)}`));
+    if (forkedTo.length) lines.push("  forked_to:", ...[...new Set(forkedTo)].map((value) => `    - ${yamlQuote(value)}`));
+  }
+  lines.push(
+    "relationships:",
+  );
+  if (!relationships.size) lines.push("  related_to: []");
+  for (const [key, values] of relationships) {
+    lines.push(`  ${key}:`);
+    for (const value of values) lines.push(`    - target: ${yamlQuote(value)}`, `      origin: "authored"`);
+  }
+  lines.push(
+    "evidence:",
+    "  supports: []",
+    "  contradicts: []",
+    "review:",
+    `  status: "pending"`,
+    "assessment:",
+    "  current_assessment_id: null",
+    `  status: "unassessed"`,
+    "authorization:",
+    `  status: "research-only"`,
+    "labels:",
+    "  authored: []",
+    "  derived: []",
+    "  proposed: []",
+    "  approved: []",
+  );
   for (const field of fm.fields) {
     if (!RECOGNIZED.has(field.key) && !salvage.some((record) => record.field === field.key)) lines.push(...field.rawLines);
   }
@@ -503,10 +608,45 @@ export function applyOkfEnrichmentFrontmatter(
   source: OkfMigrationSource,
   updates: OkfEnrichmentFrontmatterUpdates,
 ): string {
+  const native = parseOkf23Frontmatter(source.content);
+  if (native.data.okf_version === "2.3" && !native.issues.length) {
+    const fm23 = strictFrontmatter(source.content);
+    if (fm23.state !== "valid") throw new Error("native OKF+ 2.3 frontmatter is not safely bounded");
+    const data = JSON.parse(JSON.stringify(native.data)) as Record<string, unknown>;
+    if (updates.description != null) {
+      const value = updates.description.trim();
+      if (!value || value.length > 500) throw new Error("description must contain 1–500 characters");
+      data.description = value;
+    }
+    if (updates.type != null) {
+      if (!TYPES.has(updates.type)) throw new Error("type must be episodic, semantic, or procedural");
+      data.type = updates.type;
+    }
+    if (updates.tags?.length) {
+      if (updates.tags.some((value) => !/^[A-Za-z][\w/-]{0,79}$/.test(value))) throw new Error("tags must use safe Markdown tag characters");
+      const existing = Array.isArray(data.tags) ? data.tags.filter((value): value is string => typeof value === "string") : [];
+      data.tags = [...new Set([...existing, ...updates.tags].map((value) => value.trim()).filter(Boolean))];
+    }
+    const relationships = data.relationships && typeof data.relationships === "object" && !Array.isArray(data.relationships)
+      ? data.relationships as Record<string, unknown> : {};
+    data.relationships = relationships;
+    for (const key of ["supersedes", "related_to"] as const) if (updates[key]?.length) {
+      if (updates[key]!.some((value) => !/^\[\[[^\]\r\n]{1,180}\]\]$/.test(value))) throw new Error(`${key} values must be bounded wikilinks`);
+      const existing = Array.isArray(relationships[key]) ? relationships[key] as unknown[] : [];
+      const targets = new Set(existing.map((item) => typeof item === "string" ? item : item && typeof item === "object" ? String((item as Record<string, unknown>).target ?? "") : "").filter(Boolean));
+      for (const target of updates[key]!) if (!targets.has(target)) existing.push({ target, origin: "authored" });
+      relationships[key] = existing;
+    }
+    const proposed = serializeOkf23(data, fm23);
+    const checked = parseOkf23Frontmatter(proposed);
+    if (checked.issues.length) throw new Error(`proposed enrichment is not valid OKF+ 2.3: ${checked.issues.map((issue) => issue.message).join(", ")}`);
+    if (strictFrontmatter(proposed).body !== fm23.body) throw new Error("proposed enrichment changed Markdown body bytes");
+    return proposed;
+  }
   const fm = strictFrontmatter(source.content);
   if (fm.state !== "valid" || fm.problems.length) throw new Error("note frontmatter is not safely parseable by the flat OKF+ grammar");
   const validation = okfValidation(fm);
-  if (validation.length) throw new Error(`note is not canonical OKF+ 2.2: ${validation.map((finding) => finding.code).join(", ")}`);
+  if (validation.length) throw new Error(`note is not canonical OKF+ 2.2 compatibility input: ${validation.map((finding) => finding.code).join(", ")}`);
 
   const setScalar = (key: "description" | "type", value: string) => {
     const field = fm.byKey.get(key);
@@ -542,12 +682,7 @@ export function applyOkfEnrichmentFrontmatter(
     mergeList(key, updates[key]!);
   }
 
-  const proposed = proposedOkf(fm, source, scalar(fm, "uid")!, new Date().toISOString(), DEFAULT_OKF_MIGRATION_DEFAULTS);
-  const checked = strictFrontmatter(proposed);
-  const after = checked.state === "valid" && !checked.problems.length ? okfValidation(checked) : checked.problems;
-  if (after.length) throw new Error(`proposed enrichment is not canonical OKF+ 2.2: ${after.map((finding) => finding.code).join(", ")}`);
-  if (checked.body !== fm.body) throw new Error("proposed enrichment changed Markdown body bytes");
-  return proposed;
+  throw new Error("OKF+ 2.2 enrichment input must first be converted with the OKF+ 2.3 formatting workflow");
 }
 
 function migrationUid(fm: StrictFrontmatter, generate: () => string, allowLegacyId = false): string {
@@ -605,6 +740,18 @@ interface AuditOptions {
 
 async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise<OkfMigrationEntry> {
   const originalHash = await sha256Text(source.content);
+  const native = parseOkf23Frontmatter(source.content);
+  if (native.data.okf_version === "2.3") {
+    const projection = buildOkf23Projection(source.content, source.path, `sha256:${originalHash}`, null);
+    const findings: OkfMigrationFinding[] = [
+      ...native.issues.map((issue) => ({ code: "invalid-okf-2.3-yaml", message: `${issue.message} (line ${issue.line})` })),
+      ...(projection?.diagnostics ?? [])
+        .filter((item) => (item.severity === "error" || item.severity === "critical") && (item.code.startsWith("OKF-SCHEMA-") || item.code.startsWith("OKF-IDENTITY-")))
+        .map((item) => ({ code: item.code, message: item.message })),
+    ];
+    if (findings.length) return assessed({ path: source.path, status: "blocked", standard: "OKF+ 2.3", findings, originalHash, originalContent: source.content, uid: typeof native.data.uid === "string" ? native.data.uid : undefined });
+    return assessed({ path: source.path, status: "okf-plus-2.3", standard: "OKF+ 2.3", findings: [], originalHash, originalContent: source.content, uid: typeof native.data.uid === "string" ? native.data.uid : undefined });
+  }
   const fm = strictFrontmatter(source.content);
   const name = source.path.split("/").pop()?.toLowerCase();
   if ((name === "index.md" || name === "log.md") && !source.path.toLowerCase().startsWith(".okf/")) {
@@ -630,7 +777,11 @@ async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise
   }
   if (fm.state === "valid" && scalar(fm, "okf_version") === "2.2") {
     const validation = okfValidation(fm);
-    if (!validation.length) return assessed({ path: source.path, status: "okf-plus-2.2", standard: "OKF+ 2.2", findings: [], originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
+    if (!validation.length) {
+      const uid = migrationUid(fm, opts.uuid);
+      const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults);
+      return assessed({ path: source.path, status: "needs-okf-plus", standard: "OKF+ 2.2 compatibility", findings: [{ code: "upgrade-okf-2.2", message: "Valid OKF+ 2.2 compatibility frontmatter will be converted to canonical nested OKF+ 2.3." }], originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
+    }
     const destructive = invalidExplicitGovernance(fm);
     if (destructive.length && opts.mode !== "upgrade-all") return assessed({ path: source.path, status: "blocked", standard: "none", findings: destructive, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
     const override = opts.mode === "upgrade-all" ? upgradeOverrides(fm) : { findings: [], salvage: [], blockers: [] };
@@ -647,7 +798,7 @@ async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise
     if (override.blockers.length) return assessed({ path: source.path, status: "blocked", standard: "Google OKF 0.1 draft", findings: override.blockers, originalHash, originalContent: source.content, uid: scalar(fm, "uid") });
     const uid = migrationUid(fm, opts.uuid, true);
     const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
-    const findings = [{ code: "upgrade-google-okf", message: "Google OKF/legacy frontmatter will be upgraded to the normative OKF+ 2.2 flat schema." }, ...override.findings];
+    const findings = [{ code: "upgrade-google-okf", message: "Google OKF/legacy frontmatter will be upgraded to canonical nested OKF+ 2.3." }, ...override.findings];
     return assessed({ path: source.path, status: "needs-okf-plus", standard: "Google OKF 0.1 draft", findings, salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
   }
   const explicit = invalidExplicitGovernance(fm);
@@ -658,7 +809,7 @@ async function auditOne(source: OkfMigrationSource, opts: AuditOptions): Promise
   const proposedContent = proposedOkf(fm, source, uid, opts.createdAt, opts.defaults, override.salvage);
   const findings: OkfMigrationFinding[] = [{
     code: fm.state === "none" ? "missing-frontmatter" : "missing-okf-type",
-    message: fm.state === "none" ? "No YAML frontmatter was found." : "Frontmatter is not OKF+ 2.2 and lacks the type required by Google OKF 0.1.",
+    message: fm.state === "none" ? "No YAML frontmatter was found." : "Frontmatter is not OKF+ 2.3 and lacks the type required by Google OKF 0.1.",
   }, ...override.findings];
   return assessed({ path: source.path, status: "needs-okf-plus", standard: "none", findings, salvage: override.salvage, originalHash, proposedHash: await sha256Text(proposedContent), originalContent: source.content, proposedContent, uid });
 }
@@ -679,24 +830,24 @@ export async function createOkfMigrationPlan(
     entries.push(await auditOne(source, { createdAt, defaults, uuid, mode }));
   }
   const uidMap = new Map<string, OkfMigrationEntry[]>();
-  for (const entry of entries) if (entry.uid && UUID_V4.test(entry.uid)) {
+  for (const entry of entries) if (entry.uid && VALID_UID.test(entry.uid)) {
     const group = uidMap.get(entry.uid) ?? []; group.push(entry); uidMap.set(entry.uid, group);
   }
   for (const [uid, group] of uidMap) if (group.length > 1) {
     for (const entry of group) {
       entry.findings.push({ code: "duplicate-uid", message: `UID ${uid} is also used by ${group.filter((x) => x !== entry).map((x) => x.path).join(", ")}.` });
-      if (entry.status === "okf-plus-2.2" || entry.status === "needs-okf-plus") {
+      if (entry.status === "okf-plus-2.3" || entry.status === "needs-okf-plus") {
         entry.status = "blocked"; entry.standard = "none"; delete entry.proposedContent; delete entry.proposedHash;
       }
       entry.review = migrationReview(entry);
     }
   }
   const totals: OkfMigrationPlan["totals"] = {
-    notes: entries.length, changes: 0, "okf-plus-2.2": 0, "google-okf-0.1": 0,
+    notes: entries.length, changes: 0, "okf-plus-2.3": 0, "google-okf-0.1": 0,
     "google-reserved": 0, "needs-okf-plus": 0, blocked: 0,
   };
   for (const entry of entries) { totals[entry.status]++; if (entry.status === "needs-okf-plus") totals.changes++; }
-  const base = { schema: "okf-plus-migration-plan/2" as const, runId, createdAt, mode, defaults, totals, entries };
+  const base = { schema: "okf-plus-migration-plan/3" as const, runId, createdAt, mode, defaults, totals, entries };
   const planHash = await sha256Text(JSON.stringify(planMaterial(base)));
   return { ...base, planHash };
 }

@@ -7,6 +7,23 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.10] — 2026-07-19 (pre-release)
+
+### Changed
+- Replaced the OKF+ Note Formatting tab's flat 2.2 compatibility writer with a
+  deterministic canonical nested OKF+ 2.3 converter.
+- Renamed scan, convert-all, re-scan, and command-palette actions to identify
+  OKF+ 2.3 explicitly.
+- Valid 2.2 notes now receive a hash-bound 2.3 conversion proposal; valid native
+  2.3 notes remain unchanged and round-trip as conformant.
+- Content-assisted enrichment now scans native 2.3 notes and preserves the
+  distinction between source Markdown tags and governed labels.
+
+### Safety
+- Retained dry-run approval, byte-exact Markdown body preservation, local binary
+  backup, concurrent-edit checks, plan hashing, ambiguity blockers, unknown
+  parseable fields, and human YAML comments.
+
 ## [0.6.5-beta.9] — 2026-07-19 (pre-release)
 
 ### Added

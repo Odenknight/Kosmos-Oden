@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.9
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.10
 
-**Version 0.6.5-beta.9** — a pre-release responsive 3D "Local Cluster of Galaxies" view with live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection API**, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.10** — a pre-release responsive 3D "Local Cluster of Galaxies" view with native OKF+ 2.3 conversion, live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection API**, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -212,7 +212,7 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 
 Use **Settings → Vault Kosmos → OKF+ Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
-The current governed writer normalizes only mechanically recoverable flat notes to the **OKF+ 2.2 compatibility baseline**. The v2.3 projection then reads those notes in compatible mode; native or nested v2.3 fields are preserved rather than flattened. The audit also recognizes [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), skips Google's reserved `index.md`/`log.md`, and fails closed on duplicate keys/UIDs, ambiguous YAML, unsafe relationship values, invalid governance fields, or concurrent edits.
+The current governed writer converts mechanically recoverable notes—including valid flat OKF+ 2.2 compatibility notes—to **canonical nested OKF+ 2.3**. Already-valid native 2.3 notes remain unchanged, source Markdown tags remain separate from governed labels, and Markdown body bytes are preserved. The audit also recognizes [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), leaves Google's reserved `index.md`/`log.md` unchanged during the safe scan, and fails closed on duplicate keys/UIDs, ambiguous legacy YAML, unsafe relationship values, invalid governance fields, or concurrent edits.
 
 Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
 

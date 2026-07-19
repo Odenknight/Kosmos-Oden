@@ -1,6 +1,6 @@
 # OKF+ v2.3 Validating Projection Profile
 
-Kosmos-Oden 0.6.5-beta.9 implements the **OKF+ v2.3 Validating Projection
+Kosmos-Oden 0.6.5-beta.10 implements the **OKF+ v2.3 Validating Projection
 Profile**. It is not a full GKOS governance engine and does not authorize or
 apply consequential semantic changes.
 
@@ -47,7 +47,7 @@ so identical source bytes and policy inputs produce stable output.
 
 ## Explicit limitations
 
-Beta.9 does not claim Governed Writer, authority verification, human
+Beta.10 does not claim a general-purpose Governed Writer, authority verification, human
 attestation, automatic epistemic promotion, automatic sensitivity reduction,
 authorized operational use, full sidecar-decision processing, signed schema
 package installation, remote schema updates, or full GKOS conformance. The

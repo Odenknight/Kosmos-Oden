@@ -1,6 +1,6 @@
 # Threat Model
 
-An iterative model (Doc1 §5.3). It reflects v0.6.5-beta.9 and is revised whenever
+An iterative model (Doc1 §5.3). It reflects v0.6.5-beta.10 and is revised whenever
 network or data-access behavior changes.
 
 ## Assets

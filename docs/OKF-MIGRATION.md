@@ -6,7 +6,7 @@
 onboarding existing Markdown notes. It scans every vault note except the
 processor-owned `.okf/**` sidecars, recognizes either:
 
-- normative project **OKF+ 2.2** frontmatter; or
+- native nested **OKF+ 2.3** and flat **OKF+ 2.2 compatibility** frontmatter; or
 - Google's permissive **Open Knowledge Format 0.1 draft**, whose concept-note
   conformance requirement is parseable YAML frontmatter with a non-empty
   `type` field.
@@ -20,10 +20,12 @@ Kosmos. Google's current primary specification is
 
 The 0.6.5 workflow offers two explicit modes:
 
-- **Safe scan** preserves the prior behavior: conforming Google OKF notes and
-  reserved `index.md`/`log.md` documents are reported but not converted.
-- **Upgrade all to 2.2** proposes v2.2 for every mechanically recoverable note,
-  including Google OKF, reserved documents, and flat legacy/2.1 frontmatter.
+- **Scan for OKF+ 2.3** leaves native 2.3, conforming Google OKF notes, and
+  reserved `index.md`/`log.md` documents unchanged while proposing native 2.3
+  for valid 2.2 compatibility notes and ordinary safe candidates.
+- **Convert all to OKF+ 2.3** proposes native 2.3 for every mechanically
+  recoverable note, including Google OKF, reserved documents, and flat legacy
+  frontmatter.
   It is an override of recoverable values, not an instruction to guess through
   ambiguity or identity conflicts.
 
@@ -50,19 +52,20 @@ vault and may be synchronized with it. Keep an external snapshot as well.
 
 | Result | Action |
 |---|---|
-| OKF+ 2.2 | Leave unchanged |
+| Native OKF+ 2.3 | Leave unchanged |
+| Valid OKF+ 2.2 compatibility note | Propose canonical nested OKF+ 2.3 |
 | Google OKF 0.1 draft | Leave unchanged |
 | Google `index.md` / `log.md` | Treat as reserved; leave unchanged |
-| Safe mechanical candidate | Propose OKF+ 2.2 in the dry run |
+| Safe mechanical candidate | Propose native OKF+ 2.3 in the dry run |
 | Ambiguous or conflicting | Block and report for human review |
 
-In upgrade-all mode, the two Google rows become proposed v2.2 changes when
+In convert-all mode, the two Google rows become proposed v2.3 changes when
 their frontmatter is mechanically recoverable. Invalid legacy version, UID,
 type, timestamp, epistemic state, scope, and sensitivity values are replaced
 with conservative values. Every original overridden value is retained in the
 hash-bound plan's `salvage` records and in the byte-exact backup.
 
-Legacy `id` is never emitted as governed v2.2 metadata: a valid lowercase
+Legacy `id` is never emitted as governed v2.3 metadata: a valid lowercase
 UUIDv4 `id` is migrated to `uid`; `id: unknown` or another invalid value is
 salvaged and replaced with a newly generated UUIDv4.
 
@@ -92,18 +95,18 @@ write plan.
 
 For a note without a safe existing value, onboarding emits:
 
-- `okf_version: "2.2"`;
+- `okf_version: "2.3"`;
 - a cryptographically generated, lowercase UUIDv4 `uid`;
 - `type: "semantic"`;
 - the filename stem as `title`;
 - a transparent title-based `description`;
-- file creation time (then modification/onboarding time fallback) as the
-  immutable UTC `timestamp`;
-- `epistemic_state: "hypothesis"`;
-- `scope: "node"` and the UID as `scope_id`;
-- `sensitivity: "internal"`;
-- preserved/deduplicated tags, required empty lineage lists, safe existing
-  typed relationships, and preserved unknown flat Obsidian fields.
+- file creation time (then modification/onboarding time fallback) as UTC
+  `created_at` and `updated_at`;
+- nested authored `authorship`, `epistemic`, and `sensitivity` blocks;
+- nested provenance, relationships, evidence, review, assessment,
+  authorization, and origin-separated label blocks;
+- preserved/deduplicated source tags, safe existing typed relationships, human
+  comments, and unknown parseable Obsidian fields.
 
 These defaults establish a structurally valid, narrow, non-authoritative
 starting point. They are not an assertion that a model inspected or understood
@@ -140,8 +143,8 @@ MCP connector remains separate and does not grant a model write authority over
 this migration.
 
 The enrichment action is a re-scan, not a one-time migration stage. Every time
-**Scan / re-scan all OKF+ 2.2 notes** runs, it reads the current eligible 2.2
-notes again. Already-upgraded notes are included. Unchanged notes may produce
+**Scan OKF+ 2.3 notes** runs, it reads the current eligible native 2.3 notes
+again. Already-converted notes are included. Unchanged notes may produce
 the same proposal, and duplicate queue records are suppressed by proposal ID.
 
 OKF processing can exclude custom glob-style paths, and an opt-in developer

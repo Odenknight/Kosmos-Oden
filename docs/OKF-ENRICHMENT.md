@@ -2,7 +2,7 @@
 
 ## What this feature does
 
-After structural onboarding to OKF+ 2.2, **Scan / re-scan all OKF+ 2.2 notes
+After structural conversion to native OKF+ 2.3, **Scan OKF+ 2.3 notes
 for enrichment proposals** can create pending suggestions for descriptions,
 note types, tags, and explicitly evidenced relationships. It never changes
 note frontmatter automatically. The proposal preview may be saved to
@@ -14,8 +14,8 @@ on-device, private-IP LAN, or cloud LLM pass is optional and disabled by
 default.
 
 This is explicitly a **scan / re-scan** operation. Migration does not mark a
-2.2 note as permanently processed. Each run reads every currently eligible
-OKF+ 2.2 note within the configured caps, including notes upgraded in an
+2.3 note as permanently processed. Each run reads every currently eligible
+native OKF+ 2.3 note within the configured caps, including notes converted in an
 earlier deterministic migration. Unchanged notes can produce identical
 proposals; duplicate JSONL queue records are suppressed by content-derived
 proposal ID.

@@ -13,22 +13,29 @@ import {
 
 const canonicalNote = (title = "Current Guide", body = "# Current Guide\n\nBody bytes stay exactly the same.\n") => [
   "---",
-  'okf_version: "2.2"',
+  'okf_version: "2.3"',
   'uid: "12345678-1234-4123-8123-123456789abc"',
-  'type: "semantic"',
   `title: "${title}"`,
-  'description: "Old description"',
-  'timestamp: "2026-07-15T12:00:00.000Z"',
-  'epistemic_state: "hypothesis"',
-  'scope: "node"',
-  'scope_id: "12345678-1234-4123-8123-123456789abc"',
-  'sensitivity: "internal"',
+  'type: "semantic"',
+  'created_at: "2026-07-15T12:00:00.000Z"',
+  'description: "Old description" # preserve this human comment',
   "tags:",
   '  - "existing"',
-  "supersedes: []",
-  "superseded_by: []",
-  "forked_from: []",
-  "forked_to: []",
+  "authorship:",
+  '  origin: "authored"',
+  "epistemic:",
+  '  state: "hypothesis"',
+  "sensitivity:",
+  '  level: "internal"',
+  "provenance: {}",
+  "relationships: {}",
+  "review: {}",
+  "assessment: {}",
+  "labels:",
+  "  authored: []",
+  "  derived: []",
+  "  proposed: []",
+  "  approved: []",
   "---",
   body,
 ].join("\n");
@@ -48,7 +55,7 @@ const accept = (suggestionIndex, item, finalValue = item.value) => ({
 
 test("evidence window excludes code/tables and selects bounded reproducible prose", async () => {
   const note = [
-    "---", 'okf_version: "2.2"', "---", "# Build guide", "",
+    "---", 'okf_version: "2.3"', "---", "# Build guide", "",
     "| key | value |", "|---|---|", "", "```sh", "rm -rf pretend", "```", "",
     "This guide explains the controlled deployment process and the evidence that an operator must review before release.", "",
     "This version supersedes [[Older Guide]] and records the explicit reason for replacement.", "", "#tag-one #tag-two",
@@ -126,9 +133,10 @@ test("governed apply plan binds reviewed edits and safely merges metadata withou
   const proposed = plan.entries[0].proposedContent;
   assert.match(proposed, /description: "Reviewer-approved description"/);
   assert.match(proposed, /type: "procedural"/);
+  assert.match(proposed, /# preserve this human comment/);
   assert.match(proposed, /  - "existing"\n  - "new-tag"/);
-  assert.match(proposed, /supersedes:\n  - "\[\[Old Guide\]\]"/);
-  assert.match(proposed, /related_to:\n  - "\[\[Project Hub\]\]"/);
+  assert.match(proposed, /supersedes:\n    -\n      target: "\[\[Old Guide\]\]"\n      origin: "authored"/);
+  assert.match(proposed, /related_to:\n    -\n      target: "\[\[Project Hub\]\]"\n      origin: "authored"/);
   assert.equal(proposed.slice(proposed.indexOf("---\n# Current Guide") + 4), content.slice(content.indexOf("---\n# Current Guide") + 4));
   const persisted = JSON.stringify(publicOkfEnrichmentApplyPlan(plan));
   assert.doesNotMatch(persisted, /Body bytes stay exactly the same|originalContent|proposedContent/);

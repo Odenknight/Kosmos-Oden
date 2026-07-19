@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-beta.9",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.9) — a responsive governed knowledge projection with the OKF+ v2.3 Validating Projection API, MCP traversal visualization, and native Nextcloud WebDAV sync.",
+  "version": "0.6.5-beta.10",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.10) — a responsive governed knowledge projection with native OKF+ 2.3 conversion, the v2.3 API, MCP traversal visualization, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
   "engines": {
