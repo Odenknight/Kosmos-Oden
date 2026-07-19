@@ -59,6 +59,8 @@ assessment:
   status: "unassessed"
 authorization:
   status: "research-only"
+tags:
+  - "navigation-only"
 labels:
   authored:
     - "domain:test"
@@ -94,6 +96,9 @@ test("OKF+ 2.3 projection separates origins and scores documentation, not truth"
   assert.equal(projection.profile, "okf-plus-2.3-validating-projection");
   assert.equal(projection.authored.epistemicState, "hypothesis");
   assert.equal(projection.effective.sensitivity, "restricted");
+  assert.deepEqual(projection.authored.tags, ["navigation-only"]);
+  assert.equal(projection.authored.labels.includes("navigation-only"), false);
+  assert.ok(projection.authored.labels.includes("domain:test"));
   assert.deepEqual(projection.extensions["x-lab-extension"], { sample: true });
   assert.equal(projection.proposed.labels.length, 1);
   assert.equal(projection.approved.labels.length, 1);

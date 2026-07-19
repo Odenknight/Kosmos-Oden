@@ -7,6 +7,26 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.9] — 2026-07-19 (pre-release)
+
+### Added
+- Reconciled the recovered beta.8 responsive settings, scanning invalidation,
+  portable timestamp, Nextcloud WebDAV, Graphiti ingestion-status, and renderer
+  work with the full OKF+ v2.3 Validating Projection API.
+- Added effective, non-proposed Graphiti relationship episodes, origin-separated
+  labels, policy metadata, and the required upstream read-after-ingest boundary.
+
+### Changed
+- Standardized terminology: Markdown `tags` remain source navigation tags;
+  governed OKF+ `labels` remain origin-separated authored, derived, proposed,
+  approved, and effective classifications.
+- Raised the minimum Obsidian version to 1.11.4 for Secret Storage-backed
+  Nextcloud credentials.
+
+### Compatibility
+- Existing 2.2 migration and enrichment workflows remain explicit compatibility
+  tools. They do not silently flatten or rewrite native nested OKF+ 2.3 notes.
+
 ## [0.6.5-alpha.8] — 2026-07-19 (pre-release)
 
 ### Added
@@ -38,6 +58,82 @@ changes, called out under **Compatibility**).
 - Existing OKF+ 2.2 and legacy notes remain readable through compatibility
   projections. The existing explicit, backed-up 2.2 migration workflow remains
   available; alpha.8 does not silently rewrite source notes to 2.3.
+## [0.6.5-beta.8] — 2026-07-18 (pre-release)
+
+- Shortened the Options tab label to **Quick Connect MCP** so it remains readable at desktop and mobile widths.
+- Added visible status rows for the measured S3-compatible, Dropbox, OneDrive, and Google Drive connector roadmap, plus the n+1 safety gate. Nextcloud remains the only operational storage connector in this beta.
+- Added a **Key** toolbar button that shows or hides both the minimap and constellation legend, including compact desktop and mobile layouts.
+- Removed the Timeline toolbar button while preserving the `T` shortcut and internal timeline capability.
+- Moved the desktop brand, statistics, toolbar, and filter panel farther below the top edge and included safe-area offsets to prevent host-frame clipping.
+
+## [0.6.5-beta.7] — 2026-07-18 (pre-release)
+
+### Fixed
+- Replaced the inferred heading/accordion Options layout with four explicit,
+  accessible tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**,
+  **Quick Connect — Anthropic, OpenAI, and Universal MCP**, and
+  **Connectivity to Sync Vault**. Nextcloud configuration is now always
+  discoverable from its own tab.
+- Added compact-desktop renderer breakpoints so the bottom command deck wraps
+  before clipping and the minimap/constellation key withdraw before colliding
+  with primary controls.
+
+### Changed
+- Added mobile tab scrolling, stacked full-width setting controls, keyboard tab
+  navigation, and active-tab retention when a setting redraws the Options page.
+- Updated UI, manifest, generated Agent API guide, and README nomenclature to
+  identify the **OKF+ v2.3 Validating Projection Profile** under GKOS, distinguish
+  the current OKF+ 2.2 compatibility writer, use MCP Streamable HTTP terminology,
+  and describe native Nextcloud Files synchronization over WebDAV.
+- Updated the Graphiti setup example to the tested `graphiti-core==0.29.0` pin
+  with FalkorDB for simple local operation or Neo4j for mature deployments.
+
+## [0.6.5-beta.3] — 2026-07-18 (pre-release)
+
+### Added
+- Made the primary Options sections collapsible and added a sticky **Jump to**
+  row for Nextcloud sync, Agent API, OKF+ formatting, and quick-connect
+  controls. Section open/closed state is retained while the plugin is loaded.
+
+## [0.6.5-beta.2] — 2026-07-18 (pre-release)
+
+### Added
+- Added a dedicated **Sync Obsidian configuration (.obsidian)** toggle. It is
+  off by default and can be enabled independently of the editable per-path
+  exclusion list, allowing themes, snippets, hotkeys, and selected plugin data
+  to travel with the vault.
+
+### Security
+- `.obsidian/plugins/vault-kosmos/data.json` remains a non-overridable
+  exclusion even when `.obsidian` sync is enabled, preventing local sync state
+  and Agent API credentials from being copied or recursively synchronized.
+
+## [0.6.5-beta.1] — 2026-07-18 (pre-release)
+
+### Added
+- Added an original, native Nextcloud WebDAV sync backend for desktop and
+  mobile Obsidian. It accepts an instance URL or complete DAV files URL,
+  supports app-password authentication through Obsidian Secret Storage,
+  startup/manual/interval sync, binary attachments, nested folders, and
+  case-insensitive glob exclusions.
+- Added a deterministic three-way planner using the last common local hash and
+  remote ETag. First-sync collisions are compared by content; simultaneous
+  edits preserve the Nextcloud version as a timestamped local conflict copy.
+- Added conditional `If-Match`/`If-None-Match` writes, bounded WebDAV traversal,
+  traversal-safe paths, HTTPS enforcement (except literal private/loopback
+  addresses), and 7 focused planner/security tests.
+
+### Security
+- Nextcloud credentials are never placed in plugin `data.json`; app passwords
+  use Obsidian Secret Storage. `.obsidian/**`, `.git/**`, and `.trash/**` are
+  excluded by default, preventing credential/state recursion.
+- Deletion propagation defaults off. When explicitly enabled, only an
+  unchanged file deleted on one side is deleted on the other; changed-versus-
+  deleted cases remain conflicts.
+
+### Compatibility
+- Minimum Obsidian version is now 1.11.4 because native Secret Storage is a
+  hard requirement for persistent Nextcloud credentials.
 
 ## [0.6.5-alpha.7] — 2026-07-16 (pre-release)
 
@@ -270,3 +366,15 @@ engineering assessments (`docs/assessments/`).
 Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, OKF+
 temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
 base64-embedded single HTML string.
+## [0.6.5-beta.5] — 2026-07-18 (pre-release)
+
+- Adds opt-out `created_at` and `updated_at` ISO-8601 UTC note stamping through Obsidian's frontmatter API.
+- Names the deterministic agent surface the Kosmos Governed Context Projection (KGCP).
+- Upgrades the Graphiti adapter schema to `okf-plus-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
+- Pins the generated Graphiti sample to tested `graphiti-core==0.29.0`, defaults to FalkorDB, keeps Neo4j available, and intentionally excludes deprecated Kuzu.
+- Adds honest combined-extraction benchmarking and ingestion-readiness contracts without treating queued acceptance as searchable completion.
+## [0.6.5-beta.6] — 2026-07-18 (pre-release)
+
+- Extends the functioning per-agent MCP traversal breadcrumb with a bounded additive comet-tail particle pool and lingering snow-dust around visited notes.
+- Keeps agent trails independent and color-stable when multiple MCP clients traverse concurrently.
+- Adds renderer diagnostics and a real-browser test proving traversal hops produce visible bounded dust particles.

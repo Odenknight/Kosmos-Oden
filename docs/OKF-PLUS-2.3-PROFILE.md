@@ -1,6 +1,6 @@
 # OKF+ v2.3 Validating Projection Profile
 
-Kosmos-Oden 0.6.5-alpha.8 implements the **OKF+ v2.3 Validating Projection
+Kosmos-Oden 0.6.5-beta.9 implements the **OKF+ v2.3 Validating Projection
 Profile**. It is not a full GKOS governance engine and does not authorize or
 apply consequential semantic changes.
 
@@ -16,6 +16,9 @@ apply consequential semantic changes.
   ambiguous target;
 - separate `authored`, `derived`, `proposed`, `approved`, and `effective`
   containers;
+- separate source-authored `tags` for navigation/discovery from governed
+  `labels`; tags are never silently promoted into an authority-bearing label
+  origin;
 - seven deterministic assessment dimensions, null handling, policy identity,
   policy hash, stable labels, and structured diagnostics;
 - seven sensitivity levels, internal default, and fail-closed invalid values;
@@ -44,9 +47,8 @@ so identical source bytes and policy inputs produce stable output.
 
 ## Explicit limitations
 
-Alpha.8 does not claim Governed Writer, authority verification, human
+Beta.9 does not claim Governed Writer, authority verification, human
 attestation, automatic epistemic promotion, automatic sensitivity reduction,
 authorized operational use, full sidecar-decision processing, signed schema
 package installation, remote schema updates, or full GKOS conformance. The
 separate standalone-engine directive remains a future package/repository plan.
-

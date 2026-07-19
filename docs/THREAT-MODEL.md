@@ -1,6 +1,6 @@
 # Threat Model
 
-An iterative model (Doc1 §5.3). It reflects v0.6.5-alpha.8 and is revised whenever
+An iterative model (Doc1 §5.3). It reflects v0.6.5-beta.9 and is revised whenever
 network or data-access behavior changes.
 
 ## Assets
@@ -15,6 +15,8 @@ network or data-access behavior changes.
 - **Source-note integrity** — the optional OKF+ onboarding command has write
   authority only after a dry-run approval; a bulk metadata defect could damage
   many notes or misclassify sensitive material.
+- **Nextcloud credentials and synchronized file integrity** — the optional
+  backend can read and write the configured remote folder and local vault.
 
 ## Trust boundaries
 
@@ -31,6 +33,9 @@ network or data-access behavior changes.
 4. **Build/release pipeline.** Source → `main.js` → GitHub release.
 5. **OKF+ migration write boundary.** In-memory audit plan → explicit human
    confirmations → local binary backup → source-matched atomic note process.
+6. **Nextcloud boundary.** Local vault → user-configured HTTPS/private endpoint
+   → one scoped remote folder. The app password is held by Obsidian Secret
+   Storage; comparison state contains hashes and ETags but no credential.
 
 ## Adversaries & mitigations
 
@@ -55,6 +60,10 @@ network or data-access behavior changes.
 | `internal` default is mistaken for privacy classification | Apply requires acknowledgement that defaults are not content inspection; UI/docs require confidential/PHI review before cloud routing. Connector sensitivity enforcement remains independent. |
 | OKF processing rewrites agent-control/generated files | Custom exclusion patterns and an opt-in developer preset are applied before migration/enrichment; previews disclose every excluded path/pattern. The preset defaults off so upgrades never silently omit user notes. |
 | LAN model address is public, rebound through DNS, or exposed on an untrusted network | LAN mode requires a private/link-local IP literal, rejects DNS/public/bind-all/loopback addresses, displays the exact endpoint on every run, uses a separate sensitivity ceiling, always blocks PHI, and warns that network/device/firewall/model trust remains the user's responsibility. |
+| Nextcloud credential disclosure | Dedicated app-password guidance; Obsidian Secret Storage; password excluded from plugin data/logs; HTTPS required except literal private/loopback addresses; `.obsidian/**` excluded by default. |
+| Stale overwrite or concurrent two-device edit | Last-common-state SHA-256/ETag comparison; `If-Match`/`If-None-Match`; simultaneous edits preserve a timestamped remote conflict copy. |
+| Accidental deletion propagation | Disabled by default; unchanged-vs-deleted state propagates only after opt-in, while changed-vs-deleted becomes a conflict. Independent backups are still required. |
+| Malicious remote path or excessive tree | Decoded paths reject absolute/traversal/NUL/backslash forms; listing is depth and entry capped; writes remain inside the configured DAV root. |
 | Artifact substitution / stale build | Reproducible executable artifacts; release `SHA256SUMS` + `BUILD-INFO.json` (commit/tag/lockfile hash); release built from the tag in CI; `check:artifacts` + `check:versions`. |
 | Dependency / supply-chain compromise | Pinned versions + committed lockfile; `npm ci` everywhere; Dependabot; dependency-review on PRs; minimal, mostly dev-only dependency surface. |
 | Silent security regression | `kosmos-invariants.yml` + `check:invariants` gate CI; negative security tests. |

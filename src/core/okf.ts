@@ -12,8 +12,12 @@ import { normalizeStringList, parseWikiLinks } from "./markdown";
 import type { OkfData, OkfRelation, OkfSensitivity } from "./types";
 
 const RELATIONS: OkfRelation[] = [
-  "depends_on", "derives_from", "contradicts", "refines", "implements",
-  "blocks", "documents", "cites", "related_to",
+  "supports", "contradicts", "depends_on", "derived_from", "derives_from",
+  "cites", "quotes", "interprets", "tests", "replicates",
+  "fails_to_replicate", "extends", "narrows", "generalizes", "implements",
+  "governed_by", "reviewed_by", "approved_by", "supersedes",
+  "superseded_by", "related_to", "part_of", "has_part", "refines",
+  "blocks", "documents",
 ];
 
 /** Normalize a flat OKF list and unwrap canonical `"[[Target]]"` entries.

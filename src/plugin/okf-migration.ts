@@ -170,14 +170,14 @@ export class OkfMigrationPreviewModal extends Modal {
     const { contentEl, plan } = this;
     contentEl.empty();
     const upgradeAll = plan.mode === "upgrade-all";
-    contentEl.createEl("h2", { text: upgradeAll ? "Upgrade all recoverable notes to OKF+ 2.2 — preview" : "Mark notes in OKF+ format — preview" });
+    contentEl.createEl("h2", { text: upgradeAll ? "Upgrade recoverable notes to the OKF+ 2.2 compatibility baseline — preview" : "Audit OKF+ compatibility formatting — preview" });
     contentEl.createEl("p", { text: `Scanned ${plan.totals.notes} notes. This dry run proposes ${plan.totals.changes} note changes; nothing has been changed yet.` });
 
     const summary = contentEl.createEl("ul");
-    summary.createEl("li", { text: `${plan.totals["okf-plus-2.2"]} already conform to OKF+ 2.2` });
+    summary.createEl("li", { text: `${plan.totals["okf-plus-2.2"]} already conform to the OKF+ 2.2 compatibility baseline` });
     summary.createEl("li", { text: `${plan.totals["google-okf-0.1"]} conform to Google's OKF 0.1 draft${upgradeAll ? "" : " and will be left unchanged"}` });
     summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files${upgradeAll ? " remain outside the recoverable set" : " will be left unchanged"}` });
-    summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely onboarded to OKF+ 2.2` });
+    summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely onboarded to the OKF+ 2.2 compatibility baseline` });
     summary.createEl("li", { text: `${plan.totals.blocked} need manual review and will not be changed` });
     summary.createEl("li", { text: `${this.excluded.length} excluded by OKF processing rules` });
     if (this.excluded.length) {
@@ -188,7 +188,7 @@ export class OkfMigrationPreviewModal extends Modal {
     }
 
     warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .okf/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
-    warningBox(contentEl, "This migration preview is deterministic; model enrichment is a separate re-scan.", "This screen does not call any model or send note content anywhere. It can create structurally valid OKF+ 2.2 metadata using conservative defaults without an LLM. After migration, choose a second-pass provider in Settings and run Scan / re-scan all 2.2 notes for richer, review-only proposals. Already-upgraded 2.2 notes are included each time. Model proposals are never accepted or written automatically.");
+    warningBox(contentEl, "This compatibility migration is deterministic; model enrichment is a separate re-scan.", "This screen does not call any model or send note content anywhere. It can create structurally valid OKF+ 2.2 compatibility metadata using conservative defaults. The OKF+ v2.3 Validating Projection Profile then reads it in compatible mode and preserves native or nested v2.3 fields. Optional model proposals are review-only and never become authored data automatically.");
     warningBox(contentEl, "Review sensitivity after migration.", "The default label is internal; it is not a content-based privacy classification. Review notes that may contain confidential data or protected health information before enabling cloud agents or raising connector access. Existing invalid governance values, duplicate UIDs, duplicate keys, and nested/ambiguous YAML are blocked instead of overwritten.");
     if (upgradeAll) warningBox(contentEl, "Upgrade-all is a governed override, not a force switch.", "Recoverable legacy/2.1 values are replaced with conservative v2.2 values and their originals are retained in the hash-bound migration plan. Duplicate keys, ambiguous YAML, unsafe relationship targets, and duplicate UIDs remain blocked. Confidence is a deterministic migration-safety score used to order review; it is never epistemic truth or approval authority.");
 

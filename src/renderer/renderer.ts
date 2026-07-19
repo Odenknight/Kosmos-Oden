@@ -195,11 +195,15 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   /* Live AI-agent traversal overlay (Agent API): breadcrumb of the last hops,
      drawn as fading emerald line segments (v0.5.1 behavior, ported). */
   let agentTrail: any = null;
+  let agentDust: any = null;
   let agentSteps: Array<{ id: string; t: number; agent: string }> = [];
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 24;
   const AGENT_TRAIL_MS = 30000;
+  const AGENT_DUST_CAP = MOBILE ? 192 : 640;
+  const AGENT_DUST_HEAD_MS = 90;
+  let __agentDustHeadT = 0;
   const DEFAULT_AGENT = "agent";
   const MAX_AGENTS_SHOWN = 6;      // distinct agents with a live rocket marker
   // Per-agent colour, derived from a stable hash of the agent's name so the
@@ -259,7 +263,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function buildScene(positioned: any) {
     disposeAll(); clearGroup(world); matsWithTime.length = 0;
     layers = glow = rings = ambientLines = focusLines = backdropGroup = nebula = null;
-    agentTrail = null; // geometry/material were registered in disposables; steps survive the rebuild
+    agentTrail = agentDust = null; // geometry/material were registered in disposables; steps survive the rebuild
     nodeRender = []; idToRender.clear();
 
     G = positioned;
@@ -1386,6 +1390,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const growBtn = document.getElementById("growBtn"), timelineBtn = document.getElementById("timelineBtn");
   if (growBtn) growBtn.addEventListener("click", () => { (playback && playback.mode === "grow") ? stopPlayback() : startGrowth(); });
   if (timelineBtn) timelineBtn.addEventListener("click", () => { (playback && playback.mode === "timeline") ? stopPlayback() : startTimeline(); });
+  const legendToggle = document.getElementById("legendToggle");
+  if (legendToggle) legendToggle.addEventListener("click", () => {
+    const open = document.body.classList.toggle("legend-open");
+    legendToggle.classList.toggle("on", open);
+    legendToggle.setAttribute("aria-pressed", String(open));
+  });
   const trailerBtn = document.getElementById("trailerBtn");
   if (trailerBtn) trailerBtn.addEventListener("click", () => { trailer ? stopTrailer() : startTrailer(false); });
 
@@ -1423,6 +1433,48 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     world.add(mesh);
     agentTrail = { geo, pos, col, cap, mesh };
     return agentTrail;
+  }
+  /** GPU point pool for the comet tail and residual snow-dust. Particles are
+   * bounded, reused in a ring, and never allocate in the render loop. */
+  function ensureAgentDust(): any {
+    if (agentDust) return agentDust;
+    const cap = AGENT_DUST_CAP, geo = keep(new THREE.BufferGeometry());
+    const pos = new Float32Array(cap * 3), col = new Float32Array(cap * 3), alpha = new Float32Array(cap), size = new Float32Array(cap);
+    const vel = new Float32Array(cap * 3), born = new Float64Array(cap), die = new Float64Array(cap);
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("aAlpha", new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("aSize", new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+    const mat = keep(new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, vertexColors: true, blending: THREE.AdditiveBlending,
+      vertexShader: `attribute float aAlpha; attribute float aSize; varying vec3 vColor; varying float vAlpha;
+        void main(){ vColor=color; vAlpha=aAlpha; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*clamp(260.0/max(8.0,-mv.z),0.65,3.6); gl_Position=projectionMatrix*mv; }`,
+      fragmentShader: `varying vec3 vColor; varying float vAlpha;
+        void main(){ vec2 q=gl_PointCoord-vec2(.5); float r=length(q); if(r>.5)discard; float core=smoothstep(.5,.05,r); float halo=smoothstep(.5,.22,r); gl_FragColor=vec4(vColor,vAlpha*(core*.72+halo*.28)); }`,
+    }));
+    const points = new THREE.Points(geo, mat); points.frustumCulled = false; points.renderOrder = 4; world.add(points);
+    agentDust = { cap, geo, pos, col, alpha, size, vel, born, die, points, cursor: 0, active: 0 };
+    return agentDust;
+  }
+  function emitAgentDust(x:number,y:number,z:number,agent:string,now:number,life:number,size:number,vx:number,vy:number,vz:number):void {
+    const D=ensureAgentDust(), i=D.cursor; D.cursor=(i+1)%D.cap; const o=i*3, c=agentColor(agent).rgb;
+    D.pos[o]=x; D.pos[o+1]=y; D.pos[o+2]=z; D.vel[o]=vx; D.vel[o+1]=vy; D.vel[o+2]=vz;
+    D.col[o]=Math.min(1,c[0]*1.15+.08); D.col[o+1]=Math.min(1,c[1]*1.15+.08); D.col[o+2]=Math.min(1,c[2]*1.15+.08);
+    D.alpha[i]=1; D.size[i]=size; D.born[i]=now; D.die[i]=now+life; D.active=Math.min(D.cap,D.active+1);
+  }
+  function burstAgentDust(prevId:string|null,id:string,agent:string,now:number):void {
+    const b=idToRender.get(id)?.node?.position; if(!b)return; const a=prevId?idToRender.get(prevId)?.node?.position:null;
+    const burst=LOWPOWER?5:11;
+    for(let i=0;i<burst;i++){const j=(i+.5)/burst,ang=i*2.399963,r=.22+(i%4)*.13; emitAgentDust(b[0]+Math.cos(ang)*r,b[1]+((i%3)-1)*.18,b[2]+Math.sin(ang)*r,agent,now,9000+(i%5)*1700,LOWPOWER?3.2:4.6,Math.cos(ang)*.055,-.025-(i%3)*.012,Math.sin(ang)*.055);}
+    if(!a)return; const count=LOWPOWER?8:22,dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
+    for(let i=0;i<count;i++){const u=(i+1)/(count+1),jitter=((i*17)%11-5)*.018,ang=i*2.399963; emitAgentDust(a[0]+dx*u+Math.cos(ang)*jitter,a[1]+dy*u+Math.sin(ang)*jitter,a[2]+dz*u+Math.cos(ang*.7)*jitter,agent,now,6000+(1-u)*9000,LOWPOWER?2.8:4.1,-dx*.004,-.018-Math.abs(dy)*.001,-dz*.004);}
+  }
+  function updateAgentDust(dt:number,now:number):void {
+    if(!agentDust&&!agentSteps.length)return;
+    if(agentSteps.length&&now-__agentDustHeadT>AGENT_DUST_HEAD_MS){__agentDustHeadT=now;const heads=new Map<string,any>();for(const s of agentSteps)if(now-s.t<8000)heads.set(s.agent,s);for(const s of heads.values()){const p=idToRender.get(s.id)?.node?.position;if(p)emitAgentDust(p[0]+(Math.random()-.5)*.32,p[1]+(Math.random()-.5)*.32,p[2]+(Math.random()-.5)*.32,s.agent,now,4200+Math.random()*3600,LOWPOWER?2.6:3.8,(Math.random()-.5)*.035,-.018-Math.random()*.025,(Math.random()-.5)*.035);}}
+    const D=agentDust;if(!D)return;let active=0;
+    for(let i=0;i<D.cap;i++){if(D.die[i]<=now){D.alpha[i]=0;continue;}const life=D.die[i]-D.born[i],age=now-D.born[i],f=Math.max(0,1-age/life),o=i*3;D.pos[o]+=D.vel[o]*dt;D.pos[o+1]+=D.vel[o+1]*dt;D.pos[o+2]+=D.vel[o+2]*dt;D.vel[o]*=.998;D.vel[o+2]*=.998;D.alpha[i]=f*f;active++;}
+    D.active=active;D.geo.attributes.position.needsUpdate=true;D.geo.attributes.aAlpha.needsUpdate=true;
   }
   /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
   function updateAgentTrail(): void {
@@ -1506,10 +1558,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const p of paths) {
       const id = "file:" + String(p || "").replace(/\\/g, "/");
       if (!idToRender.has(id)) continue;
-      // de-dupe only against this same agent's own last hop, so interleaved
-      // agents keep independent trails
-      const last = agentSteps[agentSteps.length - 1];
+      // Find this agent's own head so interleaved agents retain independent
+      // comet segments and never connect to somebody else's traversal.
+      let last:any=null; for(let i=agentSteps.length-1;i>=0;i--)if(agentSteps[i].agent===who){last=agentSteps[i];break;}
       if (last && last.id === id && last.agent === who) { last.t = now; touched = true; continue; }
+      burstAgentDust(last?.id??null,id,who,now);
       agentSteps.push({ id, t: now, agent: who }); touched = true;
       if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
     }
@@ -1768,6 +1821,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
         }
       }
     }
+    updateAgentDust(dt, performance.now());
     if (trailer) updateTrailer(dt);
     else if (navMode === "fly") updateFly(dt);
     else if (cam.flight) updateFlight(dt);
@@ -1948,7 +2002,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     notifyLiveEvent: onLiveEvent,
     notifyAgentTraversal,
     setHostVisible,
-    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0 } : null; },
+    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentDustParticles: agentDust?.active ?? 0 } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running }; },
     showError: showFatal,
     showHint,

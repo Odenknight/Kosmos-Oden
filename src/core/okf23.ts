@@ -245,7 +245,7 @@ function relationOrigin(item: unknown, fallback: OkfOrigin = "authored"): OkfOri
   return value === "derived" || value === "proposed" || value === "approved" || value === "authored" ? value : fallback;
 }
 
-function blankProjection(): OkfOriginProjection { return { labels: [], relationships: {} }; }
+function blankProjection(): OkfOriginProjection { return { tags: [], labels: [], relationships: {} }; }
 
 function splitRelations(source: Record<string, unknown>, origins: Record<OkfOrigin, OkfOriginProjection>, fallback: OkfOrigin): void {
   for (const type of RELATION_TYPES) {
@@ -425,6 +425,7 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
   authored.type = text(data.type) ?? legacy?.type ?? null;
   authored.createdAt = text(data.created_at) ?? legacy?.timestamp ?? null;
   authored.updatedAt = text(data.updated_at);
+  authored.tags = list(data.tags).filter((value): value is string => typeof value === "string");
   authored.authorship = record(data.authorship);
   const declaredOrigin = text(record(data.authorship).origin) ?? "unknown";
   authored.assertionOrigin = declaredOrigin;
@@ -464,7 +465,6 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
     if (legacy.supersedes.length) authored.relationships.supersedes = [...legacy.supersedes];
     if (legacy.supersededBy.length) authored.relationships.superseded_by = [...legacy.supersededBy];
     if (legacy.related.length) authored.relationships.related_to = [...legacy.related];
-    authored.labels = [...new Set([...authored.labels.filter((x): x is string => typeof x === "string"), ...list(data.tags).filter((x): x is string => typeof x === "string")])];
   }
 
   const uid = text(authored.uid);
@@ -502,6 +502,7 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
   origins.derived.sensitivity = effectiveSensitivity;
   origins.derived.effectiveSensitivityReason = rawSensitivity ? "authored-source-classification" : "policy-default";
   const effective: OkfOriginProjection = {
+    tags: [...(authored.tags ?? [])],
     labels: [...new Set([...origins.authored.labels, ...origins.derived.labels, ...origins.approved.labels])],
     relationships: {}, epistemicState, sensitivity: effectiveSensitivity,
   };
@@ -533,6 +534,7 @@ export function refreshOkf23Assessment(projection: OkfProjection): void {
   projection.effective.labels = [...new Set([
     ...projection.authored.labels, ...projection.derived.labels, ...projection.approved.labels,
   ])];
+  projection.effective.tags = [...(projection.authored.tags ?? [])];
   projection.effective.relationships = {};
   for (const origin of [projection.authored, projection.derived, projection.approved]) {
     for (const [kind, items] of Object.entries(origin.relationships)) {

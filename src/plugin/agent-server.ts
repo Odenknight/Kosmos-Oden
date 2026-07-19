@@ -21,7 +21,7 @@
  *    endpoints exist (§18).
  */
 import { projectAtTime, type ProjectableNote } from "../core/temporal";
-import { attachGraphitiContent, buildGraphitiEpisodes } from "../core/graphiti";
+import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "../core/graphiti";
 import { KOSMOS_VERSION } from "../core/version";
 import { OKF23_POLICY, OKF23_PROFILE } from "../core/okf23";
 import type { KosmosGraph, KosmosNode, OkfSensitivity } from "../core/types";
@@ -37,7 +37,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 5;
+export const AGENT_SETTINGS_SCHEMA = 6;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -54,6 +54,12 @@ export interface AgentSettings {
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
    *  always rejected in LAN mode regardless of this flag. */
   agentAllowQueryToken: boolean;
+  /** Maintain portable ISO-8601 UTC created_at/updated_at note fields. */
+  noteTimestampsEnabled: boolean;
+  /** Graphiti 0.29 combined extraction is opt-in until benchmarked. */
+  graphitiCombinedExtraction: boolean;
+  /** Add deterministic saga hints to exported episodes. */
+  graphitiSagaMapping: boolean;
   okfEnrichmentProvider: "none" | "local" | "lan" | "cloud";
   okfEnrichmentEndpoint: string;
   okfEnrichmentModel: string;
@@ -82,6 +88,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentSensitivityCeiling: "internal",
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
+  noteTimestampsEnabled: true,
+  graphitiCombinedExtraction: false,
+  graphitiSagaMapping: false,
   okfEnrichmentProvider: "none",
   okfEnrichmentEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
   okfEnrichmentModel: "",
@@ -104,7 +113,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   // v1 had no agentAllowQueryToken and accepted query tokens implicitly. Migrating
   // to v2 turns that OFF by default; the user can re-enable it explicitly.
   if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
-  if (!raw || !["public", "internal", "confidential", "phi"].includes(raw.agentSensitivityCeiling)) {
+  if (!raw || !["public", "internal", "restricted", "confidential", "regulated", "phi", "secret"].includes(raw.agentSensitivityCeiling)) {
     // Existing unlabeled vaults are treated as internal, preserving local
     // behavior while keeping confidential/PHI notes opt-in.
     s.agentSensitivityCeiling = "internal";
@@ -114,6 +123,9 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   if (!["public", "internal", "confidential"].includes(s.okfEnrichmentLanCeiling)) s.okfEnrichmentLanCeiling = "internal";
   s.okfExcludePatterns = Array.isArray(s.okfExcludePatterns) ? s.okfExcludePatterns.map(String).slice(0, 200) : [];
   s.okfDeveloperExclusions = s.okfDeveloperExclusions === true;
+  s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
+  s.graphitiCombinedExtraction = s.graphitiCombinedExtraction === true;
+  s.graphitiSagaMapping = s.graphitiSagaMapping === true;
   s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));
   s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.okfEnrichmentMaxParagraphs) || 4));
   s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.okfEnrichmentMaxInputChars) || 4000));
@@ -824,6 +836,10 @@ export class KosmosAgentServer {
       groupId: this.settings.agentGraphNamespace
         ? `okf-${this.provider.vaultName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "vault"}-${this.settings.agentGraphNamespace.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}-assertions`
         : undefined,
+      corpusId: this.settings.agentGraphNamespace || this.provider.vaultIdentity?.(),
+      combinedExtraction: this.settings.graphitiCombinedExtraction,
+      sagaMapping: this.settings.graphitiSagaMapping,
+      processingTime: graph.stats.indexedAt,
     });
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const cap = limit == null || !Number.isFinite(limit) ? MAX_EPISODES : Math.max(1, Math.min(Math.floor(limit), MAX_EPISODES));
@@ -841,18 +857,40 @@ export class KosmosAgentServer {
 
   async qEpisodePage(offset = 0, limit = DEFAULT_EPISODE_PAGE): Promise<any> {
     const graph = await this.provider.getGraph();
-    const total = this.fileNodes(graph).length;
+    const visibleGraph = this.graphForVisibleNodes(graph);
+    const profile = graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction });
+    const total = buildGraphitiEpisodes(visibleGraph, {
+      vault: this.provider.vaultName(), vaultIdentity: this.provider.vaultIdentity?.(),
+      combinedExtraction: this.settings.graphitiCombinedExtraction, sagaMapping: this.settings.graphitiSagaMapping,
+      processingTime: graph.stats.indexedAt,
+    }).length;
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const pageSize = Math.max(1, Math.min(Math.floor(Number.isFinite(limit) ? limit : DEFAULT_EPISODE_PAGE), MAX_EPISODE_PAGE));
     const episodes = await this.qEpisodes(pageSize, start);
     const next = start + episodes.length;
     return {
       authority: "non-authoritative Graphiti adapter projection with authored/derived/proposed/approved origin separation",
+      adapter: "Kosmos Governed Context Projection",
+      ingestionProfile: profile,
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       total,
       cursor: start,
       nextCursor: next < total ? next : null,
       episodes,
+    };
+  }
+
+  async qGraphitiIngestionStatus(): Promise<any> {
+    const graph = await this.provider.getGraph();
+    return {
+      state: "export-ready",
+      searchable: false,
+      reason: "Kosmos-Oden prepares episodes but does not assume a queued Graphiti MCP ingestion is searchable.",
+      sourceIndexedAt: graph.stats.indexedAt,
+      profile: graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction }),
+      upstreamCheckRequired: true,
+      readyWhen: "Graphiti reports the queued job completed and a read-after-ingest query can retrieve the episode UUID.",
+      benchmark: this.settings.graphitiCombinedExtraction ? { state: "measurement-required", metrics: ["token_cost","ingestion_duration_ms","entity_recall","edge_accuracy"] } : { state: "disabled" },
     };
   }
 
@@ -885,12 +923,13 @@ export class KosmosAgentServer {
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
       tool("vault_overview", "Vault overview", "Sensitivity-filtered OKF+ projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
-      tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, tags and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
+      tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, source Markdown tags, and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
       tool("get_note", "Get note", "Readable source note content, OKF+ metadata, resolved lineage projection, and links.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable OKF+ supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
       tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
+      tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
       tool("get_okf_note", "Get OKF+ note projection", "Origin-separated authored, derived, proposed, approved, and effective OKF+ v2.3 projection.", selectionSchema),
       tool("get_assessment", "Get assessment", "Policy-bound deterministic documentation-quality assessment; never a truth or use authorization.", selectionSchema),
       tool("get_diagnostics", "Get OKF+ diagnostics", "Stable structured validation diagnostics for one readable note.", selectionSchema),
@@ -922,6 +961,7 @@ export class KosmosAgentServer {
       get_evidence: ["path", "title", "uid"], get_relationships: ["path", "title", "uid"],
       get_policy: [], validate_note: ["path", "title", "uid"], assess_note: ["path", "title", "uid"],
       assess_vault: ["limit"],
+      graphiti_ingestion_status: [],
     };
     for (const key of Object.keys(a)) if (!allowed[name].includes(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
@@ -965,6 +1005,7 @@ export class KosmosAgentServer {
       case "validate_note": return done(await this.qValidate(args));
       case "assess_note": return done(await this.qAssessment(args));
       case "assess_vault": return this.qAssessVault(args.limit ?? 100);
+      case "graphiti_ingestion_status": return this.qGraphitiIngestionStatus();
       default: throw new McpRpcError(-32602, "Unknown tool: " + name);
     }
   }
@@ -1171,7 +1212,7 @@ export class KosmosAgentServer {
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
-          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/okf/note?uid=|path=|title=", "/okf/assessment?uid=|path=|title=", "/okf/diagnostics?uid=|path=|title=", "/okf/labels?uid=|path=|title=", "/okf/evidence?uid=|path=|title=", "/okf/relationships?uid=|path=|title=", "/okf/validate?uid=|path=|title=", "/okf/policy", "/okf/assess-vault?limit="],
+          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/okf/note?uid=|path=|title=", "/okf/assessment?uid=|path=|title=", "/okf/diagnostics?uid=|path=|title=", "/okf/labels?uid=|path=|title=", "/okf/evidence?uid=|path=|title=", "/okf/relationships?uid=|path=|title=", "/okf/validate?uid=|path=|title=", "/okf/policy", "/okf/assess-vault?limit="],
         });
         return;
       case "/health": this.json(res, 200, { ok: true, name: "vault-kosmos", version: KOSMOS_VERSION, vault: this.provider.vaultName() }); return;
@@ -1193,6 +1234,7 @@ export class KosmosAgentServer {
       case "/okf/validate": this.json(res, 200, await this.qValidate({ uid: q("uid"), path: q("path"), title: q("title") })); return;
       case "/okf/policy": this.json(res, 200, this.qPolicy()); return;
       case "/okf/assess-vault": this.json(res, 200, await this.qAssessVault(q("limit") ? Number(q("limit")) : 100)); return;
+      case "/graphiti/status": this.json(res, 200, await this.qGraphitiIngestionStatus()); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }
   }

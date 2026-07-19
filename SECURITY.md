@@ -17,6 +17,8 @@ over a local (optionally LAN) read-only HTTP + MCP API. Security-relevant areas:
 - Agent API authentication, `Host`/`Origin` validation, rate/size limits.
 - The plugin iframe trust boundary (sandboxed, `postMessage`-mediated).
 - The standalone viewer's read-only directory scanning.
+- Optional Nextcloud credentials, remote transport, conflict handling, and
+  conditional local/remote writes.
 - Build provenance and artifact integrity.
 
 The threat model is documented in [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md).
@@ -42,3 +44,11 @@ and enforced by `npm run check:invariants` in CI:
 The Agent API token is stored in the plugin's `data.json` (gitignored, never
 committed). Tokens are never logged and never placed in URLs by the default
 configuration. Regenerating the token invalidates existing clients immediately.
+
+Nextcloud app passwords are stored under a per-vault identifier in Obsidian
+Secret Storage (Obsidian 1.11.4+), not in plugin `data.json`. Kosmos-Oden never
+logs the password. Prefer a dedicated, revocable Nextcloud app password and
+HTTPS; plain HTTP is rejected except for literal private/loopback addresses.
+When `.obsidian` synchronization is enabled, Vault Kosmos still forcibly
+excludes `.obsidian/plugins/vault-kosmos/data.json` so device-local state and
+the Agent API token cannot be synchronized.

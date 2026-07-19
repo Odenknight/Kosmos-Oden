@@ -73,6 +73,14 @@ advisory boundary for
 migration blockers; it shares the bounded JSON request transport in
 `okf-llm.ts` but has no route into either writer.
 
+`nextcloud-sync-core.ts` contains DOM-free settings migration, URL/path
+validation, exclusions, and the deterministic three-way planner.
+`nextcloud-sync.ts` is the Obsidian/WebDAV adapter: it scans local binary files,
+enumerates Nextcloud with bounded depth-1 `PROPFIND` requests, applies
+conditional transfers, stores common-state metadata, and preserves remote
+conflict copies. Credentials remain in Obsidian Secret Storage rather than
+plugin data.
+
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
 (IndexedDB handle), `directory-monitor.ts` (rescan-and-diff), `ui.ts` (startup
@@ -102,3 +110,8 @@ nothing is preselected, accepted relationship targets must resolve, and only a
 reviewer-approved plan can reach the backup/apply modal. Persisted enrichment
 plans omit note bodies and each live note is compared byte-for-byte with the
 reviewed source before its guarded write.
+The separately configured Nextcloud workflow can write local vault files and
+the selected remote folder. It is disabled by default, excludes `.obsidian`,
+uses conditional WebDAV requests, and defaults deletion propagation off.
+Users can opt into `.obsidian` synchronization independently of custom path
+globs; the plugin's own `data.json` remains a mandatory exclusion.

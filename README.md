@@ -1,10 +1,10 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-alpha.8
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.9
 
-**Version 0.6.5-alpha.8** — a pre-release 3D "Local Cluster of Galaxies" view and OKF+ 2.3 Validating Projection Engine for your Markdown knowledge base, built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.9** — a pre-release responsive 3D "Local Cluster of Galaxies" view with live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection API**, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-Nothing is changed or moved — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Everything runs locally, and a single `.html` file can render your notes without Obsidian at all.
+The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate OKF+ write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
 
 ## Two ways to use it
 
@@ -131,23 +131,55 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
 3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
 
+The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
+
 **Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden.
 
 **Battery-friendly:** the 3D view fully stops rendering the moment its tab is hidden or Obsidian is minimized — the plugin tells the iframe about leaf visibility, so even a background Kosmos tab inside a visible Obsidian window costs ~zero CPU/GPU — and resumes instantly when you come back. Idle bookkeeping (highlight halos, GPU uploads, label scans) is skipped when nothing is selected or pulsing.
+
+## Connectivity to Sync Vault — Nextcloud WebDAV (optional)
+
+Kosmos-Oden can sync the Obsidian vault directly to a Nextcloud Files folder
+through Nextcloud's WebDAV endpoint. This backend was written for Kosmos-Oden;
+it does not include or depend on code from Remotely Save.
+
+1. In Nextcloud, open **Personal settings → Security** and create an app
+   password for this device.
+2. In Obsidian, open **Settings → Vault Kosmos → Connectivity to Sync Vault**.
+3. Enter the instance address (for example `https://cloud.example.com`), your
+   username, app password, and a remote vault-folder name.
+4. Select **Test connection**, then **Sync now**. Enable startup or scheduled
+   sync only after the first run looks correct on both sides.
+
+The app password is stored through Obsidian Secret Storage, never in plugin
+`data.json`. Every file is compared against the last common local SHA-256 and
+remote ETag. If both changed, the Nextcloud version is first saved locally as
+`name.nextcloud-conflict-<timestamp>.ext`, then the local original becomes the
+common version on both sides. Deletion
+propagation is off by default; changed-versus-deleted cases always remain
+conflicts. `.obsidian/**`, `.git/**`, and `.trash/**` are excluded by default.
+The settings page exposes a dedicated `.obsidian` toggle plus per-path globs,
+so configuration files can be included selectively. Kosmos-Oden's own
+`.obsidian/plugins/vault-kosmos/data.json` always remains excluded because it
+contains device-local sync state and Agent API credentials.
+
+HTTPS is required for public hostnames. Plain HTTP is accepted only for a
+literal private or loopback address. The beta performs full remote metadata
+enumeration and local hashing on each run, favoring correctness over speed.
 
 ## Flying around
 
 - **Drag** to orbit · **scroll / pinch** to zoom · **right-drag / two-finger** to pan.
 - **Tap a body** to focus it — everything connected to it lights up.
 - **Right-click** (long-press on iPhone/iPad) a body → **Go to Note** opens that note in a new tab. Right-clicking a **galaxy that is only a folder** (no manifest note) offers **Expand Folder** instead — it reveals and expands that folder in Obsidian's file explorer. It will never create or open a stray note for a folder.
-- **Labels** `R` · **All links** `C` · **All objects** `O` · **Chrono** `H` · **Grow** `G` · **Timeline** `T` · **Trailer**.
+- **Labels** `R` · **All links** `C` · **All objects** `O` · **Chrono** `H` · **Grow** `G` · **Trailer** · **Key** (show/hide minimap and constellation legend). Timeline remains available through `T` and the renderer API, but its toolbar button is intentionally hidden.
 - **Modes:** Overview `A` · Focus `S` · Depth `D` · Fly `F` (WASD + mouse; touch pads on mobile) · Clear `Q`.
 - Zoom out as far as you like — once the whole cluster shrinks to ~10% of the screen it gently re-centers itself.
 - Mobile: adaptive pixel-ratio and geometry LOD keep the view smooth.
 
 ---
 
-## OKF+ temporal knowledge graph
+## OKF+ v2.3 Validating Projection Profile
 
 Kosmos-Oden implements the **OKF+ v2.3 Validating Projection Profile**. It is
 not a full GKOS governance engine and does not authorize or apply consequential
@@ -168,34 +200,37 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
   assessment, authorization, and origin-separated labels are parsed without
   changing source notes. Flat 2.2 metadata and the legacy `**Related:**` footer
   remain available through compatibility mode.
+- **Tags and labels stay distinct** — source Markdown `tags` remain
+  navigation/discovery metadata. Governed `labels` retain their authored,
+  derived, proposed, or approved origin and are never inferred from tags.
 - **Sensitivity-aware agent reads** — the Agent API defaults to an `internal` ceiling. `confidential` and `phi` notes are excluded from search, note reads, graph/lineage traversal, diagnostics, and Graphiti pages unless the user explicitly raises the ceiling.
 - The viewer is read-only: it never patches your notes.
 
 ---
 
-## Mark notes in OKF+ format
+## OKF+ note formatting and compatibility onboarding
 
-Run command palette → **Mark notes in OKF+ format (scan, back up, and preview)**, or use **Settings → Vault Kosmos → OKF+ note formatting**.
+Use **Settings → Vault Kosmos → OKF+ Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
-The audit recognizes both strict OKF+ 2.2 and [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md). It leaves notes conforming to either standard unchanged, skips Google's reserved `index.md`/`log.md`, and proposes conservative OKF+ metadata only where the flat frontmatter can be handled mechanically. Duplicate keys or UIDs, nested/ambiguous YAML, unsafe relationship values, invalid explicit governance fields, and concurrently edited notes are blocked rather than guessed.
+The current governed writer normalizes only mechanically recoverable flat notes to the **OKF+ 2.2 compatibility baseline**. The v2.3 projection then reads those notes in compatible mode; native or nested v2.3 fields are preserved rather than flattened. The audit also recognizes [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), skips Google's reserved `index.md`/`log.md`, and fails closed on duplicate keys/UIDs, ambiguous YAML, unsafe relationship values, invalid governance fields, or concurrent edits.
 
 Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
 
-The migration scan itself is deterministic and contacts no model; “no LLM needed” applies to structural onboarding, not to the separate enrichment feature. After migration, **Scan / re-scan all OKF+ 2.2 notes for enrichment proposals** reads every eligible 2.2 note again using the configured deterministic/on-device/LAN/cloud second pass. OKF-only path exclusions can omit generated or agent-control files without hiding them from the cosmos, and an opt-in developer preset covers common `AGENT(S).md`, Claude, Codex, Gemini, Copilot, `.claude`, and `_Claude-Code` paths. On-device or explicitly approved private-IP LAN models can provide advisory triage for blocked entries; Cloud cannot because those notes may not have trustworthy sensitivity metadata. See [the migration guide](docs/OKF-MIGRATION.md).
+The migration scan is deterministic and contacts no model. The separate **Re-scan OKF+ compatibility notes** workflow can add review-only proposals through deterministic selection or an explicitly configured OpenAI-compatible on-device, private-LAN, or HTTPS cloud endpoint. Agents propose; governance authorizes. OKF-only path exclusions can omit generated or agent-control files without hiding them from the cosmos. See [the migration guide](docs/OKF-MIGRATION.md) and [v2.3 profile](docs/OKF-PLUS-2.3-PROFILE.md).
 
 ---
 
 ## Agent API — let agents query this vault (HTTP + MCP)
 
-Settings → **Vault Kosmos** → toggle **Enable local Agent API**.
+Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → toggle **Enable local Agent API**.
 
 **Connecting an agent (no reimplementation required):**
-1. Click the quick-connect button for **Anthropic Claude Code**, **OpenAI Codex / ChatGPT desktop**, **Claude Desktop / stdio**, or a vendor-neutral MCP harness.
+1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
 2. Paste the copied configuration into that product.
 
 That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong. Want a reference for later? Run **"Write Agent API guide"** from the command palette and the plugin drops a ready-to-read `AGENT-API.md` into your vault with your connection details already filled in. Full guide: [AGENT-API.md](AGENT-API.md).
 
-**Watch it work:** every query an agent makes is mirrored live in the Kosmos view — visited notes pulse with emerald halos and connect into a fading emerald breadcrumb trail (the last ~24 hops, fading over 30 seconds), so you can see exactly which notes your agent walked through and in what order.
+**Watch it work:** note-specific MCP/HTTP queries are mirrored live in the Kosmos view. Visited notes pulse with per-agent halos and connect into a fading breadcrumb with a glowing comet tail, rocket head, and residual snow-dust. Trails retain roughly 24 hops for 30 seconds; whole-vault exports and diagnostics do not invent traversal events.
 
 **Technical:** a read-only server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it) exposing `vault_overview`, `search_notes`, `get_note`, `get_lineage`, `get_related`, `graph_at_time`, and paginated `export_graphiti_episodes` over the current MCP Streamable HTTP transport (`2025-11-25`, with compatible earlier revisions) plus REST mirrors. The release also includes a first-party stdio adapter for clients that cannot connect to HTTP directly.
 
@@ -205,13 +240,21 @@ Security: tokens are generated from a cryptographically secure RNG only (32 byte
 
 ## Graphiti export
 
-Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the OKF+ `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, and explicit non-authoritative governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the OKF+ authority.
+The built-in agent functionality is formally named the **Kosmos Governed Context Projection (KGCP)**. KGCP is deterministic and works without Graphiti. Graphiti is an optional semantic-memory and hybrid-retrieval adapter; its inferred facts remain derived proposals, never authored OKF+ data.
+
+Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the OKF+ `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, separate source tags and origin-preserving governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the OKF+ authority.
+
+The OKF+ 2.3 adapter also exports origin-separated governance, effective sensitivity, assessment summaries, diagnostic codes, evidence/contradictions, policy and schema hashes, filter metadata, authored `fact_triple` relationships, event/processing time, a 250-character derived-attribute cap, and optional saga hints. The generated ingestion script pins tested `graphiti-core==0.29.0`, prefers FalkorDB for local use or Neo4j for mature deployments, and reports readiness/benchmark fields honestly.
+
+## Portable UTC note timestamps
+
+With **Stamp note creation and modification times** enabled (the default), the Obsidian plugin adds `created_at` and `updated_at` frontmatter values in canonical ISO-8601 UTC/Zulu form, for example `2026-07-18T16:42:03.125Z`. Existing `created_at` values are preserved. `.obsidian/` and `.okf/` internals are excluded.
 
 - **Plugin:** command palette → *Export Graphiti episodes (OKF+)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
 - **Standalone:** the **Export Graphiti Episodes** button downloads the same payload.
 - **CLI:** `node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json`
 
-Then: `pip install graphiti-core` (Python 3.10+), set `OPENAI_API_KEY` + Neo4j env vars, `python graphiti-ingest-sample.py`.
+Then: `pip install "graphiti-core==0.29.0"` (Python 3.10+), configure FalkorDB for straightforward local operation or Neo4j for a mature deployment, set the required model/provider variables, and run `python graphiti-ingest-sample.py`.
 
 ## kosmos-build CLI
 
@@ -228,11 +271,11 @@ Uses the same bundled Kosmos Core as the plugin and the standalone page — not 
 
 **Never modify existing notes:** the 3D visualization, ordinary directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
 
-**Write only through explicit commands:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Visualization and Agent API queries remain read-only.
+**Write only through explicit or configured workflows:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Nextcloud writes run only through **Sync now** or explicitly enabled startup/scheduled sync, guarded by common-state comparison and conditional requests. Visualization and Agent API queries remain read-only.
 
 ## Private by design
 
-Everything runs locally. The plugin and the standalone viewer make **no external network requests, collect nothing, and never write to your notes** — fully offline. The optional Agent API is off by default, reachable only from your own computer unless you explicitly say otherwise, and is read-only: there are no endpoints that can modify your vault.
+Visualization, the standalone viewer, and the Agent API run locally and collect nothing. The standalone viewer remains fully offline. Optional Nextcloud sync is disabled by default and contacts only the configured server; optional model enrichment contacts only its configured endpoint. The Agent API is off by default, reachable only from your own computer unless you explicitly say otherwise, and is read-only.
 
 ---
 
@@ -244,7 +287,7 @@ npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
 npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
 npm run build:standalone # just vault-kosmos.html
-npm test                 # 119 unit/API/artifact/classification tests (node --test)
+npm test                 # 165 unit/API/artifact/classification/sync tests (node --test)
 npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
 ```

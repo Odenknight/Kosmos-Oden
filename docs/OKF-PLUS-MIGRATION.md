@@ -1,6 +1,6 @@
 # OKF+ 2.2 to 2.3 Migration Behavior
 
-Alpha.8 does not silently rewrite 2.2 notes. It reads them through `compatible`
+Beta.9 does not silently rewrite 2.2 notes. It reads them through `compatible`
 mode and projects their flat fields into the v2.3 origin-separated model with
 migration and authority diagnostics where origin cannot be proven.
 
@@ -19,4 +19,3 @@ Modes are:
 - `strict-v2.3`: canonical nested 2.3 source;
 - `compatible`: versioned legacy source projected without rewrite;
 - `legacy`: unversioned recognizable metadata projected conservatively.
-
