@@ -20,11 +20,11 @@
  *  - Read-only: REST is GET-only; MCP exposes query tools only. No write
  *    endpoints exist (§18).
  */
-import { projectAtTime, type ProjectableNote } from "../core/temporal";
-import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "../core/graphiti";
-import { KOSMOS_VERSION } from "../core/version";
-import { OKF23_POLICY, OKF23_PROFILE } from "../core/okf23";
-import type { KosmosGraph, KosmosNode, OkfSensitivity } from "../core/types";
+import { projectAtTime, type ProjectableNote } from "gkos-engine";
+import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
+import { KOSMOS_VERSION } from "../kosmos-version";
+import { OKF23_POLICY, OKF23_PROFILE } from "gkos-engine";
+import type { KosmosGraph, KosmosNode, OkfSensitivity } from "gkos-engine";
 
 // Newest first. 2025-11-25 is the current published MCP revision. Older
 // revisions remain negotiable for clients that still request them explicitly.

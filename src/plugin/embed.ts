@@ -7,8 +7,8 @@
  * incremental core the standalone page uses. "Go to Note" posts `kosmos:open`
  * back to the plugin.
  */
-import { KosmosIndex, type IndexChanges } from "../core/incremental";
-import type { SourceFile } from "../core/types";
+import { KosmosIndex, type IndexChanges } from "gkos-engine";
+import type { SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import { validateHostMessage, wrap } from "./protocol";
 

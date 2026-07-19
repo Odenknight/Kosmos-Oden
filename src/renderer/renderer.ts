@@ -21,8 +21,8 @@
  * identical -> no-op (§11).
  */
 import * as THREE from "three";
-import { createDemoVaultEvents, createDemoVaultGraph } from "../core/demo";
-import { KOSMOS_VERSION } from "../core/version";
+import { createDemoVaultEvents, createDemoVaultGraph } from "gkos-engine";
+import { KOSMOS_VERSION } from "../kosmos-version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";

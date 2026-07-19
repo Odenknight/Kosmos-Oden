@@ -1,6 +1,6 @@
 /** Obsidian host for the safety-first OKF+ audit/backup/apply workflow. */
 import { App, Modal, Notice, Setting, TFile, normalizePath } from "obsidian";
-import { matchedOkfExclusion } from "../core/okf-exclusions";
+import { matchedOkfExclusion } from "gkos-engine";
 import {
   createOkfMigrationPlan,
   publicOkfMigrationPlan,
@@ -9,7 +9,7 @@ import {
   type OkfMigrationMode,
   type OkfMigrationPlan,
   type OkfMigrationSource,
-} from "../core/okf-migration";
+} from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { openOkfBlockedReview } from "./okf-blocked-review";
 

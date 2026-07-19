@@ -12,8 +12,8 @@
  * graph and never re-derives graph semantics — lineage, temporal state and
  * link kinds arrive already normalized from the core (§2.2/§33).
  */
-import { ATTACHMENT_EXTENSIONS } from "../core/paths";
-import type { KosmosGraph } from "../core/types";
+import { ATTACHMENT_EXTENSIONS } from "gkos-engine";
+import type { KosmosGraph } from "gkos-engine";
 
 export const GOLDEN = 2.399963229728653;
 const MANIFEST_NAMES = ["index", "home", "readme", "_index", "moc", "map", "overview", "dashboard", "start", "contents", "toc"];

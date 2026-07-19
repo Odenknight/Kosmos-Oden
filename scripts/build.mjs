@@ -40,6 +40,10 @@ mkdirSync(resolve(root, "dist"), { recursive: true });
 /** Inline-script hardening: '</script' inside JS strings would close the tag. */
 const escapeInline = (js) => js.replace(/<\/script/gi, "<\\/script");
 
+// The Kosmos Core now lives in the external `gkos-engine` package (an ordinary
+// node_modules dependency, resolved by esbuild/tsc the normal way — no special
+// path mapping needed).
+
 async function bundle(entry, opts = {}) {
   const res = await esbuild.build({
     entryPoints: [resolve(root, entry)],
@@ -56,8 +60,31 @@ async function bundle(entry, opts = {}) {
   return res.outputFiles[0].text;
 }
 
+/** Bundle the external gkos-engine core into a self-contained ESM artifact. */
+async function bundleEngineCore() {
+  const res = await esbuild.build({
+    stdin: {
+      contents: 'export * from "gkos-engine";',
+      resolveDir: root,
+      sourcefile: "kosmos-core-entry.ts",
+      loader: "ts",
+    },
+    bundle: true,
+    write: false,
+    format: "esm",
+    platform: "neutral",
+    target: "es2020",
+    minify: false,
+    sourcemap: false,
+    logLevel: "silent",
+  });
+  return res.outputFiles[0].text;
+}
+
 async function buildNodeBundles() {
-  const core = await bundle("src/core/index.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  // dist/kosmos-core.mjs — self-contained re-bundle of the gkos-engine core,
+  // consumed by kosmos-build.mjs, the benchmarks and the Node test suite.
+  const core = await bundleEngineCore();
   writeFileSync(resolve(root, "dist/kosmos-core.mjs"), core);
   const agent = await bundle("src/plugin/agent-server.ts", { format: "esm", platform: "node", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-agent-server.mjs"), agent);

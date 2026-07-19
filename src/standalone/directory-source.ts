@@ -18,8 +18,8 @@ import {
   extensionFromPath,
   isAttachmentPath,
   isNotePath,
-} from "../core/paths";
-import type { SourceFile } from "../core/types";
+} from "gkos-engine";
+import type { SourceFile } from "gkos-engine";
 
 export interface DirectorySnapshot {
   files: SourceFile[];          // notes WITH content

@@ -1,7 +1,7 @@
 /** Kosmos plugin — settings tab + Agent API setup guide (one source of truth). */
 import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
-import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "../core/okf-exclusions";
-import { KOSMOS_VERSION } from "../core/version";
+import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "gkos-engine";
+import { KOSMOS_VERSION } from "../kosmos-version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
 import { DEFAULT_SYNC_EXCLUDES, PROTECTED_SYNC_EXCLUDES } from "./nextcloud-sync";
 

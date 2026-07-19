@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Setting, normalizePath } from "obsidian";
-import { boundedOkfBlockedFrontmatter, validateOkfBlockedModelReview, type OkfBlockedModelReview } from "../core/okf-blocked-review";
-import type { OkfMigrationPlan } from "../core/okf-migration";
+import { boundedOkfBlockedFrontmatter, validateOkfBlockedModelReview, type OkfBlockedModelReview } from "gkos-engine";
+import type { OkfMigrationPlan } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { requestOkfLlmJson, validateOkfLlmConfiguration } from "./okf-llm";
 

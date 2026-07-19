@@ -14,8 +14,8 @@ import {
   add3, buildCosmos, fib, GAP_AST, GAP_GAL, GAP_SYS, GAL_PACK, GOLDEN, hUnit,
   len3, minChord, MINSEP, OORT_GAP, ROLE_R, SYS_PACK, type CosmosOptions,
 } from "./cosmology";
-import { hashUnit } from "../core/paths";
-import type { KosmosGraph } from "../core/types";
+import { hashUnit } from "gkos-engine";
+import type { KosmosGraph } from "gkos-engine";
 
 export { buildCosmos, classifyStar, classifyPlanet, starScore, SPECTRAL, PLANET_COLORS } from "./cosmology";
 
