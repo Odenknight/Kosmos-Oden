@@ -1,6 +1,6 @@
 # OKF+ v2.3 Validating Projection Profile
 
-Kosmos-Oden 0.6.5-beta.12 implements the **OKF+ v2.3 Validating Projection
+Kosmos-Oden 0.6.5 (GKOS Engine v1.0 implementation line) implements the **OKF+ v2.3 Validating Projection
 Profile**. It is not a full GKOS governance engine and does not authorize or
 apply consequential semantic changes.
 

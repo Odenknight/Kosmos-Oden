@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.12
+# Kosmos-Oden (Vault Kosmos) — v0.6.5
 
-**Version 0.6.5-beta.12** — a pre-release responsive 3D "Local Cluster of Galaxies" view with human-editable OKF+ 2.2 Obsidian Properties, optional native OKF+ v2.3 conversion, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5** — a stable release with a responsive 3D "Local Cluster of Galaxies" view with human-editable OKF+ 2.2 Obsidian Properties, optional Agent-Ready (flat) OKF+ 2.3 conversion — the GKOS Engine v1.0 implementation line, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 

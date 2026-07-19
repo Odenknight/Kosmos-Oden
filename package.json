@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.5-beta.12",
-  "description": "Kosmos-Oden (Vault Kosmos v0.6.5-beta.12) — human-editable OKF+ 2.2 Properties with optional native v2.3 conversion, live MCP traversal, and Nextcloud WebDAV sync.",
+  "version": "0.6.5",
+  "description": "Kosmos-Oden (Vault Kosmos v0.6.5) — human-editable OKF+ 2.2 Properties with optional Agent-Ready flat 2.3 conversion (GKOS Engine v1.0), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
   "engines": {

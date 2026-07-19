@@ -7,6 +7,79 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5] — 2026-07-19
+
+**Out of beta.** This release closes the 0.6.5 beta series and re-brands the
+deterministic core as the **GKOS Engine v1.0 implementation line**.
+
+### Re-branding — what changed in name, and why
+
+- The deterministic reader/validator/projector formerly called the "OKF+ 2.3
+  engine" is now the **GKOS Engine**. GKOS (Governed Knowledge Operations
+  Standard) defines *how knowledge becomes trustworthy*; OKF+ defines the
+  technical objects; this engine executes those contracts. "GKOS Engine v1.0"
+  is an **implementation version — it is not GKOS standard v1.0**, which does
+  not exist. OKF+ 2.2 remains the ratified interoperability baseline; OKF+ 2.3
+  remains a draft profile this engine reads and projects.
+- The three formats now carry audience names instead of bare version numbers:
+  - **OKF+ Notes (2.2)** — the human profile: flat, Properties-editable, and
+    complete for personal vaults. Ratified simplification: writers no longer
+    emit empty lineage lists (`supersedes: []` …); absent and empty are
+    identical to the reader. Nothing else changed.
+  - **Agent-Ready (flat 2.3)** — the same flat, human-safe surface plus
+    uid-first identity, `created_at`/`updated_at`, `epistemic_state`,
+    `sensitivity`, and `authorship_origin` as flat scalars. This is the only
+    2.3 form any writer emits.
+  - **Machine Dialect (nested 2.3)** — the full nested structure, fully
+    readable for machine-managed corpora, never written into human-edited
+    notes.
+  Together, 2.2 + flat 2.3 form the **GKOS-Engine-Lite schema** that the
+  0.5.x line adopts as its final feature set.
+
+### Why flat won (the evolution, tested)
+
+- beta.10's converter wrote nested governance YAML into note frontmatter.
+  Obsidian's Properties UI rendered those blocks as un-editable "unknown data
+  type" JSON, its type-conversion dialog could destroy them, and wikilinks
+  buried in nested structures silently broke on rename. Humans could no
+  longer safely edit their own tags.
+- Because every governed write is previewed, hash-bound, and byte-exact
+  backed up — and the converter left a deterministic marker in every note it
+  touched — the error was **fully reversible without restoring a vault
+  backup**: beta.11's "Scan and repair" flattens exactly the marker-carrying
+  notes, preserving bodies, tags, wikilinks, comments, and unknown fields
+  byte-for-byte.
+- beta.12 removed the cause: no writer emits nested governance blocks. The
+  2.3 governance model still applies in full — origin separation, policy-
+  hashed assessments, diagnostics — but it lives in the deterministic
+  in-memory projection and (per the beta.13 design) `.okf/` sidecars, never
+  in the authoring surface. See `docs/EVOLUTION-AND-SAFEGUARDS.md` for the
+  complete narrative.
+
+### Added
+- Flat editable OKF+ 2.3 ("Agent-Ready") conversion: **Convert all to
+  editable 2.3** in settings and the command palette (replaces the nested
+  "native 2.3" writer).
+- Flat-profile validation and projection: scalar `sensitivity`, flat
+  `epistemic_state` and `authorship_origin` are first-class; nested blocks
+  win when present; governance defaults are supplied in memory.
+- Design documentation for the next cycle: Obsidian engine redesign,
+  standalone engine ADR, and 2.2/2.3 audience positioning (`docs/`).
+
+### Compatibility
+- Hand-authored nested 2.3 notes remain fully supported read-only; they are
+  never flattened automatically. Notes converted during the beta series
+  rescan clean with zero proposed changes. OKF+ 2.2 vaults are unaffected.
+
+### Testing
+- 187-test suite (unit, round-trip, settings UI, invariants) plus
+  `check:versions`, `check:artifacts`, `check:invariants`,
+  `check:renderer-provenance`. The flat-profile work was additionally
+  adversarially reviewed: a 12-agent corpus audit of the governing spec and a
+  4-lens design verification (Obsidian platform behavior, codebase
+  feasibility, governance invariants, capture ergonomics) whose findings are
+  incorporated in the shipped design docs.
+
 ## [0.6.5-beta.12] — 2026-07-19 (pre-release)
 
 ### Fixed
