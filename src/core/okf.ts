@@ -41,7 +41,7 @@ function sensitivity(v: unknown): OkfSensitivity | undefined {
   // An explicit but invalid label must not silently downgrade access. The
   // read-only projector fails closed at the highest sensitivity; a governed
   // processor can separately route the malformed value to salvage/review.
-  return typeof v === "string" && v.trim() ? "phi" : undefined;
+  return typeof v === "string" && v.trim() ? "secret" : undefined;
 }
 
 export function parseOkfPlus(data: Frontmatter, content: string): OkfData | null {

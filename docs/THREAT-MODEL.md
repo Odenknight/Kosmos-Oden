@@ -1,6 +1,6 @@
 # Threat Model
 
-An iterative model (Doc1 §5.3). It reflects v0.6.5-beta.10 and is revised whenever
+An iterative model (Doc1 §5.3). It reflects v0.6.5-beta.12 and is revised whenever
 network or data-access behavior changes.
 
 ## Assets
@@ -56,6 +56,7 @@ network or data-access behavior changes.
 | Path traversal via renderer messages | Message paths validated: no absolute paths, no `..` segments. |
 | Malformed note content | Tolerant parser never throws the graph away; lineage validation degrades gracefully and reports via diagnostics. |
 | Bulk OKF+ migration damages notes | Read-only dry run; SHA-256-bound plan; independent-backup warning and acknowledgement; byte-exact per-file backup; source equality recheck; Obsidian atomic processor; human-authored body preserved; changed/missing notes skipped; result audit. |
+| Generated nested metadata prevents human correction or duplicates timestamps | Flat OKF+ 2.2 Obsidian Properties are the default writer surface; beta.10 repair is marker-gated, hash-bound, backed up, removes duplicate timestamps, and preserves genuinely authored native 2.3 notes. |
 | Migration hallucinates metadata or leaks notes to a model | The migration is deterministic and contains no LLM or network call. Conservative defaults are disclosed. Ambiguous YAML, invalid governance data, unsafe semantic links, and UID conflicts are blocked for review. |
 | `internal` default is mistaken for privacy classification | Apply requires acknowledgement that defaults are not content inspection; UI/docs require confidential/PHI review before cloud routing. Connector sensitivity enforcement remains independent. |
 | OKF processing rewrites agent-control/generated files | Custom exclusion patterns and an opt-in developer preset are applied before migration/enrichment; previews disclose every excluded path/pattern. The preset defaults off so upgrades never silently omit user notes. |

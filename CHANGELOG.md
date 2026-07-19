@@ -7,6 +7,41 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.5-beta.12] — 2026-07-19 (pre-release)
+
+### Fixed
+- Restored an explicit **Convert all to native 2.3** action in the OKF+ Note
+  Formatting tab and command palette.
+- Native 2.3 conversion now preserves ordinary Obsidian `tags` and flat
+  wikilink relationship fields as editable overlays, so manual corrections
+  continue to update the cosmos, search, REST, MCP, and Graphiti projections on
+  the next vault refresh.
+
+## [0.6.5-beta.11] — 2026-07-19 (pre-release)
+
+### Fixed
+- Restored compact flat OKF+ 2.2 Obsidian Properties as the default human
+  authoring surface. Editing tags or relationship wikilinks now flows through
+  the normal vault-change path into search, the cosmos, REST, MCP, and Graphiti.
+- Added a bounded repair for metadata written by beta.10's deterministic nested
+  converter. Marker-matched notes can be previewed and flattened with duplicate
+  timestamps and generated governance boilerplate removed while Markdown body
+  bytes, extensions, comments, backups, and source-hash checks are preserved.
+- Normalized bracketed relationship targets, mapped legacy epistemic states
+  conservatively in the 2.3 validating projection, and reused matching
+  property/wikilink graph edges instead of emitting semantic duplicates.
+- Made enrichment scan both editable 2.2 and valid native 2.3 notes; accepted
+  tags and relationship values remain directly editable flat Properties.
+
+### Safety
+- Genuinely authored native OKF+ 2.3 notes are never flattened automatically.
+  Repair is limited to notes carrying the beta.10 deterministic-migration
+  marker and remains previewed, hash-bound, backup-protected, and concurrent-
+  edit checked.
+- All seven sensitivity levels survive repair without downgrade; malformed
+  explicit sensitivity now fails closed to `secret` throughout the flat and
+  validating projections.
+
 ## [0.6.5-beta.10] — 2026-07-19 (pre-release)
 
 ### Changed

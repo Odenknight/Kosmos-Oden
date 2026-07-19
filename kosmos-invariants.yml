@@ -20,7 +20,7 @@ security:
   # OKF+ sensitivity enforcement: legacy/unlabeled notes are internal;
   # confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
-  invalid_sensitivity_fails_closed_as: phi
+  invalid_sensitivity_fails_closed_as: secret
   invalid_v23_sensitivity_fails_closed_as: secret
   # The Agent API is read-only: no write routes exist.
   api_write_routes_allowed: false

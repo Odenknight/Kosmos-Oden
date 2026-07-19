@@ -17,8 +17,8 @@ test("Options exposes the four required first-class tabs and routes Sync control
   assert.match(source, /role\", \"tabpanel/);
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Nextcloud server URL\"\)/);
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Sync hidden Obsidian configuration \(\.obsidian\)\"\)/);
-  for (const label of ["Scan for OKF+ 2.3", "Convert all to OKF+ 2.3", "Scan OKF+ 2.3 notes"]) assert.ok(source.includes(label));
-  assert.doesNotMatch(source, /setButtonText\("[^"]*2\.2/);
+  for (const label of ["Scan and repair", "Convert all to editable 2.2", "Convert all to editable 2.3", "Scan labels and links"]) assert.ok(source.includes(label));
+  assert.match(source, /Flat OKF\+ 2\.2 Properties are the human authoring surface/);
   for (const provider of ["S3-compatible object storage", "Dropbox", "Microsoft OneDrive", "Google Drive"]) assert.match(source, new RegExp(provider));
   assert.doesNotMatch(source, /enhanceSectionNavigation|openSections/);
 });

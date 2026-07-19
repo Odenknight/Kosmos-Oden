@@ -328,7 +328,16 @@ export function assembleGraph(
       const key = `${sourceId}\u0001${relation.type}\u0001${resolved.id}`;
       if (semanticKeys.has(key)) continue;
       semanticKeys.add(key);
-      links.push({ id: `semantic:${relation.type}:${sourceId}->${resolved.id}`, source: sourceId, target: resolved.id, kind: "semantic", label: relation.type, sourcePath: rec.relativePath });
+      // A flat Obsidian relationship property already produced a property edge.
+      // Promote that exact edge instead of adding a duplicate semantic edge.
+      const editableEdge = links.find((link) => link.source === sourceId && link.target === resolved.id && (link.kind === "property" || link.kind === "wikilink"));
+      if (editableEdge) {
+        editableEdge.kind = "semantic";
+        editableEdge.label = relation.type;
+        editableEdge.sourcePath = rec.relativePath;
+      } else {
+        links.push({ id: `semantic:${relation.type}:${sourceId}->${resolved.id}`, source: sourceId, target: resolved.id, kind: "semantic", label: relation.type, sourcePath: rec.relativePath });
+      }
       const canonicalTarget = graphUid(nodes.get(resolved.id));
       (projection.derived.relationships[relation.type] ??= []).push({ target_uid: canonicalTarget, target_node_id: resolved.id, origin: "derived", projected_from_origin: relation.origin });
       const inverse = okf23Inverse(relation.type);

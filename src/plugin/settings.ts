@@ -336,9 +336,9 @@ export class KosmosSettingTab extends PluginSettingTab {
       .setDesc("Off by default. Adds deterministic saga hints for lineage, project history, recurring meetings, research threads, and versioned specifications.")
       .addToggle((t) => t.setValue(s.graphitiSagaMapping).onChange(async (v) => { s.graphitiSagaMapping = v; await this.plugin.saveAgentSettings(); }));
 
-    okfEl.createEl("h3", { text: "Native OKF+ 2.3 formatting and governed proposals" });
+    okfEl.createEl("h3", { text: "Human-editable OKF+ formatting and governed projections" });
     okfEl.createEl("p", {
-      text: "The current writer safely converts recoverable notes, including valid flat OKF+ 2.2 compatibility notes, to canonical nested OKF+ 2.3. Native 2.3 notes are left unchanged. Source Markdown tags remain separate from governed labels. Conversion is deterministic, never contacts a model, and requires a hash-bound preview plus byte-exact backup before writing.",
+      text: "Flat OKF+ 2.2 Properties are the human authoring surface: tags and relationship wikilinks can be corrected directly in Obsidian and flow into the cosmos, search, REST, MCP, and Graphiti projection on the next vault update. The 2.3 layer remains a read-only validating projection. The repair scan safely flattens only metadata marked as written by the faulty beta.10 deterministic 2.3 migrator, removes duplicate timestamps and generated boilerplate, and always requires a hash-bound preview plus byte-exact backup.",
       cls: "setting-item-description",
     });
     new Setting(okfEl)
@@ -353,17 +353,20 @@ export class KosmosSettingTab extends PluginSettingTab {
         area.inputEl.rows = 5; area.inputEl.cols = 48;
       });
     new Setting(okfEl)
-      .setName("Scan or convert to native OKF+ 2.3")
-      .setDesc("Scan previews safe native OKF+ 2.3 conversions while leaving Google OKF notes alone. Convert-all includes recoverable legacy and Google notes and shows every deterministic manual-review reason.")
-      .addButton((b) => b.setButtonText("Scan for OKF+ 2.3").onClick(async () => {
+      .setName("Scan, repair, or convert editable OKF+ metadata")
+      .setDesc("Scan previews repairs for beta.10-generated 2.3 metadata and leaves genuinely authored native 2.3 notes unchanged. Convert-all writes flat, Obsidian-editable Properties in either the 2.2 or the 2.3 profile; nested governance blocks are never written into notes.")
+      .addButton((b) => b.setButtonText("Scan and repair").onClick(async () => {
         await this.plugin.markNotesInOkf("safe-onboarding");
       }))
-      .addButton((b) => b.setButtonText("Convert all to OKF+ 2.3").setCta().onClick(async () => {
+      .addButton((b) => b.setButtonText("Convert all to editable 2.2").setCta().onClick(async () => {
         await this.plugin.markNotesInOkf("upgrade-all");
+      }))
+      .addButton((b) => b.setButtonText("Convert all to editable 2.3").onClick(async () => {
+        await this.plugin.markNotesInOkf("convert-to-23");
       }));
 
     okfEl.createEl("h3", { text: "Content-assisted enrichment proposals" });
-    okfEl.createEl("p", { text: "Runs after native OKF+ 2.3 conversion and deliberately re-scans eligible notes. Deterministic evidence selection proposes bounded descriptive metadata, source Markdown tags, and explicit relationships. An optional OpenAI-compatible local, LAN, or cloud model may add schema-validated proposals. Agents propose; governance authorizes. Governed labels remain origin-separated, and no proposal becomes authored OKF+ data without review.", cls: "setting-item-description" });
+    okfEl.createEl("p", { text: "Re-scans editable 2.2 and valid native 2.3 notes. Deterministic evidence selection proposes descriptions, user-selectable Obsidian tags, and explicit relationship wikilinks. Every proposal remains pending until you Accept, Reject, or edit it; accepted Properties update all projections through the normal live vault-change path.", cls: "setting-item-description" });
     new Setting(okfEl).setName("Second-pass provider").setDesc("On-device uses loopback. LAN requires a literal private IP and fresh disclosure. Cloud requires HTTPS and the strictest disclosure policy.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "On-device model (loopback)").addOption("lan", "LAN model (private IP)").addOption("cloud", "Cloud model (HTTPS)").setValue(s.okfEnrichmentProvider).onChange(async (v: any) => { s.okfEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
     if (s.okfEnrichmentProvider !== "none") {
       const endpointDescription = s.okfEnrichmentProvider === "local"
@@ -382,7 +385,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     new Setting(okfEl).setName("Run input budget").setDesc("Hard total evidence budget across the run: 4,000–250,000 characters.").addText((t) => t.setValue(String(s.okfEnrichmentMaxTotalInputChars)).onChange(async (v) => { s.okfEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(v) || 50000)); await this.plugin.saveAgentSettings(); }));
     new Setting(okfEl).setName("Proposal cap").setDesc("Maximum schema-valid suggestions retained per note (1–24).").addText((t) => t.setValue(String(s.okfEnrichmentMaxSuggestions)).onChange(async (v) => { s.okfEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(v) || 12)); await this.plugin.saveAgentSettings(); }));
     if (s.okfEnrichmentProvider !== "none") new Setting(okfEl).setName("Request timeout").setDesc("5–120 seconds per note; timed-out requests are not retried.").addText((t) => t.setValue(String(Math.round(s.okfEnrichmentTimeoutMs / 1000))).onChange(async (v) => { s.okfEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, (Number(v) || 30) * 1000)); await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Re-scan native OKF+ 2.3 notes").setDesc("Every click reads the current eligible native OKF+ 2.3 notes again. Unchanged notes may produce the same proposals; duplicate queue records are suppressed. Selected evidence is bounded and untrusted, model tools are disabled, and nothing is written automatically.").addButton((b) => b.setButtonText("Scan OKF+ 2.3 notes").setCta().onClick(async () => { await this.plugin.proposeOkfEnrichment(); }));
+    new Setting(okfEl).setName("Re-scan editable OKF+ notes").setDesc("Every click reads eligible OKF+ 2.2 and valid native 2.3 notes again. Tags are shown as user-reviewable labels, relationship values stay as Obsidian wikilinks, duplicate queue records are suppressed, and nothing is written automatically.").addButton((b) => b.setButtonText("Scan labels and links").setCta().onClick(async () => { await this.plugin.proposeOkfEnrichment(); }));
 
     connectEl.createEl("h2", { text: "Quick Connect — Anthropic, OpenAI, and Universal MCP" });
     connectEl.createEl("p", { text: "Copy client-specific connection blocks for the Agent API's MCP Streamable HTTP endpoint, or use the bundled first-party stdio adapter for applications that do not support HTTP transport.", cls: "setting-item-description" });

@@ -1,6 +1,6 @@
-# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.10
+# Kosmos-Oden (Vault Kosmos) — v0.6.5-beta.12
 
-**Version 0.6.5-beta.10** — a pre-release responsive 3D "Local Cluster of Galaxies" view with native OKF+ 2.3 conversion, live MCP agent traversal comet trails, portable UTC note timestamps, the Kosmos Governed Context Projection, the **OKF+ v2.3 Validating Projection API**, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.6.5-beta.12** — a pre-release responsive 3D "Local Cluster of Galaxies" view with human-editable OKF+ 2.2 Obsidian Properties, optional native OKF+ v2.3 conversion, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -199,10 +199,12 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
   epistemic, sensitivity, provenance, evidence, relationships, lineage, review,
   assessment, authorization, and origin-separated labels are parsed without
   changing source notes. Flat 2.2 metadata and the legacy `**Related:**` footer
-  remain available through compatibility mode.
-- **Tags and labels stay distinct** — source Markdown `tags` remain
-  navigation/discovery metadata. Governed `labels` retain their authored,
-  derived, proposed, or approved origin and are never inferred from tags.
+  remain available through compatibility mode. Flat Obsidian relationship
+  Properties are also read as authored corrections and update incrementally.
+- **Human-editable labels** — source Markdown `tags` are the simple,
+  user-selectable Obsidian label surface used by the cosmos, lexical search,
+  REST, MCP, and Graphiti projection. Advanced governed `labels` remain a
+  separate read projection and are never silently promoted from tags.
 - **Sensitivity-aware agent reads** — the Agent API defaults to an `internal` ceiling. `confidential` and `phi` notes are excluded from search, note reads, graph/lineage traversal, diagnostics, and Graphiti pages unless the user explicitly raises the ceiling.
 - The viewer is read-only: it never patches your notes.
 
@@ -212,11 +214,13 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 
 Use **Settings → Vault Kosmos → OKF+ Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
-The current governed writer converts mechanically recoverable notes—including valid flat OKF+ 2.2 compatibility notes—to **canonical nested OKF+ 2.3**. Already-valid native 2.3 notes remain unchanged, source Markdown tags remain separate from governed labels, and Markdown body bytes are preserved. The audit also recognizes [Google's intentionally minimal OKF 0.1 draft](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), leaves Google's reserved `index.md`/`log.md` unchanged during the safe scan, and fails closed on duplicate keys/UIDs, ambiguous legacy YAML, unsafe relationship values, invalid governance fields, or concurrent edits.
+The governed writer uses compact **OKF+ 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
+
+Beta.11 also includes a bounded remediation for the beta.10 regression. The safe scan recognizes only notes carrying beta.10's deterministic-migration marker, previews a flattening repair, removes duplicate `created_at`/`updated_at` keys and generated governance boilerplate, preserves extensions and Markdown body bytes, and restores flat tags and relationship wikilinks. It does not automatically flatten genuinely authored native 2.3 notes.
 
 Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
 
-The migration scan is deterministic and contacts no model. The separate **Re-scan OKF+ compatibility notes** workflow can add review-only proposals through deterministic selection or an explicitly configured OpenAI-compatible on-device, private-LAN, or HTTPS cloud endpoint. Agents propose; governance authorizes. OKF-only path exclusions can omit generated or agent-control files without hiding them from the cosmos. See [the migration guide](docs/OKF-MIGRATION.md) and [v2.3 profile](docs/OKF-PLUS-2.3-PROFILE.md).
+The migration scan is deterministic and contacts no model. The separate **Re-scan editable OKF+ notes** workflow proposes user-reviewable tags, descriptions, types, and evidenced relationships through deterministic selection or an explicitly configured OpenAI-compatible endpoint. Nothing is selected by default; accepted flat Properties use the same live incremental update path as a manual Obsidian edit. See [the migration guide](docs/OKF-MIGRATION.md) and [v2.3 profile](docs/OKF-PLUS-2.3-PROFILE.md).
 
 ---
 

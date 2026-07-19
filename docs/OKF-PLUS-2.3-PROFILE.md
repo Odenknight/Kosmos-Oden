@@ -1,13 +1,14 @@
 # OKF+ v2.3 Validating Projection Profile
 
-Kosmos-Oden 0.6.5-beta.10 implements the **OKF+ v2.3 Validating Projection
+Kosmos-Oden 0.6.5-beta.12 implements the **OKF+ v2.3 Validating Projection
 Profile**. It is not a full GKOS governance engine and does not authorize or
 apply consequential semantic changes.
 
 ## Implemented profile
 
 - source-preserving parsing of canonical nested 2.3 frontmatter;
-- compatibility projection for 2.2 and legacy notes;
+- compatibility projection for 2.2 and legacy notes, with compact 2.2
+  Obsidian Properties retained as the default human authoring surface;
 - unknown extension-field preservation;
 - a UID index independent of paths, with missing/invalid/duplicate/conflicting
   identity diagnostics;
@@ -19,6 +20,8 @@ apply consequential semantic changes.
 - separate source-authored `tags` for navigation/discovery from governed
   `labels`; tags are never silently promoted into an authority-bearing label
   origin;
+- live overlay of flat, human-edited relationship Properties onto the authored
+  read projection, with canonical wikilink unwrapping and edge deduplication;
 - seven deterministic assessment dimensions, null handling, policy identity,
   policy hash, stable labels, and structured diagnostics;
 - seven sensitivity levels, internal default, and fail-closed invalid values;
@@ -47,7 +50,7 @@ so identical source bytes and policy inputs produce stable output.
 
 ## Explicit limitations
 
-Beta.10 does not claim a general-purpose Governed Writer, authority verification, human
+Beta.11 does not claim a general-purpose Governed Writer, authority verification, human
 attestation, automatic epistemic promotion, automatic sensitivity reduction,
 authorized operational use, full sidecar-decision processing, signed schema
 package installation, remote schema updates, or full GKOS conformance. The

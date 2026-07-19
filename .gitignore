@@ -42,3 +42,12 @@ benchmarks/fixtures/
 playwright-report/
 test-results/
 sbom.cdx.json
+
+# Codex/AI tooling state and alternate package-manager artifacts (repo is npm-based)
+.codex/
+.pnpm-store/
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# retired global vendored Three.js (canonical copy: vendor/legacy/three-r128.min.js)
+vendor/three.min.js

@@ -73,7 +73,7 @@ must(/hostAllowed/.test(server), "Host validation must be present");
 must(/originAllowed/.test(server), "Origin validation must be present");
 must(/timingSafeEqual/.test(server), "token comparison must be constant-time");
 const okfParser = read("src/core/okf.ts");
-must(sec.invalid_sensitivity_fails_closed_as === "phi" && /return typeof v === "string" && v\.trim\(\) \? "phi"/.test(okfParser), "invalid explicit sensitivity must fail closed as phi");
+must(sec.invalid_sensitivity_fails_closed_as === "secret" && /return typeof v === "string" && v\.trim\(\) \? "secret"/.test(okfParser), "invalid explicit sensitivity must fail closed as secret");
 const okf23 = read("src/core/okf23.ts");
 must(sec.invalid_v23_sensitivity_fails_closed_as === "secret" && /effectiveSensitivity = "secret"/.test(okf23), "invalid v2.3 sensitivity must fail closed as secret");
 must(/GET only \(read-only API\)/.test(server) && !/\bcase "\/write"|app\.post\(|writeFile/.test(server), "Agent API must expose no write routes");

@@ -148,6 +148,29 @@ labels:
   assert.equal(graph.links.some((link) => link.source === "file:Claims/Proposal.md" && link.target === "file:Claims/Target.md" && link.kind === "semantic"), false);
 });
 
+test("native 2.3 wikilink targets yield to flat Obsidian relationship corrections", () => {
+  const original = note
+    .replace("019b2d14-4230-7db7-87d4-7d81cfaec932", "019b2d14-4230-7db7-87d4-7d81cfaec933")
+    .replace('title: "A governed hypothesis"', 'title: "Original"')
+    .replace(/relationships:[\s\S]*?evidence:/, "relationships:\n  related_to: []\nevidence:");
+  const target = note
+    .replace("019b2d14-4230-7db7-87d4-7d81cfaec932", "019b2d14-4230-7db7-87d4-7d81cfaec934")
+    .replace('title: "A governed hypothesis"', 'title: "Target"')
+    .replace(/relationships:[\s\S]*?evidence:/, "relationships:\n  related_to: []\nevidence:");
+  const corrected = note.replace("labels:\n", "related_to:\n  - \"[[Target]]\"\nlabels:\n");
+  const graph = buildGraph([
+    { relativePath: "Claims/Source.md", extension: "md", content: corrected },
+    { relativePath: "Claims/Original.md", extension: "md", content: original },
+    { relativePath: "Claims/Target.md", extension: "md", content: target },
+  ], ["Claims"]);
+  const links = graph.links.filter((link) => link.source === "file:Claims/Source.md" && link.target === "file:Claims/Target.md" && link.kind === "semantic");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].label, "related_to");
+  assert.equal(graph.links.some((link) => link.source === "file:Claims/Source.md" && link.target === "file:Claims/Original.md" && link.kind === "semantic"), false);
+  const projection = graph.nodes.find((node) => node.path === "Claims/Source.md").okf.projection;
+  assert.ok(!projection.diagnostics.some((diagnostic) => diagnostic.code === "OKF-RELATIONSHIP-001" && diagnostic.field === "relationships.related_to"));
+});
+
 test("duplicate UID reuse fails closed and is excluded from the UID index", () => {
   const other = note.replace("Body remains source content.", "Conflicting bytes.");
   const graph = buildGraph([
@@ -162,6 +185,39 @@ test("duplicate UID reuse fails closed and is excluded from the UID index", () =
   }
 });
 
+test("flat editable 2.3 profile validates and projects governance from flat properties", () => {
+  const flat23 = `---
+okf_version: "2.3"
+uid: "019b2d14-4230-7db7-87d4-7d81cfaec935"
+title: "Flat editable"
+type: "semantic"
+created_at: "2026-07-01T00:00:00Z"
+updated_at: "2026-07-02T00:00:00Z"
+description: "Obsidian-editable 2.3 note."
+epistemic_state: "fact"
+sensitivity: "restricted"
+authorship_origin: "authored"
+tags:
+  - "research"
+supersedes: []
+superseded_by: []
+forked_from: []
+forked_to: []
+related_to:
+  - "[[Neighbor]]"
+---
+Body.`;
+  const projection = buildOkf23Projection(flat23, "Flat23.md", "f:1", null);
+  assert.ok(projection);
+  assert.equal(projection.mode, "strict-v2.3");
+  assert.ok(!projection.diagnostics.some((d) => d.code === "OKF-SCHEMA-004"), "no missing-block schema errors for the flat profile");
+  assert.equal(projection.authored.epistemicState, "reported");
+  assert.equal(projection.effective.sensitivity, "restricted");
+  assert.equal(projection.authored.assertionOrigin, "authored");
+  assert.deepEqual(projection.authored.tags, ["research"]);
+  assert.equal(projection.extensions.authorship_origin, undefined, "flat governance keys are not extensions");
+});
+
 test("missing sensitivity defaults to internal and invalid sensitivity fails closed", () => {
   const missing = note.replace(/sensitivity:[\s\S]*?provenance:/, "provenance:");
   const p1 = buildOkf23Projection(missing, "Missing.md", "m:1", null);
@@ -170,4 +226,8 @@ test("missing sensitivity defaults to internal and invalid sensitivity fails clo
   const invalid = note.replace('level: "restricted"', 'level: "unclassified"');
   const p2 = buildOkf23Projection(invalid, "Invalid.md", "i:1", null);
   assert.equal(p2.effective.sensitivity, "secret");
+
+  const flat = `---\nokf_version: "2.2"\nuid: "11111111-1111-4111-8111-111111111111"\ntype: "semantic"\ntitle: "Flat"\ntimestamp: "2026-07-01T00:00:00Z"\nepistemic_state: "fact"\nsensitivity: "typo"\n---\nBody`;
+  const graph = buildGraph([{ relativePath: "Flat.md", extension: "md", content: flat }], []);
+  assert.equal(graph.nodes.find((node) => node.path === "Flat.md").okf.projection.effective.sensitivity, "secret");
 });

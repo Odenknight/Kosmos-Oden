@@ -40,6 +40,28 @@ const canonicalNote = (title = "Current Guide", body = "# Current Guide\n\nBody 
   body,
 ].join("\n");
 
+const editable22 = `---
+okf_version: "2.2"
+uid: "22345678-1234-4123-8123-123456789abc"
+type: "semantic"
+title: "Editable Guide"
+description: "Old description"
+timestamp: "2026-07-15T12:00:00.000Z"
+epistemic_state: "hypothesis"
+scope: "node"
+scope_id: "22345678-1234-4123-8123-123456789abc"
+sensitivity: "internal"
+tags: [existing]
+supersedes: []
+superseded_by: []
+forked_from: []
+forked_to: []
+---
+# Editable Guide
+
+Human body.
+`;
+
 const suggestion = (field, value, confidence = 0.8) => ({
   field, value, confidence, reason: `Reviewed evidence for ${field}`,
   evidenceBlockIds: [1], source: "deterministic",
@@ -135,8 +157,8 @@ test("governed apply plan binds reviewed edits and safely merges metadata withou
   assert.match(proposed, /type: "procedural"/);
   assert.match(proposed, /# preserve this human comment/);
   assert.match(proposed, /  - "existing"\n  - "new-tag"/);
-  assert.match(proposed, /supersedes:\n    -\n      target: "\[\[Old Guide\]\]"\n      origin: "authored"/);
-  assert.match(proposed, /related_to:\n    -\n      target: "\[\[Project Hub\]\]"\n      origin: "authored"/);
+  assert.match(proposed, /supersedes:\n  - "\[\[Old Guide\]\]"/);
+  assert.match(proposed, /related_to:\n  - "\[\[Project Hub\]\]"/);
   assert.equal(proposed.slice(proposed.indexOf("---\n# Current Guide") + 4), content.slice(content.indexOf("---\n# Current Guide") + 4));
   const persisted = JSON.stringify(publicOkfEnrichmentApplyPlan(plan));
   assert.doesNotMatch(persisted, /Body bytes stay exactly the same|originalContent|proposedContent/);
@@ -152,6 +174,21 @@ test("apply plan verification detects decision tampering", async () => {
   assert.equal(await verifyOkfEnrichmentApplyPlan(plan), true);
   plan.entries[0].decisions[0].finalSuggestion.value = "Tampered after preview";
   assert.equal(await verifyOkfEnrichmentApplyPlan(plan), false);
+});
+
+test("reviewed labels and links stay flat and human-editable on OKF+ 2.2 notes", async () => {
+  const proposals = [suggestion("tags", ["selected-label"]), suggestion("related_to", "[[Project Hub]]")];
+  const plan = await createOkfEnrichmentApplyPlan([{
+    path: "Editable Guide.md", proposalId: "editable-22", expectedNoteHash: await sha256Text(editable22), content: editable22,
+    decisions: proposals.map((item, index) => accept(index, item)),
+  }], { resolveRelationship: async (_source, target) => target === "Project Hub" ? "Project Hub.md" : null });
+  assert.equal(plan.totals.ready, 1);
+  const proposed = plan.entries[0].proposedContent;
+  assert.match(proposed, /okf_version: "2\.2"/);
+  assert.match(proposed, /tags:\n  - "existing"\n  - "selected-label"/);
+  assert.match(proposed, /related_to:\n  - "\[\[Project Hub\]\]"/);
+  assert.doesNotMatch(proposed, /authorship:|authorization:|labels:/);
+  assert.ok(proposed.endsWith("# Editable Guide\n\nHuman body.\n"));
 });
 
 test("changed sources, unresolved/self relationships, and conflicting scalars are blocked", async () => {

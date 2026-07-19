@@ -18,16 +18,19 @@ Kosmos. Google's current primary specification is
 
 ## Workflow and warnings
 
-The 0.6.5 workflow offers two explicit modes:
+The beta.12 workflow offers three explicit modes:
 
-- **Scan for OKF+ 2.3** leaves native 2.3, conforming Google OKF notes, and
-  reserved `index.md`/`log.md` documents unchanged while proposing native 2.3
-  for valid 2.2 compatibility notes and ordinary safe candidates.
-- **Convert all to OKF+ 2.3** proposes native 2.3 for every mechanically
-  recoverable note, including Google OKF, reserved documents, and flat legacy
-  frontmatter.
+- **Scan and repair** leaves valid editable 2.2, genuinely authored native 2.3,
+  conforming Google OKF notes, and reserved `index.md`/`log.md` documents
+  unchanged. It proposes a flat 2.2 repair only for notes carrying beta.10's
+  deterministic-migration marker.
+- **Convert all to editable 2.2** also proposes compact flat metadata for every
+  mechanically recoverable ordinary, Google OKF, reserved, or legacy note.
   It is an override of recoverable values, not an instruction to guess through
   ambiguity or identity conflicts.
+- **Convert all to native 2.3** proposes native nested OKF+ 2.3 metadata for
+  mechanically recoverable notes while preserving ordinary Obsidian `tags` and
+  flat wikilink relationship fields as editable overlays.
 
 1. Make a separate, restorable backup or snapshot. Cloud sync is not a backup:
    it can propagate unwanted edits and deletions.
@@ -53,27 +56,28 @@ vault and may be synchronized with it. Keep an external snapshot as well.
 | Result | Action |
 |---|---|
 | Native OKF+ 2.3 | Leave unchanged |
-| Valid OKF+ 2.2 compatibility note | Propose canonical nested OKF+ 2.3 |
+| Valid OKF+ 2.2 note | Leave unchanged as the human-editable authoring format |
+| Beta.10 deterministic-migration 2.3 note | Propose a compact flat 2.2 repair |
 | Google OKF 0.1 draft | Leave unchanged |
 | Google `index.md` / `log.md` | Treat as reserved; leave unchanged |
-| Safe mechanical candidate | Propose native OKF+ 2.3 in the dry run |
+| Safe mechanical candidate | Propose editable OKF+ 2.2 in the dry run |
 | Ambiguous or conflicting | Block and report for human review |
 
-In convert-all mode, the two Google rows become proposed v2.3 changes when
+In convert-all mode, the two Google rows become proposed flat 2.2 changes when
 their frontmatter is mechanically recoverable. Invalid legacy version, UID,
 type, timestamp, epistemic state, scope, and sensitivity values are replaced
 with conservative values. Every original overridden value is retained in the
 hash-bound plan's `salvage` records and in the byte-exact backup.
 
-Legacy `id` is never emitted as governed v2.3 metadata: a valid lowercase
+Legacy `id` is never emitted as governed metadata: a valid lowercase
 UUIDv4 `id` is migrated to `uid`; `id: unknown` or another invalid value is
 salvaged and replaced with a newly generated UUIDv4.
 
-Blocking conditions in all modes include unterminated frontmatter, duplicate
-keys, nested or unsupported YAML, unsafe lineage or relationship serialization,
-and duplicate UIDs. Safe scan also blocks invalid explicit governance values;
-upgrade-all may replace the recoverable flat values listed above but cannot
-force through cases whose meaning or identity would have to be guessed.
+Blocking conditions include unterminated frontmatter, unsupported YAML, unsafe
+lineage or relationship serialization, and duplicate UIDs. The only duplicate
+keys repaired automatically are the duplicate top-level `created_at` and
+`updated_at` pairs written by beta.10, and only when the deterministic-migration
+marker is present. Other duplicates remain blocked.
 
 ## Confidence and manual review
 
@@ -93,20 +97,17 @@ write plan.
 
 ## Conservative defaults
 
-For a note without a safe existing value, onboarding emits:
+For a note without a safe existing value, onboarding emits compact Properties:
 
-- `okf_version: "2.3"`;
+- `okf_version: "2.2"`;
 - a cryptographically generated, lowercase UUIDv4 `uid`;
 - `type: "semantic"`;
 - the filename stem as `title`;
 - a transparent title-based `description`;
-- file creation time (then modification/onboarding time fallback) as UTC
-  `created_at` and `updated_at`;
-- nested authored `authorship`, `epistemic`, and `sensitivity` blocks;
-- nested provenance, relationships, evidence, review, assessment,
-  authorization, and origin-separated label blocks;
-- preserved/deduplicated source tags, safe existing typed relationships, human
-  comments, and unknown parseable Obsidian fields.
+- file creation time (then modification/onboarding fallback) as UTC `timestamp`;
+- flat `epistemic_state`, `scope`, `scope_id`, and `sensitivity` values;
+- user-selectable `tags` and flat wikilink lists for lineage/relationships; and
+- preserved human comments and unknown parseable Obsidian fields.
 
 These defaults establish a structurally valid, narrow, non-authoritative
 starting point. They are not an assertion that a model inspected or understood
@@ -143,8 +144,8 @@ MCP connector remains separate and does not grant a model write authority over
 this migration.
 
 The enrichment action is a re-scan, not a one-time migration stage. Every time
-**Scan OKF+ 2.3 notes** runs, it reads the current eligible native 2.3 notes
-again. Already-converted notes are included. Unchanged notes may produce
+**Scan labels and links** runs, it reads current eligible editable 2.2 and
+valid native 2.3 notes again. Unchanged notes may produce
 the same proposal, and duplicate queue records are suppressed by proposal ID.
 
 OKF processing can exclude custom glob-style paths, and an opt-in developer

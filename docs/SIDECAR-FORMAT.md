@@ -12,7 +12,7 @@ Reserved sidecar locations are:
 .okf/cache/
 ```
 
-Beta.10 assessments and validation are in-memory read projections. REST and MCP
+Beta.11 assessments and validation are in-memory read projections. REST and MCP
 never write these paths. Existing migration and enrichment artifacts are
 written only by explicit user commands through their existing hash-bound and
 backup-protected workflows.

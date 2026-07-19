@@ -170,14 +170,16 @@ export class OkfMigrationPreviewModal extends Modal {
     const { contentEl, plan } = this;
     contentEl.empty();
     const upgradeAll = plan.mode === "upgrade-all";
-    contentEl.createEl("h2", { text: upgradeAll ? "Convert recoverable notes to native OKF+ 2.3 — preview" : "Scan notes for native OKF+ 2.3 formatting — preview" });
+    const convertTo23 = plan.mode === "convert-to-23";
+    contentEl.createEl("h2", { text: convertTo23 ? "Convert recoverable notes to flat editable OKF+ 2.3 — preview" : upgradeAll ? "Convert recoverable notes to editable OKF+ 2.2 — preview" : "Repair human-editable OKF+ metadata — preview" });
     contentEl.createEl("p", { text: `Scanned ${plan.totals.notes} notes. This dry run proposes ${plan.totals.changes} note changes; nothing has been changed yet.` });
 
     const summary = contentEl.createEl("ul");
+    summary.createEl("li", { text: `${plan.totals["okf-plus-2.2"]} already use human-editable OKF+ 2.2 Properties` });
     summary.createEl("li", { text: `${plan.totals["okf-plus-2.3"]} already conform to native OKF+ 2.3` });
     summary.createEl("li", { text: `${plan.totals["google-okf-0.1"]} conform to Google's OKF 0.1 draft${upgradeAll ? "" : " and will be left unchanged"}` });
-    summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files${upgradeAll ? " remain outside the recoverable set" : " will be left unchanged"}` });
-    summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely converted to native OKF+ 2.3` });
+    summary.createEl("li", { text: `${plan.totals["google-reserved"]} reserved index.md/log.md files${upgradeAll ? " are included when mechanically recoverable" : " will be left unchanged"}` });
+    summary.createEl("li", { text: `${plan.totals["needs-okf-plus"]} can be safely repaired or converted to ${convertTo23 ? "flat editable OKF+ 2.3" : "editable OKF+ 2.2"}` });
     summary.createEl("li", { text: `${plan.totals.blocked} need manual review and will not be changed` });
     summary.createEl("li", { text: `${this.excluded.length} excluded by OKF processing rules` });
     if (this.excluded.length) {
@@ -188,9 +190,9 @@ export class OkfMigrationPreviewModal extends Modal {
     }
 
     warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .okf/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
-    warningBox(contentEl, "The OKF+ 2.3 conversion is deterministic; model enrichment is a separate re-scan.", "This screen does not call any model or send note content anywhere. It creates canonical nested OKF+ 2.3 metadata using conservative defaults, preserves source Markdown tags separately from governed labels, and leaves already-valid native 2.3 notes unchanged. Optional model proposals are review-only and never become authored data automatically.");
+    warningBox(contentEl, "Repair and conversion are deterministic; model enrichment is a separate re-scan.", convertTo23 ? "This screen does not call any model or send note content anywhere. Editable 2.3 output keeps every property flat — scalars plus quoted-wikilink lists — so Obsidian Properties, humans, and agents can edit tags and relationships without touching nested YAML. No nested governance blocks are written into notes." : "This screen does not call any model or send note content anywhere. It restores flat Obsidian Properties for tags and relationship wikilinks. Only notes carrying the beta.10 deterministic-migration marker are flattened automatically; genuinely authored native 2.3 notes remain unchanged.");
     warningBox(contentEl, "Review sensitivity after migration.", "The default label is internal; it is not a content-based privacy classification. Review notes that may contain confidential data or protected health information before enabling cloud agents or raising connector access. Existing invalid governance values, duplicate UIDs, duplicate keys, and nested/ambiguous YAML are blocked instead of overwritten.");
-    if (upgradeAll) warningBox(contentEl, "Convert-all is a governed override, not a force switch.", "Recoverable legacy and 2.2 compatibility values are mapped to conservative native 2.3 structures and their overridden originals are retained in the hash-bound migration plan. Duplicate keys, ambiguous YAML, unsafe relationship targets, and duplicate UIDs remain blocked. Confidence is a deterministic migration-safety score used to order review; it is never epistemic truth or approval authority.");
+    if (upgradeAll || convertTo23) warningBox(contentEl, "Convert-all is a governed override, not a force switch.", convertTo23 ? "Recoverable legacy values are mapped to conservative, flat editable OKF+ 2.3 Properties and their overridden originals are retained in the hash-bound migration plan. Unsafe relationship targets, ambiguous YAML, and duplicate UIDs remain blocked. Confidence measures mechanical migration safety only." : "Recoverable legacy values are mapped to conservative, flat OKF+ 2.2 Properties and their overridden originals are retained in the hash-bound migration plan. Unsafe relationship targets, ambiguous YAML, and duplicate UIDs remain blocked. Confidence measures mechanical migration safety only.");
 
     contentEl.createEl("p", { text: `Plan SHA-256: ${plan.planHash}`, cls: "setting-item-description" });
     contentEl.createEl("p", { text: "When applied, the human-authored Markdown body remains byte-for-byte unchanged. Only frontmatter is added or normalized, and a note edited after this scan is skipped.", cls: "setting-item-description" });
@@ -223,12 +225,12 @@ export class OkfMigrationPreviewModal extends Modal {
       return;
     }
 
-    let backupConfirmed = false, policyConfirmed = false, overrideConfirmed = !upgradeAll;
+    let backupConfirmed = false, policyConfirmed = false, overrideConfirmed = !(upgradeAll || convertTo23);
     let applyButton: HTMLButtonElement | null = null;
     const refresh = () => { if (applyButton) applyButton.disabled = !(backupConfirmed && policyConfirmed && overrideConfirmed) || this.applying; };
     confirmation(contentEl, "I have made a separate, restorable backup or snapshot of this vault; I understand that cloud sync alone is not a backup.", (v) => { backupConfirmed = v; refresh(); });
     confirmation(contentEl, "I understand the conservative defaults are not an AI privacy review, and I will review confidential/PHI sensitivity before cloud use.", (v) => { policyConfirmed = v; refresh(); });
-    if (upgradeAll) confirmation(contentEl, "I approve converting recoverable legacy and OKF+ 2.2 compatibility fields to conservative native OKF+ 2.3 structures; original overridden values will remain in the migration plan and byte-exact backup.", (v) => { overrideConfirmed = v; refresh(); });
+    if (upgradeAll || convertTo23) confirmation(contentEl, convertTo23 ? "I approve converting recoverable notes to flat editable OKF+ 2.3; original overridden values will remain in the migration plan and byte-exact backup." : "I approve converting recoverable legacy fields to conservative, human-editable OKF+ 2.2 Properties; original overridden values will remain in the migration plan and byte-exact backup.", (v) => { overrideConfirmed = v; refresh(); });
 
     new Setting(contentEl)
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))

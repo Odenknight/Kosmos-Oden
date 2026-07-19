@@ -2,9 +2,9 @@
 
 ## What this feature does
 
-After structural conversion to native OKF+ 2.3, **Scan OKF+ 2.3 notes
-for enrichment proposals** can create pending suggestions for descriptions,
-note types, tags, and explicitly evidenced relationships. It never changes
+For editable OKF+ 2.2 and valid native 2.3 notes, **Scan labels and links** can
+create pending suggestions for descriptions, note types, user-selectable
+Obsidian tags, and explicitly evidenced relationship wikilinks. It never changes
 note frontmatter automatically. The proposal preview may be saved to
 `.okf/review-queue.jsonl`, or a human can explicitly review each suggestion
 and build a governed apply plan.
@@ -14,9 +14,8 @@ on-device, private-IP LAN, or cloud LLM pass is optional and disabled by
 default.
 
 This is explicitly a **scan / re-scan** operation. Migration does not mark a
-2.3 note as permanently processed. Each run reads every currently eligible
-native OKF+ 2.3 note within the configured caps, including notes converted in an
-earlier deterministic migration. Unchanged notes can produce identical
+note as permanently processed. Each run reads every currently eligible OKF+
+2.2 or valid native 2.3 note within the configured caps. Unchanged notes can produce identical
 proposals; duplicate JSONL queue records are suppressed by content-derived
 proposal ID.
 
@@ -143,9 +142,10 @@ relationship is true.
 Immediately before each write, the plugin verifies the plan hash and its
 in-memory content hashes, re-reads the live note, and skips it if even one byte
 has changed. It then creates a byte-exact copy under
-`.okf/backup/<run-id>/` and uses Obsidian's guarded note processor. The
-canonical frontmatter can be normalized, but the Markdown body is preserved
-byte-for-byte. The decision plan and result audit are stored under
+`.okf/backup/<run-id>/` and uses Obsidian's guarded note processor. Flat 2.2
+Properties remain flat and directly editable; native 2.3 notes receive
+flat compatibility Properties for accepted relationship corrections. The
+Markdown body is preserved byte-for-byte. The decision plan and result audit are stored under
 `.okf/enrichment/<run-id>/`.
 
 ## Blocked migration notes

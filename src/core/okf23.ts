@@ -53,7 +53,7 @@ const CORE_FIELDS = new Set([
   "evidence", "lineage", "review", "assessment", "authorization", "labels",
 ]);
 const LEGACY_FIELDS = new Set([
-  "description", "timestamp", "epistemic_state", "scope", "scope_id", "resource",
+  "description", "timestamp", "epistemic_state", "authorship_origin", "scope", "scope_id", "resource",
   "tags", "aliases", "supersedes", "superseded_by", "supersededBy",
   "forked_from", "forked_to", "forked_by", "depends_on", "derives_from",
   "contradicts", "refines", "implements", "blocks", "documents", "cites", "related_to",
@@ -235,9 +235,16 @@ const clamp = (n: number): number => Math.max(0, Math.min(1, n));
 const rounded = (n: number | null): number | null => n == null ? null : Math.round(clamp(n) * 10_000) / 10_000;
 
 function relationTarget(item: unknown): string | null {
-  if (typeof item === "string") return item.trim() || null;
+  const normalize = (value: string | null): string | null => {
+    if (!value) return null;
+    const raw = value.trim();
+    const wiki = /^\[\[([^\]\r\n]+)\]\]$/.exec(raw);
+    const target = (wiki?.[1] ?? raw).split("|")[0].split("#")[0].trim();
+    return target || null;
+  };
+  if (typeof item === "string") return normalize(item);
   const obj = record(item);
-  return text(obj.target) ?? text(obj.target_uid) ?? text(obj.uid);
+  return normalize(text(obj.target) ?? text(obj.target_uid) ?? text(obj.uid));
 }
 
 function relationOrigin(item: unknown, fallback: OkfOrigin = "authored"): OkfOrigin {
@@ -256,6 +263,30 @@ function splitRelations(source: Record<string, unknown>, origins: Record<OkfOrig
       (origins[origin].relationships[type] ??= []).push(item);
     }
   }
+}
+
+function appendAuthoredRelationships(target: OkfOriginProjection, type: string, values: string[]): void {
+  if (!values.length) return;
+  const existing = target.relationships[type] ?? [];
+  const seen = new Set(existing.map(relationTarget).filter((value): value is string => Boolean(value)));
+  for (const value of values) {
+    const normalized = relationTarget(value);
+    if (normalized && !seen.has(normalized)) { existing.push(normalized); seen.add(normalized); }
+  }
+  target.relationships[type] = existing;
+}
+
+function replaceAuthoredRelationships(target: OkfOriginProjection, type: string, values: string[]): void {
+  const normalized = [...new Set(values.map(relationTarget).filter((value): value is string => Boolean(value)))];
+  if (normalized.length) target.relationships[type] = normalized;
+  else delete target.relationships[type];
+}
+
+function compatibleEpistemicState(value: string | null): string | null {
+  if (value === "fact") return "reported";
+  if (value === "verified_inference") return "inferred";
+  if (value === "deprecated") return "superseded";
+  return value;
 }
 
 function splitLabels(source: Record<string, unknown>, origins: Record<OkfOrigin, OkfOriginProjection>): void {
@@ -426,14 +457,21 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
   authored.createdAt = text(data.created_at) ?? legacy?.timestamp ?? null;
   authored.updatedAt = text(data.updated_at);
   authored.tags = list(data.tags).filter((value): value is string => typeof value === "string");
-  authored.authorship = record(data.authorship);
-  const declaredOrigin = text(record(data.authorship).origin) ?? "unknown";
+  // The flat editable 2.3 profile authors governance essentials as scalar
+  // Obsidian Properties (authorship_origin, epistemic_state, sensitivity);
+  // nested blocks, when present, always win over the flat equivalents.
+  const flatOrigin = text(data.authorship_origin);
+  authored.authorship = Object.keys(record(data.authorship)).length
+    ? record(data.authorship)
+    : flatOrigin ? { origin: flatOrigin } : {};
+  const declaredOrigin = text(record(data.authorship).origin) ?? flatOrigin ?? "unknown";
   authored.assertionOrigin = declaredOrigin;
   const fallbackOrigin: OkfOrigin = declaredOrigin === "derived" || declaredOrigin === "proposed" || declaredOrigin === "approved" ? declaredOrigin : "authored";
   authored.epistemic = record(data.epistemic);
-  authored.epistemicState = text(record(data.epistemic).state) ?? legacy?.epistemicState ?? null;
+  authored.epistemicState = compatibleEpistemicState(text(record(data.epistemic).state) ?? text(data.epistemic_state) ?? legacy?.epistemicState ?? null);
   authored.sensitivityBlock = record(data.sensitivity);
-  authored.sensitivity = (text(record(data.sensitivity).level) ?? legacy?.sensitivity ?? null) as OkfSensitivity | null;
+  const flatSensitivity = typeof data.sensitivity === "string" ? text(data.sensitivity) : null;
+  authored.sensitivity = (text(record(data.sensitivity).level) ?? flatSensitivity ?? legacy?.sensitivity ?? null) as OkfSensitivity | null;
   authored.provenance = record(data.provenance);
   authored.evidence = {};
   authored.lineage = record(data.lineage);
@@ -446,9 +484,22 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
 
   if (version === "2.3") {
     const requiredScalars = ["okf_version", "uid", "title", "type", "created_at"];
-    const requiredBlocks = ["authorship", "epistemic", "sensitivity", "provenance", "relationships", "review", "assessment", "labels"];
     for (const key of requiredScalars) if (!text(data[key])) diagnostics.push(diagnostic("OKF-SCHEMA-004", "error", `Required OKF+ 2.3 field ${key} is missing or empty.`, sourcePath, key));
-    for (const key of requiredBlocks) if (!data[key] || typeof data[key] !== "object" || Array.isArray(data[key])) diagnostics.push(diagnostic("OKF-SCHEMA-004", "error", `Required OKF+ 2.3 block ${key} is missing or invalid.`, sourcePath, key));
+    // Governance blocks are optional in-note: the flat editable profile keeps
+    // them out of frontmatter and the projection supplies in-memory defaults
+    // (spec §2.1 permits derived metadata to live outside the source note).
+    // When a block IS authored it must be a mapping, except sensitivity which
+    // may be a flat scalar level.
+    const optionalBlocks = ["authorship", "epistemic", "provenance", "relationships", "evidence", "lineage", "review", "assessment", "authorization", "labels"];
+    for (const key of optionalBlocks) if (data[key] != null && (typeof data[key] !== "object" || Array.isArray(data[key]))) {
+      diagnostics.push(diagnostic("OKF-SCHEMA-004", "error", `OKF+ 2.3 block ${key} must be a mapping when present.`, sourcePath, key));
+    }
+    if (data.sensitivity != null && typeof data.sensitivity !== "string" && (typeof data.sensitivity !== "object" || Array.isArray(data.sensitivity))) {
+      diagnostics.push(diagnostic("OKF-SCHEMA-004", "error", "OKF+ 2.3 sensitivity must be a flat level or a mapping.", sourcePath, "sensitivity"));
+    }
+    if (!text(record(data.epistemic).state) && !text(data.epistemic_state)) {
+      diagnostics.push(diagnostic("OKF-SCHEMA-004", "error", "OKF+ 2.3 requires an epistemic state (epistemic.state or flat epistemic_state).", sourcePath, "epistemic.state"));
+    }
   }
 
   const assignment = record(data.okf_assignment);
@@ -460,11 +511,18 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
     }
     if (text(record(assignment.output).write_mode) !== "proposal-sidecar-only") diagnostics.push(diagnostic("OKF-AUTHORITY-ROLE-002", "error", "Specialist Reviewer output must be proposal-sidecar-only.", sourcePath, "okf_assignment.output.write_mode"));
   }
-  if (version !== "2.3" && legacy) {
-    for (const [kind, targets] of Object.entries(legacy.relations)) if (targets?.length) authored.relationships[kind] = [...targets];
-    if (legacy.supersedes.length) authored.relationships.supersedes = [...legacy.supersedes];
-    if (legacy.supersededBy.length) authored.relationships.superseded_by = [...legacy.supersededBy];
-    if (legacy.related.length) authored.relationships.related_to = [...legacy.related];
+  // Flat Obsidian Properties remain the human-editable authoring surface even
+  // when a native 2.3 note is present. This makes a tags/relationship edit take
+  // effect on the next incremental vault update without editing nested YAML.
+  if (legacy) {
+    for (const kind of RELATION_TYPES) {
+      const targets = legacy.relations[kind] ?? [];
+      // Presence matters: an explicitly emptied Property removes the authored
+      // nested declaration instead of silently resurrecting it.
+      if (version === "2.3" && Object.prototype.hasOwnProperty.call(data, kind)) replaceAuthoredRelationships(authored, kind, targets);
+      else appendAuthoredRelationships(authored, kind, targets);
+    }
+    if (!Object.prototype.hasOwnProperty.call(data, "related_to")) appendAuthoredRelationships(authored, "related_to", legacy.related);
   }
 
   const uid = text(authored.uid);
@@ -474,7 +532,7 @@ export function buildOkf23Projection(raw: string, sourcePath: string, contentHas
   if (epistemicState && !EPISTEMIC_STATES.has(epistemicState)) diagnostics.push(diagnostic("OKF-EPISTEMIC-002", "error", `Unknown epistemic state: ${epistemicState}.`, sourcePath, "epistemic.state"));
   if (epistemicState === "accepted" && !hasApproval(origins.approved, authored)) diagnostics.push(diagnostic("OKF-EPISTEMIC-004", "warning", "Accepted state lacks an approval or authorization record; acceptance is not treated as verified authority.", sourcePath, "epistemic.state"));
 
-  const rawSensitivity = text(record(data.sensitivity).level) ?? legacy?.sensitivity ?? null;
+  const rawSensitivity = text(record(data.sensitivity).level) ?? flatSensitivity ?? legacy?.sensitivity ?? null;
   let effectiveSensitivity: OkfSensitivity = OKF23_POLICY.sensitivityDefault;
   if (!rawSensitivity) diagnostics.push(diagnostic("OKF-SENSITIVITY-001", "warning", "Sensitivity is missing; effective sensitivity defaults to internal.", sourcePath, "sensitivity.level"));
   else if (SENSITIVITY_LEVELS.includes(rawSensitivity as OkfSensitivity)) effectiveSensitivity = rawSensitivity as OkfSensitivity;

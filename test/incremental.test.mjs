@@ -122,6 +122,27 @@ test("Related footer change retags the link kind", () => {
   assert.equal(semantic.target, "file:Notes/B.md");
 });
 
+test("human edits to flat OKF+ labels and wikilinks update every graph projection incrementally", () => {
+  const idx = new KosmosIndex();
+  const note = (tags, related) => `---\nokf_version: "2.2"\nuid: "11111111-1111-4111-8111-111111111111"\ntype: "semantic"\ntitle: "Editable"\ndescription: "Human-editable metadata."\ntimestamp: "2026-07-01T00:00:00Z"\nepistemic_state: "hypothesis"\nscope: "node"\nscope_id: "11111111-1111-4111-8111-111111111111"\nsensitivity: "internal"\ntags: [${tags}]\nsupersedes: []\nsuperseded_by: []\nforked_from: []\nforked_to: []\nrelated_to: ["[[${related}]]"]\n---\nBody`;
+  let { graph } = idx.setFiles([
+    N("Editable.md", note("old-label", "B")),
+    N("B.md", "# B"),
+    N("C.md", "# C"),
+  ]);
+  assert.deepEqual(graph.nodes.find((node) => node.id === "file:Editable.md").tags, ["old-label"]);
+  assert.ok(graph.links.some((link) => link.source === "file:Editable.md" && link.target === "file:B.md" && link.kind === "semantic"));
+
+  const update = idx.applyChanges({ changed: [N("Editable.md", note("corrected, selected-label", "C"))] });
+  graph = update.graph;
+  assert.equal(update.delta.reparsed, 1);
+  assert.equal(update.delta.topologyChanged, true);
+  assert.ok(update.delta.changedNodes.includes("file:Editable.md"));
+  assert.deepEqual(graph.nodes.find((node) => node.id === "file:Editable.md").tags, ["corrected", "selected-label"]);
+  assert.ok(graph.links.some((link) => link.source === "file:Editable.md" && link.target === "file:C.md" && link.kind === "semantic"));
+  assert.ok(!graph.links.some((link) => link.source === "file:Editable.md" && link.target === "file:B.md" && link.kind === "semantic"));
+});
+
 test("structural threshold reports full rebuild for bulk changes (§10.2)", () => {
   const idx = new KosmosIndex();
   const many = [];

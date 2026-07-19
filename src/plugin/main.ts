@@ -329,14 +329,19 @@ export default class VaultKosmosPlugin extends Plugin {
     this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
     this.addCommand({
       id: "mark-notes-okf-plus",
-      name: "Scan for native OKF+ 2.3 formatting (back up and preview)",
+      name: "Scan and repair human-editable OKF+ formatting (back up and preview)",
       callback: () => void this.markNotesInOkf(),
     });
-    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Re-scan native OKF+ 2.3 notes for governed proposals", callback: () => void this.proposeOkfEnrichment() });
+    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Re-scan editable OKF+ notes for label and relationship proposals", callback: () => void this.proposeOkfEnrichment() });
     this.addCommand({
       id: "upgrade-all-notes-okf-plus-2-2",
-      name: "Convert recoverable notes to native OKF+ 2.3 (preview first)",
+      name: "Convert recoverable notes to editable OKF+ 2.2 (preview first)",
       callback: () => void this.markNotesInOkf("upgrade-all"),
+    });
+    this.addCommand({
+      id: "upgrade-all-notes-okf-plus-2-3",
+      name: "Convert recoverable notes to native OKF+ 2.3 (preview first)",
+      callback: () => void this.markNotesInOkf("convert-to-23"),
     });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (OKF+)", callback: () => void this.exportGraphitiEpisodes() });
     this.addCommand({ id: "sync-nextcloud-now", name: "Sync vault with Nextcloud now", callback: () => void this.runNextcloudSync(true) });
