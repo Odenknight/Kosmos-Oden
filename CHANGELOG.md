@@ -7,6 +7,23 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-07-19 (Kosmos-Oden Lite)
+
+The 0.5.x line graduates into its own product: **Kosmos-Oden Lite (Vault
+Kosmos)** — the classic cosmos view for everyday vaults, feature-complete and
+maintained for bug fixes. The viewer deliberately keeps the **Vault Kosmos**
+name in tribute to the original project that inspired this one. New feature
+development continues in the main Kosmos-Oden repository.
+
+### Added since 0.5.7
+- Configurable auto-timestamps: optional device-local timezone (ISO 8601 with
+  explicit numeric offset; default remains UTC Zulu) and configurable
+  created/updated key names (canonical OKF+ keys by default).
+- Live vault-connectivity light: the viewer's VAULT pill turns green when the
+  vault files are readable and red when they are not (10-second read probe —
+  no network stack required).
+- Settings tab renamed **GKOS Note Formatting** (the OKF+ explanation remains).
+
 ## [0.5.7] — 2026-07-19 (GKOS-Engine-Lite — final feature update for the 0.5.x line)
 
 This release brings the 0.5.x line to feature parity with 0.6.5 under the

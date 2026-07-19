@@ -70,7 +70,7 @@ class KosmosView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf) { super(leaf); }
   getViewType(): string { return VIEW_TYPE; }
-  getDisplayText(): string { return "Kosmos-Oden"; }
+  getDisplayText(): string { return "Vault Kosmos"; }
   getIcon(): string { return "orbit"; }
 
   async onOpen(): Promise<void> {
@@ -78,7 +78,7 @@ class KosmosView extends ItemView {
     root.empty();
     root.addClass("vault-kosmos-root");
     const frame = document.createElement("iframe");
-    frame.setAttribute("title", "Kosmos-Oden");
+    frame.setAttribute("title", "Vault Kosmos");
     // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
     // context. It needs scripts (WebGL/Three.js), pointer lock (fly mode) and
     // downloads (exports); it does NOT get allow-same-origin, so it cannot reach
