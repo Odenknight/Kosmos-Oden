@@ -37,7 +37,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 6;
+export const AGENT_SETTINGS_SCHEMA = 7;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -56,6 +56,12 @@ export interface AgentSettings {
   agentAllowQueryToken: boolean;
   /** Maintain portable ISO-8601 UTC created_at/updated_at note fields. */
   noteTimestampsEnabled: boolean;
+  /** false (default) = UTC Zulu; true = local ISO-8601 with a numeric ±HH:MM offset. */
+  timestampUseLocalTimezone: boolean;
+  /** Frontmatter key for the creation stamp (default "created_at"). */
+  timestampCreatedKey: string;
+  /** Frontmatter key for the modification stamp (default "updated_at"). */
+  timestampUpdatedKey: string;
   /** Graphiti 0.29 combined extraction is opt-in until benchmarked. */
   graphitiCombinedExtraction: boolean;
   /** Add deterministic saga hints to exported episodes. */
@@ -89,6 +95,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
   noteTimestampsEnabled: true,
+  timestampUseLocalTimezone: false,
+  timestampCreatedKey: "created_at",
+  timestampUpdatedKey: "updated_at",
   graphitiCombinedExtraction: false,
   graphitiSagaMapping: false,
   okfEnrichmentProvider: "none",
@@ -124,6 +133,9 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   s.okfExcludePatterns = Array.isArray(s.okfExcludePatterns) ? s.okfExcludePatterns.map(String).slice(0, 200) : [];
   s.okfDeveloperExclusions = s.okfDeveloperExclusions === true;
   s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
+  s.timestampUseLocalTimezone = s.timestampUseLocalTimezone === true;
+  s.timestampCreatedKey = typeof s.timestampCreatedKey === "string" && s.timestampCreatedKey.trim() ? s.timestampCreatedKey.trim() : "created_at";
+  s.timestampUpdatedKey = typeof s.timestampUpdatedKey === "string" && s.timestampUpdatedKey.trim() ? s.timestampUpdatedKey.trim() : "updated_at";
   s.graphitiCombinedExtraction = s.graphitiCombinedExtraction === true;
   s.graphitiSagaMapping = s.graphitiSagaMapping === true;
   s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));

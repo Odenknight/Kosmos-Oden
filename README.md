@@ -131,7 +131,7 @@ Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
 3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
 
-The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
+The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **GKOS Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
 
 **Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden.
 
@@ -212,7 +212,7 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 
 ## OKF+ note formatting and compatibility onboarding
 
-Use **Settings → Vault Kosmos → OKF+ Note Formatting**, or run the corresponding command-palette audit/upgrade action.
+Use **Settings → Vault Kosmos → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
 The governed writer uses compact **OKF+ 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
 

@@ -233,13 +233,22 @@ export class KosmosSettingTab extends PluginSettingTab {
       .setDesc("Designed as independent replica journals with per-target checkpoints. Disabled until crash-resume, partial failure, conflict fan-out, and deletion propagation are verified across providers.")
       .addButton((b) => b.setButtonText("Safety validation pending").setDisabled(true));
 
-    okfEl.createEl("h2", { text: "OKF+ Note Formatting" });
-    okfEl.createEl("p", { text: "Kosmos-Oden implements the OKF+ v2.3 Validating Projection Profile under GKOS. It preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
-    okfEl.createEl("h3", { text: "Portable note timestamps (UTC/Zulu)" });
-    okfEl.createEl("p", { text: "Maintains created_at and updated_at as ISO 8601 UTC values ending in Z. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .okf files are excluded." });
+    okfEl.createEl("h2", { text: "GKOS Note Formatting" });
+    okfEl.createEl("p", { text: "GKOS note formatting for Kosmos-Oden. It implements the OKF+ v2.3 Validating Projection Profile under GKOS: it preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
+    okfEl.createEl("h3", { text: "Portable note timestamps" });
+    okfEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .okf files are excluded." });
     new Setting(okfEl).setName("Stamp note creation and modification times")
       .setDesc("Enabled by default. New Markdown notes receive both fields; existing notes receive created_at on their next edit if it is absent.")
       .addToggle((t) => t.setValue(s.noteTimestampsEnabled).onChange(async (v) => { s.noteTimestampsEnabled = v; await this.plugin.saveAgentSettings(); }));
+    new Setting(okfEl).setName("Use local time with UTC offset")
+      .setDesc("Off (default) writes UTC/Zulu timestamps ending in Z. On writes ISO 8601 local time with an explicit numeric offset, for example 2026-07-19T14:42:07.000-04:00. Both forms validate as OKF+ 2.2/2.3.")
+      .addToggle((t) => t.setValue(s.timestampUseLocalTimezone).onChange(async (v) => { s.timestampUseLocalTimezone = v; await this.plugin.saveAgentSettings(); }));
+    new Setting(okfEl).setName("Created timestamp key")
+      .setDesc("Frontmatter key for the creation stamp. Leave as created_at for OKF+ compatibility. Custom keys depart from the OKF+ profiles — the stamped values become plain user frontmatter that the OKF projection does not read.")
+      .addText((t) => t.setPlaceholder("created_at").setValue(s.timestampCreatedKey).onChange(async (v) => { s.timestampCreatedKey = v.trim() || "created_at"; await this.plugin.saveAgentSettings(); }));
+    new Setting(okfEl).setName("Updated timestamp key")
+      .setDesc("Frontmatter key for the modification stamp. Leave as updated_at for OKF+ compatibility. Custom keys depart from the OKF+ profiles — the stamped values become plain user frontmatter that the OKF projection does not read.")
+      .addText((t) => t.setPlaceholder("updated_at").setValue(s.timestampUpdatedKey).onChange(async (v) => { s.timestampUpdatedKey = v.trim() || "updated_at"; await this.plugin.saveAgentSettings(); }));
 
     agentEl.createEl("h2", { text: "Agent API (HTTP + MCP)" });
     agentEl.createEl("p", { text: "Read-only access to the sensitivity-filtered Kosmos Governed Context Projection (KGCP) through REST and MCP Streamable HTTP. Localhost-only by default, token-protected, and available on desktop Obsidian." });
@@ -437,7 +446,7 @@ export class KosmosSettingTab extends PluginSettingTab {
   private createSectionTabs(containerEl: HTMLElement): Record<string, HTMLElement> {
     const definitions = [
       { id: "agent-api", label: "Agent API (HTTP + MCP)" },
-      { id: "okf-formatting", label: "OKF+ Note Formatting" },
+      { id: "okf-formatting", label: "GKOS Note Formatting" },
       { id: "quick-connect", label: "Quick Connect MCP" },
       { id: "vault-sync", label: "Connectivity to Sync Vault" },
     ];

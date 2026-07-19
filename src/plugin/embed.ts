@@ -79,6 +79,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
       else if (msg.type === "agent-traversal") app.notifyAgentTraversal((msg.payload as any).paths, (msg.payload as any).tool, (msg.payload as any).agent);
       else if (msg.type === "visibility") app.setHostVisible((msg.payload as any).visible);
+      else if (msg.type === "vault-status") app.setVaultStatus((msg.payload as any).connected);
       return;
     }
     // Backward-compatible path: legacy flat messages (older host builds).
@@ -87,6 +88,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
     else if (raw.type === "kosmos:graph") app.renderGraph(raw.graph, raw.label);
     else if (raw.type === "kosmos:agent" && Array.isArray(raw.paths)) app.notifyAgentTraversal(raw.paths, raw.tool || "", raw.agent);
     else if (raw.type === "kosmos:visible") app.setHostVisible(raw.visible !== false);
+    else if (raw.type === "kosmos:vault-status") app.setVaultStatus(raw.connected === true);
   } catch (e) {
     console.error("Vault Kosmos:", e);
     app.showError("Could not render this vault.");
