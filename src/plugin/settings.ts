@@ -262,7 +262,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const sensitivityLabel = (level: OkfSensitivity) =>
       level.charAt(0).toUpperCase() + level.slice(1) + (level === "secret" ? " (fail-closed default)" : "");
     new Setting(agentEl).setName("Default sensitivity")
-      .setDesc("Effective sensitivity applied to notes that declare none (and have no OKF+ projection) when the network-facing read gate classifies them. Defaults to secret so unlabeled notes fail closed. The engine may only RAISE a note's effective sensitivity above this default, never lower it. Set this before enabling the Agent API.")
+      .setDesc("Fail-closed fallback the network-facing read gate applies to a note that lacks a sensitivity projection. Notes that declare no sensitivity are currently always projected to secret by the engine regardless of this setting; configurable projection defaults arrive with gkos-engine issue #6. Defaults to secret. The engine may raise a note's effective sensitivity, never lower it. Set this before enabling the Agent API.")
       .addDropdown((d) => {
         for (const level of sensitivityLevels) d.addOption(level, sensitivityLabel(level));
         d.setValue(s.defaultSensitivity)
