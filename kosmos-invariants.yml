@@ -17,9 +17,15 @@ security:
   # Query-string token auth is deprecated and off by default; never in LAN mode.
   query_tokens_default_enabled: false
   query_tokens_allowed_in_lan: false
-  # OKF+ sensitivity enforcement: legacy/unlabeled notes are internal;
+  # OKF+ sensitivity enforcement. The read ceiling default stays internal, but a
+  # note that declares NO sensitivity fails closed to the configurable default
+  # (gkos-engine v1.0.6 DIV-002): the plugin ships closed at "secret" so unlabeled
+  # notes are never exposed as an open level through the network-facing read gate.
   # confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
+  # Fail-closed effective sensitivity for unlabeled notes (Default sensitivity
+  # setting). The engine may RAISE effective sensitivity, never lower it.
+  default_unlabeled_sensitivity: secret
   invalid_sensitivity_fails_closed_as: secret
   invalid_v23_sensitivity_fails_closed_as: secret
   # The Agent API is read-only: no write routes exist.

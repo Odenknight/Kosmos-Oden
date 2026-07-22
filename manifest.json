@@ -1,7 +1,7 @@
 {
   "id": "kosmos-oden",
   "name": "Vault Kosmos (Kosmos-Oden)",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "minAppVersion": "1.11.4",
   "description": "A responsive 3D knowledge view with the OKF+ v2.3 Validating Projection API, read-only MCP Agent API, origin-separated Graphiti adapter, and native Nextcloud WebDAV sync.",
   "author": "OdenKnight",

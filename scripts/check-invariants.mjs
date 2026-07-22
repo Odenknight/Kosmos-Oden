@@ -62,6 +62,8 @@ must(/agentBindMode:\s*"localhost"/.test(server), "default bind mode must be loc
 must(/agentRequireToken:\s*true/.test(server), "default agentRequireToken must be true");
 must(/agentAllowQueryToken:\s*false/.test(server), "default agentAllowQueryToken must be false (query tokens off by default)");
 must(new RegExp(`agentSensitivityCeiling:\\s*"${sec.default_agent_sensitivity_ceiling}"`).test(server), "default agent sensitivity ceiling must match policy");
+must(sec.default_unlabeled_sensitivity === "secret", "policy: default_unlabeled_sensitivity must be secret (fail closed)");
+must(/defaultSensitivity:\s*FAIL_CLOSED_SENSITIVITY_DEFAULT/.test(server), "DEFAULT_AGENT_SETTINGS.defaultSensitivity must be the engine fail-closed default (secret)");
 must(server.includes(`"${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
 must(sec.query_tokens_default_enabled === false, "policy: query_tokens_default_enabled must be false");
 must(/lanNeedsAuthButHasNone/.test(server) && /LAN mode requires an auth token/.test(server), "server must refuse to start LAN mode without a token");

@@ -226,7 +226,9 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 
 ## Agent API — let agents query this vault (HTTP + MCP)
 
-Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → toggle **Enable local Agent API**.
+Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
+
+**Default sensitivity (fail closed):** the first control in the Agent API section sets the effective sensitivity applied to notes that declare none. It ships closed at `secret`, so unlabeled notes are never exposed as an open level through the network-facing read gate; you can relax it per deployment before enabling the server. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers it. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
 
 **Connecting an agent (no reimplementation required):**
 1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
