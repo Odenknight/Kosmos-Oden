@@ -1,0 +1,57 @@
+name: Standalone HTML release
+
+# Publishes the self-contained 3D HTML viewer artifacts as a GitHub PRERELEASE
+# for consumption by GKOS Engine Desktop and its wrappers (Odenknight/GKOS-Engine-Lite#4).
+#
+# Trigger on `viewer-v*` tags (distinct from the plugin's exact-version release
+# tags, so this never collides with the Obsidian community-plugin release flow),
+# or manually via workflow_dispatch. Attaches:
+#   - dist/kosmos-embed.html  (plugin iframe page)
+#   - vault-kosmos.html       (standalone viewer, with the sidecar API feed)
+on:
+  push:
+    tags:
+      - "viewer-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  standalone-html:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      # Full build so both HTML artifacts are produced (embed precedes plugin).
+      - run: npm run build
+
+      - name: Confirm the two HTML artifacts exist
+        run: |
+          test -f dist/kosmos-embed.html || { echo "::error::dist/kosmos-embed.html missing"; exit 1; }
+          test -f vault-kosmos.html      || { echo "::error::vault-kosmos.html missing";      exit 1; }
+          ls -la dist/kosmos-embed.html vault-kosmos.html
+
+      - name: One-line provenance note
+        id: prov
+        run: |
+          {
+            echo "note<<EOF"
+            echo "Standalone 3D HTML viewer artifacts built from ${GITHUB_REPOSITORY}@${GITHUB_SHA} (tag ${GITHUB_REF_NAME}). Unsigned. Loopback-only consumption: the viewer reads a live graph only from a local GKOS Engine Desktop sidecar on 127.0.0.1 (read-only, bearer-token)."
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish prerelease with HTML assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/kosmos-embed.html
+            vault-kosmos.html
+          prerelease: true
+          body: ${{ steps.prov.outputs.note }}
