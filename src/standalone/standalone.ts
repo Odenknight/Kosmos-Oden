@@ -29,6 +29,12 @@ import {
   storeHandle,
 } from "./persistence";
 import { createStandaloneUI, downloadFile, type StandaloneUI } from "./ui";
+import {
+  connectToEngine,
+  parseApiFeedParams,
+  probeHealth,
+  type ViewerGraph,
+} from "./api-feed";
 
 const app = createKosmosApp({ autoStart: "wait" });
 // No settings context in this viewer-only surface, so projection options are
@@ -38,6 +44,13 @@ let source: KnowledgeSource | null = null;
 let monitor: DirectoryMonitor | null = null;
 let sourceName = "Vault";
 let connectivityTimer = 0;
+
+/**
+ * Live engine feed state (§ GKOS Engine Desktop sidecar). The bearer token is
+ * held in memory only for this session — it is NEVER written to storage. Set
+ * when a `/graph` fetch from the loopback sidecar succeeds; cleared otherwise.
+ */
+let engine: { api: string; token: string | null } | null = null;
 
 /** Live connectivity dot. Snapshot/demo/graph.json are static data: always green.
  *  A live directory handle is probed by re-checking its read permission. */
@@ -107,6 +120,7 @@ function renderSnapshot(snapshot: DirectorySnapshot, label: string): void {
 }
 
 async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Promise<void> {
+  engine = null; // opening a local folder supersedes any live engine feed
   source = src;
   sourceName = src.name;
   ui.hideStartup();
@@ -160,6 +174,81 @@ function applyDiff(diff: SnapshotDiff, snapshot: DirectorySnapshot): void {
   );
 }
 
+/* ---------------- live engine feed (loopback sidecar) ---------------- */
+
+/** Render a graph fetched live from the sidecar and set live status. */
+function renderEngineGraph(graph: ViewerGraph, health: any): void {
+  monitor?.stop();
+  monitor = null;
+  source = null;
+  sourceName = "GKOS Engine";
+  ui.hideStartup();
+  ui.clearErrors();
+  app.setAttachments(Array.isArray((graph as any).attachments) ? (graph as any).attachments : []);
+  app.renderGraph(graph, sourceName);
+  app.setVaultStatus(true);
+  // `/graph` returns a full KosmosGraph, so statusFromGraph applies as-is; when
+  // an older engine omits stats we fall back to the health doc's notes count.
+  let extra: Record<string, unknown>;
+  try {
+    extra = statusFromGraph(graph as unknown as KosmosGraph);
+  } catch {
+    extra = { source: sourceName, notes: health?.notes_indexed };
+  }
+  ui.setStatus({ mode: "live", monitoring: "unavailable", lastScanAt: Date.now(), ...extra });
+}
+
+/** Poll /health so the connectivity dot reflects a live engine going away. */
+function startEngineConnectivityProbe(): void {
+  stopConnectivityProbe();
+  const probe = async () => {
+    if (!engine) return;
+    const r = await probeHealth(engine, fetch);
+    app.setVaultStatus(r.ok);
+    if (r.ok && r.health && typeof r.health.notes_indexed === "number") {
+      ui.setStatus({ notes: r.health.notes_indexed });
+    }
+  };
+  void probe();
+  connectivityTimer = (setInterval(() => void probe(), 10_000) as unknown) as number;
+}
+
+/** Connect (or reconnect) to the loopback sidecar and render its graph. */
+async function connectEngine(api: string, token: string): Promise<void> {
+  ui.clearErrors();
+  const res = await connectToEngine({ api, token: token || null }, fetch);
+  if (!res.ok || !res.graph) {
+    engine = null;
+    stopConnectivityProbe();
+    app.setVaultStatus(false);
+    // Keep the startup overlay up with the values prefilled so the user can retry.
+    ui.showStartup({
+      canPicker: supportsDirectoryPicker(),
+      canReopen: false,
+      apiPrefill: api,
+      tokenPrefill: token,
+      connectOpen: true,
+    });
+    ui.addError(res.error || "Could not connect to the engine.");
+    return;
+  }
+  engine = { api, token: token || null };
+  renderEngineGraph(res.graph, res.health);
+  startEngineConnectivityProbe();
+}
+
+/** Manual "Refresh Graph" for the live feed (the sidecar has no push channel). */
+async function refreshEngine(): Promise<void> {
+  if (!engine) return;
+  const res = await connectToEngine(engine, fetch);
+  if (!res.ok || !res.graph) {
+    app.setVaultStatus(false);
+    ui.addError(res.error || "Could not refresh the engine graph.");
+    return;
+  }
+  renderEngineGraph(res.graph, res.health);
+}
+
 /* ---------------- UI handlers ---------------- */
 
 const ui: StandaloneUI = createStandaloneUI({
@@ -210,8 +299,11 @@ const ui: StandaloneUI = createStandaloneUI({
       }
     })();
   },
+  onConnectEngine: (api: string, token: string) => { void connectEngine(api, token); },
+  onRefreshEngine: () => { void refreshEngine(); },
   onLoadDemo: () => {
     sourceName = "Demo vault";
+    engine = null;
     ui.hideStartup();
     stopConnectivityProbe();
     app.showDemo();
@@ -275,6 +367,17 @@ async function boot(): Promise<void> {
   // Deterministic visual-regression capture: the renderer boots the demo scene
   // itself, so suppress the startup overlay and leave the canvas clear.
   if (new URLSearchParams(location.search).has("capture")) { ui.hideStartup(); return; }
+
+  // Live engine feed: `?api=http://127.0.0.1:4814&token=<bearer>` auto-connects
+  // to the loopback GKOS Engine Desktop sidecar. On failure connectEngine()
+  // re-shows the startup overlay with the values prefilled and a clear error.
+  const feed = parseApiFeedParams(location.search);
+  if (feed.api) {
+    ui.hideStartup();
+    await connectEngine(feed.api, feed.token || "");
+    return;
+  }
+
   if (await tryLocalGraphJson()) return;
   const canPicker = supportsDirectoryPicker();
   let reopenName: string | undefined;

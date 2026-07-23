@@ -12,7 +12,10 @@ export interface StandaloneUIHandlers {
   onReopenLast: () => void;
   onOpenSnapshot: (files: FileList) => void;
   onLoadDemo: () => void;
+  /** Connect to a loopback GKOS Engine Desktop sidecar (read-only API feed). */
+  onConnectEngine: (api: string, token: string) => void;
   onRescan: () => void;
+  onRefreshEngine: () => void;
   onPauseMonitor: () => void;
   onResumeMonitor: () => void;
   onForgetFolder: () => void;
@@ -22,7 +25,7 @@ export interface StandaloneUIHandlers {
 
 export interface StatusModel {
   source?: string;
-  mode?: "persistent" | "snapshot" | "demo" | "none";
+  mode?: "persistent" | "snapshot" | "demo" | "live" | "none";
   monitoring?: "active" | "paused" | "unavailable";
   lastScanAt?: number;
   notes?: number;
@@ -37,7 +40,14 @@ export interface StatusModel {
 }
 
 export interface StandaloneUI {
-  showStartup(opts: { canPicker: boolean; canReopen: boolean; reopenName?: string }): void;
+  showStartup(opts: {
+    canPicker: boolean;
+    canReopen: boolean;
+    reopenName?: string;
+    apiPrefill?: string;
+    tokenPrefill?: string;
+    connectOpen?: boolean;
+  }): void;
   hideStartup(): void;
   setStatus(model: StatusModel): void;
   setMonitorState(state: "active" | "paused" | "unavailable"): void;
@@ -55,6 +65,12 @@ const CSS = `
 .ko-btn small{display:block;font-weight:400;color:#9fb0c6;font-size:11.5px;margin-top:3px}
 .ko-btn.ko-ghost{border-color:rgba(140,170,210,.18);background:transparent}
 .ko-note{margin-top:14px;color:#5f7088;font-size:11px}
+.ko-connect{margin-top:10px;border-top:1px solid rgba(140,170,210,.14);padding-top:12px}
+.ko-connect label{display:block;font:600 11px/1.4 var(--font,system-ui,sans-serif);color:#9fb0c6;margin:6px 0 3px}
+.ko-connect input{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(140,170,210,.25);background:rgba(3,6,15,.55);color:#e7eefc;font:400 12.5px/1.3 var(--mono,monospace)}
+.ko-connect input:focus{outline:none;border-color:rgba(125,211,252,.6)}
+.ko-connect .ko-connect-go{margin-top:12px}
+.ko-connect .ko-connect-hint{margin:8px 0 0;color:#5f7088;font-size:10.5px;line-height:1.5}
 .ko-status{position:fixed;right:14px;top:64px;z-index:40;width:225px;background:rgba(10,16,30,.72);border:1px solid rgba(140,170,210,.16);border-radius:12px;padding:10px 12px;color:#c9d6ea;font:400 11.5px/1.55 var(--mono,monospace);backdrop-filter:blur(8px)}
 .ko-status h4{margin:0 0 6px;font:700 11px/1 var(--font,system-ui,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:#7dd3fc;display:flex;justify-content:space-between;align-items:center}
 .ko-status h4 button{border:none;background:transparent;color:#5f7088;cursor:pointer;font-size:13px;padding:0}
@@ -95,7 +111,14 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
   overlay.style.display = "none";
   document.body.appendChild(overlay);
 
-  function showStartup(opts: { canPicker: boolean; canReopen: boolean; reopenName?: string }): void {
+  function showStartup(opts: {
+    canPicker: boolean;
+    canReopen: boolean;
+    reopenName?: string;
+    apiPrefill?: string;
+    tokenPrefill?: string;
+    connectOpen?: boolean;
+  }): void {
     overlay.innerHTML = "";
     const card = document.createElement("div");
     card.className = "ko-card";
@@ -124,6 +147,41 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       () => dirInput.click()
     );
     mkBtn("Load Demo", "Explore a built-in demo cosmos — no files needed", true, handlers.onLoadDemo);
+
+    /* ---- connect to local GKOS Engine (read-only API feed) ---- */
+    const connectPrefilled = !!(opts.apiPrefill || opts.tokenPrefill) || !!opts.connectOpen;
+    const connectToggle = mkBtn(
+      "Connect to Local Engine",
+      "Read a live graph from a running GKOS Engine Desktop (loopback only)",
+      true,
+      () => {}
+    );
+    const connect = document.createElement("div");
+    connect.className = "ko-connect";
+    connect.style.display = connectPrefilled ? "block" : "none";
+    connect.innerHTML = `
+      <label for="ko-api">Engine address</label>
+      <input id="ko-api" type="text" spellcheck="false" placeholder="http://127.0.0.1:4814" />
+      <label for="ko-token">Bearer token</label>
+      <input id="ko-token" type="password" spellcheck="false" placeholder="token from GKOS Engine Desktop" />
+      <p class="ko-connect-hint">Loopback only. The token is held in memory for this session and is never stored. Read-only: Kosmos only reads the engine's graph.</p>`;
+    const goBtn = document.createElement("button");
+    goBtn.className = "ko-btn ko-connect-go";
+    goBtn.textContent = "Connect";
+    connect.appendChild(goBtn);
+    card.appendChild(connect);
+    const apiInput = connect.querySelector<HTMLInputElement>("#ko-api")!;
+    const tokenInput = connect.querySelector<HTMLInputElement>("#ko-token")!;
+    apiInput.value = opts.apiPrefill || "http://127.0.0.1:4814";
+    tokenInput.value = opts.tokenPrefill || "";
+    connectToggle.addEventListener("click", () => {
+      connect.style.display = connect.style.display === "none" ? "block" : "none";
+      if (connect.style.display === "block") (tokenInput.value ? goBtn : apiInput).focus();
+    });
+    const doConnect = () => handlers.onConnectEngine(apiInput.value.trim(), tokenInput.value.trim());
+    goBtn.addEventListener("click", doConnect);
+    tokenInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doConnect(); });
+
     const note = document.createElement("p");
     note.className = "ko-note";
     note.textContent = "Read-only by design: Kosmos never renames, edits, moves or deletes your files. Works fully offline.";
@@ -153,6 +211,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     persistent: "Persistent folder access",
     snapshot: "Imported folder snapshot",
     demo: "Demo",
+    live: "Live engine (read-only)",
     none: "—",
   };
   function render(): void {
@@ -178,6 +237,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       <div class="ko-body">
         ${rows.map(([k, v]) => `<div class="ko-row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}
         <div class="ko-actions">
+          ${m.mode === "live" ? `<button data-act="refreshEngine">Refresh Graph</button>` : ""}
           ${showMonitorControls ? `<button data-act="rescan">Rescan Now</button>
           <button data-act="pause">${m.monitoring === "paused" ? "Resume" : "Pause"} Monitoring</button>
           <button data-act="forget">Forget Folder</button>` : ""}
@@ -190,6 +250,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       b.addEventListener("click", () => {
         const act = b.dataset.act;
         if (act === "min") status.classList.toggle("ko-min");
+        else if (act === "refreshEngine") handlers.onRefreshEngine();
         else if (act === "rescan") handlers.onRescan();
         else if (act === "pause") (model.monitoring === "paused" ? handlers.onResumeMonitor : handlers.onPauseMonitor)();
         else if (act === "forget") handlers.onForgetFolder();

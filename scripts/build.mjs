@@ -96,7 +96,10 @@ async function buildNodeBundles() {
   writeFileSync(resolve(root, "dist/kosmos-protocol.mjs"), protocol);
   const nextcloudSync = await bundle("src/plugin/nextcloud-sync-test-entry.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-nextcloud-sync.mjs"), nextcloudSync);
-  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-nextcloud-sync.mjs");
+  // standalone live Agent-API feed glue is DOM-free and unit-testable
+  const apiFeed = await bundle("src/standalone/api-feed.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-api-feed.mjs"), apiFeed);
+  console.log("built dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
 }
 
 const RENDERER_PROVENANCE = JSON.parse(readFileSync(resolve(root, "renderer-provenance.json"), "utf8"));

@@ -7,6 +7,37 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.9] — 2026-07-23
+
+### Added
+
+- **Standalone viewer live Agent-API feed.** The self-contained `vault-kosmos.html`
+  can now read a live graph from a running **GKOS Engine Desktop** sidecar
+  (`kosmos-agent`, loopback `127.0.0.1:4814`). Pass
+  `?api=http://127.0.0.1:4814&token=<bearer>` to auto-connect, or use the new
+  **Connect to Local Engine** form on the startup overlay (prefilled from those
+  query params). The feed is **read-only** (it only issues `GET /health` and
+  `GET /graph`), the bearer **token is held in memory only and never persisted**,
+  and the address is **loopback-only** — a non-loopback `api` is refused before
+  any request is made. A live connectivity dot polls `/health`; a **Refresh Graph**
+  action re-pulls on demand (the sidecar has no push channel). All failure modes
+  (unreachable engine, `401`, unrecognized graph shape, and browser CORS blocks,
+  which surface as an unreachable error) degrade to a clear in-page message with
+  the connect form re-shown for retry. New pure glue in `src/standalone/api-feed.ts`
+  with `node --test` coverage in `test/api-feed.test.mjs`.
+- **`standalone-html-release.yml`** workflow: on `viewer-v*` tags (or manual
+  dispatch) it builds and attaches `dist/kosmos-embed.html` and `vault-kosmos.html`
+  to a GitHub **prerelease** with a one-line provenance note (built from this repo
+  at that commit; unsigned; loopback-only consumption).
+
+### Notes
+
+- The desktop sidecar's HTTP server sends **no CORS headers**, so a browser
+  loading `vault-kosmos.html` from `file://` cannot reach it cross-origin; the
+  desktop shell is expected to load the viewer in a Tauri window configured to
+  allow the loopback request (Odenknight/GKOS-Engine-Lite#4). The feed degrades
+  gracefully everywhere else.
+
 ## [0.6.8] — 2026-07-23
 
 ### Changed
