@@ -21,6 +21,8 @@ const app = createKosmosApp({
     try { window.parent.postMessage(wrap("open-folder", { path }), "*"); } catch (_) { /* sandboxed */ }
   },
 });
+// No settings context in this viewer-only surface, so projection options are
+// omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
 const index = new KosmosIndex();
 
 interface FilesMessage {

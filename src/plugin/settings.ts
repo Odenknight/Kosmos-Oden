@@ -262,11 +262,11 @@ export class KosmosSettingTab extends PluginSettingTab {
     const sensitivityLabel = (level: OkfSensitivity) =>
       level.charAt(0).toUpperCase() + level.slice(1) + (level === "secret" ? " (fail-closed default)" : "");
     new Setting(agentEl).setName("Default sensitivity")
-      .setDesc("Fail-closed fallback the network-facing read gate applies to a note that lacks a sensitivity projection. Notes that declare no sensitivity are currently always projected to secret by the engine regardless of this setting; configurable projection defaults arrive with gkos-engine issue #6. Defaults to secret. The engine may raise a note's effective sensitivity, never lower it. Set this before enabling the Agent API.")
+      .setDesc("Governs the effective sensitivity of notes that declare no sensitivity of their own: this value is threaded through the projection engine (KosmosIndex) so unlabeled notes are actually projected at the level you choose, then filtered by the network-facing read gate. Fail-closed to secret when unset. The engine may raise a note's effective sensitivity above this default (never lower it). Set this before enabling the Agent API; changing it re-projects the vault.")
       .addDropdown((d) => {
         for (const level of sensitivityLevels) d.addOption(level, sensitivityLabel(level));
         d.setValue(s.defaultSensitivity)
-          .onChange(async (v: any) => { s.defaultSensitivity = v; await this.plugin.saveAgentSettings(); });
+          .onChange(async (v: any) => { s.defaultSensitivity = v; await this.plugin.saveAgentSettings(); this.plugin.provider?.reprojectForSensitivity(); });
       });
 
     const status = agentEl.createEl("p");

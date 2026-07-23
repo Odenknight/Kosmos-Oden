@@ -453,6 +453,46 @@ test("OKF+ sensitivity ceiling filters search, note content, graph, and Graphiti
   assert.equal((await server.qNote({ title: "Patient" })).error, "note not found");
 });
 
+test("Default sensitivity threads through the projection: unlabeled notes are governed by the configured level (engine v1.0.7)", async () => {
+  // An OKF+ note that declares NO sensitivity field. Before v1.0.7 its projection
+  // always resolved to "secret" regardless of the setting (the case 0.6.7's
+  // Compatibility note said the dropdown could NOT restore, because the setting
+  // could not reach the projection). Engine v1.0.7 threads Okf23ProjectionOptions
+  // through buildGraph/KosmosIndex so the configured default now governs it.
+  // In production a single setting (settings.defaultSensitivity) drives BOTH the
+  // projection option and the gate fallback, so the test mirrors that.
+  const files = [{ relativePath: "Unlabeled.md", content: '---\nokf_version: "2.3"\nuid: "019b2d14-4230-7db7-87d4-7d81cfaec9aa"\ntitle: "Unlabeled"\ntype: "semantic"\ncreated_at: "2026-07-01T00:00:00Z"\nupdated_at: "2026-07-02T00:00:00Z"\nepistemic_state: "fact"\nauthorship_origin: "authored"\n---\nNo declared sensitivity.' }];
+
+  const providerFor = (graph) => ({
+    getGraph: async () => graph,
+    getNoteContent: async (p) => files.find((f) => f.relativePath === p)?.content || null,
+    vaultName: () => "Wiring",
+    vaultIdentity: () => "wiring-vault",
+    lanAddresses: () => [],
+  });
+
+  // Fail-closed default (options omitted, setting at secret): the note projects
+  // to "secret" and is filtered out at the internal ceiling — as before v0.6.8.
+  const closed = new KosmosAgentServer(http, settings({ agentSensitivityCeiling: "internal", defaultSensitivity: "secret" }), providerFor(buildGraph(files, [])));
+  assert.equal((await closed.qNote({ title: "Unlabeled" })).error, "note not found");
+  assert.deepEqual((await closed.qSearch("")).results.map((n) => n.title), []);
+
+  // Setting threaded through (defaultSensitivity: internal): the SAME note now
+  // projects to internal, clears the internal ceiling, and is readable.
+  const wired = new KosmosAgentServer(http, settings({ agentSensitivityCeiling: "internal", defaultSensitivity: "internal" }), providerFor(buildGraph(files, [], undefined, { defaultSensitivity: "internal" })));
+  assert.equal((await wired.qNote({ title: "Unlabeled" })).title, "Unlabeled");
+  assert.deepEqual((await wired.qSearch("")).results.map((n) => n.title), ["Unlabeled"]);
+
+  // Raise-only: the configured default never lowers a note that declares higher.
+  const declared = [{ relativePath: "Secret.md", content: "---\ntype: semantic\nsensitivity: confidential\ntimestamp: 2026-01-01T00:00:00Z\n---\nbody" }];
+  const raised = new KosmosAgentServer(http, settings({ agentSensitivityCeiling: "internal", defaultSensitivity: "internal" }), {
+    getGraph: async () => buildGraph(declared, [], undefined, { defaultSensitivity: "internal" }),
+    getNoteContent: async () => "body",
+    vaultName: () => "Wiring", vaultIdentity: () => "wiring-vault", lanAddresses: () => [],
+  });
+  assert.equal((await raised.qNote({ title: "Secret" })).error, "note not found");
+});
+
 test("Host validation: loopback forms accepted, foreign/trailing-dot rejected", async () => {
   const s = new KosmosAgentServer(http, settings(), fixtureProvider());
   assert.equal(s.hostAllowed("127.0.0.1:4816"), true);

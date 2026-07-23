@@ -31,6 +31,8 @@ import {
 import { createStandaloneUI, downloadFile, type StandaloneUI } from "./ui";
 
 const app = createKosmosApp({ autoStart: "wait" });
+// No settings context in this viewer-only surface, so projection options are
+// omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
 const index = new KosmosIndex();
 let source: KnowledgeSource | null = null;
 let monitor: DirectoryMonitor | null = null;

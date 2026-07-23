@@ -1,6 +1,6 @@
 {
   "name": "kosmos-oden",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "Kosmos-Oden (Vault Kosmos v0.6.5) — human-editable OKF+ 2.2 Properties with optional Agent-Ready flat 2.3 conversion (GKOS Engine v1.0), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
@@ -36,7 +36,7 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#v1.0.6",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#v1.0.7",
     "three": "0.185.1"
   }
 }
