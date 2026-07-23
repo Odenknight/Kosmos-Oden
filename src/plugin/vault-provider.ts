@@ -10,8 +10,8 @@
 import type { App, TFile } from "obsidian";
 import { KosmosIndex } from "gkos-engine";
 import { stripFrontmatter } from "gkos-engine";
-import type { AgentDataProvider } from "./agent-server";
-import type { KosmosGraph, SourceFile } from "gkos-engine";
+import type { AgentDataProvider, AgentSettings } from "./agent-server";
+import type { KosmosGraph, OkfSensitivity, SourceFile } from "gkos-engine";
 
 declare const require: any;
 
@@ -66,15 +66,23 @@ export function attachmentListFrom(all: Array<{ path: string; extension?: string
 
 export class VaultDataProvider implements AgentDataProvider {
   private app: App;
-  private index = new KosmosIndex();
+  private settings: AgentSettings;
+  private index: KosmosIndex;
+  /** The defaultSensitivity the live index was projected with. When the setting
+   *  diverges from this the index is recreated (projectionOptions are readonly
+   *  on the engine's KosmosIndex) and a full rebuild is forced. */
+  private projectedSensitivity: OkfSensitivity;
   private fullDirty = true;
   private changedPaths = new Set<string>();
   private removedPaths = new Set<string>();
   private renamedPaths: Array<{ from: string; to: string }> = [];
   private building: Promise<KosmosGraph> | null = null;
 
-  constructor(app: App) {
+  constructor(app: App, settings: AgentSettings) {
     this.app = app;
+    this.settings = settings;
+    this.projectedSensitivity = settings.defaultSensitivity;
+    this.index = new KosmosIndex({ defaultSensitivity: settings.defaultSensitivity });
   }
 
   /* ---- change notifications (wired to vault events by the plugin) ---- */
@@ -82,6 +90,18 @@ export class VaultDataProvider implements AgentDataProvider {
   markRemoved(path: string): void { if (!this.fullDirty) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
   markRenamed(from: string, to: string): void { if (!this.fullDirty) { this.renamedPaths.push({ from, to }); this.changedPaths.add(to); } }
   markFullDirty(): void { this.fullDirty = true; this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = []; }
+
+  /** Re-project the whole vault when the Default sensitivity setting changes so
+   *  the engine's projection defaults (which govern unlabeled notes) track the
+   *  configured value. Recreates the index — projectionOptions are fixed at
+   *  construction — and forces a full rebuild on the next getGraph(). Mirrors
+   *  the Lite sibling's markFullDirty()-on-change refresh. No-op when unchanged. */
+  reprojectForSensitivity(): void {
+    if (this.settings.defaultSensitivity === this.projectedSensitivity) return;
+    this.projectedSensitivity = this.settings.defaultSensitivity;
+    this.index = new KosmosIndex({ defaultSensitivity: this.settings.defaultSensitivity });
+    this.markFullDirty();
+  }
 
   private async toSourceFile(f: TFile): Promise<SourceFile> {
     const content = await this.app.vault.cachedRead(f);
@@ -98,6 +118,9 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   async getGraph(): Promise<KosmosGraph> {
+    // Safety net: honor a Default sensitivity change even if the settings UI did
+    // not call reprojectForSensitivity() explicitly (a no-op when unchanged).
+    this.reprojectForSensitivity();
     if (this.building) return this.building;
     const pending = this.fullDirty || this.changedPaths.size || this.removedPaths.size || this.renamedPaths.length;
     if (this.index.graph && !pending) return this.index.graph;

@@ -21,7 +21,10 @@ security:
   # note that declares NO sensitivity fails closed to the configurable default
   # (gkos-engine v1.0.6 DIV-002): the plugin ships closed at "secret" so unlabeled
   # notes are never exposed as an open level through the network-facing read gate.
-  # confidential and PHI require an explicit local policy choice.
+  # As of v0.6.8 (gkos-engine v1.0.7, issue #6) the Default sensitivity setting is
+  # threaded through KosmosIndex, so it governs the effective sensitivity of every
+  # unlabeled note's projection, not just the gate fallback; the shipped default
+  # below is unchanged. confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
   # Fail-closed effective sensitivity for unlabeled notes (Default sensitivity
   # setting). The engine may RAISE effective sensitivity, never lower it.

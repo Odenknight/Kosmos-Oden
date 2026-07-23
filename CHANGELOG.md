@@ -7,6 +7,33 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.8] — 2026-07-23
+
+### Changed
+
+- Adopt **gkos-engine v1.0.7** (Odenknight/GKOS-Engine#7, closing engine issue
+  #6) and **wire the Default sensitivity dropdown through the projection.** The
+  engine now threads `Okf23ProjectionOptions` through `parseSourceFile`,
+  `buildGraph`, and `new KosmosIndex(projectionOptions?)`, so the configured
+  Default sensitivity finally reaches every projection — both the live-vault
+  full load and incremental `applyChanges`. `VaultDataProvider` constructs its
+  `KosmosIndex` with the current setting and re-projects the whole vault when
+  the setting changes. Previously the dropdown could only govern the gate
+  fallback for notes with no projection at all; it now governs the **effective
+  sensitivity of every unlabeled note**.
+
+### Compatibility
+
+- **Restored (agent visibility):** the 0.6.7 Compatibility note stated that the
+  Default sensitivity setting could *not* restore previously visible unlabeled
+  notes, because `KosmosIndex` did not thread projection options (gkos-engine
+  issue #6). That limitation is fixed. **Setting Default sensitivity to
+  `internal` now restores pre-0.6.7 agent visibility for unlabeled notes** —
+  they project to `internal` and clear the default `internal` ceiling, without
+  having to raise the Agent sensitivity ceiling or edit frontmatter. The default
+  remains fail-closed `secret`, and classification stays raise-only (a note that
+  declares a higher sensitivity is never lowered).
+
 ## [0.6.7] — 2026-07-22
 
 ### Changed
