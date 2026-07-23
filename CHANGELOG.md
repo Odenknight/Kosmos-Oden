@@ -7,6 +7,39 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.6.7] — 2026-07-22
+
+### Changed
+
+- Adopt **gkos-engine v1.0.6** (DIV-001/002/003 divergence fixes): the
+  `OKF-TEMPORAL-001` diagnostic for naive wall-clock timestamps, fail-closed
+  sensitivity (a note declaring none now projects to `secret`, not `internal`),
+  and an `unknown` epistemic-state fallback.
+
+### Added
+
+- **Default sensitivity** setting (Agent API section, above the enable toggle):
+  the fail-closed fallback the network-facing MCP/HTTP read gate applies to
+  notes without a sensitivity projection. Defaults to `secret`; vocabulary is
+  the engine's seven levels. Classification is raise-only — the engine may raise
+  a note's effective sensitivity, never lower it. Enabling the Agent API or
+  Nextcloud sync now warns that notes become network-reachable.
+
+### Compatibility
+
+- **Breaking (agent visibility):** with the fail-closed engine, notes that
+  declare **no** sensitivity now resolve to `secret` and therefore fall **above**
+  the default `internal` agent read ceiling — after upgrading, previously
+  visible unlabeled notes disappear from agent/MCP results. This is the intended
+  fail-closed behavior. **Remedy:** raise the **Agent sensitivity ceiling** to
+  `secret` (Settings → Agent API) to see them again, or add explicit
+  `sensitivity` frontmatter to the notes you want visible. Note that the new
+  **Default sensitivity** setting does *not* restore these notes: engine v1.0.6
+  projects every parseable unlabeled note to `secret` regardless of the setting
+  (`KosmosIndex` does not yet thread projection options — gkos-engine issue #6);
+  Default sensitivity only governs the gate fallback for notes that have no
+  projection at all.
+
 ## [0.6.5] — 2026-07-19
 
 **Out of beta.** This release closes the 0.6.5 beta series and re-brands the

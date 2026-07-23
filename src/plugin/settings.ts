@@ -1,6 +1,7 @@
 /** Kosmos plugin — settings tab + Agent API setup guide (one source of truth). */
 import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
-import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns } from "gkos-engine";
+import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns, SENSITIVITY_RANK } from "gkos-engine";
+import type { OkfSensitivity } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
 import { DEFAULT_SYNC_EXCLUDES, PROTECTED_SYNC_EXCLUDES } from "./nextcloud-sync";
@@ -175,7 +176,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const ncStatus = syncEl.createEl("p", { text: `Nextcloud status: ${this.plugin.nextcloudStatus}` });
     const refreshNc = () => ncStatus.setText(`Nextcloud status: ${this.plugin.nextcloudStatus}`);
     new Setting(syncEl).setName("Enable Nextcloud sync").setDesc("Allows startup and scheduled synchronization. Manual Sync now remains available for connection testing.")
-      .addToggle((t) => t.setValue(nc.enabled).onChange(async (v) => { nc.enabled = v; await this.plugin.saveNextcloudSettings(); }));
+      .addToggle((t) => t.setValue(nc.enabled).onChange(async (v) => { nc.enabled = v; if (v) new Notice("Kosmos-Oden: Nextcloud sync will copy vault notes to the remote server over the network. All notes in scope are transmitted regardless of OKF+ sensitivity — the Default sensitivity setting governs the local Agent API read gate, not this sync. Review the exclude patterns before your first sync.", 12000); await this.plugin.saveNextcloudSettings(); }));
     new Setting(syncEl).setName("Nextcloud server URL")
       .setDesc("Your instance URL, for example https://cloud.example.com. A complete /remote.php/dav/files/... URL is also accepted. HTTPS is required except for literal private/loopback addresses.")
       .addText((t) => t.setPlaceholder("https://cloud.example.com").setValue(nc.serverUrl).onChange(async (v) => { nc.serverUrl = v.trim(); await this.plugin.saveNextcloudSettings(); }));
@@ -253,6 +254,21 @@ export class KosmosSettingTab extends PluginSettingTab {
     agentEl.createEl("h2", { text: "Agent API (HTTP + MCP)" });
     agentEl.createEl("p", { text: "Read-only access to the sensitivity-filtered Kosmos Governed Context Projection (KGCP) through REST and MCP Streamable HTTP. Localhost-only by default, token-protected, and available on desktop Obsidian." });
 
+    // Default sensitivity sits ABOVE the enable control so it can be set before
+    // any network-facing surface is switched on. The vocabulary is imported from
+    // the engine (SENSITIVITY_RANK) — no hardcoded duplicate list.
+    const sensitivityLevels = (Object.keys(SENSITIVITY_RANK) as OkfSensitivity[])
+      .sort((a, b) => SENSITIVITY_RANK[a] - SENSITIVITY_RANK[b]);
+    const sensitivityLabel = (level: OkfSensitivity) =>
+      level.charAt(0).toUpperCase() + level.slice(1) + (level === "secret" ? " (fail-closed default)" : "");
+    new Setting(agentEl).setName("Default sensitivity")
+      .setDesc("Fail-closed fallback the network-facing read gate applies to a note that lacks a sensitivity projection. Notes that declare no sensitivity are currently always projected to secret by the engine regardless of this setting; configurable projection defaults arrive with gkos-engine issue #6. Defaults to secret. The engine may raise a note's effective sensitivity, never lower it. Set this before enabling the Agent API.")
+      .addDropdown((d) => {
+        for (const level of sensitivityLevels) d.addOption(level, sensitivityLabel(level));
+        d.setValue(s.defaultSensitivity)
+          .onChange(async (v: any) => { s.defaultSensitivity = v; await this.plugin.saveAgentSettings(); });
+      });
+
     const status = agentEl.createEl("p");
     const refresh = () => {
       const running = this.plugin.agentApi?.status === "running";
@@ -264,7 +280,10 @@ export class KosmosSettingTab extends PluginSettingTab {
       .addToggle((t) => t.setValue(s.agentEnabled).setDisabled(!Platform.isDesktopApp).onChange(async (v) => {
         s.agentEnabled = v;
         await this.plugin.saveAgentSettings();
-        if (v) this.plugin.startAgentApi(); else this.plugin.agentApi.stop();
+        if (v) {
+          new Notice(`Kosmos-Oden: the Agent API is now reachable over the network (${s.agentBindMode === "lan" ? "LAN/VLAN" : "localhost"}). Notes are exposed through the read-only projection. Unlabeled notes are classified as "${s.defaultSensitivity}" by the Default sensitivity setting; only notes at or below the Agent sensitivity ceiling are readable.`, 12000);
+          this.plugin.startAgentApi();
+        } else this.plugin.agentApi.stop();
         setTimeout(refresh, 150);
       }));
 

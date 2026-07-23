@@ -226,7 +226,9 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 
 ## Agent API — let agents query this vault (HTTP + MCP)
 
-Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → toggle **Enable local Agent API**.
+Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
+
+**Default sensitivity (fail closed):** the first control in the Agent API section is the fail-closed fallback the network-facing read gate applies to a note that lacks a sensitivity projection. It ships closed at `secret`, so unlabeled notes are never exposed as an open level. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity but never lowers it. Note the current scope: a note that declares no sensitivity is always projected to `secret` by engine v1.0.6 regardless of this setting — `KosmosIndex` does not yet thread projection options, so today the dropdown only governs the gate fallback for notes with no projection at all; per-deployment projection defaults arrive with [gkos-engine issue #6](https://github.com/Odenknight/GKOS-Engine/issues/6). Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
 
 **Connecting an agent (no reimplementation required):**
 1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.

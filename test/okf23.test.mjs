@@ -218,11 +218,17 @@ Body.`;
   assert.equal(projection.extensions.authorship_origin, undefined, "flat governance keys are not extensions");
 });
 
-test("missing sensitivity defaults to internal and invalid sensitivity fails closed", () => {
+test("missing sensitivity fails closed to secret and invalid sensitivity fails closed", () => {
+  // DIV-002 (gkos-engine v1.0.6): a note declaring no sensitivity fails closed to
+  // the restricted default ("secret" out of the box), not to a mid-open level.
   const missing = note.replace(/sensitivity:[\s\S]*?provenance:/, "provenance:");
   const p1 = buildOkf23Projection(missing, "Missing.md", "m:1", null);
-  assert.equal(p1.effective.sensitivity, "internal");
+  assert.equal(p1.effective.sensitivity, "secret");
   assert.ok(p1.diagnostics.some((d) => d.code === "OKF-SENSITIVITY-001"));
+  // The default is configurable per deployment via Okf23ProjectionOptions.
+  const p1relaxed = buildOkf23Projection(missing, "Missing.md", "m:1", null, { defaultSensitivity: "internal" });
+  assert.equal(p1relaxed.effective.sensitivity, "internal");
+  assert.ok(p1relaxed.diagnostics.some((d) => d.code === "OKF-SENSITIVITY-001"));
   const invalid = note.replace('level: "restricted"', 'level: "unclassified"');
   const p2 = buildOkf23Projection(invalid, "Invalid.md", "i:1", null);
   assert.equal(p2.effective.sensitivity, "secret");

@@ -16,10 +16,12 @@ import {
   makeToken,
 } from "../dist/kosmos-agent-server.mjs";
 
+// Fixtures carry explicit sensitivity so they stay visible at the default
+// internal ceiling: gkos-engine v1.0.6 fails unlabeled notes closed to "secret".
 const FILES = [
   { relativePath: "Home.md", content: "# Home\n[[Engine v2]]" },
-  { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\ntimestamp: 2026-01-01T00:00:00Z\n---\nOld engine." },
-  { relativePath: "Ideas/Engine v2.md", content: "---\ntype: idea\ntimestamp: 2026-03-01T00:00:00Z\nsupersedes:\n  - Engine v1\n---\nNew engine.\n\n**Related:** [[Home]]" },
+  { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\nsensitivity: internal\ntimestamp: 2026-01-01T00:00:00Z\n---\nOld engine." },
+  { relativePath: "Ideas/Engine v2.md", content: "---\ntype: idea\nsensitivity: internal\ntimestamp: 2026-03-01T00:00:00Z\nsupersedes:\n  - Engine v1\n---\nNew engine.\n\n**Related:** [[Home]]" },
 ];
 
 function fixtureProvider() {
@@ -44,6 +46,10 @@ function settings(overrides = {}) {
     agentRequireToken: true,
     agentBindMode: "localhost",
     agentSensitivityCeiling: "internal",
+    // Production default: unlabeled notes without a projection fail closed to
+    // "secret" (gkos-engine v1.0.6 DIV-002). Shared fixtures below carry explicit
+    // sensitivity labels so the non-sensitivity tests stay deterministic.
+    defaultSensitivity: "secret",
     agentGraphNamespace: "testnamespace",
     agentAllowQueryToken: false,
     ...overrides,
@@ -409,7 +415,7 @@ test("query-token is rejected in LAN mode even when allowed (Doc1 §3.6)", async
 test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
   const big = "x".repeat(MAX_NOTE_CONTENT_CHARS + 5000);
   const provider = {
-    getGraph: async () => buildGraph([{ relativePath: "Big.md", content: "# Big\n" + big }], []),
+    getGraph: async () => buildGraph([{ relativePath: "Big.md", content: "---\ntype: note\nsensitivity: internal\ntimestamp: 2026-01-01T00:00:00Z\n---\n# Big\n" + big }], []),
     getNoteContent: async () => big,
     vaultName: () => "V", lanAddresses: () => [],
   };
@@ -491,7 +497,7 @@ test("onTraversal: paths are CAPPED per tool so broad results never flood the ha
   const files = [];
   for (let i = 0; i < 30; i++) {
     const sup = i > 0 ? `supersedes:\n  - Note ${i - 1}\n` : "";
-    files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\n${sup}---\nnote body ${i}` });
+    files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\nsensitivity: internal\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\n${sup}---\nnote body ${i}` });
   }
   const graph = buildGraph(files, []);
   const provider = { getGraph: async () => graph, getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [] };
