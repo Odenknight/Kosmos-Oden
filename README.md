@@ -337,6 +337,13 @@ vendor/legacy/   frozen Three.js r128 global build (MIT), for an optional
 > [renderer-provenance.json](renderer-provenance.json). WebGPU/TSL is a separate
 > future phase.
 
+> **Browser tests:** the Chromium renderer specs run on every push against
+> software WebGL2 (ANGLE/SwiftShader) and are a required check. Firefox, WebKit
+> and the visual-regression baselines need a real GPU, so they run weekly and on
+> demand in the advisory `Browser (full matrix)` workflow and must be run
+> locally before a release — see
+> [CONTRIBUTING.md](CONTRIBUTING.md#browser-and-visual-tests).
+
 ## License
 
 MIT — see [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
