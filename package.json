@@ -20,6 +20,7 @@
     "check:versions": "node scripts/check-versions.mjs",
     "check:invariants": "node scripts/check-invariants.mjs",
     "check:renderer-provenance": "node scripts/check-renderer-provenance.mjs",
+    "check:lockfile": "node scripts/check-lockfile-sha.mjs",
     "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance",
     "test:browser": "playwright test --project=chromium --project=firefox --project=webkit",
     "test:browser:chromium": "playwright test --project=chromium test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts",

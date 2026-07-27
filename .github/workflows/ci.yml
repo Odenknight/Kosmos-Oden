@@ -19,6 +19,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Lockfile SHA guard (git deps must pin to a commit SHA)
+        run: npm run check:lockfile
+
       - name: Install (clean, from lockfile)
         run: npm ci
 
