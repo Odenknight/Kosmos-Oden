@@ -7,6 +7,73 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-27
+
+**First tagged release since 0.6.5.** The 0.6.6–0.6.9 entries below were
+developed and merged on `main` but never cut as GitHub releases; 0.7.0 is the
+release that ships them, on top of the **GKOS Engine v1.1 implementation
+line**. If you are upgrading from 0.6.5 or earlier, read the **Compatibility**
+section — the sensitivity default changed and it is a breaking change for
+agent visibility.
+
+### Changed
+
+- **Adopt `gkos-engine` v1.1.2** (up from v1.0.7), pinned in `package.json` and
+  resolved in `package-lock.json` to commit `b2a3421`. The v1.1 line adds the
+  `gkos.intelligence.v1` request/response/proposal contract, deterministic
+  proposal validation with restricted patch fields and raise-only sensitivity,
+  and an **optional** loopback Python/DSPy proposal sidecar that has no write
+  and no approval capability. v1.1.2 additionally documents that
+  `OKF23_POLICY.sensitivityDefault` is a hash-locked mirror of the canonical
+  policy JSON and is superseded for the missing-sensitivity path (which has
+  failed closed to `secret` since engine v1.0.6) — a documentation truth-fix
+  with **no behavior change**.
+- Kosmos-Oden remains fully **offline and deterministic**: nothing in this
+  release enables the intelligence sidecar. The new engine exports are
+  available to the plugin but are not wired into any user-facing surface yet;
+  no product code required changes for the engine jump (typecheck, build, the
+  209-test suite, and all four `check:*` gates pass unmodified against v1.1.2).
+
+### Fixed (documentation)
+
+- `docs/RELEASE-PROCESS.md`, `docs/COMMUNITY-PLUGIN.md` and `CONTRIBUTING.md`
+  referenced a non-existent `src/core/version.ts` as the version source of
+  truth. The real file — and the one `scripts/check-versions.mjs` actually
+  reads — is **`src/kosmos-version.ts`**.
+- README version banner had been left at v0.6.5.
+
+### Compatibility
+
+- **BREAKING (agent visibility), for anyone upgrading from 0.6.6 or earlier:**
+  sensitivity is **fail-closed**. A note that declares no `sensitivity` now
+  projects to `secret`, not `internal`, so it falls **above** the default
+  `internal` agent read ceiling and disappears from agent/MCP results. This
+  landed in 0.6.7 (engine v1.0.6) and is unchanged here. **Remedies:** set
+  **Default sensitivity** (Settings → Agent API) to `internal` — as of 0.6.8
+  that value is threaded through `KosmosIndex` and genuinely re-projects
+  unlabeled notes, restoring pre-0.6.7 visibility; or raise the **Agent
+  sensitivity ceiling** to `secret`; or add explicit `sensitivity` frontmatter.
+  Classification stays **raise-only**: the engine may raise a note's effective
+  sensitivity, never lower one that declares a higher level.
+- The `OKF-TEMPORAL-001` diagnostic (naive wall-clock timestamps) and the
+  `unknown` epistemic-state fallback, both introduced in 0.6.7, are carried
+  forward.
+
+### Rolled up from the unreleased 0.6.6–0.6.9 line
+
+- **0.6.7** — engine v1.0.6 adoption (fail-closed sensitivity,
+  `OKF-TEMPORAL-001`, `unknown` epistemic-state fallback); new **Default
+  sensitivity** setting; network-reachability warning when enabling the Agent
+  API or Nextcloud sync.
+- **0.6.8** — engine v1.0.7 adoption; the Default sensitivity setting is
+  threaded through `parseSourceFile` / `buildGraph` / `new KosmosIndex(...)`,
+  so it governs the effective sensitivity of every unlabeled note on both full
+  load and incremental `applyChanges`, not merely the gate fallback.
+- **0.6.9** — standalone `vault-kosmos.html` live Agent-API feed against a
+  loopback GKOS Engine Desktop sidecar (read-only, loopback-only, token held in
+  memory and never persisted), plus the `standalone-html-release.yml` workflow
+  for `viewer-v*` prerelease artifacts.
+
 ## [0.6.9] — 2026-07-23
 
 ### Added

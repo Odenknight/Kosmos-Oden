@@ -30,7 +30,7 @@ npm run verify     # typecheck + build + test + version/artifact/invariant check
   for manual testing; don't commit it.
 - Docs updated when behavior or claims change; the README must not claim more
   than the code proves.
-- Version changes touch `src/core/version.ts` (the single source) — the other
+- Version changes touch `src/kosmos-version.ts` (the single source) — the other
   files are checked against it by `npm run check:versions`.
 
 ## Browser and visual tests

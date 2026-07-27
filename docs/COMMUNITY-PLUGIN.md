@@ -25,7 +25,7 @@ Releases are produced by CI (`.github/workflows/release.yml`) on a version tag.
 
 ```bash
 # 1. bump the version in ONE place; check:versions enforces agreement across
-#    manifest.json / versions.json / package.json / src/core/version.ts
+#    manifest.json / versions.json / package.json / src/kosmos-version.ts
 # 2. commit, then tag with the exact version — NO leading v:
 git tag 0.5.6
 git push origin 0.5.6           # → release.yml runs verify, builds, publishes

@@ -5,9 +5,9 @@ Releases are built **from the tag in CI**, not copied from a workstation
 
 ## Cutting a release
 
-1. Update `src/core/version.ts` to the new version (single source of truth).
+1. Update `src/kosmos-version.ts` to the new version (single source of truth).
 2. `npm run check:versions` — confirms `package.json`, `manifest.json`,
-   `versions.json` and `src/core/version.ts` agree.
+   `versions.json` and `src/kosmos-version.ts` agree.
 3. Update `CHANGELOG.md` (move `[Unreleased]` items under the new version).
 4. `npm run verify` locally to confirm the tree is release-ready. `main.js`,
    `vault-kosmos.html`, and `dist/` are generated and **gitignored** — do not
