@@ -25,6 +25,8 @@ jobs:
           cache: npm
 
       # The release ships only if the full validation pipeline passes.
+      - run: npm run check:lockfile
+      - run: npm run check:versions
       - run: npm ci
       - run: npm run verify
 
