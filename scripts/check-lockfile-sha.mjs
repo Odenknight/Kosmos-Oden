@@ -5,7 +5,8 @@
  * `resolved` field points at a mutable ref (a `#vX.Y.Z` tag string or a branch
  * name) instead of an immutable 40-hex commit SHA. This script fails CI if any
  * `resolved` git+ URL in package-lock.json ends in a non-40-hex ref, so the bug
- * cannot regress.
+ * cannot regress. It also verifies that the lockfile root version and declared
+ * dependencies match package.json, preventing stale root metadata from shipping.
  *
  * Dependency-free; Node 18+.
  */
@@ -15,11 +16,25 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const lockPath = resolve(root, "package-lock.json");
+const packagePath = resolve(root, "package.json");
 
+const pkg = JSON.parse(readFileSync(packagePath, "utf8"));
 const lock = JSON.parse(readFileSync(lockPath, "utf8"));
 const packages = lock.packages ?? {};
+const lockRoot = packages[""] ?? {};
 
 const problems = [];
+if (lock.version !== pkg.version) {
+  problems.push(`lockfile version "${lock.version}" does not match package version "${pkg.version}"`);
+}
+if (lockRoot.version !== pkg.version) {
+  problems.push(`lockfile root package version "${lockRoot.version}" does not match package version "${pkg.version}"`);
+}
+for (const [name, spec] of Object.entries(pkg.dependencies ?? {})) {
+  if (lockRoot.dependencies?.[name] !== spec) {
+    problems.push(`lockfile root dependency ${name} "${lockRoot.dependencies?.[name]}" does not match package.json "${spec}"`);
+  }
+}
 let gitDeps = 0;
 
 for (const [name, entry] of Object.entries(packages)) {
@@ -34,9 +49,9 @@ for (const [name, entry] of Object.entries(packages)) {
 }
 
 if (problems.length) {
-  console.error("check-lockfile-sha: FAIL — git dependencies not pinned to a commit SHA:");
+  console.error("check-lockfile-sha: FAIL — lockfile integrity problems:");
   for (const p of problems) console.error("  " + p);
-  console.error("Fix: run `npm install <name>@<declared-spec>` to force re-resolution to a SHA.");
+  console.error("Fix: regenerate package-lock.json from the current package.json and verify git dependencies resolve to SHAs.");
   process.exit(1);
 }
 
