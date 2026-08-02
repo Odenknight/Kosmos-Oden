@@ -1,10 +1,10 @@
-# Kosmos-Oden (Vault Kosmos) — v0.7.0
+# Kosmos Research Studio (KRS) — Vault Kosmos — v0.7.0
 
-**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view with human-editable OKF+ 2.2 Obsidian Properties, optional Agent-Ready (flat) OKF+ 2.3 conversion — the GKOS Engine v1.1 implementation line, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. It is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready (flat) GKX 2.3 conversion, the GKOS Engine v1.1 implementation line, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. GKX is the current name for the format previously published as OKF+. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate OKF+ write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+The visualization changes nothing — KRS only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
 
 ## Two ways to use it
 
@@ -34,7 +34,7 @@ A folder list shows you your notes one at a time. A cosmos shows you **the shape
 - **Travel through time.** Press one button and watch your vault grow note by note, or scrub the Chrono timeline to see exactly what you knew — and what you'd already revised — on any past date.
 - **Find things by flying.** Tap any body to light up everything connected to it, then hop from neighbor to neighbor. It's search for people who think visually.
 - **Watch your AI assistant think.** If you let an AI agent read your vault (entirely optional, off by default), the notes it visits glow with a fading emerald trail across your universe, live.
-- **Improve OKF+ metadata without surrendering control.** A deterministic pass selects bounded evidence and explains weak document structure; an optional constrained local/cloud model can add pending proposals. Nothing is preselected, and only explicitly reviewed values can enter a hash-bound, backed-up apply plan. See [OKF+ content-assisted enrichment](docs/OKF-ENRICHMENT.md).
+- **Improve GKX metadata without surrendering control.** A deterministic pass selects bounded evidence and explains weak document structure; an optional constrained local/cloud model can add pending proposals. Nothing is preselected, and only explicitly reviewed values can enter a hash-bound, backed-up apply plan. See [GKX content-assisted enrichment](docs/OKF-ENRICHMENT.md).
 
 It works on desktop **and** on your phone or tablet, updates live as you edit, and needs no internet connection at all.
 
@@ -42,7 +42,7 @@ It works on desktop **and** on your phone or tablet, updates live as you edit, a
 
 ## Under the hood: one semantic engine
 
-Kosmos-Oden is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
+Kosmos Research Studio is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
 
 ```
                     ┌─────────────────────┐
@@ -179,9 +179,9 @@ enumeration and local hashing on each run, favoring correctness over speed.
 
 ---
 
-## OKF+ v2.3 Validating Projection Profile
+## GKX v2.3 Validating Projection Profile
 
-Kosmos-Oden implements the **OKF+ v2.3 Validating Projection Profile**. It is
+KRS implements the **GKX v2.3 Validating Projection Profile** (the profile formerly named OKF+). It is
 not a full GKOS governance engine and does not authorize or apply consequential
 semantic changes. Canonical 2.3 nested blocks are parsed into separate
 `authored`, `derived`, `proposed`, `approved`, and `effective` projections;
@@ -190,7 +190,7 @@ built-in deterministic assessment measures documentation, traceability, and
 support quality under a versioned policy—it is never a truth score or use
 authorization. See [the profile and limits](docs/OKF-PLUS-2.3-PROFILE.md).
 
-Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal features natively:
+Notes written in **GKX** (Governed Knowledge Exchange) light up temporal features natively. Existing OKF+ 2.2/2.3 documents remain compatibility inputs:
 
 - **Canonical knowledge chains** — `supersedes` / `superseded_by` frontmatter is normalized internally into one canonical lineage graph, so both fields are projected bidirectionally: declaring **either side** is enough. Superseded notes render as ghosts; the newest version of a chain is flagged **HEAD**. Malformed lineage (cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps) is detected and reported through diagnostics instead of silently breaking the graph.
 - **Temporal validity intervals** — each note is *valid* from its OKF+ `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
@@ -210,7 +210,7 @@ Notes written in **OKF+** (Open Knowledge Format Plus) light up temporal feature
 
 ---
 
-## OKF+ note formatting and compatibility onboarding
+## GKX note formatting and OKF+ compatibility onboarding
 
 Use **Settings → Vault Kosmos → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
