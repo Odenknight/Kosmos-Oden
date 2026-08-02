@@ -307,7 +307,7 @@ Performance: see [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for measured num
 - [SECURITY.md](SECURITY.md) — reporting, and the enforced security invariants.
 - [kosmos-invariants.yml](kosmos-invariants.yml) — machine-readable policy, checked in CI.
 - [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/RENDERER-PROTOCOL.md](docs/RENDERER-PROTOCOL.md) (incl. the iframe sandbox experiment) · [docs/RELEASE-PROCESS.md](docs/RELEASE-PROCESS.md).
-- [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 - The upstream engineering assessments this build was hardened against live in [docs/assessments/](docs/assessments/).
 
 ## Repository layout
