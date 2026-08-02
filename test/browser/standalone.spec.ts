@@ -36,6 +36,20 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
   expect(errors, "no console/page errors").toEqual([]);
 });
 
+test("capable mobile devices keep the high-quality renderer", async ({ page, browserName }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium" || browserName !== "chromium", "mobile quality policy");
+  await page.goto("/vault-kosmos.html?capture=1&seed=1907&time=0&camera=overview&animation=off");
+  await page.waitForFunction(() => (window as any).__kosmosRenderer != null, null, { timeout: 15_000 });
+  const quality = await page.evaluate(() => {
+    const renderer = (window as any).__kosmosRenderer;
+    return { quality: renderer.quality, mobile: renderer.mobile, maxDpr: renderer.maxDpr, pixelRatio: renderer.pixelRatio() };
+  });
+  expect(quality.mobile).toBe(true);
+  expect(quality.quality).toBe("high");
+  expect(quality.maxDpr).toBe(2);
+  expect(quality.pixelRatio).toBeGreaterThanOrEqual(1.25);
+});
+
 test("standalone reports WebGL2 requirement message when WebGL2 is unavailable", async ({ page }) => {
   // Force getContext('webgl2') to fail before any script runs.
   await page.addInitScript(() => {

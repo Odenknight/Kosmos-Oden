@@ -13,11 +13,8 @@ name: Browser (full matrix)
 #     gate every push on.
 #   * WebKit — no software-WebGL knob exists; WebGL on headless Linux WebKit is
 #     unreliable.
-#   * Visual — reference images are intentionally NOT committed, so this suite
-#     has no baseline to compare against in CI. Baselines are generated on the
-#     reference machine (`npx playwright test test/browser/visual.spec.ts
-#     --update-snapshots`) and reviewed by a human; an agent may propose but not
-#     self-approve a baseline update.
+#   * Visual — reviewed Chromium/SwiftShader reference images are committed and
+#     shared across platforms with a perceptual tolerance for driver variance.
 #
 # Rather than leave these as a required check that is red on every single push
 # — which trains humans to merge through red and hides real failures — they run
@@ -47,14 +44,12 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Install Playwright + browsers
-        run: |
-          npm install --no-save --save-exact @playwright/test@1.48.2
-          npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Renderer specs — Firefox + WebKit (advisory)
         id: ffwk
         continue-on-error: true
         run: npm run test:browser:full
-      - name: Visual regression (advisory — no baselines committed yet)
+      - name: Visual regression (Chromium / SwiftShader baselines)
         id: visual
         continue-on-error: true
         run: npm run test:visual

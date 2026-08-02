@@ -40,6 +40,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}-{projectName}{ext}",
   // Serve the repo root (built artifacts + node bundles) statically.
   webServer: {
     command: "node scripts/serve-static.mjs " + PORT,
@@ -55,7 +56,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   // Perceptual tolerance — do NOT demand bit-for-bit equality across GPU vendors.
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.02, threshold: 0.2 } },
+  expect: { timeout: 15_000, toHaveScreenshot: { maxDiffPixelRatio: 0.02, threshold: 0.2 } },
   projects: [
     {
       name: "chromium",

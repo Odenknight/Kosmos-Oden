@@ -108,14 +108,20 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     frozen: _q0.get("animation") === "off" || _q0.has("capture"),
     seed: Number(_q0.get("seed") || 0) || 0,
   };
+  const hardwareConcurrency = Number((navigator as any).hardwareConcurrency) || 0;
+  const deviceMemory = Number((navigator as any).deviceMemory) || 0;
+  // Touch input is not evidence of a weak GPU. Keep full materials on capable
+  // phones and reserve Lite mode for explicit requests or constrained devices.
+  const DEVICE_CONSTRAINED = (hardwareConcurrency > 0 && hardwareConcurrency <= 4)
+    || (deviceMemory > 0 && deviceMemory <= 4);
   const LOWPOWER = CAPTURE.quality === "lite" ? true : CAPTURE.quality === "high" ? false
-    : ((_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : (MOBILE || ((navigator as any).hardwareConcurrency && (navigator as any).hardwareConcurrency <= 4) || ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4))));
+    : ((_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : DEVICE_CONSTRAINED));
 
   /* ---- renderer / scene / camera ---- */
   const stage = document.getElementById("stage");
   let renderer: any;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: false, powerPreference: "high-performance", stencil: false });
+    renderer = new THREE.WebGLRenderer({ antialias: !LOWPOWER, alpha: false, powerPreference: "high-performance", stencil: false });
   } catch (error) {
     return fail(`Kosmos could not initialize WebGL2. ${String(error)}`);
   }
@@ -130,7 +136,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   // transform, so there is no double conversion.
   THREE.ColorManagement.enabled = false;
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-  const MAXDPR = MOBILE ? 1.6 : 2;
+  const MAXDPR = 2;
   let dpr = CAPTURE.dpr != null ? CAPTURE.dpr : Math.min(window.devicePixelRatio || 1, MAXDPR);
   renderer.setPixelRatio(dpr);
   const scene = new THREE.Scene();
@@ -1798,13 +1804,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   window.addEventListener("resize", resize); resize();
 
   // FPS-adaptive pixel-ratio (keeps mobile smooth)
-  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0;
+  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0, slowWindows = 0;
   function adaptQuality(dt: number, now: number) {
     fpsAccum += dt; fpsFrames++;
     if (now - lastAdjust < 1.2) return;
     const fps = fpsFrames / fpsAccum; fpsAccum = 0; fpsFrames = 0; lastAdjust = now;
-    const floor = LOWPOWER ? 0.75 : 1.0;
-    if (fps < 42 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); }
+    const floor = LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0);
+    slowWindows = fps < 42 ? slowWindows + 1 : 0;
+    if (slowWindows >= 2 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); slowWindows = 0; }
     else if (fps > 58 && dpr < MAXDPR && lodScale <= 1) { dpr = Math.min(MAXDPR, dpr + 0.25); renderer.setPixelRatio(dpr); }
     if (fps < 30 && dpr <= floor + 0.001) lodScale = Math.min(2.4, lodScale + 0.3);
     else if (fps > 58 && lodScale > 1) lodScale = Math.max(1, lodScale - 0.3);
@@ -1907,7 +1914,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   dom.addEventListener("webglcontextrestored", onContextRestored, false);
 
   (window as any).__kosmosRenderStats = renderStats;
-  (window as any).__kosmosRenderer = { backend: RENDERER_BACKEND, threeRevision: RENDERER_THREE_REVISION };
+  (window as any).__kosmosRenderer = {
+    backend: RENDERER_BACKEND,
+    threeRevision: RENDERER_THREE_REVISION,
+    quality: LOWPOWER ? "lite" : "high",
+    mobile: MOBILE,
+    maxDpr: MAXDPR,
+    pixelRatio: () => renderer.getPixelRatio(),
+  };
 
   function teardown() {
     stopLoop();
