@@ -7,6 +7,14 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+### Fixed
+
+- Adopted `gkos-engine` v1.1.3 after the v1.1.2 tag collision and resolved it
+  immutably to commit `72c4a3268c9db132f2f9dd5aaa7eb7075e6bab2a`.
+- Corrected the package-lock root version from stale `0.6.9` to the current
+  Kosmos-Oden product version `0.7.0`.
+- Added lockfile integrity checks to the normal verification and release paths.
+
 ## [0.7.0] — 2026-07-27
 
 **First tagged release since 0.6.5.** The 0.6.6–0.6.9 entries below were
