@@ -108,7 +108,7 @@ Generated files include:
 
 ```text
 main.js
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 dist/**
 release/**
 ```
@@ -339,7 +339,7 @@ main.js
 manifest.json
 styles.css
 versions.json
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 dist/kosmos-embed.html
 dist/kosmos-core.mjs
 dist/kosmos-agent-server.mjs
@@ -350,7 +350,7 @@ dist/kosmos-protocol.mjs
 Proposed renderer outputs:
 
 ```text
-vault-kosmos.html                  # stable WebGL2
+kosmos-oden-stand-alone.html                  # stable WebGL2
 vault-kosmos-webgpu.html           # experimental/optional
 vault-kosmos-legacy.html           # optional frozen compatibility build
 dist/kosmos-embed.html             # stable plugin WebGL2 embed
@@ -380,7 +380,7 @@ Extend it to every release flavor:
 ```bash
 sha256sum \
   main.js \
-  vault-kosmos.html \
+  kosmos-oden-stand-alone.html \
   vault-kosmos-webgpu.html \
   dist/kosmos-embed.html \
   dist/kosmos-embed-webgpu.html

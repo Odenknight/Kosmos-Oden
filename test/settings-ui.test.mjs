@@ -4,6 +4,18 @@ import test from "node:test";
 
 const settingsPath = new URL("../src/plugin/settings.ts", import.meta.url);
 const stylesPath = new URL("../styles.css", import.meta.url);
+const brandedPluginPaths = [
+  "agent-server.ts", "main.ts", "okf-blocked-review.ts", "okf-enrichment-apply.ts",
+  "okf-enrichment.ts", "okf-migration.ts", "settings.ts",
+].map((name) => new URL(`../src/plugin/${name}`, import.meta.url));
+
+test("plugin-facing copy consistently uses GKOS Engine and GKX branding", async () => {
+  const sources = await Promise.all(brandedPluginPaths.map((path) => readFile(path, "utf8")));
+  const copy = sources.join("\n");
+  assert.match(copy, /GKOS Engine v1\.1/);
+  assert.match(copy, /GKX v2\.3 Validating Projection Profile/);
+  assert.doesNotMatch(copy, /OKF\+/);
+});
 
 test("Options exposes the four required first-class tabs and routes Sync controls to Sync", async () => {
   const source = await readFile(settingsPath, "utf8");
@@ -18,7 +30,9 @@ test("Options exposes the four required first-class tabs and routes Sync control
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Nextcloud server URL\"\)/);
   assert.match(source, /new Setting\(syncEl\)\.setName\(\"Sync hidden Obsidian configuration \(\.obsidian\)\"\)/);
   for (const label of ["Scan and repair", "Convert all to editable 2.2", "Convert all to editable 2.3", "Scan labels and links"]) assert.ok(source.includes(label));
-  assert.match(source, /Flat OKF\+ 2\.2 Properties are the human authoring surface/);
+  assert.match(source, /Flat GKX 2\.2 Properties are the human authoring surface/);
+  assert.match(source, /GKOS Engine v1\.1/);
+  assert.doesNotMatch(source, /OKF\+/);
   for (const provider of ["S3-compatible object storage", "Dropbox", "Microsoft OneDrive", "Google Drive"]) assert.match(source, new RegExp(provider));
   assert.doesNotMatch(source, /enhanceSectionNavigation|openSections/);
 });

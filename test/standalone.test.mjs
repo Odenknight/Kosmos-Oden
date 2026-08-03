@@ -1,7 +1,7 @@
 /**
  * Standalone artifact + cosmology pipeline tests (§25).
  *
- * The artifact checks prove vault-kosmos.html is a genuine single offline
+ * The artifact checks prove kosmos-oden-stand-alone.html is a genuine single offline
  * file: no external runtime URLs, Three.js + app + CSS inlined, both folder
  * access paths present. The cosmology checks run the DOM-free classification
  * and packing pipeline (the exact code the page executes) against real
@@ -20,7 +20,7 @@ import { buildGraph, createDemoVaultGraph } from "../dist/kosmos-core.mjs";
 import { positionCosmos, countIntersections } from "../dist/kosmos-layout.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(resolve(root, "vault-kosmos.html"), "utf8");
+const html = readFileSync(resolve(root, "kosmos-oden-stand-alone.html"), "utf8");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 test("standalone HTML exists and is one self-contained file", () => {

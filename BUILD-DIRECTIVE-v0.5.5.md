@@ -60,7 +60,7 @@ No CDN dependency is permitted for the normal plugin or standalone viewer.
 The standalone artifact must function when opened directly from disk as:
 
 ```text
-file:///path/to/vault-kosmos.html
+file:///path/to/kosmos-oden-stand-alone.html
 ```
 
 where browser security capabilities permit local directory selection.
@@ -361,7 +361,7 @@ It must not claim to reconstruct an edit that was overwritten in place and no lo
 Create a distributable file:
 
 ```text
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 ```
 
 The user must be able to:
@@ -1190,7 +1190,7 @@ The source should remain modular.
 The release artifact should be:
 
 ```text
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 ```
 
 containing all runtime dependencies.
@@ -1206,7 +1206,7 @@ inline JavaScript
 inline CSS
 inline Three.js
         ↓
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 ```
 
 The source HTML used during development does not have to be one giant manually maintained file.
@@ -1506,7 +1506,7 @@ Add checks that:
 
 ```text
 main.js exists
-vault-kosmos.html exists
+kosmos-oden-stand-alone.html exists
 manifest version matches package version
 versions.json is updated
 standalone file contains no unexpected external runtime dependency
@@ -1635,7 +1635,7 @@ Standalone — No Obsidian Required
 Example workflow:
 
 ```text
-1. Download vault-kosmos.html.
+1. Download kosmos-oden-stand-alone.html.
 2. Open it in your browser.
 3. Click Open Knowledge Folder.
 4. Select the root of your Markdown or Obsidian vault.
@@ -1804,7 +1804,7 @@ src/
 main.js
 styles.css
 
-vault-kosmos.html
+kosmos-oden-stand-alone.html
 
 kosmos-build.mjs
 
@@ -1840,7 +1840,7 @@ The rebuild is not complete until all of the following are true.
 
 ### Standalone
 
-* `vault-kosmos.html` opens directly without a server.
+* `kosmos-oden-stand-alone.html` opens directly without a server.
 * No internet connection is required.
 * User can select a directory.
 * Directory contents recursively render.

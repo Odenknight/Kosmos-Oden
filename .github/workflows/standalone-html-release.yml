@@ -7,7 +7,7 @@ name: Standalone HTML release
 # tags, so this never collides with the Obsidian community-plugin release flow),
 # or manually via workflow_dispatch. Attaches:
 #   - dist/kosmos-embed.html  (plugin iframe page)
-#   - vault-kosmos.html       (standalone viewer, with the sidecar API feed)
+#   - kosmos-oden-stand-alone.html       (standalone viewer, with the sidecar API feed)
 on:
   push:
     tags:
@@ -35,8 +35,8 @@ jobs:
       - name: Confirm the two HTML artifacts exist
         run: |
           test -f dist/kosmos-embed.html || { echo "::error::dist/kosmos-embed.html missing"; exit 1; }
-          test -f vault-kosmos.html      || { echo "::error::vault-kosmos.html missing";      exit 1; }
-          ls -la dist/kosmos-embed.html vault-kosmos.html
+          test -f kosmos-oden-stand-alone.html      || { echo "::error::kosmos-oden-stand-alone.html missing";      exit 1; }
+          ls -la dist/kosmos-embed.html kosmos-oden-stand-alone.html
 
       - name: One-line provenance note
         id: prov
@@ -52,6 +52,6 @@ jobs:
         with:
           files: |
             dist/kosmos-embed.html
-            vault-kosmos.html
+            kosmos-oden-stand-alone.html
           prerelease: true
           body: ${{ steps.prov.outputs.note }}

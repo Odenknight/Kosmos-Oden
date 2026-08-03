@@ -91,7 +91,7 @@ plugin data.
 `scripts/build.mjs` is the deterministic generator (Doc1 §3.3): modular TS →
 esbuild bundle → inlined into single-file HTML with `vendor/three.min.js`.
 Outputs: `main.js` (plugin, embeds `dist/kosmos-embed.html` as base64),
-`vault-kosmos.html` (standalone), and `dist/*.mjs` node bundles for the CLI and
+`kosmos-oden-stand-alone.html` (standalone), and `dist/*.mjs` node bundles for the CLI and
 tests. Executable artifacts are byte-reproducible across clean builds (verified
 by a CI job); volatile metadata lives only in `release/BUILD-INFO.json`.
 

@@ -69,7 +69,7 @@ agent visibility.
   threaded through `parseSourceFile` / `buildGraph` / `new KosmosIndex(...)`,
   so it governs the effective sensitivity of every unlabeled note on both full
   load and incremental `applyChanges`, not merely the gate fallback.
-- **0.6.9** — standalone `vault-kosmos.html` live Agent-API feed against a
+- **0.6.9** — standalone `kosmos-oden-stand-alone.html` live Agent-API feed against a
   loopback GKOS Engine Desktop sidecar (read-only, loopback-only, token held in
   memory and never persisted), plus the `standalone-html-release.yml` workflow
   for `viewer-v*` prerelease artifacts.
@@ -78,7 +78,7 @@ agent visibility.
 
 ### Added
 
-- **Standalone viewer live Agent-API feed.** The self-contained `vault-kosmos.html`
+- **Standalone viewer live Agent-API feed.** The self-contained `kosmos-oden-stand-alone.html`
   can now read a live graph from a running **GKOS Engine Desktop** sidecar
   (`kosmos-agent`, loopback `127.0.0.1:4814`). Pass
   `?api=http://127.0.0.1:4814&token=<bearer>` to auto-connect, or use the new
@@ -93,14 +93,14 @@ agent visibility.
   the connect form re-shown for retry. New pure glue in `src/standalone/api-feed.ts`
   with `node --test` coverage in `test/api-feed.test.mjs`.
 - **`standalone-html-release.yml`** workflow: on `viewer-v*` tags (or manual
-  dispatch) it builds and attaches `dist/kosmos-embed.html` and `vault-kosmos.html`
+  dispatch) it builds and attaches `dist/kosmos-embed.html` and `kosmos-oden-stand-alone.html`
   to a GitHub **prerelease** with a one-line provenance note (built from this repo
   at that commit; unsigned; loopback-only consumption).
 
 ### Notes
 
 - The desktop sidecar's HTTP server sends **no CORS headers**, so a browser
-  loading `vault-kosmos.html` from `file://` cannot reach it cross-origin; the
+  loading `kosmos-oden-stand-alone.html` from `file://` cannot reach it cross-origin; the
   desktop shell is expected to load the viewer in a Tauri window configured to
   allow the loopback request (Odenknight/GKOS-Engine-Lite#4). The feed degrades
   gracefully everywhere else.
@@ -604,7 +604,7 @@ engineering assessments (`docs/assessments/`).
 - **Canonical lineage** — `supersedes` / `superseded_by` normalized bidirectionally; one-sided declarations invalidate predecessors; cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps, duplicates and ambiguous resolution detected and surfaced through diagnostics.
 - **Single temporal projector** shared by Chrono, the Agent API `graph_at_time` and the tests.
 - **True incremental index** — one edited note costs one parse (test-verified); rename moves the cache without reparsing; documented structural-rebuild threshold.
-- **Genuine standalone single-file viewer** (`vault-kosmos.html`) — `showDirectoryPicker` + `webkitdirectory` snapshot fallback, IndexedDB handle persistence, rescan-and-diff monitoring, status panel, in-page errors, browser-download exports.
+- **Genuine standalone single-file viewer** (`kosmos-oden-stand-alone.html`) — `showDirectoryPicker` + `webkitdirectory` snapshot fallback, IndexedDB handle persistence, rescan-and-diff monitoring, status panel, in-page errors, browser-download exports.
 - **`kosmos-build.mjs` CLI** on the shared core (`--episodes`, `--watch`).
 - **84-test suite** (parser, resolver, lineage, temporal, incremental, Graphiti, Agent API, standalone artifact), reproducible benchmarks (100–50,000 notes).
 - **CI + release workflows**, version-sync + artifact self-containment checks.
@@ -621,7 +621,7 @@ engineering assessments (`docs/assessments/`).
 - Ingest sample pins `graphiti-core>=0.28.2` (upstream security fixes).
 
 ### Changed
-- **Packaging for Obsidian Community Plugin submission** — the standalone viewer (`vault-kosmos.html`) and other generated outputs (`dist/`) are no longer committed; they're rebuilt by CI and attached to each GitHub Release, with the standalone as its own downloadable asset kept separate from the plugin components (`manifest.json`/`main.js`/`styles.css`/`versions.json`). `release.yml` now fires on unprefixed version tags (Obsidian requires the tag to equal the manifest version exactly, no `v`) and marks pre-releases automatically. See `docs/COMMUNITY-PLUGIN.md`. Internal docs consolidated under `docs/` with de-versioned filenames.
+- **Packaging for Obsidian Community Plugin submission** — the standalone viewer (`kosmos-oden-stand-alone.html`) and other generated outputs (`dist/`) are no longer committed; they're rebuilt by CI and attached to each GitHub Release, with the standalone as its own downloadable asset kept separate from the plugin components (`manifest.json`/`main.js`/`styles.css`/`versions.json`). `release.yml` now fires on unprefixed version tags (Obsidian requires the tag to equal the manifest version exactly, no `v`) and marks pre-releases automatically. See `docs/COMMUNITY-PLUGIN.md`. Internal docs consolidated under `docs/` with de-versioned filenames.
 - Renderer extracted from the v0.5.0 base64 monolith into reviewable modules (`src/renderer/`); the single-file artifacts are now deterministically generated at build time.
 - README/AGENT-API rewritten to match what the code proves (no universal no-overlap claim, temporal-validity-intervals instead of "bitemporal", explicit list of file-producing commands).
 - Removed a quadratic orphan scan from graph assembly (50k-note build 75.7 s → 2.2 s).

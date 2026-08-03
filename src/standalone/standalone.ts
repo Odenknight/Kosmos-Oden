@@ -1,7 +1,7 @@
 /**
  * Kosmos standalone — entry point (§5, §19).
  *
- * A genuine offline single-file viewer: open vault-kosmos.html from disk,
+ * A genuine offline single-file viewer: open kosmos-oden-stand-alone.html from disk,
  * click "Open Knowledge Folder", and the directory renders with the exact
  * same Kosmos Core semantics as the Obsidian plugin, the Agent API and the
  * kosmos-build CLI. No Obsidian, Node, server or network required.

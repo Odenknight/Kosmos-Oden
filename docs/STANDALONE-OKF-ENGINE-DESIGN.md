@@ -21,7 +21,7 @@ No always-on daemon. No child-process bridge from the plugin in v1.**
 
 | Option | Verdict | Reasoning |
 |---|---|---|
-| **A. Embedded library** (all surfaces share one core) | **Adopted (already substantially true)** | `src/core/` is Obsidian-free today. All surfaces build from the same source: the plugin and `vault-kosmos.html` are esbuild-bundled from `src/`, while `kosmos-build.mjs` and the tests consume the `dist/kosmos-core.mjs` bundle (rebuilt by CI, attached to releases, not committed). Publishing `@okf/core` is real but modest packaging work — entry-point hygiene, exports map, semver — not a rewrite. |
+| **A. Embedded library** (all surfaces share one core) | **Adopted (already substantially true)** | `src/core/` is Obsidian-free today. All surfaces build from the same source: the plugin and `kosmos-oden-stand-alone.html` are esbuild-bundled from `src/`, while `kosmos-build.mjs` and the tests consume the `dist/kosmos-core.mjs` bundle (rebuilt by CI, attached to releases, not committed). Publishing `@okf/core` is real but modest packaging work — entry-point hygiene, exports map, semver — not a rewrite. |
 | **B. Child process** launched by each client | Rejected for v1 | Writes are rare, human-invoked, hash-bound, previewed, and backed up; crash-consistency comes from the tmp-write/verify/rename protocol, so process isolation buys nothing today. Adds process management, IPC, and lifecycle bugs on three OSes. Revisit if a non-JS client appears. |
 | **C. Always-on local service** | Opt-in, not default | `okf serve` hosts the existing agent server (REST + MCP, localhost, token) against a folder. Useful for agent harnesses; wrong as a requirement for a note-taking public. |
 
@@ -41,7 +41,7 @@ canonical output (the DEFERRED doc's acceptance criterion).
 | Sidecars, uid-index, proposals, decisions | Designed (Obsidian redesign §3.3–3.4); platform-neutral adapter interface | Node filesystem adapter for the same modules |
 | Schema/policy packages, pinning, rollback | ❌ | Phase 4: `.okf/schema/` + `.okf/policy/` with hash verification; remote update **out of scope** (offline-first; the full provider/signature system is later, if ever) |
 | Exporters | ✅ Graphiti (`src/core/graphiti.ts`); ❌ JSONL (new) | `okf export graphiti` reuses; `jsonl` is new work |
-| Single-file viewer | ✅ `vault-kosmos.html` | Unchanged; later: read-only display of `.okf/` diagnostics/assessments |
+| Single-file viewer | ✅ `kosmos-oden-stand-alone.html` | Unchanged; later: read-only display of `.okf/` diagnostics/assessments |
 
 **Phase-1 prerequisite (found by code audit):** add `.okf` to the shared corpus-scan
 ignore rules (`DEFAULT_IGNORED_DIRS` in `src/core/paths.ts` currently lists only

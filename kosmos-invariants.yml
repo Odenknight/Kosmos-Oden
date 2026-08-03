@@ -56,7 +56,7 @@ release:
     - main.js
     - styles.css
     - versions.json
-    - vault-kosmos.html
+    - kosmos-oden-stand-alone.html
     - kosmos-mcp-stdio.mjs
     - BUILD-INFO.json
     - SHA256SUMS

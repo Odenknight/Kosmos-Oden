@@ -8,7 +8,7 @@
  *   dist/kosmos-agent-server.mjs  ESM bundle of the Agent API server core
  *                                 (consumed by tests)
  *   dist/kosmos-embed.html        single-file page for the plugin iframe
- *   vault-kosmos.html             single-file STANDALONE viewer (repo root)
+ *   kosmos-oden-stand-alone.html             single-file STANDALONE viewer (repo root)
  *   main.js                       Obsidian plugin bundle (embeds the iframe page)
  *
  * Every artifact bundles Three.js (exact-pinned ESM `three`, esbuild-bundled
@@ -135,8 +135,8 @@ ${escapeInline(appJs)}
 async function buildStandalone() {
   const app = await bundle("src/standalone/standalone.ts");
   const html = composePage(`Vault Kosmos ${VERSION} — Standalone`, app);
-  writeFileSync(resolve(root, "vault-kosmos.html"), html);
-  console.log(`built vault-kosmos.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
+  writeFileSync(resolve(root, "kosmos-oden-stand-alone.html"), html);
+  console.log(`built kosmos-oden-stand-alone.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
 }
 
 async function buildEmbed() {

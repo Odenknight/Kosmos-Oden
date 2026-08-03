@@ -25,7 +25,7 @@ The stable and experimental renderers should consume the same positioned scene d
 
 | Artifact | Renderer | Status | Primary purpose |
 |---|---|---|---|
-| `vault-kosmos.html` | Modern Three.js `WebGLRenderer` / WebGL2 | Stable default | Universal offline standalone viewer |
+| `kosmos-oden-stand-alone.html` | Modern Three.js `WebGLRenderer` / WebGL2 | Stable default | Universal offline standalone viewer |
 | `dist/kosmos-embed.html` | Modern Three.js `WebGLRenderer` / WebGL2 | Stable default | Sandboxed Obsidian plugin embed |
 | `vault-kosmos-webgpu.html` | Three.js `WebGPURenderer` + TSL | Experimental | Native WebGPU evaluation and future-facing performance/features |
 | `dist/kosmos-embed-webgpu.html` | `WebGPURenderer` + TSL | Test/experimental | Obsidian runtime capability testing |
@@ -33,7 +33,7 @@ The stable and experimental renderers should consume the same positioned scene d
 
 ---
 
-## 3. Stable standalone: `vault-kosmos.html`
+## 3. Stable standalone: `kosmos-oden-stand-alone.html`
 
 ### Renderer
 
@@ -377,7 +377,7 @@ Build output mapping:
 ```js
 await buildPage({
   entry: "src/standalone/standalone-webgl.ts",
-  output: "vault-kosmos.html",
+  output: "kosmos-oden-stand-alone.html",
   title: `Vault Kosmos ${VERSION} — Standalone WebGL2`
 });
 

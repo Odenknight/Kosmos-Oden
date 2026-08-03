@@ -116,12 +116,12 @@ must(mig.body_preserved === true && /fm\.body/.test(migrationCore), "OKF+ migrat
 must(mig.llm_required === false && mig.network_dispatch_allowed === false && !/\bfetch\s*\(|XMLHttpRequest|WebSocket/.test(migrationCode), "OKF+ migration must remain LLM-free and make no network dispatch");
 
 /* ---- standalone invariants (artifact must exist and be self-contained) ---- */
-if (existsSync(resolve(root, "vault-kosmos.html"))) {
-  const html = read("vault-kosmos.html");
+if (existsSync(resolve(root, "kosmos-oden-stand-alone.html"))) {
+  const html = read("kosmos-oden-stand-alone.html");
   must(!/<script[^>]+src=/i.test(html), "standalone must not load external scripts");
   must(!/url\(\s*['"]?https?:/i.test(html), "standalone must not reference remote CSS urls");
 } else {
-  problems.push("vault-kosmos.html missing — run npm run build");
+  problems.push("kosmos-oden-stand-alone.html missing — run npm run build");
 }
 
 /* ---- release forbidden files must never be tracked ---- */

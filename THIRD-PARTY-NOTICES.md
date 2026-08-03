@@ -8,7 +8,7 @@ The 3D renderer bundles **Three.js** (r185, npm `three@0.185.1`), © 2010–2025
 three.js authors, under the MIT License. It is an exact-pinned npm dependency
 (`package.json` + `package-lock.json`, integrity recorded in
 `renderer-provenance.json`); esbuild bundles the ESM module into `main.js`,
-`vault-kosmos.html` and `dist/kosmos-embed.html` at build time — no CDN, no
+`kosmos-oden-stand-alone.html` and `dist/kosmos-embed.html` at build time — no CDN, no
 runtime fetch, still a single offline file. The previous vendored global r128
 build is retained under `vendor/legacy/` (see its `.PROVENANCE.json`) for an
 optional frozen WebGL1-era compatibility artifact only.

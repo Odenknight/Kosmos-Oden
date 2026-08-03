@@ -16,15 +16,15 @@ if (existsSync(resolve(root, "main.js"))) {
   must(mainJs.includes("vault-kosmos-view"), "main.js does not register the Kosmos view");
 }
 
-// vault-kosmos.html exists, single-file, no external runtime deps
-const standalonePath = resolve(root, "vault-kosmos.html");
-must(existsSync(standalonePath), "vault-kosmos.html is missing (run npm run build:standalone)");
+// kosmos-oden-stand-alone.html exists, single-file, no external runtime deps
+const standalonePath = resolve(root, "kosmos-oden-stand-alone.html");
+must(existsSync(standalonePath), "kosmos-oden-stand-alone.html is missing (run npm run build:standalone)");
 if (existsSync(standalonePath)) {
   const html = readFileSync(standalonePath, "utf8");
-  must(html.length > 400_000, "vault-kosmos.html suspiciously small");
-  must(!/<script[^>]+src=/i.test(html), "vault-kosmos.html loads an external script");
-  must(!/<link[^>]+href=/i.test(html), "vault-kosmos.html loads an external stylesheet");
-  must(!/url\(\s*['"]?https?:/i.test(html), "vault-kosmos.html references a remote CSS url()");
+  must(html.length > 400_000, "kosmos-oden-stand-alone.html suspiciously small");
+  must(!/<script[^>]+src=/i.test(html), "kosmos-oden-stand-alone.html loads an external script");
+  must(!/<link[^>]+href=/i.test(html), "kosmos-oden-stand-alone.html loads an external stylesheet");
+  must(!/url\(\s*['"]?https?:/i.test(html), "kosmos-oden-stand-alone.html references a remote CSS url()");
   must(html.includes("showDirectoryPicker"), "standalone is missing the persistent folder picker");
   must(html.includes("webkitdirectory"), "standalone is missing the snapshot fallback");
 }

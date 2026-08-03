@@ -11,7 +11,7 @@ The visualization changes nothing — KRS only *looks* at your notes. Close the 
 | | |
 |---|---|
 | **Inside Obsidian** | Install the plugin — desktop and mobile, live-updating as you edit. See [Obsidian plugin](#obsidian-plugin). |
-| **Standalone, no Obsidian** | Download one file, `vault-kosmos.html`, and open it in a browser. No install, no server, no internet. See [Standalone — no Obsidian required](#standalone--no-obsidian-required). |
+| **Standalone, no Obsidian** | Download one file, `kosmos-oden-stand-alone.html`, and open it in a browser. No install, no server, no internet. See [Standalone — no Obsidian required](#standalone--no-obsidian-required). |
 
 Both surfaces — plus the Agent API and the `kosmos-build` CLI — render **the same vault the same way**, because they all share one engine (more on that below).
 
@@ -61,7 +61,7 @@ Kosmos Research Studio is three products sharing **one semantic engine** — the
       3D renderer       3D renderer        Graphiti episodes
 ```
 
-The same vault produces materially the same nodes, links, lineage, HEAD status, temporal state and Graphiti episode structure whether you access it through Obsidian, `vault-kosmos.html`, `kosmos-build.mjs`, the REST Agent API, or MCP.
+The same vault produces materially the same nodes, links, lineage, HEAD status, temporal state and Graphiti episode structure whether you access it through Obsidian, `kosmos-oden-stand-alone.html`, `kosmos-build.mjs`, the REST Agent API, or MCP.
 
 ## How your vault becomes a cosmos
 
@@ -105,9 +105,9 @@ Hosting attachments biases a planet toward its watery variety (an Earth-like wat
 
 ## Standalone — no Obsidian required
 
-`vault-kosmos.html` is one self-contained file: Three.js, the parser, the graph engine and the renderer are all inlined. No Obsidian, no Node.js, no Python, no local server, no internet connection — copy it to any folder and open it in a browser.
+`kosmos-oden-stand-alone.html` is one self-contained file: Three.js, the parser, the graph engine and the renderer are all inlined. No Obsidian, no Node.js, no Python, no local server, no internet connection — copy it to any folder and open it in a browser.
 
-1. Download **`vault-kosmos.html`** (or copy it anywhere — any folder works).
+1. Download **`kosmos-oden-stand-alone.html`** (or copy it anywhere — any folder works).
 2. Open it in a modern browser (double-click).
 3. Click **Open Knowledge Folder**.
 4. Select the root of your Markdown or Obsidian vault.
@@ -271,7 +271,7 @@ node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.jso
 node kosmos-build.mjs /path/to/vault graph.json --watch     # rebuild on change (Node)
 ```
 
-Uses the same bundled Kosmos Core as the plugin and the standalone page — not a separate implementation. A `graph.json` placed next to `vault-kosmos.html` is auto-loaded when the page is served over http(s).
+Uses the same bundled Kosmos Core as the plugin and the standalone page — not a separate implementation. A `graph.json` placed next to `kosmos-oden-stand-alone.html` is auto-loaded when the page is served over http(s).
 
 ## What writes what (read-only guarantees)
 
@@ -291,8 +291,8 @@ Visualization, the standalone viewer, and the Agent API run locally and collect 
 nvm use                  # Node 22 (see .nvmrc); engines pinned in package.json
 npm ci                   # clean install from the committed package-lock.json
 npm run typecheck        # tsc --noEmit
-npm run build            # plugin main.js + embed page + vault-kosmos.html + node bundles
-npm run build:standalone # just vault-kosmos.html
+npm run build            # plugin main.js + embed page + kosmos-oden-stand-alone.html + node bundles
+npm run build:standalone # just kosmos-oden-stand-alone.html
 npm test                 # 165 unit/API/artifact/classification/sync tests (node --test)
 npm run verify           # typecheck + build + test + version/artifact/invariant checks
 npm run bench            # reproducible synthetic-vault benchmarks
