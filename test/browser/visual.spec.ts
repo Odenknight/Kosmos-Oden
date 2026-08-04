@@ -25,6 +25,8 @@ for (const v of VIEWS) {
     }, null, { timeout: 15_000 });
     // let the frozen (deterministic) frame settle
     await page.waitForTimeout(400);
-    await expect(page.locator("#stage canvas")).toHaveScreenshot(`${v.name}.png`);
+    // Page capture includes the compositor-backed WebGL canvas; element-only
+    // canvas screenshots are blank on some headless software-GPU paths.
+    await expect(page).toHaveScreenshot(`${v.name}.png`, { fullPage: false });
   });
 }

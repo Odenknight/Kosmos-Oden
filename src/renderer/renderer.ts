@@ -108,14 +108,20 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     frozen: _q0.get("animation") === "off" || _q0.has("capture"),
     seed: Number(_q0.get("seed") || 0) || 0,
   };
+  const hardwareConcurrency = Number((navigator as any).hardwareConcurrency) || 0;
+  const deviceMemory = Number((navigator as any).deviceMemory) || 0;
+  // Touch input is not evidence of a weak GPU. Keep full materials on capable
+  // phones and reserve Lite mode for explicit requests or constrained devices.
+  const DEVICE_CONSTRAINED = (hardwareConcurrency > 0 && hardwareConcurrency <= 4)
+    || (deviceMemory > 0 && deviceMemory <= 4);
   const LOWPOWER = CAPTURE.quality === "lite" ? true : CAPTURE.quality === "high" ? false
-    : ((_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : (MOBILE || ((navigator as any).hardwareConcurrency && (navigator as any).hardwareConcurrency <= 4) || ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4))));
+    : ((_q0.has("hp") || _q0.has("highpower")) ? false : ((_q0.has("lp") || _q0.has("lowpower")) ? true : DEVICE_CONSTRAINED));
 
   /* ---- renderer / scene / camera ---- */
   const stage = document.getElementById("stage");
   let renderer: any;
   try {
-    renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, alpha: false, powerPreference: "high-performance", stencil: false });
+    renderer = new THREE.WebGLRenderer({ antialias: !LOWPOWER, alpha: false, powerPreference: "high-performance", stencil: false });
   } catch (error) {
     return fail(`Kosmos could not initialize WebGL2. ${String(error)}`);
   }
@@ -130,7 +136,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   // transform, so there is no double conversion.
   THREE.ColorManagement.enabled = false;
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-  const MAXDPR = MOBILE ? 1.6 : 2;
+  const MAXDPR = 2;
   let dpr = CAPTURE.dpr != null ? CAPTURE.dpr : Math.min(window.devicePixelRatio || 1, MAXDPR);
   renderer.setPixelRatio(dpr);
   const scene = new THREE.Scene();
@@ -162,6 +168,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       aLive: new THREE.InstancedBufferAttribute(f(), 1),
       aEmerge: new THREE.InstancedBufferAttribute(f(), 1),
       aBand: new THREE.InstancedBufferAttribute(f(), 1),
+      // Projected-size LOD: expensive procedural surface work is reserved for
+      // bodies large enough on screen for that detail to be visible.
+      aDetail: new THREE.InstancedBufferAttribute(f(), 1),
     };
     for (const k in attrs) { attrs[k].setUsage(THREE.DynamicDrawUsage); geometry.setAttribute(k, attrs[k]); }
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -203,7 +212,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 24;
-  const AGENT_TRAIL_MS = 30000;
+  const AGENT_TRAIL_MS = 60000;
   const AGENT_DUST_CAP = MOBILE ? 192 : 640;
   const AGENT_DUST_HEAD_MS = 90;
   let __agentDustHeadT = 0;
@@ -338,6 +347,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
         L.attrs.aVisible.setX(i, 1);
         // aBand carries the NASA planet-type style code (0 terrestrial, 1 gas, 2 neptunian, 3 super-earth)
         L.attrs.aBand.setX(i, (b === "planet" && node.__pstyle != null) ? node.__pstyle : 0);
+        L.attrs.aDetail.setX(i, 1);
         const rec = { node, layer: L, idx: i, body: b };
         L.recByIdx[i] = rec;
         nodeRender.push(rec); idToRender.set(node.id, rec);
@@ -1694,22 +1704,32 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     _frustum.setFromProjectionMatrix(_vpm.multiplyMatrices(camera.projectionMatrix, _miw));
     const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     const minPx: any = { cluster: 0, galaxy: 0, star: 0, planet: 0.5, moon: 0.9, moonlet: 1.2, asteroid: 1.3, oort: 1.4 };
-    const touched: any = {};
+    const touched: any = {}, detailTouched: any = {};
     for (const r of nodeRender) {
       const n = r.node; if (n.__hidden) continue;
       const keepForce = (showAllObjects || n.id === selectedId || n.id === hoveredId || liveIds.has(n.id));
+      const p = n.position;
+      const dx = p[0] - cx, dy = p[1] - cy, dz = p[2] - cz, dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+      const px = (n.__r || 0.5) / dist * focalH;
       let vis = true;
       if (!keepForce) {
-        const p = n.position; _sph.center.set(p[0], p[1], p[2]); _sph.radius = (n.__r || 0.5) * 2.2 + 1.0;
+        _sph.center.set(p[0], p[1], p[2]); _sph.radius = (n.__r || 0.5) * 2.2 + 1.0;
         if (!_frustum.intersectsSphere(_sph)) vis = false;
         else {
-          const dx = p[0] - cx, dy = p[1] - cy, dz = p[2] - cz, dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, px = (n.__r || 0.5) / dist * focalH;
           if (px < (minPx[r.body] || 1) * lodScale) vis = false;
         }
       }
+      // Keep full procedural surfaces for selected/hovered bodies and for
+      // planets/moons that occupy enough pixels to reveal them. At overview
+      // scale the shader takes its inexpensive diffuse path.
+      const detailForce = n.id === selectedId || n.id === hoveredId || liveIds.has(n.id);
+      const detailed = detailForce || px >= (r.body === "planet" ? 9 : r.body === "moon" ? 7 : 5);
+      const detailValue = detailed ? 1 : 0;
+      if (r.layer.attrs.aDetail.getX(r.idx) !== detailValue) { r.layer.attrs.aDetail.setX(r.idx, detailValue); detailTouched[r.body] = 1; }
       if (vis !== (n.__lodVisible !== false)) { n.__lodVisible = vis; r.layer.attrs.aVisible.setX(r.idx, (vis && !n.__hidden) ? 1 : 0); touched[r.body] = 1; }
     }
     for (const b in touched) if (layers[b]) layers[b].attrs.aVisible.needsUpdate = true;
+    for (const b in detailTouched) if (layers[b]) layers[b].attrs.aDetail.needsUpdate = true;
   }
 
   /* ---- cinematic trailer flight ---- */
@@ -1798,14 +1818,19 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   window.addEventListener("resize", resize); resize();
 
   // FPS-adaptive pixel-ratio (keeps mobile smooth)
-  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0;
+  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0, slowWindows = 0;
   function adaptQuality(dt: number, now: number) {
     fpsAccum += dt; fpsFrames++;
     if (now - lastAdjust < 1.2) return;
     const fps = fpsFrames / fpsAccum; fpsAccum = 0; fpsFrames = 0; lastAdjust = now;
-    const floor = LOWPOWER ? 0.75 : 1.0;
-    if (fps < 42 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); }
-    else if (fps > 58 && dpr < MAXDPR && lodScale <= 1) { dpr = Math.min(MAXDPR, dpr + 0.25); renderer.setPixelRatio(dpr); }
+    const floor = LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0);
+    const closeDetail = !!selectedId || !!hoveredId || !!cam.flight || cam.radius < overviewRadius * 0.62;
+    const viewCeiling = closeDetail ? MAXDPR : (MOBILE ? 1.25 : 1.5);
+    if (CAPTURE.dpr != null) return;
+    slowWindows = fps < 42 ? slowWindows + 1 : 0;
+    if (dpr > viewCeiling) { dpr = Math.max(viewCeiling, dpr - 0.25); renderer.setPixelRatio(dpr); }
+    else if (slowWindows >= 2 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); slowWindows = 0; }
+    else if (fps > 58 && dpr < viewCeiling && lodScale <= 1) { dpr = Math.min(viewCeiling, dpr + 0.25); renderer.setPixelRatio(dpr); }
     if (fps < 30 && dpr <= floor + 0.001) lodScale = Math.min(2.4, lodScale + 0.3);
     else if (fps > 58 && lodScale > 1) lodScale = Math.max(1, lodScale - 0.3);
   }
@@ -1854,7 +1879,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if ((mmFrame = (mmFrame + 1) & 3) === 0) drawMinimap();
     if ((lodFrame = (lodFrame + 1) & 7) === 0) cullLOD();
     adaptQuality(dt, t);
-    renderer.render(scene, camera);
+    // A distant, idle overview contains no readable surface detail. Continue
+    // simulation/UI work at display cadence but submit only every other frame;
+    // interaction, flights, capture, and focused close-ups remain full-rate.
+    const overviewIdle = !CAPTURE.on && cam.radius >= overviewRadius * 0.62 && !selectedId && !hoveredId && !dragging && !cam.flight && !trailer && navMode !== "fly";
+    if (!overviewIdle || (renderStats.frames & 1) === 0) renderer.render(scene, camera);
   }
   function startLoop() {
     if (renderStats.running) return;
@@ -1907,7 +1936,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   dom.addEventListener("webglcontextrestored", onContextRestored, false);
 
   (window as any).__kosmosRenderStats = renderStats;
-  (window as any).__kosmosRenderer = { backend: RENDERER_BACKEND, threeRevision: RENDERER_THREE_REVISION };
+  (window as any).__kosmosRenderer = {
+    backend: RENDERER_BACKEND,
+    threeRevision: RENDERER_THREE_REVISION,
+    quality: LOWPOWER ? "lite" : "high",
+    mobile: MOBILE,
+    maxDpr: MAXDPR,
+    pixelRatio: () => renderer.getPixelRatio(),
+  };
 
   function teardown() {
     stopLoop();

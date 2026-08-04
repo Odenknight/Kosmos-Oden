@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
  */
 const CAPTURE = "/kosmos-oden-stand-alone.html?capture=1&seed=1907&time=0&dpr=1&quality=high&camera=overview&animation=off";
 
-test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }) => {
+test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -19,6 +19,11 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
   const r = await page.evaluate(() => (window as any).__kosmosRenderer);
   expect(r.backend).toBe("webgl2");
   expect(r.threeRevision).toBe("185");
+  if (testInfo.project.name === "mobile-chromium") {
+    expect(r.mobile).toBe(true);
+    expect(r.quality).toBe("high");
+    expect(r.maxDpr).toBe(2);
+  }
 
   // the demo scene reaches a ready state (boot overlay clears, stats populate)
   await page.waitForFunction(() => {
