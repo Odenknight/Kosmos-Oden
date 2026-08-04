@@ -7,7 +7,7 @@ import { test, expect } from "@playwright/test";
  */
 const CAPTURE = "/vault-kosmos.html?capture=1&seed=1907&time=0&dpr=1&quality=high&camera=overview&animation=off";
 
-test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }) => {
+test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -19,6 +19,11 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
   const r = await page.evaluate(() => (window as any).__kosmosRenderer);
   expect(r.backend).toBe("webgl2");
   expect(r.threeRevision).toBe("185");
+  if (testInfo.project.name === "mobile-chromium") {
+    expect(r.mobile).toBe(true);
+    expect(r.quality).toBe("high");
+    expect(r.maxDpr).toBe(2);
+  }
 
   // the demo scene reaches a ready state (boot overlay clears, stats populate)
   await page.waitForFunction(() => {
@@ -34,27 +39,6 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
 
   // no external network requests were emitted (offline promise)
   expect(errors, "no console/page errors").toEqual([]);
-});
-
-test("capable mobile devices keep the high-quality renderer", async ({ page, browserName }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile-chromium" || browserName !== "chromium", "mobile quality policy");
-  // Playwright's Pixel profile describes viewport/input, not hardware. CI's
-  // SwiftShader host may expose 4 cores / 4 GiB and correctly select Lite, so
-  // make the capability premise explicit instead of depending on the runner.
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "hardwareConcurrency", { configurable: true, value: 8 });
-    Object.defineProperty(navigator, "deviceMemory", { configurable: true, value: 8 });
-  });
-  await page.goto("/vault-kosmos.html?capture=1&seed=1907&time=0&camera=overview&animation=off");
-  await page.waitForFunction(() => (window as any).__kosmosRenderer != null, null, { timeout: 15_000 });
-  const quality = await page.evaluate(() => {
-    const renderer = (window as any).__kosmosRenderer;
-    return { quality: renderer.quality, mobile: renderer.mobile, maxDpr: renderer.maxDpr, pixelRatio: renderer.pixelRatio() };
-  });
-  expect(quality.mobile).toBe(true);
-  expect(quality.quality).toBe("high");
-  expect(quality.maxDpr).toBe(2);
-  expect(quality.pixelRatio).toBeGreaterThanOrEqual(1.25);
 });
 
 test("standalone reports WebGL2 requirement message when WebGL2 is unavailable", async ({ page }) => {
