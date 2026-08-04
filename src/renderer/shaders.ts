@@ -19,15 +19,15 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
       attribute vec3 aColor; attribute float aSeed; attribute float aVisible;
-      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aBand;
+      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aBand; attribute float aDetail;
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail;
       #ifdef ROCK
       float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
       #endif
       void main(){
-        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vBand=aBand;
+        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vBand=aBand; vDetail=aDetail;
         vec3 p=position; vec3 nrm=normal;
         #ifdef SPIN
           float sa=uTime*${o.SPIN_SPEED.toFixed(3)}*(0.5+aSeed); mat3 RS=rotY(sa); p=RS*p; nrm=RS*nrm;
@@ -51,7 +51,7 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
     fragmentShader: `${D}${ACES}
       uniform float uTime; uniform vec3 uLightDir; uniform vec3 uCamPos; uniform float uGlowAll;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail;
       float h31(vec3 p){ return fract(sin(dot(p,vec3(17.1,113.5,71.7)))*43758.5453); }
       float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         float a=mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x), f.y);
@@ -74,9 +74,11 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
             base=mix(base,base*vec3(1.06,0.98,0.90),fract(vSeed*3.3));   // warm/cool mineral tint
           #endif
           #ifdef SURF
-            float m=fbm(vObjNRM*3.2+vSeed*7.0);
-            base*=mix(0.78,1.18,m);
-            base+=vColor*0.20*smoothstep(0.58,0.9,m);
+            float m=0.5;
+            if(vDetail>0.5){
+              m=fbm(vObjNRM*3.2+vSeed*7.0);
+              base*=mix(0.78,1.18,m);
+              base+=vColor*0.20*smoothstep(0.58,0.9,m);
             #ifdef PLANET
               // vBand carries the NASA exoplanet class: 0 terrestrial, 1 gas giant, 2 neptunian, 3 super-earth
               if(vBand<0.5){                                                               // terrestrial: land/sea + polar ice caps
@@ -97,13 +99,15 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
               base*=1.0-0.28*smoothstep(0.60,0.80,m);                                      // lunar maria patches
               base+=vec3(0.05)*smoothstep(0.84,0.96,m);                                    // bright ejecta flecks
             #endif
+            }
           #endif
           col=base*(${o.AMBIENT.toFixed(3)}+wrap*${o.DIFF.toFixed(3)});
-          vec3 H=normalize(L+V); col+=vec3(1.0)*pow(max(dot(N,H),0.0),30.0)*diff*0.20;
+          if(vDetail>0.5){ vec3 H=normalize(L+V); col+=vec3(1.0)*pow(max(dot(N,H),0.0),30.0)*diff*0.20; }
           #ifdef ATMO
             float rim=pow(1.0-NV,3.0); col+=vColor*rim*0.55*(0.35+0.65*diff);
           #endif
           #ifdef PLANET
+           if(vDetail>0.5){
             float lat=clamp(vObjNRM.y,-1.0,1.0);
             if(vBand>0.5&&vBand<1.5){                                                      // gas giant: warm Jupiter/Saturn banding
               float bands=0.5+0.5*sin(lat*11.0+vSeed*5.0);
@@ -112,6 +116,7 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
               float nbands=0.5+0.5*sin(lat*7.0+vSeed*4.0);
               col=mix(col, col*vec3(0.88,0.98,1.16), nbands*0.30);
             }
+           }
           #endif
         #endif
         col+=vColor*vHi*1.7; col+=vColor*pow(1.0-NV,2.0)*vHi*1.5; col=mix(col,vec3(1.0),vHi*0.30);
@@ -133,7 +138,7 @@ export function bodyMaterialLite(THREE: any, o: any): any {
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
       attribute vec3 aColor; attribute float aSeed; attribute float aVisible;
-      attribute float aHi; attribute float aLive; attribute float aEmerge;
+      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aDetail;
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed;
       #ifdef ROCK
