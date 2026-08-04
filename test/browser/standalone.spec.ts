@@ -38,6 +38,13 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
 
 test("capable mobile devices keep the high-quality renderer", async ({ page, browserName }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium" || browserName !== "chromium", "mobile quality policy");
+  // Playwright's Pixel profile describes viewport/input, not hardware. CI's
+  // SwiftShader host may expose 4 cores / 4 GiB and correctly select Lite, so
+  // make the capability premise explicit instead of depending on the runner.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "hardwareConcurrency", { configurable: true, value: 8 });
+    Object.defineProperty(navigator, "deviceMemory", { configurable: true, value: 8 });
+  });
   await page.goto("/vault-kosmos.html?capture=1&seed=1907&time=0&camera=overview&animation=off");
   await page.waitForFunction(() => (window as any).__kosmosRenderer != null, null, { timeout: 15_000 });
   const quality = await page.evaluate(() => {
