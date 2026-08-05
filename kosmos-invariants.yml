@@ -17,7 +17,7 @@ security:
   # Query-string token auth is deprecated and off by default; never in LAN mode.
   query_tokens_default_enabled: false
   query_tokens_allowed_in_lan: false
-  # OKF+ sensitivity enforcement: legacy/unlabeled notes are internal;
+  # GKX sensitivity enforcement: missing or invalid labels fail closed to secret;
   # confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
   invalid_sensitivity_fails_closed_as: secret
@@ -70,7 +70,7 @@ renderer:
   # Host <-> renderer messages carry a protocol version and are validated.
   message_protocol_versioned: true
 
-okf_migration:
+gkx_migration:
   audit_before_apply: true
   plan_hash: sha256
   byte_exact_backup: true
@@ -79,7 +79,7 @@ okf_migration:
   llm_required: false
   network_dispatch_allowed: false
 
-okf23_projection:
+gkx23_projection:
   profile: validating-projection
   full_gkos_claimed: false
   source_notes_silently_modified: false

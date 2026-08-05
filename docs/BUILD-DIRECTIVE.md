@@ -83,7 +83,7 @@ At minimum, centralize:
 
 ```text
 Markdown parsing
-OKF+ parsing
+GKX parsing
 link resolution
 canonical lineage resolution
 temporal validity calculation
@@ -102,7 +102,7 @@ src/
     types.ts
     paths.ts
     markdown.ts
-    okf.ts
+    gkx.ts
     resolver.ts
     lineage.ts
     temporal.ts
@@ -231,10 +231,10 @@ but these should be projections of the canonical lineage graph rather than indep
 For each note:
 
 ```text
-valid_at = OKF+ timestamp
+valid_at = GKX timestamp
 ```
 
-or a documented fallback timestamp when no valid OKF+ timestamp exists.
+or a documented fallback timestamp when no valid GKX timestamp exists.
 
 For each note with successors:
 
@@ -807,7 +807,7 @@ Optionally preserve raw declarations separately:
 
 ```json
 {
-  "source_okf": {
+  "source_gkx": {
     "declared_supersedes": [],
     "declared_superseded_by": []
   }
@@ -841,7 +841,7 @@ Graphiti-ingestable episode format
 and:
 
 ```text
-OKF+ lineage metadata is preserved in the JSON episode body
+GKX lineage metadata is preserved in the JSON episode body
 ```
 
 Do not claim that Graphiti is guaranteed to reconstruct the exact same internal lineage graph unless an integration test proves that behavior.
@@ -1563,7 +1563,7 @@ unless proven as an invariant.
 ## Allowed claim
 
 ```text
-OKF+ notes support temporal validity intervals and point-in-time graph reconstruction based on retained timestamps and supersession history.
+GKX notes support temporal validity intervals and point-in-time graph reconstruction based on retained timestamps and supersession history.
 ```
 
 Do not use:
@@ -1587,7 +1587,7 @@ This claim may be added only after the code is fixed.
 ## Allowed claim
 
 ```text
-Graphiti-compatible episode exports preserve OKF+ structure and are ordered chronologically for ingestion.
+Graphiti-compatible episode exports preserve GKX structure and are ordered chronologically for ingestion.
 ```
 
 Do not guarantee Graphiti will infer the exact same knowledge graph unless integration testing proves that claim.

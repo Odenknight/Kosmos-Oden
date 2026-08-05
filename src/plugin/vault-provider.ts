@@ -1,17 +1,17 @@
 /**
  * Kosmos plugin — Obsidian-backed data provider for the Agent API.
  *
- * Owns a KosmosIndex fed from the live vault, so the Agent API answers from
+ * Owns a GkxIndex fed from the live vault, so the Agent API answers from
  * the SAME normalized graph snapshot the viewer renders (§33). Change events
  * are folded incrementally (§10): a single edited note is re-read (from
  * Obsidian's in-memory cache) and re-parsed alone; only bulk changes trigger
  * a full rebuild.
  */
 import type { App, TFile } from "obsidian";
-import { KosmosIndex } from "gkos-engine";
+import { GkxIndex } from "gkos-engine";
 import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider } from "./agent-server";
-import type { KosmosGraph, SourceFile } from "gkos-engine";
+import type { GkxGraph, SourceFile } from "gkos-engine";
 
 declare const require: any;
 
@@ -66,12 +66,12 @@ export function attachmentListFrom(all: Array<{ path: string; extension?: string
 
 export class VaultDataProvider implements AgentDataProvider {
   private app: App;
-  private index = new KosmosIndex();
+  private index = new GkxIndex();
   private fullDirty = true;
   private changedPaths = new Set<string>();
   private removedPaths = new Set<string>();
   private renamedPaths: Array<{ from: string; to: string }> = [];
-  private building: Promise<KosmosGraph> | null = null;
+  private building: Promise<GkxGraph> | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -97,7 +97,7 @@ export class VaultDataProvider implements AgentDataProvider {
     };
   }
 
-  async getGraph(): Promise<KosmosGraph> {
+  async getGraph(): Promise<GkxGraph> {
     if (this.building) return this.building;
     const pending = this.fullDirty || this.changedPaths.size || this.removedPaths.size || this.renamedPaths.length;
     if (this.index.graph && !pending) return this.index.graph;
@@ -109,7 +109,7 @@ export class VaultDataProvider implements AgentDataProvider {
     }
   }
 
-  private async rebuild(): Promise<KosmosGraph> {
+  private async rebuild(): Promise<GkxGraph> {
     const md = this.app.vault.getMarkdownFiles();
     const folders = folderListFrom(md);
     const attachments = attachmentListFrom(this.app.vault.getFiles());

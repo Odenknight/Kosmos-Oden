@@ -327,7 +327,7 @@ export interface KosmosRenderBackend {
   readonly threeRevision: string;
 
   init(container: HTMLElement): Promise<void>;
-  buildScene(sceneData: PositionedKosmosGraph): void;
+  buildScene(sceneData: PositionedGkxGraph): void;
   resize(width: number, height: number, dpr: number): void;
   render(frame: RenderFrame): void;
   suspend(): void;

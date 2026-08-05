@@ -18,8 +18,8 @@ import {
 
 const FILES = [
   { relativePath: "Home.md", content: "# Home\n[[Engine v2]]" },
-  { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\ntimestamp: 2026-01-01T00:00:00Z\n---\nOld engine." },
-  { relativePath: "Ideas/Engine v2.md", content: "---\ntype: idea\ntimestamp: 2026-03-01T00:00:00Z\nsupersedes:\n  - Engine v1\n---\nNew engine.\n\n**Related:** [[Home]]" },
+  { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\ntimestamp: 2026-01-01T00:00:00Z\nsensitivity: internal\n---\nOld engine." },
+  { relativePath: "Ideas/Engine v2.md", content: "---\ntype: idea\ntimestamp: 2026-03-01T00:00:00Z\nsensitivity: internal\nsupersedes:\n  - Engine v1\n---\nNew engine.\n\n**Related:** [[Home]]" },
 ];
 
 function fixtureProvider() {
@@ -207,31 +207,31 @@ test("agent api", async (t) => {
     assert.equal(r.status, 202);
   });
 
-  await t.test("MCP tools/list exposes legacy and OKF+ 2.3 read-only tools", async () => {
+  await t.test("MCP tools/list exposes legacy and GKX 2.3 read-only tools", async () => {
     const r = await mcp({ jsonrpc: "2.0", id: 4, method: "tools/list" });
     const names = r.json().result.tools.map((x) => x.name);
     assert.deepEqual(names.sort(), [
       "assess_note", "assess_vault", "export_graphiti_episodes", "get_assessment",
-      "get_diagnostics", "get_effective_labels", "get_evidence", "get_lineage",
-      "get_note", "get_okf_note", "get_policy", "get_related", "get_relationships",
+      "get_diagnostics", "get_effective_labels", "get_evidence", "get_gkx_note",
+      "get_lineage", "get_note", "get_policy", "get_related", "get_relationships",
       "graph_at_time", "graphiti_ingestion_status", "search_notes", "validate_note", "vault_overview",
     ]);
     assert.ok(r.json().result.tools.every((x) => x.annotations.readOnlyHint === true));
   });
 
-  await t.test("OKF+ 2.3 assessment has REST/MCP parity and preserves read-only semantics", async () => {
+  await t.test("GKX 2.3 assessment has REST/MCP parity and preserves read-only semantics", async () => {
     const m = await mcp({ jsonrpc: "2.0", id: 41, method: "tools/call", params: { name: "get_assessment", arguments: { title: "Engine v2" } } });
     const viaMcp = m.json().result.structuredContent;
-    const r = await request(port, { path: "/okf/assessment?title=Engine%20v2", headers: auth });
+    const r = await request(port, { path: "/gkx/assessment?title=Engine%20v2", headers: auth });
     assert.equal(r.status, 200);
     assert.deepEqual(r.json(), viaMcp);
-    assert.equal(viaMcp.profile, "okf-plus-2.3-validating-projection");
+    assert.equal(viaMcp.profile, "gkx-2.3-validating-projection");
     assert.equal(viaMcp.interpretation, "documentation-and-support-quality-not-truth");
-    assert.equal(viaMcp.policy.id, "policy:okf23-default-v1");
+    assert.equal(viaMcp.policy.id, "policy:gkx23-default-v1");
   });
 
-  await t.test("OKF+ policy endpoint is bundled, deterministic, and remote updates are off", async () => {
-    const r = await request(port, { path: "/okf/policy", headers: auth });
+  await t.test("GKX policy endpoint is bundled, deterministic, and remote updates are off", async () => {
+    const r = await request(port, { path: "/gkx/policy", headers: auth });
     assert.equal(r.status, 200);
     assert.equal(r.json().remoteUpdatesEnabled, false);
     assert.match(r.json().policy.hash, /^sha256:[0-9a-f]{64}$/);
@@ -419,7 +419,7 @@ test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
   assert.match(note.content, /truncated/);
 });
 
-test("OKF+ sensitivity ceiling filters search, note content, graph, and Graphiti pages", async () => {
+test("GKX sensitivity ceiling filters search, note content, graph, and Graphiti pages", async () => {
   const files = [
     { relativePath: "Public.md", content: "---\ntype: semantic\nsensitivity: public\ntimestamp: 2026-01-01T00:00:00Z\n---\npublic" },
     { relativePath: "Internal.md", content: "---\ntype: semantic\nsensitivity: internal\ntimestamp: 2026-01-02T00:00:00Z\n---\ninternal" },
@@ -491,7 +491,7 @@ test("onTraversal: paths are CAPPED per tool so broad results never flood the ha
   const files = [];
   for (let i = 0; i < 30; i++) {
     const sup = i > 0 ? `supersedes:\n  - Note ${i - 1}\n` : "";
-    files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\n${sup}---\nnote body ${i}` });
+    files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\nsensitivity: internal\n${sup}---\nnote body ${i}` });
   }
   const graph = buildGraph(files, []);
   const provider = { getGraph: async () => graph, getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [] };
@@ -539,15 +539,15 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   assert.equal(migrated.agentSensitivityCeiling, "internal");
   assert.equal(migrated.agentToken, "keepme");        // existing token preserved
   assert.equal(migrated.agentPort, 5000);
-  assert.equal(migrated.okfEnrichmentLanCeiling, "internal");
-  assert.equal(migrated.okfDeveloperExclusions, false); // no silent file omission on upgrade
+  assert.equal(migrated.gkxEnrichmentLanCeiling, "internal");
+  assert.equal(migrated.gkxDeveloperExclusions, false); // no silent file omission on upgrade
   assert.equal(migrated.noteTimestampsEnabled, true);
   assert.equal(migrated.graphitiCombinedExtraction, false);
-  assert.deepEqual(migrated.okfExcludePatterns, []);
-  const lan = migrateAgentSettings({ okfEnrichmentProvider: "lan", okfEnrichmentLanCeiling: "confidential", okfExcludePatterns: ["**/AGENTS.md"] });
-  assert.equal(lan.okfEnrichmentProvider, "lan");
-  assert.equal(lan.okfEnrichmentLanCeiling, "confidential");
-  assert.deepEqual(lan.okfExcludePatterns, ["**/AGENTS.md"]);
+  assert.deepEqual(migrated.gkxExcludePatterns, []);
+  const lan = migrateAgentSettings({ gkxEnrichmentProvider: "lan", gkxEnrichmentLanCeiling: "confidential", gkxExcludePatterns: ["**/AGENTS.md"] });
+  assert.equal(lan.gkxEnrichmentProvider, "lan");
+  assert.equal(lan.gkxEnrichmentLanCeiling, "confidential");
+  assert.deepEqual(lan.gkxExcludePatterns, ["**/AGENTS.md"]);
   // defaults fill in for a null load
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);

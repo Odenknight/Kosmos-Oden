@@ -17,7 +17,7 @@ not left implicit). Verified against the shipped source, not assumed.
 ## Mitigation 1 — in-memory index, built once — CONFIRMED PRESENT
 
 `VaultDataProvider` (`src/plugin/vault-provider.ts`) owns a single
-`KosmosIndex` (`src/core/incremental.ts`). The seven MCP tools and the REST
+`GkxIndex` (`src/core/incremental.ts`). The seven MCP tools and the REST
 endpoints all read from `provider.getGraph()`, which returns the **cached**
 `index.graph` and only rebuilds when something is dirty:
 
