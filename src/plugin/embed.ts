@@ -3,11 +3,11 @@
  *
  * The Obsidian plugin drives this page over postMessage: a full snapshot
  * (`kosmos:files`), then debounced deltas (`kosmos:update`). The embed owns a
- * KosmosIndex so a single-note change costs one parse (§10) — the exact same
+ * GkxIndex so a single-note change costs one parse (§10) — the exact same
  * incremental core the standalone page uses. "Go to Note" posts `kosmos:open`
  * back to the plugin.
  */
-import { KosmosIndex, type IndexChanges } from "gkos-engine";
+import { GkxIndex, type IndexChanges } from "gkos-engine";
 import type { SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import { validateHostMessage, wrap } from "./protocol";
@@ -23,7 +23,7 @@ const app = createKosmosApp({
 });
 // No settings context in this viewer-only surface, so projection options are
 // omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
-const index = new KosmosIndex();
+const index = new GkxIndex();
 
 interface FilesMessage {
   type: "kosmos:files";

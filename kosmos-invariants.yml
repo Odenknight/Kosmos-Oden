@@ -17,12 +17,12 @@ security:
   # Query-string token auth is deprecated and off by default; never in LAN mode.
   query_tokens_default_enabled: false
   query_tokens_allowed_in_lan: false
-  # OKF+ sensitivity enforcement. The read ceiling default stays internal, but a
+  # GKX sensitivity enforcement. The read ceiling default stays internal, but a
   # note that declares NO sensitivity fails closed to the configurable default
-  # (gkos-engine v1.0.6 DIV-002): the plugin ships closed at "secret" so unlabeled
+  # the plugin ships closed at "secret" so unlabeled
   # notes are never exposed as an open level through the network-facing read gate.
-  # As of v0.6.8 (gkos-engine v1.0.7, issue #6) the Default sensitivity setting is
-  # threaded through KosmosIndex, so it governs the effective sensitivity of every
+  # The Default sensitivity setting is threaded through GkxIndex, so it governs
+  # the effective sensitivity of every
   # unlabeled note's projection, not just the gate fallback; the shipped default
   # below is unchanged. confidential and PHI require an explicit local policy choice.
   default_agent_sensitivity_ceiling: internal
@@ -79,7 +79,7 @@ renderer:
   # Host <-> renderer messages carry a protocol version and are validated.
   message_protocol_versioned: true
 
-okf_migration:
+gkx_migration:
   audit_before_apply: true
   plan_hash: sha256
   byte_exact_backup: true
@@ -88,7 +88,7 @@ okf_migration:
   llm_required: false
   network_dispatch_allowed: false
 
-okf23_projection:
+gkx23_projection:
   profile: validating-projection
   full_gkos_claimed: false
   source_notes_silently_modified: false

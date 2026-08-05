@@ -15,11 +15,11 @@ import {
   len3, minChord, MINSEP, OORT_GAP, ROLE_R, SYS_PACK, type CosmosOptions,
 } from "./cosmology";
 import { hashUnit } from "gkos-engine";
-import type { KosmosGraph } from "gkos-engine";
+import type { GkxGraph } from "gkos-engine";
 
 export { buildCosmos, classifyStar, classifyPlanet, starScore, SPECTRAL, PLANET_COLORS } from "./cosmology";
 
-export function layoutCosmos(graph: any): KosmosGraph {
+export function layoutCosmos(graph: any): GkxGraph {
   const nodes: any[] = graph.nodes;
   const byId = new Map<string, any>();
   for (const n of nodes) byId.set(n.id, n);
@@ -329,7 +329,7 @@ export function separateCosmos(graph: any, iterations = 26): void {
 }
 
 /** Full cosmology pipeline from a buildGraph() result. */
-export function positionCosmos(graph: any, opts?: CosmosOptions): KosmosGraph {
+export function positionCosmos(graph: any, opts?: CosmosOptions): GkxGraph {
   return layoutCosmos(buildCosmos(graph, opts));
 }
 

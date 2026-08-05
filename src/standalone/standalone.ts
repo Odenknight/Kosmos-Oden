@@ -6,10 +6,10 @@
  * same Kosmos Core semantics as the Obsidian plugin, the Agent API and the
  * kosmos-build CLI. No Obsidian, Node, server or network required.
  */
-import { KosmosIndex, type IndexChanges } from "gkos-engine";
+import { GkxIndex, type IndexChanges } from "gkos-engine";
 import { buildGraphitiEpisodesWithContent } from "gkos-engine";
 import { isNotePath } from "gkos-engine";
-import type { KosmosGraph, SourceFile } from "gkos-engine";
+import type { GkxGraph, SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import {
   openDirectoryPersistent,
@@ -39,7 +39,7 @@ import {
 const app = createKosmosApp({ autoStart: "wait" });
 // No settings context in this viewer-only surface, so projection options are
 // omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
-const index = new KosmosIndex();
+const index = new GkxIndex();
 let source: KnowledgeSource | null = null;
 let monitor: DirectoryMonitor | null = null;
 let sourceName = "Vault";
@@ -74,7 +74,7 @@ function pickCoreNode(n: any) {
   return {
     id: n.id, kind: n.kind, path: n.path, label: n.label, area: n.area, depth: n.depth,
     extension: n.extension, size: n.size, createdAt: n.createdAt, updatedAt: n.updatedAt,
-    validAt: n.validAt, okf: n.okf, type: n.type, status: n.status, priority: n.priority,
+    validAt: n.validAt, gkx: n.gkx, type: n.type, status: n.status, priority: n.priority,
     tags: n.tags, aliases: n.aliases, color: n.color, outgoing: n.outgoing, incoming: n.incoming,
     unresolved: n.unresolved,
   };
@@ -82,7 +82,7 @@ function pickCoreNode(n: any) {
 function pickCoreLink(l: any) {
   return { id: l.id, source: l.source, target: l.target, kind: l.kind, label: l.label, sourcePath: l.sourcePath };
 }
-function exportableGraph(graph: KosmosGraph) {
+function exportableGraph(graph: GkxGraph) {
   return {
     nodes: graph.nodes.map(pickCoreNode),
     links: graph.links.map(pickCoreLink),
@@ -92,9 +92,9 @@ function exportableGraph(graph: KosmosGraph) {
   };
 }
 
-function statusFromGraph(graph: KosmosGraph) {
-  const heads = graph.nodes.filter((n) => n.okf && n.okf.head).length;
-  const superseded = graph.nodes.filter((n) => n.okf && n.okf.invalidAt).length;
+function statusFromGraph(graph: GkxGraph) {
+  const heads = graph.nodes.filter((n) => n.gkx && n.gkx.head).length;
+  const superseded = graph.nodes.filter((n) => n.gkx && n.gkx.invalidAt).length;
   const rendererDiag = app.getDiagnostics();
   return {
     source: sourceName,
@@ -187,11 +187,11 @@ function renderEngineGraph(graph: ViewerGraph, health: any): void {
   app.setAttachments(Array.isArray((graph as any).attachments) ? (graph as any).attachments : []);
   app.renderGraph(graph, sourceName);
   app.setVaultStatus(true);
-  // `/graph` returns a full KosmosGraph, so statusFromGraph applies as-is; when
+  // `/graph` returns a full GkxGraph, so statusFromGraph applies as-is; when
   // an older engine omits stats we fall back to the health doc's notes count.
   let extra: Record<string, unknown>;
   try {
-    extra = statusFromGraph(graph as unknown as KosmosGraph);
+    extra = statusFromGraph(graph as unknown as GkxGraph);
   } catch {
     extra = { source: sourceName, notes: health?.notes_indexed };
   }

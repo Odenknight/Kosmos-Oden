@@ -1,17 +1,17 @@
 /**
  * Kosmos plugin — Obsidian-backed data provider for the Agent API.
  *
- * Owns a KosmosIndex fed from the live vault, so the Agent API answers from
+ * Owns a GkxIndex fed from the live vault, so the Agent API answers from
  * the SAME normalized graph snapshot the viewer renders (§33). Change events
  * are folded incrementally (§10): a single edited note is re-read (from
  * Obsidian's in-memory cache) and re-parsed alone; only bulk changes trigger
  * a full rebuild.
  */
 import type { App, TFile } from "obsidian";
-import { KosmosIndex } from "gkos-engine";
+import { GkxIndex } from "gkos-engine";
 import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
-import type { KosmosGraph, OkfSensitivity, SourceFile } from "gkos-engine";
+import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
 
 declare const require: any;
 
@@ -67,22 +67,22 @@ export function attachmentListFrom(all: Array<{ path: string; extension?: string
 export class VaultDataProvider implements AgentDataProvider {
   private app: App;
   private settings: AgentSettings;
-  private index: KosmosIndex;
+  private index: GkxIndex;
   /** The defaultSensitivity the live index was projected with. When the setting
    *  diverges from this the index is recreated (projectionOptions are readonly
-   *  on the engine's KosmosIndex) and a full rebuild is forced. */
-  private projectedSensitivity: OkfSensitivity;
+   *  on the engine's GkxIndex) and a full rebuild is forced. */
+  private projectedSensitivity: GkxSensitivity;
   private fullDirty = true;
   private changedPaths = new Set<string>();
   private removedPaths = new Set<string>();
   private renamedPaths: Array<{ from: string; to: string }> = [];
-  private building: Promise<KosmosGraph> | null = null;
+  private building: Promise<GkxGraph> | null = null;
 
   constructor(app: App, settings: AgentSettings) {
     this.app = app;
     this.settings = settings;
     this.projectedSensitivity = settings.defaultSensitivity;
-    this.index = new KosmosIndex({ defaultSensitivity: settings.defaultSensitivity });
+    this.index = new GkxIndex({ defaultSensitivity: settings.defaultSensitivity });
   }
 
   /* ---- change notifications (wired to vault events by the plugin) ---- */
@@ -99,7 +99,7 @@ export class VaultDataProvider implements AgentDataProvider {
   reprojectForSensitivity(): void {
     if (this.settings.defaultSensitivity === this.projectedSensitivity) return;
     this.projectedSensitivity = this.settings.defaultSensitivity;
-    this.index = new KosmosIndex({ defaultSensitivity: this.settings.defaultSensitivity });
+    this.index = new GkxIndex({ defaultSensitivity: this.settings.defaultSensitivity });
     this.markFullDirty();
   }
 
@@ -117,7 +117,7 @@ export class VaultDataProvider implements AgentDataProvider {
     };
   }
 
-  async getGraph(): Promise<KosmosGraph> {
+  async getGraph(): Promise<GkxGraph> {
     // Safety net: honor a Default sensitivity change even if the settings UI did
     // not call reprojectForSensitivity() explicitly (a no-op when unchanged).
     this.reprojectForSensitivity();
@@ -132,7 +132,7 @@ export class VaultDataProvider implements AgentDataProvider {
     }
   }
 
-  private async rebuild(): Promise<KosmosGraph> {
+  private async rebuild(): Promise<GkxGraph> {
     const md = this.app.vault.getMarkdownFiles();
     const folders = folderListFrom(md);
     const attachments = attachmentListFrom(this.app.vault.getFiles());

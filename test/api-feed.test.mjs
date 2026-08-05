@@ -50,7 +50,7 @@ test("buildFeedUrls: derives /health and /graph", () => {
   });
 });
 
-test("normalizeGraphResponse: accepts the sidecar's direct KosmosGraph", () => {
+test("normalizeGraphResponse: accepts the sidecar's direct GkxGraph", () => {
   const g = normalizeGraphResponse({ nodes: [{ id: "file:a" }], links: [{ id: "l1" }], stats: { files: 1 } });
   assert.equal(g.nodes.length, 1);
   assert.equal(g.links.length, 1);

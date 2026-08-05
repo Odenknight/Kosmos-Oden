@@ -1,7 +1,7 @@
 /** Kosmos plugin — settings tab + Agent API setup guide (one source of truth). */
 import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
-import { COMMON_OKF_DEVELOPER_EXCLUSIONS, normalizeOkfExclusionPatterns, SENSITIVITY_RANK } from "gkos-engine";
-import type { OkfSensitivity } from "gkos-engine";
+import { COMMON_GKX_DEVELOPER_EXCLUSIONS, normalizeGkxExclusionPatterns, SENSITIVITY_RANK } from "gkos-engine";
+import type { GkxSensitivity } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
 import { DEFAULT_SYNC_EXCLUDES, PROTECTED_SYNC_EXCLUDES } from "./nextcloud-sync";
@@ -31,7 +31,7 @@ export function buildAgentGuide(port: string | number, token: string, bindMode =
 
 **Read-only · localhost by default · token-protected**
 
-This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, the OpenAI Codex app/CLI/IDE extension, Cursor, and other MCP clients. It exposes the sensitivity-filtered **Kosmos Governed Context Projection (KGCP)** from **GKOS Engine v1.1** plus paginated GKX v2.3 Graphiti-adapter episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
+This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, the OpenAI Codex app/CLI/IDE extension, Cursor, and other MCP clients. It exposes the sensitivity-filtered **Kosmos Governed Context Projection (KGCP)** from **GKOS-Engine v2.0.1** plus paginated GKX v2.3 Graphiti-adapter episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
 
 ## 1 · Turn it on (about 30 seconds)
 
@@ -122,7 +122,7 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
 | \`export_graphiti_episodes\` | Paginated Graphiti JSON episodes with stable UUIDs and no future-state leakage |
 | \`graphiti_ingestion_status\` | Export readiness and the required upstream read-after-ingest check |
-| \`get_okf_note\` | Origin-separated authored/derived/proposed/approved/effective projection |
+| \`get_gkx_note\` | Origin-separated authored/derived/proposed/approved/effective projection |
 | \`get_assessment\` / \`assess_note\` | Policy-bound documentation/support assessment; never truth or authorization |
 | \`get_diagnostics\` / \`validate_note\` | Stable diagnostics and in-memory validation |
 | \`get_effective_labels\` | Labels separated by origin plus effective labels |
@@ -131,7 +131,7 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | \`get_policy\` | Bundled GKX 2.3 policy identity, hash, and trust state |
 | \`assess_vault\` | Bounded in-memory assessment summary with no writes |
 
-REST mirrors include the legacy routes, \`/graphiti/status\`, and read-only \`/okf/*\` projection,
+REST mirrors include the legacy routes, \`/graphiti/status\`, and read-only \`/gkx/*\` projection,
 assessment, diagnostics, label, evidence, relationship, validation, and policy routes (see \`${URLB}/\`).
 
 ## 4 · Direct vs. indirect Graphiti
@@ -164,7 +164,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const nc = this.plugin.nextcloudSettings;
     const sections = this.createSectionTabs(containerEl);
     const agentEl = sections["agent-api"];
-    const okfEl = sections["okf-formatting"];
+    const gkxEl = sections["gkx-formatting"];
     const connectEl = sections["quick-connect"];
     const syncEl = sections["vault-sync"];
 
@@ -234,21 +234,21 @@ export class KosmosSettingTab extends PluginSettingTab {
       .setDesc("Designed as independent replica journals with per-target checkpoints. Disabled until crash-resume, partial failure, conflict fan-out, and deletion propagation are verified across providers.")
       .addButton((b) => b.setButtonText("Safety validation pending").setDisabled(true));
 
-    okfEl.createEl("h2", { text: "GKOS Note Formatting" });
-    okfEl.createEl("p", { text: "GKOS Engine v1.1 note formatting for Kosmos-Oden. It implements the GKX v2.3 Validating Projection Profile: it preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
-    okfEl.createEl("h3", { text: "Portable note timestamps" });
-    okfEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .okf files are excluded." });
-    new Setting(okfEl).setName("Stamp note creation and modification times")
+    gkxEl.createEl("h2", { text: "GKOS Note Formatting" });
+    gkxEl.createEl("p", { text: "GKOS-Engine v2.0.1 note formatting for Kosmos-Oden. It implements the GKX v2.3 Validating Projection Profile: it preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
+    gkxEl.createEl("h3", { text: "Portable note timestamps" });
+    gkxEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .gkx files are excluded." });
+    new Setting(gkxEl).setName("Stamp note creation and modification times")
       .setDesc("Enabled by default. New Markdown notes receive both fields; existing notes receive created_at on their next edit if it is absent.")
       .addToggle((t) => t.setValue(s.noteTimestampsEnabled).onChange(async (v) => { s.noteTimestampsEnabled = v; await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Use local time with UTC offset")
+    new Setting(gkxEl).setName("Use local time with UTC offset")
       .setDesc("Off (default) writes UTC/Zulu timestamps ending in Z. On writes ISO 8601 local time with an explicit numeric offset, for example 2026-07-19T14:42:07.000-04:00. Both forms validate as GKX 2.2/2.3.")
       .addToggle((t) => t.setValue(s.timestampUseLocalTimezone).onChange(async (v) => { s.timestampUseLocalTimezone = v; await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Created timestamp key")
-      .setDesc("Frontmatter key for the creation stamp. Leave as created_at for GKX compatibility. Custom keys depart from the GKX profiles — the stamped values become plain user frontmatter that the governed projection does not read.")
+    new Setting(gkxEl).setName("Created timestamp key")
+      .setDesc("Frontmatter key for the creation stamp. Leave as created_at for GKX compatibility. Custom keys depart from the GKX profiles — the stamped values become plain user frontmatter that the GKX projection does not read.")
       .addText((t) => t.setPlaceholder("created_at").setValue(s.timestampCreatedKey).onChange(async (v) => { s.timestampCreatedKey = v.trim() || "created_at"; await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Updated timestamp key")
-      .setDesc("Frontmatter key for the modification stamp. Leave as updated_at for GKX compatibility. Custom keys depart from the GKX profiles — the stamped values become plain user frontmatter that the governed projection does not read.")
+    new Setting(gkxEl).setName("Updated timestamp key")
+      .setDesc("Frontmatter key for the modification stamp. Leave as updated_at for GKX compatibility. Custom keys depart from the GKX profiles — the stamped values become plain user frontmatter that the GKX projection does not read.")
       .addText((t) => t.setPlaceholder("updated_at").setValue(s.timestampUpdatedKey).onChange(async (v) => { s.timestampUpdatedKey = v.trim() || "updated_at"; await this.plugin.saveAgentSettings(); }));
 
     agentEl.createEl("h2", { text: "Agent API (HTTP + MCP)" });
@@ -257,12 +257,12 @@ export class KosmosSettingTab extends PluginSettingTab {
     // Default sensitivity sits ABOVE the enable control so it can be set before
     // any network-facing surface is switched on. The vocabulary is imported from
     // the engine (SENSITIVITY_RANK) — no hardcoded duplicate list.
-    const sensitivityLevels = (Object.keys(SENSITIVITY_RANK) as OkfSensitivity[])
+    const sensitivityLevels = (Object.keys(SENSITIVITY_RANK) as GkxSensitivity[])
       .sort((a, b) => SENSITIVITY_RANK[a] - SENSITIVITY_RANK[b]);
-    const sensitivityLabel = (level: OkfSensitivity) =>
+    const sensitivityLabel = (level: GkxSensitivity) =>
       level.charAt(0).toUpperCase() + level.slice(1) + (level === "secret" ? " (fail-closed default)" : "");
     new Setting(agentEl).setName("Default sensitivity")
-      .setDesc("Governs the effective sensitivity of notes that declare no sensitivity of their own: this value is threaded through the projection engine (KosmosIndex) so unlabeled notes are actually projected at the level you choose, then filtered by the network-facing read gate. Fail-closed to secret when unset. The engine may raise a note's effective sensitivity above this default (never lower it). Set this before enabling the Agent API; changing it re-projects the vault.")
+      .setDesc("Governs the effective sensitivity of notes that declare no sensitivity of their own: this value is threaded through the projection engine (GkxIndex) so unlabeled notes are actually projected at the level you choose, then filtered by the network-facing read gate. Fail-closed to secret when unset. The engine may raise a note's effective sensitivity above this default (never lower it). Set this before enabling the Agent API; changing it re-projects the vault.")
       .addDropdown((d) => {
         for (const level of sensitivityLevels) d.addOption(level, sensitivityLabel(level));
         d.setValue(s.defaultSensitivity)
@@ -356,7 +356,7 @@ export class KosmosSettingTab extends PluginSettingTab {
         .onChange(async (v: any) => { s.agentSensitivityCeiling = v; await this.plugin.saveAgentSettings(); }));
 
     agentEl.createEl("h3", { text: "Kosmos Governed Context Projection (KGCP)" });
-    agentEl.createEl("p", { text: "KGCP is the deterministic, sensitivity-filtered agent-facing graph produced by GKOS Engine v1.1. The GKX v2.3 Graphiti adapter is an optional non-authoritative semantic-memory projection; inferred facts return as proposals or derived sidecars, never authored governance." });
+    agentEl.createEl("p", { text: "KGCP is the deterministic, sensitivity-filtered agent-facing graph produced by GKOS-Engine v2.0.1. The GKX v2.3 Graphiti adapter is an optional non-authoritative semantic-memory projection; inferred facts return as proposals or derived sidecars, never authored governance." });
     new Setting(agentEl).setName("Graphiti combined extraction")
       .setDesc("Experimental and off by default. Graphiti 0.29 exposes this only through a low-level bulk utility, not add_episode. The adapter records the request and required benchmark fields without pretending the standard ingestion path enabled it.")
       .addToggle((t) => t.setValue(s.graphitiCombinedExtraction).onChange(async (v) => { s.graphitiCombinedExtraction = v; await this.plugin.saveAgentSettings(); }));
@@ -364,56 +364,56 @@ export class KosmosSettingTab extends PluginSettingTab {
       .setDesc("Off by default. Adds deterministic saga hints for lineage, project history, recurring meetings, research threads, and versioned specifications.")
       .addToggle((t) => t.setValue(s.graphitiSagaMapping).onChange(async (v) => { s.graphitiSagaMapping = v; await this.plugin.saveAgentSettings(); }));
 
-    okfEl.createEl("h3", { text: "Human-editable GKX formatting and governed projections" });
-    okfEl.createEl("p", {
-      text: "Flat GKX 2.2 Properties are the human authoring surface: tags and relationship wikilinks can be corrected directly in Obsidian and flow into the cosmos, search, REST, MCP, and Graphiti projection on the next vault update. The Agent-Ready 2.3 layer remains a read-only validating projection. The repair scan safely flattens only metadata marked as written by the faulty beta.10 deterministic 2.3 migrator, removes duplicate timestamps and generated boilerplate, and always requires a hash-bound preview plus byte-exact backup.",
+    gkxEl.createEl("h3", { text: "Human-editable GKX formatting and governed projections" });
+    gkxEl.createEl("p", {
+      text: "Flat GKX 2.2 Properties are the human authoring surface: tags and relationship wikilinks can be corrected directly in Obsidian and flow into the cosmos, search, REST, MCP, and Graphiti projection on the next vault update. The 2.3 layer remains a read-only validating projection. The repair scan safely flattens only metadata marked as written by the faulty beta.10 deterministic 2.3 migrator, removes duplicate timestamps and generated boilerplate, and always requires a hash-bound preview plus byte-exact backup.",
       cls: "setting-item-description",
     });
-    new Setting(okfEl)
+    new Setting(gkxEl)
       .setName("Developer-file exclusion preset")
-      .setDesc(`Opt in to excluding common agent instruction/control files from OKF migration and enrichment only: ${COMMON_OKF_DEVELOPER_EXCLUSIONS.join(", ")}. They remain visible in the cosmos and Agent API.`)
-      .addToggle((toggle) => toggle.setValue(s.okfDeveloperExclusions).onChange(async (value) => { s.okfDeveloperExclusions = value; await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl)
-      .setName("Custom OKF exclusions")
-      .setDesc("Optional, one case-insensitive pattern per line. Supports *, **, and ?. A bare filename matches at any depth. These exclusions affect only OKF migration, enrichment, and blocked-note review.")
+      .setDesc(`Opt in to excluding common agent instruction/control files from GKX migration and enrichment only: ${COMMON_GKX_DEVELOPER_EXCLUSIONS.join(", ")}. They remain visible in the cosmos and Agent API.`)
+      .addToggle((toggle) => toggle.setValue(s.gkxDeveloperExclusions).onChange(async (value) => { s.gkxDeveloperExclusions = value; await this.plugin.saveAgentSettings(); }));
+    new Setting(gkxEl)
+      .setName("Custom GKX exclusions")
+      .setDesc("Optional, one case-insensitive pattern per line. Supports *, **, and ?. A bare filename matches at any depth. These exclusions affect only GKX migration, enrichment, and blocked-note review.")
       .addTextArea((area) => {
-        area.setPlaceholder("private/**\nDRAFT.md\nprojects/*/generated-?.md").setValue(s.okfExcludePatterns.join("\n")).onChange(async (value) => { s.okfExcludePatterns = normalizeOkfExclusionPatterns(value); await this.plugin.saveAgentSettings(); });
+        area.setPlaceholder("private/**\nDRAFT.md\nprojects/*/generated-?.md").setValue(s.gkxExcludePatterns.join("\n")).onChange(async (value) => { s.gkxExcludePatterns = normalizeGkxExclusionPatterns(value); await this.plugin.saveAgentSettings(); });
         area.inputEl.rows = 5; area.inputEl.cols = 48;
       });
-    new Setting(okfEl)
+    new Setting(gkxEl)
       .setName("Scan, repair, or convert editable GKX metadata")
       .setDesc("Scan previews repairs for beta.10-generated 2.3 metadata and leaves genuinely authored native 2.3 notes unchanged. Convert-all writes flat, Obsidian-editable Properties in either the 2.2 or the 2.3 profile; nested governance blocks are never written into notes.")
       .addButton((b) => b.setButtonText("Scan and repair").onClick(async () => {
-        await this.plugin.markNotesInOkf("safe-onboarding");
+        await this.plugin.markNotesInGkx("safe-onboarding");
       }))
       .addButton((b) => b.setButtonText("Convert all to editable 2.2").setCta().onClick(async () => {
-        await this.plugin.markNotesInOkf("upgrade-all");
+        await this.plugin.markNotesInGkx("upgrade-all");
       }))
       .addButton((b) => b.setButtonText("Convert all to editable 2.3").onClick(async () => {
-        await this.plugin.markNotesInOkf("convert-to-23");
+        await this.plugin.markNotesInGkx("convert-to-23");
       }));
 
-    okfEl.createEl("h3", { text: "Content-assisted enrichment proposals" });
-    okfEl.createEl("p", { text: "Re-scans editable 2.2 and valid Agent-Ready or Machine Dialect 2.3 notes. Deterministic evidence selection proposes descriptions, user-selectable Obsidian tags, and explicit relationship wikilinks. Every proposal remains pending until you Accept, Reject, or edit it; accepted Properties update all projections through the normal live vault-change path.", cls: "setting-item-description" });
-    new Setting(okfEl).setName("Second-pass provider").setDesc("On-device uses loopback. LAN requires a literal private IP and fresh disclosure. Cloud requires HTTPS and the strictest disclosure policy.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "On-device model (loopback)").addOption("lan", "LAN model (private IP)").addOption("cloud", "Cloud model (HTTPS)").setValue(s.okfEnrichmentProvider).onChange(async (v: any) => { s.okfEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
-    if (s.okfEnrichmentProvider !== "none") {
-      const endpointDescription = s.okfEnrichmentProvider === "local"
+    gkxEl.createEl("h3", { text: "Content-assisted enrichment proposals" });
+    gkxEl.createEl("p", { text: "Re-scans editable 2.2 and valid native 2.3 notes. Deterministic evidence selection proposes descriptions, user-selectable Obsidian tags, and explicit relationship wikilinks. Every proposal remains pending until you Accept, Reject, or edit it; accepted Properties update all projections through the normal live vault-change path.", cls: "setting-item-description" });
+    new Setting(gkxEl).setName("Second-pass provider").setDesc("On-device uses loopback. LAN requires a literal private IP and fresh disclosure. Cloud requires HTTPS and the strictest disclosure policy.").addDropdown((d) => d.addOption("none", "Deterministic only").addOption("local", "On-device model (loopback)").addOption("lan", "LAN model (private IP)").addOption("cloud", "Cloud model (HTTPS)").setValue(s.gkxEnrichmentProvider).onChange(async (v: any) => { s.gkxEnrichmentProvider = v; await this.plugin.saveAgentSettings(); this.display(); }));
+    if (s.gkxEnrichmentProvider !== "none") {
+      const endpointDescription = s.gkxEnrichmentProvider === "local"
         ? "Loopback only, for example http://127.0.0.1:11434/v1/chat/completions."
-        : s.okfEnrichmentProvider === "lan"
+        : s.gkxEnrichmentProvider === "lan"
           ? "Literal private IP only, for example http://192.168.1.40:11434/v1/chat/completions. DNS names and public/bind-all addresses are rejected."
           : "HTTPS only. Confidential and PHI notes are always excluded.";
-      new Setting(okfEl).setName("OpenAI-compatible endpoint").setDesc(endpointDescription).addText((t) => t.setValue(s.okfEnrichmentEndpoint).onChange(async (v) => { s.okfEnrichmentEndpoint = v.trim(); await this.plugin.saveAgentSettings(); }));
-      new Setting(okfEl).setName("Model").addText((t) => t.setValue(s.okfEnrichmentModel).onChange(async (v) => { s.okfEnrichmentModel = v.trim(); await this.plugin.saveAgentSettings(); }));
-      new Setting(okfEl).setName("API key environment variable").setDesc("Variable name only; the secret is never stored in plugin settings. Optional for on-device/LAN endpoints, strongly recommended for LAN, and required for cloud.").addText((t) => t.setPlaceholder("OPENAI_API_KEY").setValue(s.okfEnrichmentApiKeyEnv).onChange(async (v) => { s.okfEnrichmentApiKeyEnv = v.trim(); await this.plugin.saveAgentSettings(); }));
-      if (s.okfEnrichmentProvider === "cloud") new Setting(okfEl).setName("Cloud sensitivity ceiling").setDesc("Confidential and PHI are hard-blocked regardless of this setting.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").setValue(s.okfEnrichmentCloudCeiling).onChange(async (v: any) => { s.okfEnrichmentCloudCeiling = v; await this.plugin.saveAgentSettings(); }));
-      if (s.okfEnrichmentProvider === "lan") new Setting(okfEl).setName("LAN sensitivity ceiling").setDesc("Default is internal. Confidential requires explicit selection and per-run approval. PHI is always excluded from LAN and cloud.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").addOption("confidential", "Include confidential").setValue(s.okfEnrichmentLanCeiling).onChange(async (v: any) => { s.okfEnrichmentLanCeiling = v; await this.plugin.saveAgentSettings(); }));
+      new Setting(gkxEl).setName("OpenAI-compatible endpoint").setDesc(endpointDescription).addText((t) => t.setValue(s.gkxEnrichmentEndpoint).onChange(async (v) => { s.gkxEnrichmentEndpoint = v.trim(); await this.plugin.saveAgentSettings(); }));
+      new Setting(gkxEl).setName("Model").addText((t) => t.setValue(s.gkxEnrichmentModel).onChange(async (v) => { s.gkxEnrichmentModel = v.trim(); await this.plugin.saveAgentSettings(); }));
+      new Setting(gkxEl).setName("API key environment variable").setDesc("Variable name only; the secret is never stored in plugin settings. Optional for on-device/LAN endpoints, strongly recommended for LAN, and required for cloud.").addText((t) => t.setPlaceholder("OPENAI_API_KEY").setValue(s.gkxEnrichmentApiKeyEnv).onChange(async (v) => { s.gkxEnrichmentApiKeyEnv = v.trim(); await this.plugin.saveAgentSettings(); }));
+      if (s.gkxEnrichmentProvider === "cloud") new Setting(gkxEl).setName("Cloud sensitivity ceiling").setDesc("Confidential and PHI are hard-blocked regardless of this setting.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").setValue(s.gkxEnrichmentCloudCeiling).onChange(async (v: any) => { s.gkxEnrichmentCloudCeiling = v; await this.plugin.saveAgentSettings(); }));
+      if (s.gkxEnrichmentProvider === "lan") new Setting(gkxEl).setName("LAN sensitivity ceiling").setDesc("Default is internal. Confidential requires explicit selection and per-run approval. PHI is always excluded from LAN and cloud.").addDropdown((d) => d.addOption("public", "Public only").addOption("internal", "Public + internal").addOption("confidential", "Include confidential").setValue(s.gkxEnrichmentLanCeiling).onChange(async (v: any) => { s.gkxEnrichmentLanCeiling = v; await this.plugin.saveAgentSettings(); }));
     }
-    new Setting(okfEl).setName("Per-run note cap").setDesc("Hard cap: 1–500. Processing is sequential; there are no automatic retries, and three consecutive provider errors stop the run.").addText((t) => t.setValue(String(s.okfEnrichmentMaxNotes)).onChange(async (v) => { s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(v) || 25)); await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Evidence limits").setDesc("Objective prose-shaped selection only; this cannot guarantee that an author placed meaningful content early.").addText((t) => t.setPlaceholder("paragraphs").setValue(String(s.okfEnrichmentMaxParagraphs)).onChange(async (v) => { s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(v) || 4)); await this.plugin.saveAgentSettings(); })).addText((t) => t.setPlaceholder("characters").setValue(String(s.okfEnrichmentMaxInputChars)).onChange(async (v) => { s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(v) || 4000)); await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Run input budget").setDesc("Hard total evidence budget across the run: 4,000–250,000 characters.").addText((t) => t.setValue(String(s.okfEnrichmentMaxTotalInputChars)).onChange(async (v) => { s.okfEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(v) || 50000)); await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Proposal cap").setDesc("Maximum schema-valid suggestions retained per note (1–24).").addText((t) => t.setValue(String(s.okfEnrichmentMaxSuggestions)).onChange(async (v) => { s.okfEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(v) || 12)); await this.plugin.saveAgentSettings(); }));
-    if (s.okfEnrichmentProvider !== "none") new Setting(okfEl).setName("Request timeout").setDesc("5–120 seconds per note; timed-out requests are not retried.").addText((t) => t.setValue(String(Math.round(s.okfEnrichmentTimeoutMs / 1000))).onChange(async (v) => { s.okfEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, (Number(v) || 30) * 1000)); await this.plugin.saveAgentSettings(); }));
-    new Setting(okfEl).setName("Re-scan editable GKX notes").setDesc("Every click reads eligible GKX 2.2 and valid Agent-Ready or Machine Dialect 2.3 notes again. Tags are shown as user-reviewable labels, relationship values stay as Obsidian wikilinks, duplicate queue records are suppressed, and nothing is written automatically.").addButton((b) => b.setButtonText("Scan labels and links").setCta().onClick(async () => { await this.plugin.proposeOkfEnrichment(); }));
+    new Setting(gkxEl).setName("Per-run note cap").setDesc("Hard cap: 1–500. Processing is sequential; there are no automatic retries, and three consecutive provider errors stop the run.").addText((t) => t.setValue(String(s.gkxEnrichmentMaxNotes)).onChange(async (v) => { s.gkxEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(v) || 25)); await this.plugin.saveAgentSettings(); }));
+    new Setting(gkxEl).setName("Evidence limits").setDesc("Objective prose-shaped selection only; this cannot guarantee that an author placed meaningful content early.").addText((t) => t.setPlaceholder("paragraphs").setValue(String(s.gkxEnrichmentMaxParagraphs)).onChange(async (v) => { s.gkxEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(v) || 4)); await this.plugin.saveAgentSettings(); })).addText((t) => t.setPlaceholder("characters").setValue(String(s.gkxEnrichmentMaxInputChars)).onChange(async (v) => { s.gkxEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(v) || 4000)); await this.plugin.saveAgentSettings(); }));
+    new Setting(gkxEl).setName("Run input budget").setDesc("Hard total evidence budget across the run: 4,000–250,000 characters.").addText((t) => t.setValue(String(s.gkxEnrichmentMaxTotalInputChars)).onChange(async (v) => { s.gkxEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(v) || 50000)); await this.plugin.saveAgentSettings(); }));
+    new Setting(gkxEl).setName("Proposal cap").setDesc("Maximum schema-valid suggestions retained per note (1–24).").addText((t) => t.setValue(String(s.gkxEnrichmentMaxSuggestions)).onChange(async (v) => { s.gkxEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(v) || 12)); await this.plugin.saveAgentSettings(); }));
+    if (s.gkxEnrichmentProvider !== "none") new Setting(gkxEl).setName("Request timeout").setDesc("5–120 seconds per note; timed-out requests are not retried.").addText((t) => t.setValue(String(Math.round(s.gkxEnrichmentTimeoutMs / 1000))).onChange(async (v) => { s.gkxEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, (Number(v) || 30) * 1000)); await this.plugin.saveAgentSettings(); }));
+    new Setting(gkxEl).setName("Re-scan editable GKX notes").setDesc("Every click reads eligible GKX 2.2 and valid native 2.3 notes again. Tags are shown as user-reviewable labels, relationship values stay as Obsidian wikilinks, duplicate queue records are suppressed, and nothing is written automatically.").addButton((b) => b.setButtonText("Scan labels and links").setCta().onClick(async () => { await this.plugin.proposeGkxEnrichment(); }));
 
     connectEl.createEl("h2", { text: "Quick Connect — Anthropic, OpenAI, and Universal MCP" });
     connectEl.createEl("p", { text: "Copy client-specific connection blocks for the Agent API's MCP Streamable HTTP endpoint, or use the bundled first-party stdio adapter for applications that do not support HTTP transport.", cls: "setting-item-description" });
@@ -465,7 +465,7 @@ export class KosmosSettingTab extends PluginSettingTab {
   private createSectionTabs(containerEl: HTMLElement): Record<string, HTMLElement> {
     const definitions = [
       { id: "agent-api", label: "Agent API (HTTP + MCP)" },
-      { id: "okf-formatting", label: "GKOS Note Formatting" },
+      { id: "gkx-formatting", label: "GKOS Note Formatting" },
       { id: "quick-connect", label: "Quick Connect MCP" },
       { id: "vault-sync", label: "Connectivity to Sync Vault" },
     ];

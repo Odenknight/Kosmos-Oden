@@ -151,7 +151,7 @@ async function buildPlugin() {
     entryPoints: [resolve(root, "src/plugin/main.ts")],
     bundle: true,
     format: "cjs",
-    target: "es2018",
+    target: "es2020",
     platform: "browser",
     // Provided by Obsidian at runtime — never bundle these:
     external: ["obsidian", "electron", "@codemirror/*", "@lezer/*", "node:*"],

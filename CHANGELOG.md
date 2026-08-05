@@ -24,7 +24,7 @@ agent visibility.
   proposal validation with restricted patch fields and raise-only sensitivity,
   and an **optional** loopback Python/DSPy proposal sidecar that has no write
   and no approval capability. v1.1.2 additionally documents that
-  `OKF23_POLICY.sensitivityDefault` is a hash-locked mirror of the canonical
+  `GKX23_POLICY.sensitivityDefault` is a hash-locked mirror of the canonical
   policy JSON and is superseded for the missing-sensitivity path (which has
   failed closed to `secret` since engine v1.0.6) — a documentation truth-fix
   with **no behavior change**.
@@ -50,23 +50,23 @@ agent visibility.
   `internal` agent read ceiling and disappears from agent/MCP results. This
   landed in 0.6.7 (engine v1.0.6) and is unchanged here. **Remedies:** set
   **Default sensitivity** (Settings → Agent API) to `internal` — as of 0.6.8
-  that value is threaded through `KosmosIndex` and genuinely re-projects
+  that value is threaded through `GkxIndex` and genuinely re-projects
   unlabeled notes, restoring pre-0.6.7 visibility; or raise the **Agent
   sensitivity ceiling** to `secret`; or add explicit `sensitivity` frontmatter.
   Classification stays **raise-only**: the engine may raise a note's effective
   sensitivity, never lower one that declares a higher level.
-- The `OKF-TEMPORAL-001` diagnostic (naive wall-clock timestamps) and the
+- The `GKX-TEMPORAL-001` diagnostic (naive wall-clock timestamps) and the
   `unknown` epistemic-state fallback, both introduced in 0.6.7, are carried
   forward.
 
 ### Rolled up from the unreleased 0.6.6–0.6.9 line
 
 - **0.6.7** — engine v1.0.6 adoption (fail-closed sensitivity,
-  `OKF-TEMPORAL-001`, `unknown` epistemic-state fallback); new **Default
+  `GKX-TEMPORAL-001`, `unknown` epistemic-state fallback); new **Default
   sensitivity** setting; network-reachability warning when enabling the Agent
   API or Nextcloud sync.
 - **0.6.8** — engine v1.0.7 adoption; the Default sensitivity setting is
-  threaded through `parseSourceFile` / `buildGraph` / `new KosmosIndex(...)`,
+  threaded through `parseSourceFile` / `buildGraph` / `new GkxIndex(...)`,
   so it governs the effective sensitivity of every unlabeled note on both full
   load and incremental `applyChanges`, not merely the gate fallback.
 - **0.6.9** — standalone `kosmos-oden-stand-alone.html` live Agent-API feed against a
@@ -111,11 +111,11 @@ agent visibility.
 
 - Adopt **gkos-engine v1.0.7** (Odenknight/GKOS-Engine#7, closing engine issue
   #6) and **wire the Default sensitivity dropdown through the projection.** The
-  engine now threads `Okf23ProjectionOptions` through `parseSourceFile`,
-  `buildGraph`, and `new KosmosIndex(projectionOptions?)`, so the configured
+  engine now threads `Gkx23ProjectionOptions` through `parseSourceFile`,
+  `buildGraph`, and `new GkxIndex(projectionOptions?)`, so the configured
   Default sensitivity finally reaches every projection — both the live-vault
   full load and incremental `applyChanges`. `VaultDataProvider` constructs its
-  `KosmosIndex` with the current setting and re-projects the whole vault when
+  `GkxIndex` with the current setting and re-projects the whole vault when
   the setting changes. Previously the dropdown could only govern the gate
   fallback for notes with no projection at all; it now governs the **effective
   sensitivity of every unlabeled note**.
@@ -124,7 +124,7 @@ agent visibility.
 
 - **Restored (agent visibility):** the 0.6.7 Compatibility note stated that the
   Default sensitivity setting could *not* restore previously visible unlabeled
-  notes, because `KosmosIndex` did not thread projection options (gkos-engine
+  notes, because `GkxIndex` did not thread projection options (gkos-engine
   issue #6). That limitation is fixed. **Setting Default sensitivity to
   `internal` now restores pre-0.6.7 agent visibility for unlabeled notes** —
   they project to `internal` and clear the default `internal` ceiling, without
@@ -137,7 +137,7 @@ agent visibility.
 ### Changed
 
 - Adopt **gkos-engine v1.0.6** (DIV-001/002/003 divergence fixes): the
-  `OKF-TEMPORAL-001` diagnostic for naive wall-clock timestamps, fail-closed
+  `GKX-TEMPORAL-001` diagnostic for naive wall-clock timestamps, fail-closed
   sensitivity (a note declaring none now projects to `secret`, not `internal`),
   and an `unknown` epistemic-state fallback.
 
@@ -161,7 +161,7 @@ agent visibility.
   `sensitivity` frontmatter to the notes you want visible. Note that the new
   **Default sensitivity** setting does *not* restore these notes: engine v1.0.6
   projects every parseable unlabeled note to `secret` regardless of the setting
-  (`KosmosIndex` does not yet thread projection options — gkos-engine issue #6);
+  (`GkxIndex` does not yet thread projection options — gkos-engine issue #6);
   Default sensitivity only governs the gate fallback for notes that have no
   projection at all.
 
@@ -172,15 +172,15 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 
 ### Re-branding — what changed in name, and why
 
-- The deterministic reader/validator/projector formerly called the "OKF+ 2.3
+- The deterministic reader/validator/projector formerly called the "GKX 2.3
   engine" is now the **GKOS Engine**. GKOS (Governed Knowledge Operations
-  Standard) defines *how knowledge becomes trustworthy*; OKF+ defines the
+  Standard) defines *how knowledge becomes trustworthy*; GKX defines the
   technical objects; this engine executes those contracts. "GKOS Engine v1.0"
   is an **implementation version — it is not GKOS standard v1.0**, which does
-  not exist. OKF+ 2.2 remains the ratified interoperability baseline; OKF+ 2.3
+  not exist. GKX 2.2 remains the ratified interoperability baseline; GKX 2.3
   remains a draft profile this engine reads and projects.
 - The three formats now carry audience names instead of bare version numbers:
-  - **OKF+ Notes (2.2)** — the human profile: flat, Properties-editable, and
+  - **GKX Notes (2.2)** — the human profile: flat, Properties-editable, and
     complete for personal vaults. Ratified simplification: writers no longer
     emit empty lineage lists (`supersedes: []` …); absent and empty are
     identical to the reader. Nothing else changed.
@@ -210,12 +210,12 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 - beta.12 removed the cause: no writer emits nested governance blocks. The
   2.3 governance model still applies in full — origin separation, policy-
   hashed assessments, diagnostics — but it lives in the deterministic
-  in-memory projection and (per the beta.13 design) `.okf/` sidecars, never
+  in-memory projection and (per the beta.13 design) `.gkx/` sidecars, never
   in the authoring surface. See `docs/EVOLUTION-AND-SAFEGUARDS.md` for the
   complete narrative.
 
 ### Added
-- Flat editable OKF+ 2.3 ("Agent-Ready") conversion: **Convert all to
+- Flat editable GKX 2.3 ("Agent-Ready") conversion: **Convert all to
   editable 2.3** in settings and the command palette (replaces the nested
   "native 2.3" writer).
 - Flat-profile validation and projection: scalar `sensitivity`, flat
@@ -227,7 +227,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ### Compatibility
 - Hand-authored nested 2.3 notes remain fully supported read-only; they are
   never flattened automatically. Notes converted during the beta series
-  rescan clean with zero proposed changes. OKF+ 2.2 vaults are unaffected.
+  rescan clean with zero proposed changes. GKX 2.2 vaults are unaffected.
 
 ### Testing
 - 187-test suite (unit, round-trip, settings UI, invariants) plus
@@ -241,7 +241,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-beta.12] — 2026-07-19 (pre-release)
 
 ### Fixed
-- Restored an explicit **Convert all to native 2.3** action in the OKF+ Note
+- Restored an explicit **Convert all to native 2.3** action in the GKX Note
   Formatting tab and command palette.
 - Native 2.3 conversion now preserves ordinary Obsidian `tags` and flat
   wikilink relationship fields as editable overlays, so manual corrections
@@ -251,7 +251,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-beta.11] — 2026-07-19 (pre-release)
 
 ### Fixed
-- Restored compact flat OKF+ 2.2 Obsidian Properties as the default human
+- Restored compact flat GKX 2.2 Obsidian Properties as the default human
   authoring surface. Editing tags or relationship wikilinks now flows through
   the normal vault-change path into search, the cosmos, REST, MCP, and Graphiti.
 - Added a bounded repair for metadata written by beta.10's deterministic nested
@@ -265,7 +265,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
   tags and relationship values remain directly editable flat Properties.
 
 ### Safety
-- Genuinely authored native OKF+ 2.3 notes are never flattened automatically.
+- Genuinely authored native GKX 2.3 notes are never flattened automatically.
   Repair is limited to notes carrying the beta.10 deterministic-migration
   marker and remains previewed, hash-bound, backup-protected, and concurrent-
   edit checked.
@@ -276,10 +276,10 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-beta.10] — 2026-07-19 (pre-release)
 
 ### Changed
-- Replaced the OKF+ Note Formatting tab's flat 2.2 compatibility writer with a
-  deterministic canonical nested OKF+ 2.3 converter.
+- Replaced the GKX Note Formatting tab's flat 2.2 compatibility writer with a
+  deterministic canonical nested GKX 2.3 converter.
 - Renamed scan, convert-all, re-scan, and command-palette actions to identify
-  OKF+ 2.3 explicitly.
+  GKX 2.3 explicitly.
 - Valid 2.2 notes now receive a hash-bound 2.3 conversion proposal; valid native
   2.3 notes remain unchanged and round-trip as conformant.
 - Content-assisted enrichment now scans native 2.3 notes and preserves the
@@ -295,25 +295,25 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ### Added
 - Reconciled the recovered beta.8 responsive settings, scanning invalidation,
   portable timestamp, Nextcloud WebDAV, Graphiti ingestion-status, and renderer
-  work with the full OKF+ v2.3 Validating Projection API.
+  work with the full GKX v2.3 Validating Projection API.
 - Added effective, non-proposed Graphiti relationship episodes, origin-separated
   labels, policy metadata, and the required upstream read-after-ingest boundary.
 
 ### Changed
 - Standardized terminology: Markdown `tags` remain source navigation tags;
-  governed OKF+ `labels` remain origin-separated authored, derived, proposed,
+  governed GKX `labels` remain origin-separated authored, derived, proposed,
   approved, and effective classifications.
 - Raised the minimum Obsidian version to 1.11.4 for Secret Storage-backed
   Nextcloud credentials.
 
 ### Compatibility
 - Existing 2.2 migration and enrichment workflows remain explicit compatibility
-  tools. They do not silently flatten or rewrite native nested OKF+ 2.3 notes.
+  tools. They do not silently flatten or rewrite native nested GKX 2.3 notes.
 
 ## [0.6.5-alpha.8] — 2026-07-19 (pre-release)
 
 ### Added
-- Added the **OKF+ v2.3 Validating Projection Profile**: source-preserving
+- Added the **GKX v2.3 Validating Projection Profile**: source-preserving
   nested metadata parsing, UID-first identity, typed relationships, stable
   diagnostics, namespace-aware labels, and origin-separated authored,
   derived, proposed, approved, and effective projections.
@@ -321,7 +321,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
   completeness, provenance, evidence, relationship integrity, temporal
   freshness, contradiction status, and review readiness. Scores explicitly
   measure documentation/support quality—not truth or authorization.
-- Added read-only REST and MCP access to OKF+ notes, assessments, diagnostics,
+- Added read-only REST and MCP access to GKX notes, assessments, diagnostics,
   effective labels, evidence, relationships, policy, in-memory validation, and
   bounded vault assessment.
 - Added UUIDv7-compatible Graphiti identity and governance summaries that
@@ -338,7 +338,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
   sidecars.
 
 ### Compatibility
-- Existing OKF+ 2.2 and legacy notes remain readable through compatibility
+- Existing GKX 2.2 and legacy notes remain readable through compatibility
   projections. The existing explicit, backed-up 2.2 migration workflow remains
   available; alpha.8 does not silently rewrite source notes to 2.3.
 ## [0.6.5-beta.8] — 2026-07-18 (pre-release)
@@ -353,7 +353,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 
 ### Fixed
 - Replaced the inferred heading/accordion Options layout with four explicit,
-  accessible tabs: **Agent API (HTTP + MCP)**, **OKF+ Note Formatting**,
+  accessible tabs: **Agent API (HTTP + MCP)**, **GKX Note Formatting**,
   **Quick Connect — Anthropic, OpenAI, and Universal MCP**, and
   **Connectivity to Sync Vault**. Nextcloud configuration is now always
   discoverable from its own tab.
@@ -365,8 +365,8 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 - Added mobile tab scrolling, stacked full-width setting controls, keyboard tab
   navigation, and active-tab retention when a setting redraws the Options page.
 - Updated UI, manifest, generated Agent API guide, and README nomenclature to
-  identify the **OKF+ v2.3 Validating Projection Profile** under GKOS, distinguish
-  the current OKF+ 2.2 compatibility writer, use MCP Streamable HTTP terminology,
+  identify the **GKX v2.3 Validating Projection Profile** under GKOS, distinguish
+  the current GKX 2.2 compatibility writer, use MCP Streamable HTTP terminology,
   and describe native Nextcloud Files synchronization over WebDAV.
 - Updated the Graphiti setup example to the tested `graphiti-core==0.29.0` pin
   with FalkorDB for simple local operation or Neo4j for mature deployments.
@@ -375,7 +375,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 
 ### Added
 - Made the primary Options sections collapsible and added a sticky **Jump to**
-  row for Nextcloud sync, Agent API, OKF+ formatting, and quick-connect
+  row for Nextcloud sync, Agent API, GKX formatting, and quick-connect
   controls. Section open/closed state is retained while the plugin is loaded.
 
 ## [0.6.5-beta.2] — 2026-07-18 (pre-release)
@@ -428,7 +428,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-alpha.6] — 2026-07-16 (pre-release)
 
 ### Added
-- Added a guided, inline OKF+ reconciliation workflow with explicit
+- Added a guided, inline GKX reconciliation workflow with explicit
   **Needs review**, **Accept**, and **Reject** decisions, live progress,
   expand/collapse controls, and a safe **Reject all remaining** action.
 - Added per-note model-pass labels and inline recovery guidance when an
@@ -444,7 +444,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-alpha.5] — 2026-07-16 (pre-release)
 
 ### Added
-- Added OKF-processing-only exclusion patterns with `*`, `**`, and `?`, plus
+- Added GKX-processing-only exclusion patterns with `*`, `**`, and `?`, plus
   an opt-in developer preset for common agent instruction/control files. The
   migration preview lists every exclusion and matching pattern.
 - Added a distinct **LAN LLM** provider for OpenAI-compatible models on a
@@ -462,12 +462,12 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
   screen displays the exact endpoint and warns that a private address does not
   prove the device, Wi-Fi/VLAN, firewall, or service is trusted.
 - Exclusions default off to prevent silent omissions during upgrade and affect
-  only OKF migration/enrichment—not visualization or the read-only Agent API.
+  only GKX migration/enrichment—not visualization or the read-only Agent API.
 
 ## [0.6.5-alpha.4] — 2026-07-16 (pre-release)
 
 ### Added
-- Renamed the enrichment action to **Scan / re-scan all OKF+ 2.2 notes** and
+- Renamed the enrichment action to **Scan / re-scan all GKX 2.2 notes** and
   clarified that every run reads current eligible notes again, including notes
   already upgraded by the deterministic migration.
 - Added local-model advisory triage for migration-blocked notes. It returns
@@ -497,13 +497,13 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 - Apply rechecks the proposal source hash, verifies the plan and in-memory
   content hashes, rechecks exact live note bytes, creates byte-exact backups,
   and writes only still-matching notes through Obsidian's note processor.
-- Plans and results are retained under `.okf/enrichment/<run-id>/`; note bodies
+- Plans and results are retained under `.gkx/enrichment/<run-id>/`; note bodies
   are omitted from the persisted plan and Markdown body bytes are preserved.
 
 ## [0.6.5-alpha.2] — 2026-07-15 (pre-release)
 
 ### Added
-- Added deterministic, bounded note-evidence selection for OKF+ descriptions,
+- Added deterministic, bounded note-evidence selection for GKX descriptions,
   types, tags, and explicitly named supersession candidates, with structural
   evidence-quality scores and reasons instead of a claim of semantic meaning.
 - Added an optional OpenAI-compatible local/cloud second pass whose output is
@@ -521,8 +521,8 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.5-alpha.1] — 2026-07-15 (pre-release)
 
 ### Added
-- Added a governed **Upgrade all to OKF+ 2.2** mode for every mechanically
-  recoverable Markdown note, including Google OKF, reserved index/log files,
+- Added a governed **Upgrade all to GKX 2.2** mode for every mechanically
+  recoverable Markdown note, including third-party draft, reserved index/log files,
   and flat legacy/2.1 frontmatter.
 - Every migration entry now carries an explainable deterministic migration-
   safety confidence score and the complete coded reasons for manual review.
@@ -537,7 +537,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
 ## [0.6.0-beta.2] — 2026-07-15 (pre-release)
 
 Updates the r185/WebGL2 beta with all 0.5.6 core, provider-neutral MCP,
-Graphiti projection, OKF+ migration, and sensitivity hardening changes.
+Graphiti projection, GKX migration, and sensitivity hardening changes.
 
 ### Changed
 - Stable renderer remains exact-pinned to ESM `three@0.185.1`, bundled into
@@ -556,8 +556,8 @@ Graphiti projection, OKF+ migration, and sensitivity hardening changes.
 ## [0.5.6] — 2026-07-15
 
 ### Added
-- Added **Mark notes in OKF+ format**, a vault-wide, LLM-free audit that accepts
-  either OKF+ 2.2 or Google's OKF 0.1 draft and proposes conservative OKF+ 2.2
+- Added **Mark notes in GKX format**, a vault-wide, LLM-free audit that accepts
+  either GKX 2.2 or the former third-party 0.1 draft and proposes conservative GKX 2.2
   metadata only for mechanically safe notes. The preview can be saved without
   note contents; apply is bound to the SHA-256 plan, requires explicit backup
   and sensitivity acknowledgements, creates byte-exact per-file backups, skips
@@ -572,17 +572,17 @@ Graphiti projection, OKF+ migration, and sensitivity hardening changes.
 - Corrected the Claude Code quick-connect command's option ordering and added
   native OpenAI Codex/ChatGPT desktop configuration plus a bundled first-party
   stdio adapter for clients that cannot attach to Streamable HTTP directly.
-- Graphiti episodes now reuse valid OKF+ UUIDs, use disambiguated assertion
+- Graphiti episodes now reuse valid GKX UUIDs, use disambiguated assertion
   namespaces, paginate connector exports, and never backfill later
   `superseded_by`/`head`/`invalid_at` state into earlier episodes.
 
 ### Security
-- Added an OKF+ sensitivity ceiling (`internal` by default) across note reads,
+- Added an GKX sensitivity ceiling (`internal` by default) across note reads,
   search, graph/lineage/temporal traversal, diagnostics, and Graphiti export.
   Invalid explicit sensitivity labels fail closed at the `phi` boundary.
 
 ### Changed
-- The shared parser now recognizes the flat OKF+ 2.2 governance fields,
+- The shared parser now recognizes the flat GKX 2.2 governance fields,
   canonical wikilink lists, `forked_to` compatibility, and registered typed
   relationships. Graphiti is labeled as a non-authoritative projection of
   explicit user assertions; source notes and accepted semantic events remain
@@ -646,14 +646,14 @@ engineering assessments (`docs/assessments/`).
 
 ## [0.5.0]
 
-Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, OKF+
+Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, GKX
 temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
 base64-embedded single HTML string.
 ## [0.6.5-beta.5] — 2026-07-18 (pre-release)
 
 - Adds opt-out `created_at` and `updated_at` ISO-8601 UTC note stamping through Obsidian's frontmatter API.
 - Names the deterministic agent surface the Kosmos Governed Context Projection (KGCP).
-- Upgrades the Graphiti adapter schema to `okf-plus-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
+- Upgrades the Graphiti adapter schema to `gkx-graphiti/2.3.0`, with governance origins, evidence, diagnostics, integrity hashes, event/processing time, metadata, authored fact triples, optional sagas, and a 250-character attribute cap.
 - Pins the generated Graphiti sample to tested `graphiti-core==0.29.0`, defaults to FalkorDB, keeps Neo4j available, and intentionally excludes deprecated Kuzu.
 - Adds honest combined-extraction benchmarking and ingestion-readiness contracts without treating queued acceptance as searchable completion.
 ## [0.6.5-beta.6] — 2026-07-18 (pre-release)

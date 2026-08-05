@@ -1,6 +1,12 @@
 # Kosmos Research Studio (KRS) — Vault Kosmos — v0.7.0
 
-**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready (flat) GKX 2.3 conversion, the GKOS Engine v1.1 implementation line, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. GKX is the current name for the format previously published as OKF+. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+> **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
+> Tier: T3 · GKX schema: GKX current (2.3 line)
+> Engine dependency: consumes GKOS-Engine `v2.0.1`
+> Lifecycle: Active · Relationships: active continuation of Kosmos-Oden-Lite (§3.1)
+> Authority for this block: GKOS-REGISTRY-001
+
+**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
@@ -34,7 +40,7 @@ A folder list shows you your notes one at a time. A cosmos shows you **the shape
 - **Travel through time.** Press one button and watch your vault grow note by note, or scrub the Chrono timeline to see exactly what you knew — and what you'd already revised — on any past date.
 - **Find things by flying.** Tap any body to light up everything connected to it, then hop from neighbor to neighbor. It's search for people who think visually.
 - **Watch your AI assistant think.** If you let an AI agent read your vault (entirely optional, off by default), the notes it visits glow with a fading emerald trail across your universe, live.
-- **Improve GKX metadata without surrendering control.** A deterministic pass selects bounded evidence and explains weak document structure; an optional constrained local/cloud model can add pending proposals. Nothing is preselected, and only explicitly reviewed values can enter a hash-bound, backed-up apply plan. See [GKX content-assisted enrichment](docs/OKF-ENRICHMENT.md).
+- **Improve GKX metadata without surrendering control.** A deterministic pass selects bounded evidence and explains weak document structure; an optional constrained local/cloud model can add pending proposals. Nothing is preselected, and only explicitly reviewed values can enter a hash-bound, backed-up apply plan. See [GKX content-assisted enrichment](docs/GKX-ENRICHMENT.md).
 
 It works on desktop **and** on your phone or tablet, updates live as you edit, and needs no internet connection at all.
 
@@ -181,21 +187,21 @@ enumeration and local hashing on each run, favoring correctness over speed.
 
 ## GKX v2.3 Validating Projection Profile
 
-KRS implements the **GKX v2.3 Validating Projection Profile** (the profile formerly named OKF+). It is
+KRS implements the **GKX v2.3 Validating Projection Profile**. It is
 not a full GKOS governance engine and does not authorize or apply consequential
 semantic changes. Canonical 2.3 nested blocks are parsed into separate
 `authored`, `derived`, `proposed`, `approved`, and `effective` projections;
 legacy and 2.2 notes remain readable through compatibility projections. The
 built-in deterministic assessment measures documentation, traceability, and
 support quality under a versioned policy—it is never a truth score or use
-authorization. See [the profile and limits](docs/OKF-PLUS-2.3-PROFILE.md).
+authorization. See [the profile and limits](docs/GKX-2.3-PROFILE.md).
 
-Notes written in **GKX** (Governed Knowledge Exchange) light up temporal features natively. Existing OKF+ 2.2/2.3 documents remain compatibility inputs:
+Notes written in **GKX** light up temporal features natively:
 
 - **Canonical knowledge chains** — `supersedes` / `superseded_by` frontmatter is normalized internally into one canonical lineage graph, so both fields are projected bidirectionally: declaring **either side** is enough. Superseded notes render as ghosts; the newest version of a chain is flagged **HEAD**. Malformed lineage (cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps) is detected and reported through diagnostics instead of silently breaking the graph.
-- **Temporal validity intervals** — each note is *valid* from its OKF+ `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
+- **Temporal validity intervals** — each note is *valid* from its GKX `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
 - **Chrono time-travel** — the **Chrono** button (`H`) scrubs the cosmos to any moment: notes not yet written vanish, notes already superseded dim to dark ghosts. Chrono, the Agent API's `graph_at_time`, and the temporal tests all use the **same** projector.
-- **OKF+ 2.3 validating projection** — canonical nested identity, authorship,
+- **GKX 2.3 validating projection** — canonical nested identity, authorship,
   epistemic, sensitivity, provenance, evidence, relationships, lineage, review,
   assessment, authorization, and origin-separated labels are parsed without
   changing source notes. Flat 2.2 metadata and the legacy `**Related:**` footer
@@ -210,17 +216,17 @@ Notes written in **GKX** (Governed Knowledge Exchange) light up temporal feature
 
 ---
 
-## GKX note formatting and OKF+ compatibility onboarding
+## GKX note formatting and compatibility onboarding
 
 Use **Settings → Vault Kosmos → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
-The governed writer uses compact **OKF+ 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
+The governed writer uses compact **GKX 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
 
 Beta.11 also includes a bounded remediation for the beta.10 regression. The safe scan recognizes only notes carrying beta.10's deterministic-migration marker, previews a flattening repair, removes duplicate `created_at`/`updated_at` keys and generated governance boilerplate, preserves extensions and Markdown body bytes, and restores flat tags and relationship wikilinks. It does not automatically flatten genuinely authored native 2.3 notes.
 
-Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.okf/backup/<run-id>/`, stores the audit/result under `.okf/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
+Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.gkx/backup/<run-id>/`, stores the audit/result under `.gkx/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
 
-The migration scan is deterministic and contacts no model. The separate **Re-scan editable OKF+ notes** workflow proposes user-reviewable tags, descriptions, types, and evidenced relationships through deterministic selection or an explicitly configured OpenAI-compatible endpoint. Nothing is selected by default; accepted flat Properties use the same live incremental update path as a manual Obsidian edit. See [the migration guide](docs/OKF-MIGRATION.md) and [v2.3 profile](docs/OKF-PLUS-2.3-PROFILE.md).
+The migration scan is deterministic and contacts no model. The separate **Re-scan editable GKX notes** workflow proposes user-reviewable tags, descriptions, types, and evidenced relationships through deterministic selection or an explicitly configured OpenAI-compatible endpoint. Nothing is selected by default; accepted flat Properties use the same live incremental update path as a manual Obsidian edit. See [the migration guide](docs/GKX-MIGRATION.md) and [v2.3 profile](docs/GKX-2.3-PROFILE.md).
 
 ---
 
@@ -228,7 +234,7 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 
 Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
 
-**Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. As of v0.6.8 (engine v1.0.7) this value is threaded through the projection engine (`KosmosIndex`), so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate — it is no longer merely a gate fallback. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
+**Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. GKOS-Engine v2.0.1 threads this value through `GkxIndex`, so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
 
 **Connecting an agent (no reimplementation required):**
 1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
@@ -246,17 +252,17 @@ Security: tokens are generated from a cryptographically secure RNG only (32 byte
 
 ## Graphiti export
 
-The built-in agent functionality is formally named the **Kosmos Governed Context Projection (KGCP)**. KGCP is deterministic and works without Graphiti. Graphiti is an optional semantic-memory and hybrid-retrieval adapter; its inferred facts remain derived proposals, never authored OKF+ data.
+The built-in agent functionality is formally named the **Kosmos Governed Context Projection (KGCP)**. KGCP is deterministic and works without Graphiti. Graphiti is an optional semantic-memory and hybrid-retrieval adapter; its inferred facts remain derived proposals, never authored GKX data.
 
-Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the OKF+ `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, separate source tags and origin-preserving governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the OKF+ authority.
+Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the GKX `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, separate source tags and origin-preserving governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the GKX authority.
 
-The OKF+ 2.3 adapter also exports origin-separated governance, effective sensitivity, assessment summaries, diagnostic codes, evidence/contradictions, policy and schema hashes, filter metadata, authored `fact_triple` relationships, event/processing time, a 250-character derived-attribute cap, and optional saga hints. The generated ingestion script pins tested `graphiti-core==0.29.0`, prefers FalkorDB for local use or Neo4j for mature deployments, and reports readiness/benchmark fields honestly.
+The GKX 2.3 adapter also exports origin-separated governance, effective sensitivity, assessment summaries, diagnostic codes, evidence/contradictions, policy and schema hashes, filter metadata, authored `fact_triple` relationships, event/processing time, a 250-character derived-attribute cap, and optional saga hints. The generated ingestion script pins tested `graphiti-core==0.29.0`, prefers FalkorDB for local use or Neo4j for mature deployments, and reports readiness/benchmark fields honestly.
 
 ## Portable UTC note timestamps
 
-With **Stamp note creation and modification times** enabled (the default), the Obsidian plugin adds `created_at` and `updated_at` frontmatter values in canonical ISO-8601 UTC/Zulu form, for example `2026-07-18T16:42:03.125Z`. Existing `created_at` values are preserved. `.obsidian/` and `.okf/` internals are excluded.
+With **Stamp note creation and modification times** enabled (the default), the Obsidian plugin adds `created_at` and `updated_at` frontmatter values in canonical ISO-8601 UTC/Zulu form, for example `2026-07-18T16:42:03.125Z`. Existing `created_at` values are preserved. `.obsidian/` and `.gkx/` internals are excluded.
 
-- **Plugin:** command palette → *Export Graphiti episodes (OKF+)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
+- **Plugin:** command palette → *Export Graphiti episodes (GKX)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
 - **Standalone:** the **Export Graphiti Episodes** button downloads the same payload.
 - **CLI:** `node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json`
 
@@ -277,7 +283,7 @@ Uses the same bundled Kosmos Core as the plugin and the standalone page — not 
 
 **Never modify existing notes:** the 3D visualization, ordinary directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
 
-**Write only through explicit or configured workflows:** *Mark notes in OKF+ format* performs a read-only audit first and can save `.okf/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Nextcloud writes run only through **Sync now** or explicitly enabled startup/scheduled sync, guarded by common-state comparison and conditional requests. Visualization and Agent API queries remain read-only.
+**Write only through explicit or configured workflows:** *Mark notes in GKX format* performs a read-only audit first and can save `.gkx/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Nextcloud writes run only through **Sync now** or explicitly enabled startup/scheduled sync, guarded by common-state comparison and conditional requests. Visualization and Agent API queries remain read-only.
 
 ## Private by design
 
@@ -313,7 +319,7 @@ Performance: see [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for measured num
 ## Repository layout
 
 ```
-src/core/        shared Kosmos Core (types, markdown, okf, resolver, lineage,
+src/core/        shared Kosmos Core (types, markdown, gkx, resolver, lineage,
                  temporal, graph, graphiti, incremental index, demo)
 src/renderer/    cosmology, layout (+collision diagnostics), shaders, renderer
 src/plugin/      Obsidian plugin, iframe embed entry, host<->renderer protocol,

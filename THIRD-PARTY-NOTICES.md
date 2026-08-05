@@ -47,28 +47,12 @@ licensed. The MIT license permits this fork; substantial modifications in this
 repository are described in `CHANGELOG.md` and `docs/ARCHITECTURE.md`. This
 project is not endorsed by or affiliated with the upstream author.
 
-## Google Cloud Open Knowledge Format interoperability
+## GKX provenance
 
-The temporal-lineage and governance schema formerly named **Open Knowledge
-Format Plus (OKF+)**, with ongoing development under **GKX — Governed Knowledge
-Exchange**, was developed independently of and without reference to Google
-Cloud's Open Knowledge Format specification.
-
-After this project became aware of Google Cloud OKF, an interoperability
-projection was added so governed objects can be emitted as compatible OKF
-exchange artifacts. Google Cloud OKF is an interoperability target supported
-by this project, not the architectural foundation upon which GKX is built.
-No claim that this project predates or has priority over Google Cloud's OKF
-specification is made or implied.
-
-Google Cloud introduced Open Knowledge Format publicly in June 2026. Google
-Cloud OKF is independently maintained. This project is not affiliated with,
-endorsed by, sponsored by, or maintained by Google. References to “Open
-Knowledge Format” and “OKF” identify the external specification with which
-this project provides interoperability.
-
-The compatibility identifiers `gkos.profile/okf-plus-2.2` and
-`gkos.profile/okf-plus-2.3` are retained as frozen profile names.
+GKX — Governed Knowledge Exchange — is the sole knowledge-format namespace
+implemented by this project. Kosmos-Oden does not expose legacy compatibility
+identifiers or interchange aliases. This project is independently maintained
+and is not affiliated with, endorsed by, sponsored by, or maintained by Google.
 
 ## Build & dev dependencies
 

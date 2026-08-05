@@ -4,7 +4,7 @@
  * The desktop app "GKOS Engine Desktop" supervises a headless sidecar
  * (`kosmos-agent`, GKOS-Engine desktop-agent.ts) that serves a LOOPBACK-ONLY,
  * read-only, bearer-token agent API on 127.0.0.1:4814. Its `/graph` route
- * returns the exact same KosmosGraph the viewer already renders (see
+ * returns the exact same GkxGraph the viewer already renders (see
  * `tryLocalGraphJson` in standalone.ts — this is the same shape, fetched live
  * instead of from a sibling graph.json).
  *
@@ -78,7 +78,7 @@ export interface ViewerGraph {
 
 /**
  * Coerce a `/graph` response into the shape `app.renderGraph` consumes. The
- * sidecar returns the KosmosGraph directly (`{ nodes, links, ... }`); we also
+ * sidecar returns the GkxGraph directly (`{ nodes, links, ... }`); we also
  * tolerate a `{ graph: {...} }` envelope and an `edges` alias for `links`.
  * Returns null when there is no usable node array.
  */

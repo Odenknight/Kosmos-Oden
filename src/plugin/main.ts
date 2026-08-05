@@ -7,19 +7,19 @@
  * self-contained, no CDN, works on desktop and mobile.
  *
  * The plugin streams the vault into the iframe: one full snapshot on open,
- * then debounced deltas; the iframe's shared KosmosIndex re-parses only what
+ * then debounced deltas; the iframe's shared GkxIndex re-parses only what
  * changed (§10). The Agent API answers from the same core index (§33).
  */
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { GRAPHITI_CORE_VERSION, graphitiIngestionProfile } from "gkos-engine";
-import type { OkfMigrationMode } from "gkos-engine";
+import type { GkxMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
-import { openOkfMigrationWorkflow } from "./okf-migration";
-import { openOkfEnrichmentWorkflow } from "./okf-enrichment";
+import { openGkxMigrationWorkflow } from "./gkx-migration";
+import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 import {
@@ -338,20 +338,20 @@ export default class VaultKosmosPlugin extends Plugin {
     this.addRibbonIcon("orbit", "Open Vault Kosmos", () => void this.activate());
     this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
     this.addCommand({
-      id: "mark-notes-okf-plus",
+      id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
-      callback: () => void this.markNotesInOkf(),
+      callback: () => void this.markNotesInGkx(),
     });
-    this.addCommand({ id: "propose-okf-plus-enrichment", name: "Re-scan editable GKX notes for label and relationship proposals", callback: () => void this.proposeOkfEnrichment() });
+    this.addCommand({ id: "propose-gkx-enrichment", name: "Re-scan editable GKX notes for label and relationship proposals", callback: () => void this.proposeGkxEnrichment() });
     this.addCommand({
-      id: "upgrade-all-notes-okf-plus-2-2",
+      id: "upgrade-all-notes-gkx-2-2",
       name: "Convert recoverable notes to editable GKX 2.2 (preview first)",
-      callback: () => void this.markNotesInOkf("upgrade-all"),
+      callback: () => void this.markNotesInGkx("upgrade-all"),
     });
     this.addCommand({
-      id: "upgrade-all-notes-okf-plus-2-3",
-      name: "Convert recoverable notes to Agent-Ready GKX 2.3 (preview first)",
-      callback: () => void this.markNotesInOkf("convert-to-23"),
+      id: "upgrade-all-notes-gkx-2-3",
+      name: "Convert recoverable notes to native GKX 2.3 (preview first)",
+      callback: () => void this.markNotesInGkx("convert-to-23"),
     });
     this.addCommand({ id: "export-graphiti-episodes", name: "Export Graphiti episodes (GKX)", callback: () => void this.exportGraphitiEpisodes() });
     this.addCommand({ id: "sync-nextcloud-now", name: "Sync vault with Nextcloud now", callback: () => void this.runNextcloudSync(true) });
@@ -508,12 +508,12 @@ export default class VaultKosmosPlugin extends Plugin {
 
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
-  async markNotesInOkf(mode: OkfMigrationMode = "safe-onboarding"): Promise<void> {
-    await openOkfMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings);
+  async markNotesInGkx(mode: GkxMigrationMode = "safe-onboarding"): Promise<void> {
+    await openGkxMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings);
   }
 
-  async proposeOkfEnrichment(): Promise<void> {
-    await openOkfEnrichmentWorkflow(this.app, this.agentSettings, () => this.provider.markFullDirty());
+  async proposeGkxEnrichment(): Promise<void> {
+    await openGkxEnrichmentWorkflow(this.app, this.agentSettings, () => this.provider.markFullDirty());
   }
 
   async writeAgentGuide(): Promise<void> {

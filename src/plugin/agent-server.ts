@@ -23,8 +23,8 @@
 import { projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
-import { OKF23_POLICY, OKF23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
-import type { KosmosGraph, KosmosNode, OkfSensitivity } from "gkos-engine";
+import { GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
+import type { GkxGraph, GkxNode, GkxSensitivity } from "gkos-engine";
 
 // Newest first. 2025-11-25 is the current published MCP revision. Older
 // revisions remain negotiable for clients that still request them explicitly.
@@ -48,12 +48,12 @@ export interface AgentSettings {
   agentRequireToken: boolean;
   agentBindMode: AgentBindMode;
   /** Highest GKX sensitivity readable through the connector. */
-  agentSensitivityCeiling: OkfSensitivity;
+  agentSensitivityCeiling: GkxSensitivity;
   /** Fail-closed effective sensitivity for a note that declares none (and has no
    *  GKX projection). Governs how unlabeled notes are classified by the
    *  network-facing read gate. Defaults to the engine's fail-closed level
    *  ("secret"). The engine may RAISE effective sensitivity, never lower it. */
-  defaultSensitivity: OkfSensitivity;
+  defaultSensitivity: GkxSensitivity;
   /** Persistent opaque suffix for the Graphiti assertion namespace. */
   agentGraphNamespace: string;
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
@@ -71,22 +71,22 @@ export interface AgentSettings {
   graphitiCombinedExtraction: boolean;
   /** Add deterministic saga hints to exported episodes. */
   graphitiSagaMapping: boolean;
-  okfEnrichmentProvider: "none" | "local" | "lan" | "cloud";
-  okfEnrichmentEndpoint: string;
-  okfEnrichmentModel: string;
-  okfEnrichmentApiKeyEnv: string;
-  okfEnrichmentMaxNotes: number;
-  okfEnrichmentMaxParagraphs: number;
-  okfEnrichmentMaxInputChars: number;
-  okfEnrichmentMaxTotalInputChars: number;
-  okfEnrichmentMaxSuggestions: number;
-  okfEnrichmentTimeoutMs: number;
-  okfEnrichmentCloudCeiling: "public" | "internal";
-  okfEnrichmentLanCeiling: "public" | "internal" | "confidential";
-  /** Custom glob-style exclusions used only by OKF migration/enrichment. */
-  okfExcludePatterns: string[];
+  gkxEnrichmentProvider: "none" | "local" | "lan" | "cloud";
+  gkxEnrichmentEndpoint: string;
+  gkxEnrichmentModel: string;
+  gkxEnrichmentApiKeyEnv: string;
+  gkxEnrichmentMaxNotes: number;
+  gkxEnrichmentMaxParagraphs: number;
+  gkxEnrichmentMaxInputChars: number;
+  gkxEnrichmentMaxTotalInputChars: number;
+  gkxEnrichmentMaxSuggestions: number;
+  gkxEnrichmentTimeoutMs: number;
+  gkxEnrichmentCloudCeiling: "public" | "internal";
+  gkxEnrichmentLanCeiling: "public" | "internal" | "confidential";
+  /** Custom glob-style exclusions used only by GKX migration/enrichment. */
+  gkxExcludePatterns: string[];
   /** Opt-in exact/common developer and agent-control file preset. */
-  okfDeveloperExclusions: boolean;
+  gkxDeveloperExclusions: boolean;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -106,20 +106,20 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   timestampUpdatedKey: "updated_at",
   graphitiCombinedExtraction: false,
   graphitiSagaMapping: false,
-  okfEnrichmentProvider: "none",
-  okfEnrichmentEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-  okfEnrichmentModel: "",
-  okfEnrichmentApiKeyEnv: "",
-  okfEnrichmentMaxNotes: 25,
-  okfEnrichmentMaxParagraphs: 4,
-  okfEnrichmentMaxInputChars: 4000,
-  okfEnrichmentMaxTotalInputChars: 50000,
-  okfEnrichmentMaxSuggestions: 12,
-  okfEnrichmentTimeoutMs: 30000,
-  okfEnrichmentCloudCeiling: "public",
-  okfEnrichmentLanCeiling: "internal",
-  okfExcludePatterns: [],
-  okfDeveloperExclusions: false,
+  gkxEnrichmentProvider: "none",
+  gkxEnrichmentEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+  gkxEnrichmentModel: "",
+  gkxEnrichmentApiKeyEnv: "",
+  gkxEnrichmentMaxNotes: 25,
+  gkxEnrichmentMaxParagraphs: 4,
+  gkxEnrichmentMaxInputChars: 4000,
+  gkxEnrichmentMaxTotalInputChars: 50000,
+  gkxEnrichmentMaxSuggestions: 12,
+  gkxEnrichmentTimeoutMs: 30000,
+  gkxEnrichmentCloudCeiling: "public",
+  gkxEnrichmentLanCeiling: "internal",
+  gkxExcludePatterns: [],
+  gkxDeveloperExclusions: false,
 };
 
 /** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
@@ -129,8 +129,8 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   // to v2 turns that OFF by default; the user can re-enable it explicitly.
   if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
   if (!raw || !["public", "internal", "restricted", "confidential", "regulated", "phi", "secret"].includes(raw.agentSensitivityCeiling)) {
-    // Existing unlabeled vaults are treated as internal, preserving local
-    // behavior while keeping confidential/PHI notes opt-in.
+    // The read ceiling remains internal by default. Engine 2.0 independently
+    // fails missing or invalid GKX sensitivity closed to secret.
     s.agentSensitivityCeiling = "internal";
   }
   // Default sensitivity for unlabeled notes fails closed to "secret" unless a
@@ -139,23 +139,23 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   if (!raw || !Object.prototype.hasOwnProperty.call(SENSITIVITY_RANK, s.defaultSensitivity)) {
     s.defaultSensitivity = FAIL_CLOSED_SENSITIVITY_DEFAULT;
   }
-  if (!["none", "local", "lan", "cloud"].includes(s.okfEnrichmentProvider)) s.okfEnrichmentProvider = "none";
-  if (!["public", "internal"].includes(s.okfEnrichmentCloudCeiling)) s.okfEnrichmentCloudCeiling = "public";
-  if (!["public", "internal", "confidential"].includes(s.okfEnrichmentLanCeiling)) s.okfEnrichmentLanCeiling = "internal";
-  s.okfExcludePatterns = Array.isArray(s.okfExcludePatterns) ? s.okfExcludePatterns.map(String).slice(0, 200) : [];
-  s.okfDeveloperExclusions = s.okfDeveloperExclusions === true;
+  if (!["none", "local", "lan", "cloud"].includes(s.gkxEnrichmentProvider)) s.gkxEnrichmentProvider = "none";
+  if (!["public", "internal"].includes(s.gkxEnrichmentCloudCeiling)) s.gkxEnrichmentCloudCeiling = "public";
+  if (!["public", "internal", "confidential"].includes(s.gkxEnrichmentLanCeiling)) s.gkxEnrichmentLanCeiling = "internal";
+  s.gkxExcludePatterns = Array.isArray(s.gkxExcludePatterns) ? s.gkxExcludePatterns.map(String).slice(0, 200) : [];
+  s.gkxDeveloperExclusions = s.gkxDeveloperExclusions === true;
   s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
   s.timestampUseLocalTimezone = s.timestampUseLocalTimezone === true;
   s.timestampCreatedKey = typeof s.timestampCreatedKey === "string" && s.timestampCreatedKey.trim() ? s.timestampCreatedKey.trim() : "created_at";
   s.timestampUpdatedKey = typeof s.timestampUpdatedKey === "string" && s.timestampUpdatedKey.trim() ? s.timestampUpdatedKey.trim() : "updated_at";
   s.graphitiCombinedExtraction = s.graphitiCombinedExtraction === true;
   s.graphitiSagaMapping = s.graphitiSagaMapping === true;
-  s.okfEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.okfEnrichmentMaxNotes) || 25));
-  s.okfEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.okfEnrichmentMaxParagraphs) || 4));
-  s.okfEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.okfEnrichmentMaxInputChars) || 4000));
-  s.okfEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(s.okfEnrichmentMaxTotalInputChars) || 50000));
-  s.okfEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(s.okfEnrichmentMaxSuggestions) || 12));
-  s.okfEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, Number(s.okfEnrichmentTimeoutMs) || 30000));
+  s.gkxEnrichmentMaxNotes = Math.max(1, Math.min(500, Number(s.gkxEnrichmentMaxNotes) || 25));
+  s.gkxEnrichmentMaxParagraphs = Math.max(1, Math.min(8, Number(s.gkxEnrichmentMaxParagraphs) || 4));
+  s.gkxEnrichmentMaxInputChars = Math.max(400, Math.min(12000, Number(s.gkxEnrichmentMaxInputChars) || 4000));
+  s.gkxEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(s.gkxEnrichmentMaxTotalInputChars) || 50000));
+  s.gkxEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(s.gkxEnrichmentMaxSuggestions) || 12));
+  s.gkxEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, Number(s.gkxEnrichmentTimeoutMs) || 30000));
   s.schemaVersion = AGENT_SETTINGS_SCHEMA;
   return s;
 }
@@ -223,7 +223,7 @@ export function makeToken(): string {
 
 export interface AgentDataProvider {
   /** The shared graph snapshot — the same one the viewer renders (§33). */
-  getGraph(): Promise<KosmosGraph>;
+  getGraph(): Promise<GkxGraph>;
   /** Note body with frontmatter stripped, or null when unknown. */
   getNoteContent(path: string): Promise<string | null>;
   vaultName(): string;
@@ -496,45 +496,45 @@ export class KosmosAgentServer {
 
   /* ---------------- shared query helpers (one graph, §33) ---------------- */
 
-  private sensitivityRank(value: OkfSensitivity | undefined): number {
+  private sensitivityRank(value: GkxSensitivity | undefined): number {
     // Unlabeled notes fail closed to the configured default sensitivity (the
     // engine's "secret" out of the box); an unknown value ranks as secret.
     return SENSITIVITY_RANK[value || this.settings.defaultSensitivity] ?? SENSITIVITY_RANK.secret;
   }
 
-  private canRead(n: KosmosNode): boolean {
-    const effective = n.okf?.projection?.effective.sensitivity;
-    return this.sensitivityRank(typeof effective === "string" ? effective as OkfSensitivity : n.okf?.sensitivity) <= this.sensitivityRank(this.settings.agentSensitivityCeiling);
+  private canRead(n: GkxNode): boolean {
+    const effective = n.gkx?.projection?.effective.sensitivity;
+    return this.sensitivityRank(typeof effective === "string" ? effective as GkxSensitivity : n.gkx?.sensitivity) <= this.sensitivityRank(this.settings.agentSensitivityCeiling);
   }
 
-  private fileNodes(graph: KosmosGraph): KosmosNode[] {
+  private fileNodes(graph: GkxGraph): GkxNode[] {
     return graph.nodes.filter((n) => n.kind === "file" && this.canRead(n));
   }
 
   private visibleTemporal(
-    n: KosmosNode,
-    graph: KosmosGraph,
+    n: GkxNode,
+    graph: GkxGraph,
     visible = new Set(this.fileNodes(graph).map((x) => x.id)),
     byId = new Map(graph.nodes.map((x) => [x.id, x]))
   ): { head: boolean; invalidAt: string | null } {
-    const successors = (n.okf?.supersededByIds ?? [])
+    const successors = (n.gkx?.supersededByIds ?? [])
       .filter((id) => visible.has(id))
       .map((id) => byId.get(id))
-      .filter(Boolean) as KosmosNode[];
+      .filter(Boolean) as GkxNode[];
     const times = successors.map((x) => Date.parse(x.validAt || "")).filter((x) => !Number.isNaN(x));
-    const participates = successors.length > 0 || (n.okf?.supersedesIds ?? []).some((id) => visible.has(id));
+    const participates = successors.length > 0 || (n.gkx?.supersedesIds ?? []).some((id) => visible.has(id));
     return {
       head: participates && successors.length === 0,
       invalidAt: times.length ? new Date(Math.min(...times)).toISOString() : null,
     };
   }
 
-  private brief(n: KosmosNode, graph?: KosmosGraph, visible?: Set<string>, byId?: Map<string, KosmosNode>): any {
-    const temporal = graph ? this.visibleTemporal(n, graph, visible, byId) : { head: !!n.okf?.head, invalidAt: n.okf?.invalidAt ?? null };
+  private brief(n: GkxNode, graph?: GkxGraph, visible?: Set<string>, byId?: Map<string, GkxNode>): any {
+    const temporal = graph ? this.visibleTemporal(n, graph, visible, byId) : { head: !!n.gkx?.head, invalidAt: n.gkx?.invalidAt ?? null };
     return {
-      id: n.id, uid: n.okf?.uid ?? null,
-      title: n.label, path: n.path, type: n.okf?.type || n.type || "note", area: n.area, tags: n.tags,
-      sensitivity: n.okf?.projection?.effective.sensitivity ?? n.okf?.sensitivity ?? this.settings.defaultSensitivity,
+      id: n.id, uid: n.gkx?.uid ?? null,
+      title: n.label, path: n.path, type: n.gkx?.type || n.type || "note", area: n.area, tags: n.tags,
+      sensitivity: n.gkx?.projection?.effective.sensitivity ?? n.gkx?.sensitivity ?? this.settings.defaultSensitivity,
       timestamp: n.validAt ?? null,
       head: temporal.head,
       superseded: temporal.invalidAt != null,
@@ -542,11 +542,11 @@ export class KosmosAgentServer {
     };
   }
 
-  private findNode(graph: KosmosGraph, sel: { path?: string; title?: string; uid?: string }): KosmosNode | null {
+  private findNode(graph: GkxGraph, sel: { path?: string; title?: string; uid?: string }): GkxNode | null {
     const files = this.fileNodes(graph);
     if (sel.uid) {
       const uid = sel.uid.trim();
-      const hit = files.find((n) => n.okf?.projection?.authored.uid === uid || n.okf?.uid === uid);
+      const hit = files.find((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
       if (hit) return hit;
     }
     if (sel.path) {
@@ -561,12 +561,12 @@ export class KosmosAgentServer {
     return (
       files.find((n) => n.label.toLowerCase() === q) ??
       files.find((n) => n.aliases.some((a) => a.toLowerCase() === q)) ??
-      files.find((n) => (n.okf?.title || "").toLowerCase() === q) ??
+      files.find((n) => (n.gkx?.title || "").toLowerCase() === q) ??
       null
     );
   }
 
-  private projectables(graph: KosmosGraph): ProjectableNote[] {
+  private projectables(graph: GkxGraph): ProjectableNote[] {
     const out: ProjectableNote[] = [];
     const visible = new Set(this.fileNodes(graph).map((n) => n.id));
     const byId = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -597,14 +597,14 @@ export class KosmosAgentServer {
       vault: this.provider.vaultName(),
       version: KOSMOS_VERSION,
       readOnly: true,
-      okfAuthority: "source notes + accepted semantic events; this API is a read projection",
-      okfProfile: "GKX v2.3 Validating Projection Profile (GKOS Engine v1.1; no governed writer)",
+      gkxAuthority: "source notes + accepted semantic events; this API is a read projection",
+      gkxProfile: "GKX v2.3 Validating Projection Profile (GKOS-Engine v2.0.1; no governed writer)",
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       notes: ns.length,
       areas: [...new Set(ns.map((n) => n.area))].sort(),
-      okfNotes: ns.filter((n) => n.okf).length,
-      okf23Notes: ns.filter((n) => n.okf?.projection?.sourceVersion === "2.3").length,
-      assessedNotes: ns.filter((n) => n.okf?.projection?.assessment).length,
+      gkxNotes: ns.filter((n) => n.gkx).length,
+      gkx23Notes: ns.filter((n) => n.gkx?.projection?.sourceVersion === "2.3").length,
+      assessedNotes: ns.filter((n) => n.gkx?.projection?.assessment).length,
       heads: temporal.filter((x) => x.head).length,
       superseded: temporal.filter((x) => x.invalidAt).length,
       lineageEdges: graph.links.filter((l) => l.kind === "lineage" && visible.has(l.source) && visible.has(l.target)).length,
@@ -620,7 +620,7 @@ export class KosmosAgentServer {
     return this.safeDiagnostics(graph);
   }
 
-  private safeDiagnostics(graph: KosmosGraph): any {
+  private safeDiagnostics(graph: GkxGraph): any {
     const visible = new Set(this.fileNodes(graph).map((n) => n.id));
     const visibleLinks = graph.links.filter((l) => visible.has(l.source) && (visible.has(l.target) || l.target.startsWith("unresolved:")));
     return {
@@ -635,7 +635,7 @@ export class KosmosAgentServer {
       warningsRedacted: graph.diagnostics.lineageWarnings.length > 0,
       lastFullBuildMs: graph.diagnostics.lastFullBuildMs,
       lastIncrementalUpdateMs: graph.diagnostics.lastIncrementalUpdateMs,
-      okf23Diagnostics: this.fileNodes(graph).reduce((sum, n) => sum + (n.okf?.projection?.diagnostics.length ?? 0), 0),
+      gkx23Diagnostics: this.fileNodes(graph).reduce((sum, n) => sum + (n.gkx?.projection?.diagnostics.length ?? 0), 0),
     };
   }
 
@@ -643,7 +643,7 @@ export class KosmosAgentServer {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
-    const scored: Array<[number, KosmosNode]> = [];
+    const scored: Array<[number, GkxNode]> = [];
     for (const n of this.fileNodes(graph)) {
       if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
       if (opts.area && n.area.toLowerCase() !== String(opts.area).toLowerCase()) continue;
@@ -677,33 +677,33 @@ export class KosmosAgentServer {
     return {
       ...this.brief(n, graph, visible),
       aliases: n.aliases,
-      okf: n.okf ? {
-        okf_version: n.okf.okfVersion,
-        uid: n.okf.uid,
-        description: n.okf.description,
-        epistemic_state: n.okf.epistemicState,
-        scope: n.okf.scope,
-        scope_id: n.okf.scopeId,
-        sensitivity: n.okf.projection?.effective.sensitivity ?? n.okf.sensitivity ?? this.settings.defaultSensitivity,
-        supersedes: (n.okf.supersedesIds ?? []).map(nameOf).filter(Boolean),
-        superseded_by: (n.okf.supersededByIds ?? []).map(nameOf).filter(Boolean),
-        declared_supersedes: n.okf.supersedes,
-        declared_superseded_by: n.okf.supersededBy,
-        forked_from: n.okf.forkedFrom,
-        forked_to: n.okf.forkedTo,
-        typed_relationships: n.okf.relations,
-        related: n.okf.related,
-        validating_projection: n.okf.projection ? {
-          profile: n.okf.projection.profile,
-          source_version: n.okf.projection.sourceVersion,
-          authored: n.okf.projection.authored,
-          derived: n.okf.projection.derived,
-          proposed: n.okf.projection.proposed,
-          approved: n.okf.projection.approved,
-          effective: n.okf.projection.effective,
-          extensions: n.okf.projection.extensions,
-          assessment: n.okf.projection.assessment,
-          diagnostics: n.okf.projection.diagnostics,
+      gkx: n.gkx ? {
+        gkx_version: n.gkx.gkxVersion,
+        uid: n.gkx.uid,
+        description: n.gkx.description,
+        epistemic_state: n.gkx.epistemicState,
+        scope: n.gkx.scope,
+        scope_id: n.gkx.scopeId,
+        sensitivity: n.gkx.projection?.effective.sensitivity ?? n.gkx.sensitivity ?? this.settings.defaultSensitivity,
+        supersedes: (n.gkx.supersedesIds ?? []).map(nameOf).filter(Boolean),
+        superseded_by: (n.gkx.supersededByIds ?? []).map(nameOf).filter(Boolean),
+        declared_supersedes: n.gkx.supersedes,
+        declared_superseded_by: n.gkx.supersededBy,
+        forked_from: n.gkx.forkedFrom,
+        forked_to: n.gkx.forkedTo,
+        typed_relationships: n.gkx.relations,
+        related: n.gkx.related,
+        validating_projection: n.gkx.projection ? {
+          profile: n.gkx.projection.profile,
+          source_version: n.gkx.projection.sourceVersion,
+          authored: n.gkx.projection.authored,
+          derived: n.gkx.projection.derived,
+          proposed: n.gkx.projection.proposed,
+          approved: n.gkx.projection.approved,
+          effective: n.gkx.projection.effective,
+          extensions: n.gkx.projection.extensions,
+          assessment: n.gkx.projection.assessment,
+          diagnostics: n.gkx.projection.diagnostics,
         } : null,
       } : null,
       links: { outgoing, backlinks, semantic },
@@ -711,16 +711,16 @@ export class KosmosAgentServer {
     };
   }
 
-  private async okfNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: KosmosGraph; node: KosmosNode } | null> {
+  private async gkxNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: GkxGraph; node: GkxNode } | null> {
     const graph = await this.provider.getGraph();
     const node = this.findNode(graph, sel);
     return node ? { graph, node } : null;
   }
 
-  async qOkfNote(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
+  async qGkxNote(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.gkxNode(sel);
     if (!found) return { error: "note not found" };
-    const p = found.node.okf?.projection;
+    const p = found.node.gkx?.projection;
     if (!p) return { error: "note has no GKX validating projection", path: found.node.path };
     return {
       profile: p.profile, conformanceClaim: p.conformanceClaim, mode: p.mode,
@@ -731,52 +731,52 @@ export class KosmosAgentServer {
   }
 
   async qAssessment(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
-    return found?.node.okf?.projection?.assessment ?? { error: "assessment not found" };
+    const found = await this.gkxNode(sel);
+    return found?.node.gkx?.projection?.assessment ?? { error: "assessment not found" };
   }
 
-  async qOkfDiagnostics(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
-    const p = found?.node.okf?.projection;
+  async qGkxDiagnostics(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
+    const found = await this.gkxNode(sel);
+    const p = found?.node.gkx?.projection;
     return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: p.diagnostics } : { error: "diagnostics not found" };
   }
 
   async qEffectiveLabels(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
-    const p = found?.node.okf?.projection;
+    const found = await this.gkxNode(sel);
+    const p = found?.node.gkx?.projection;
     return p ? { targetUid: p.authored.uid ?? null, authored: p.authored.labels, derived: p.derived.labels, proposed: p.proposed.labels, approved: p.approved.labels, effective: p.effective.labels } : { error: "labels not found" };
   }
 
   async qEvidence(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
-    const p = found?.node.okf?.projection;
+    const found = await this.gkxNode(sel);
+    const p = found?.node.gkx?.projection;
     if (!p) return { error: "evidence not found" };
     const pick = (origin: any) => origin.evidence ?? { supports: [], contradicts: [] };
     return { targetUid: p.authored.uid ?? null, authored: pick(p.authored), derived: pick(p.derived), proposed: pick(p.proposed), approved: pick(p.approved), effective: pick(p.effective) };
   }
 
   async qRelationships(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const found = await this.okfNode(sel);
-    const p = found?.node.okf?.projection;
+    const found = await this.gkxNode(sel);
+    const p = found?.node.gkx?.projection;
     return p ? { targetUid: p.authored.uid ?? null, authored: p.authored.relationships, derived: p.derived.relationships, proposed: p.proposed.relationships, approved: p.approved.relationships, effective: p.effective.relationships } : { error: "relationships not found" };
   }
 
   qPolicy(): any {
-    return { profile: OKF23_PROFILE, builtIn: true, source: "bundled-read-only-policy", policy: OKF23_POLICY, remoteUpdatesEnabled: false };
+    return { profile: GKX23_PROFILE, builtIn: true, source: "bundled-read-only-policy", policy: GKX23_POLICY, remoteUpdatesEnabled: false };
   }
 
   async qValidate(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
-    const result = await this.qOkfDiagnostics(sel);
+    const result = await this.qGkxDiagnostics(sel);
     if (result.error) return result;
     return { ...result, valid: !result.diagnostics.some((d: any) => d.severity === "error" || d.severity === "critical"), sourceUnchanged: true };
   }
 
   async qAssessVault(limit = 100): Promise<any> {
     const graph = await this.provider.getGraph();
-    const assessments = this.fileNodes(graph).flatMap((n) => n.okf?.projection ? [{ path: n.path, ...n.okf.projection.assessment }] : []);
+    const assessments = this.fileNodes(graph).flatMap((n) => n.gkx?.projection ? [{ path: n.path, ...n.gkx.projection.assessment }] : []);
     const cap = Math.max(1, Math.min(200, Number.isFinite(limit) ? Math.floor(limit) : 100));
     const overall = assessments.map((a) => a.scores.overall).filter((x): x is number => typeof x === "number");
-    return { profile: OKF23_PROFILE, readOnly: true, total: assessments.length, returned: Math.min(cap, assessments.length), averageOverall: overall.length ? Math.round(overall.reduce((a, b) => a + b, 0) / overall.length * 10_000) / 10_000 : null, assessments: assessments.slice(0, cap) };
+    return { profile: GKX23_PROFILE, readOnly: true, total: assessments.length, returned: Math.min(cap, assessments.length), averageOverall: overall.length ? Math.round(overall.reduce((a, b) => a + b, 0) / overall.length * 10_000) / 10_000 : null, assessments: assessments.slice(0, cap) };
   }
 
   /** Cap a returned note body so one huge note cannot flood a client (Doc2 §5.6). */
@@ -792,15 +792,15 @@ export class KosmosAgentServer {
     if (!n) return { error: "note not found" };
     const byId = new Map(this.fileNodes(graph).map((x) => [x.id, x]));
     const seen = new Set<string>();
-    const chain: KosmosNode[] = [];
+    const chain: GkxNode[] = [];
     const walk = (id: string) => {
       if (seen.has(id)) return;
       seen.add(id);
       const x = byId.get(id);
       if (!x) return;
-      for (const a of (x.okf?.supersedesIds ?? [])) walk(a);
+      for (const a of (x.gkx?.supersedesIds ?? [])) walk(a);
       chain.push(x);
-      for (const d of (x.okf?.supersededByIds ?? [])) walk(d);
+      for (const d of (x.gkx?.supersededByIds ?? [])) walk(d);
     };
     walk(n.id);
     chain.sort((a, b) => (Date.parse(a.validAt || "") || 0) - (Date.parse(b.validAt || "") || 0));
@@ -847,15 +847,15 @@ export class KosmosAgentServer {
     };
   }
 
-  private graphForVisibleNodes(graph: KosmosGraph): KosmosGraph {
+  private graphForVisibleNodes(graph: GkxGraph): GkxGraph {
     const visible = new Set(this.fileNodes(graph).map((n) => n.id));
     return {
       ...graph,
-      nodes: graph.nodes.filter((n) => visible.has(n.id)).map((n) => n.okf ? ({
+      nodes: graph.nodes.filter((n) => visible.has(n.id)).map((n) => n.gkx ? ({
         ...n,
-        okf: {
-          ...n.okf,
-          supersedesIds: (n.okf.supersedesIds ?? []).filter((id) => visible.has(id)),
+        gkx: {
+          ...n.gkx,
+          supersedesIds: (n.gkx.supersedesIds ?? []).filter((id) => visible.has(id)),
           supersededByIds: [],
           invalidAt: null,
           head: false,
@@ -872,7 +872,7 @@ export class KosmosAgentServer {
       vault: this.provider.vaultName(),
       vaultIdentity: this.provider.vaultIdentity?.(),
       groupId: this.settings.agentGraphNamespace
-        ? `okf-${this.provider.vaultName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "vault"}-${this.settings.agentGraphNamespace.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}-assertions`
+        ? `gkx-${this.provider.vaultName().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "vault"}-${this.settings.agentGraphNamespace.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32)}-assertions`
         : undefined,
       corpusId: this.settings.agentGraphNamespace || this.provider.vaultIdentity?.(),
       combinedExtraction: this.settings.graphitiCombinedExtraction,
@@ -960,7 +960,7 @@ export class KosmosAgentServer {
     });
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
-      tool("vault_overview", "Vault overview", "Sensitivity-filtered GKOS Engine projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
+      tool("vault_overview", "Vault overview", "Sensitivity-filtered GKOS-Engine v2.0.1 GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, source Markdown tags, and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
       tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
@@ -968,13 +968,13 @@ export class KosmosAgentServer {
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
       tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
       tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
-      tool("get_okf_note", "Get GKX note projection", "Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS Engine v1.1.", selectionSchema),
+      tool("get_gkx_note", "Get GKX note projection", "Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS-Engine v2.0.1.", selectionSchema),
       tool("get_assessment", "Get assessment", "Policy-bound deterministic documentation-quality assessment; never a truth or use authorization.", selectionSchema),
       tool("get_diagnostics", "Get GKX diagnostics", "Stable structured validation diagnostics for one readable note.", selectionSchema),
       tool("get_effective_labels", "Get effective labels", "Origin-separated labels plus the effective non-proposed projection.", selectionSchema),
       tool("get_evidence", "Get evidence", "Origin-separated supporting and contradicting evidence declarations.", selectionSchema),
       tool("get_relationships", "Get typed relationships", "Authored, derived, proposed, approved, and effective typed relationships.", selectionSchema),
-      tool("get_policy", "Get GKOS Engine policy", "Built-in deterministic GKX 2.3 assessment policy and trust state.", { type: "object", properties: {}, additionalProperties: false }),
+      tool("get_policy", "Get GKX policy", "Built-in deterministic GKX 2.3 assessment policy and trust state.", { type: "object", properties: {}, additionalProperties: false }),
       tool("validate_note", "Validate note", "Validate one note in memory without modifying source bytes.", selectionSchema),
       tool("assess_note", "Assess note", "Calculate/read one deterministic assessment in memory without modifying source bytes.", selectionSchema),
       tool("assess_vault", "Assess vault", "Bounded in-memory deterministic assessment summary; writes no notes or sidecars.", { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 200 } }, additionalProperties: false }),
@@ -994,7 +994,7 @@ export class KosmosAgentServer {
       get_related: ["path", "title"],
       graph_at_time: ["time", "limit"],
       export_graphiti_episodes: ["cursor", "limit"],
-      get_okf_note: ["path", "title", "uid"], get_assessment: ["path", "title", "uid"],
+      get_gkx_note: ["path", "title", "uid"], get_assessment: ["path", "title", "uid"],
       get_diagnostics: ["path", "title", "uid"], get_effective_labels: ["path", "title", "uid"],
       get_evidence: ["path", "title", "uid"], get_relationships: ["path", "title", "uid"],
       get_policy: [], validate_note: ["path", "title", "uid"], assess_note: ["path", "title", "uid"],
@@ -1011,7 +1011,7 @@ export class KosmosAgentServer {
       }
     };
     if (name === "search_notes" && typeof a.query !== "string") throw new McpRpcError(-32602, "search_notes requires string query");
-    if (["get_note", "get_lineage", "get_related", "get_okf_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
+    if (["get_note", "get_lineage", "get_related", "get_gkx_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
     if (name === "graph_at_time" && typeof a.time !== "string") throw new McpRpcError(-32602, "graph_at_time requires string time");
     const integer = (key: string, min: number, max: number) => {
       if (a[key] == null) return;
@@ -1033,9 +1033,9 @@ export class KosmosAgentServer {
       case "get_related": return done(await this.qRelated(args));
       case "graph_at_time": return done(await this.qAtTime(args.time, args.limit));
       case "export_graphiti_episodes": return this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE);
-      case "get_okf_note": return done(await this.qOkfNote(args));
+      case "get_gkx_note": return done(await this.qGkxNote(args));
       case "get_assessment": return done(await this.qAssessment(args));
-      case "get_diagnostics": return done(await this.qOkfDiagnostics(args));
+      case "get_diagnostics": return done(await this.qGkxDiagnostics(args));
       case "get_effective_labels": return done(await this.qEffectiveLabels(args));
       case "get_evidence": return done(await this.qEvidence(args));
       case "get_relationships": return done(await this.qRelationships(args));
@@ -1101,7 +1101,7 @@ export class KosmosAgentServer {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "kosmos-oden", title: "Vault Kosmos", version: KOSMOS_VERSION },
-          instructions: "GKOS Engine v1.1 read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_okf_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.",
+          instructions: "GKOS-Engine v2.0.1 read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.",
         });
       }
       if (method === "ping") return ok({});
@@ -1250,7 +1250,7 @@ export class KosmosAgentServer {
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
           mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
-          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/okf/note?uid=|path=|title=", "/okf/assessment?uid=|path=|title=", "/okf/diagnostics?uid=|path=|title=", "/okf/labels?uid=|path=|title=", "/okf/evidence?uid=|path=|title=", "/okf/relationships?uid=|path=|title=", "/okf/validate?uid=|path=|title=", "/okf/policy", "/okf/assess-vault?limit="],
+          rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;
       case "/health": this.json(res, 200, { ok: true, name: "kosmos-oden", version: KOSMOS_VERSION, vault: this.provider.vaultName() }); return;
@@ -1263,15 +1263,15 @@ export class KosmosAgentServer {
       case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
       case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
       case "/episodes": this.json(res, 200, await this.qEpisodePage(q("cursor") ? Number(q("cursor")) : 0, q("limit") ? Number(q("limit")) : DEFAULT_EPISODE_PAGE)); return;
-      case "/okf/note": this.json(res, 200, await this.qOkfNote({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/assessment": this.json(res, 200, await this.qAssessment({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/diagnostics": this.json(res, 200, await this.qOkfDiagnostics({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/labels": this.json(res, 200, await this.qEffectiveLabels({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/evidence": this.json(res, 200, await this.qEvidence({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/relationships": this.json(res, 200, await this.qRelationships({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/validate": this.json(res, 200, await this.qValidate({ uid: q("uid"), path: q("path"), title: q("title") })); return;
-      case "/okf/policy": this.json(res, 200, this.qPolicy()); return;
-      case "/okf/assess-vault": this.json(res, 200, await this.qAssessVault(q("limit") ? Number(q("limit")) : 100)); return;
+      case "/gkx/note": this.json(res, 200, await this.qGkxNote({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/assessment": this.json(res, 200, await this.qAssessment({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/diagnostics": this.json(res, 200, await this.qGkxDiagnostics({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/labels": this.json(res, 200, await this.qEffectiveLabels({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/evidence": this.json(res, 200, await this.qEvidence({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/relationships": this.json(res, 200, await this.qRelationships({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/validate": this.json(res, 200, await this.qValidate({ uid: q("uid"), path: q("path"), title: q("title") })); return;
+      case "/gkx/policy": this.json(res, 200, this.qPolicy()); return;
+      case "/gkx/assess-vault": this.json(res, 200, await this.qAssessVault(q("limit") ? Number(q("limit")) : 100)); return;
       case "/graphiti/status": this.json(res, 200, await this.qGraphitiIngestionStatus()); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }
