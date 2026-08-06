@@ -116,7 +116,7 @@ function renderSnapshot(snapshot: DirectorySnapshot, label: string): void {
   const update = index.setFiles(snapshot.files, snapshot.folders, snapshot.attachments);
   app.setAttachments(snapshot.attachments);
   app.renderGraph(update.graph, label);
-  for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
+  for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Kosmos-Oden lineage:", w);
 }
 
 async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Promise<void> {
@@ -169,7 +169,7 @@ function applyDiff(diff: SnapshotDiff, snapshot: DirectorySnapshot): void {
   app.renderGraph(update.graph, sourceName);
   ui.setStatus({ lastScanAt: snapshot.scannedAt, ...statusFromGraph(update.graph) });
   console.debug(
-    `Vault Kosmos rescan: +${diff.addedFiles.length} ~${diff.changedFiles.length} -${diff.removedFiles.length} files, ` +
+    `Kosmos-Oden rescan: +${diff.addedFiles.length} ~${diff.changedFiles.length} -${diff.removedFiles.length} files, ` +
     `${diff.addedDirs.length} new / ${diff.removedDirs.length} removed folder(s); re-parsed ${update.delta.reparsed} note(s)`
   );
 }

@@ -254,7 +254,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       g.__cosmos = true;
       return g;
     } catch (e) {
-      console.error("Vault Kosmos: cosmology layout failed, using fallback", e);
+      console.error("Kosmos-Oden: cosmology layout failed, using fallback", e);
     }
     return ensureNodeIndex(layoutGraph(graph));
   }
@@ -2028,7 +2028,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       __prevSig = sig;
       if (label) setConn(label, true);
     } catch (e) {
-      console.error("Vault Kosmos: failed to render graph", e);
+      console.error("Kosmos-Oden: failed to render graph", e);
       showFatal("Could not render this vault.");
     }
   }
@@ -2037,7 +2037,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   // Deterministic capture always boots the demo scene (even in "wait" mode) so a
   // browser test has a stable, self-contained target with no folder picker.
   if (opts.autoStart === "demo" || CAPTURE.on) {
-    try { buildDemo(); ensureFrame(); runCapture(); } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
+    try { buildDemo(); ensureFrame(); runCapture(); } catch (e) { console.error("Kosmos-Oden: demo failed", e); showFatal("The demo could not be built."); }
     if (!CAPTURE.on) setTimeout(() => { showHint(MOBILE ? "Drag to orbit · pinch to zoom · tap a body" : "Drag to orbit · scroll to zoom · click a body to focus"); }, 900);
   } else {
     showHint(LANG === "de" ? "Warte auf Vault…" : "Waiting for vault…");
@@ -2047,7 +2047,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     ok: true,
     renderGraph,
     showDemo() {
-      try { buildDemo(); ensureFrame(); } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
+      try { buildDemo(); ensureFrame(); } catch (e) { console.error("Kosmos-Oden: demo failed", e); showFatal("The demo could not be built."); }
     },
     setConn,
     setVaultStatus,

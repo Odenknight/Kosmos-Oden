@@ -208,7 +208,7 @@ export function makeToken(): string {
   const c: any = (globalThis as any).crypto;
   if (!c || typeof c.getRandomValues !== "function") {
     throw new Error(
-      "Vault Kosmos: no cryptographically secure random source (crypto.getRandomValues) is available; refusing to create an insecure token."
+      "Kosmos-Oden: no cryptographically secure random source (crypto.getRandomValues) is available; refusing to create an insecure token."
     );
   }
   const bytes = new Uint8Array(32);
@@ -1100,7 +1100,7 @@ export class KosmosAgentServer {
         return ok({
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "kosmos-oden", title: "Vault Kosmos", version: KOSMOS_VERSION },
+          serverInfo: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION },
           instructions: "GKOS-Engine v2.0.1 read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.",
         });
       }
@@ -1245,7 +1245,7 @@ export class KosmosAgentServer {
     switch (path) {
       case "/":
         this.json(res, 200, {
-          name: "Vault Kosmos Agent API",
+          name: "Kosmos-Oden Agent API",
           version: KOSMOS_VERSION,
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",

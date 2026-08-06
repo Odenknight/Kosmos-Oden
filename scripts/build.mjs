@@ -134,7 +134,7 @@ ${escapeInline(appJs)}
 
 async function buildStandalone() {
   const app = await bundle("src/standalone/standalone.ts");
-  const html = composePage(`Vault Kosmos ${VERSION} — Standalone`, app);
+  const html = composePage(`Kosmos-Oden ${VERSION} — Standalone`, app);
   writeFileSync(resolve(root, "kosmos-oden-stand-alone.html"), html);
   console.log(`built kosmos-oden-stand-alone.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
 }

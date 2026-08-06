@@ -50,7 +50,7 @@ function applySnapshot(msg: FilesMessage): void {
   const update = index.setFiles(toSourceFiles(msg.files), msg.folders || [], msg.attachments || []);
   app.setAttachments(msg.attachments || []);
   app.renderGraph(update.graph, msg.label || "Vault");
-  for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
+  for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Kosmos-Oden lineage:", w);
 }
 function applyDelta(msg: UpdateMessage): void {
   const changes: IndexChanges = {
@@ -73,9 +73,9 @@ window.addEventListener("message", (ev: MessageEvent) => {
   if (!raw || typeof raw !== "object") return;
   try {
     // Preferred path: versioned, structurally validated envelope (§3.4).
-    if (raw.protocol === "vault-kosmos") {
+    if (raw.protocol === "kosmos-oden") {
       const v = validateHostMessage(raw);
-      if (!v.ok) { if (v.reason) console.warn("Vault Kosmos: rejected host message —", v.reason); return; }
+      if (!v.ok) { if (v.reason) console.warn("Kosmos-Oden: rejected host message —", v.reason); return; }
       const msg = v.message!;
       if (msg.type === "vault-snapshot") applySnapshot(msg.payload as FilesMessage);
       else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
@@ -92,7 +92,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
     else if (raw.type === "kosmos:visible") app.setHostVisible(raw.visible !== false);
     else if (raw.type === "kosmos:vault-status") app.setVaultStatus(raw.connected === true);
   } catch (e) {
-    console.error("Vault Kosmos:", e);
+    console.error("Kosmos-Oden:", e);
     app.showError("Could not render this vault.");
   }
 });

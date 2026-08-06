@@ -351,8 +351,8 @@ Proposed renderer outputs:
 
 ```text
 kosmos-oden-stand-alone.html                  # stable WebGL2
-vault-kosmos-webgpu.html           # experimental/optional
-vault-kosmos-legacy.html           # optional frozen compatibility build
+kosmos-oden-webgpu.html           # experimental/optional
+kosmos-oden-legacy.html           # optional frozen compatibility build
 dist/kosmos-embed.html             # stable plugin WebGL2 embed
 dist/kosmos-embed-webgpu.html      # test/experimental embed, not stable plugin by default
 ```
@@ -381,7 +381,7 @@ Extend it to every release flavor:
 sha256sum \
   main.js \
   kosmos-oden-stand-alone.html \
-  vault-kosmos-webgpu.html \
+  kosmos-oden-webgpu.html \
   dist/kosmos-embed.html \
   dist/kosmos-embed-webgpu.html
 ```

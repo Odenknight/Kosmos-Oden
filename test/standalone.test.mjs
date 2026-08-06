@@ -54,7 +54,7 @@ test("bundled renderer + core + both folder-access paths are inlined", () => {
 });
 
 test("artifact title carries the package version (§29)", () => {
-  assert.ok(html.includes(`Vault Kosmos ${pkg.version}`), "version in title");
+  assert.ok(html.includes(`Kosmos-Oden ${pkg.version}`), "version in title");
 });
 
 test("demo graph flows through cosmology + layout: positions for every visible node", () => {

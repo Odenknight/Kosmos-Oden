@@ -1,4 +1,4 @@
-# Vault Kosmos — universal Agent API guide (v0.6.5-alpha.8)
+# Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
 
 **Read-only · localhost by default · token-protected · MCP 2025-11-25**
 
@@ -6,7 +6,7 @@
 > create a vault-local copy with the actual address, token, and stdio-adapter
 > path filled in.
 
-Vault Kosmos exposes one vendor-neutral MCP Streamable HTTP endpoint. Anthropic,
+Kosmos-Oden exposes one vendor-neutral MCP Streamable HTTP endpoint. Anthropic,
 OpenAI, and other harnesses use the same tools and protocol; their config files
 are only setup conveniences. Source notes and accepted GKX semantic events are
 authoritative. API responses and Graphiti episodes are read projections.
@@ -15,7 +15,7 @@ GKOS governance engine.
 
 ## Start the connector
 
-1. Open **Obsidian → Settings → Community plugins → Vault Kosmos**.
+1. Open **Obsidian → Settings → Community plugins → Kosmos-Oden**.
 2. Enable **local Agent API**.
 3. Keep **Require auth token** enabled.
 4. Choose the highest GKX sensitivity agents may read. The default is
@@ -31,7 +31,7 @@ The settings page has copy buttons for every configuration below.
 ### Anthropic Claude Code
 
 ```bash
-claude mcp add --transport http --header "Authorization: Bearer <TOKEN>" vault-kosmos "http://127.0.0.1:4816/mcp"
+claude mcp add --transport http --header "Authorization: Bearer <TOKEN>" kosmos-oden "http://127.0.0.1:4816/mcp"
 ```
 
 Project-scoped `.mcp.json`:
@@ -39,7 +39,7 @@ Project-scoped `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "vault-kosmos": {
+    "kosmos-oden": {
       "type": "streamable-http",
       "url": "http://127.0.0.1:4816/mcp",
       "headers": { "Authorization": "Bearer <TOKEN>" }
@@ -53,7 +53,7 @@ Project-scoped `.mcp.json`:
 These clients share Codex `config.toml` on the same desktop host:
 
 ```toml
-[mcp_servers.vault-kosmos]
+[mcp_servers.kosmos-oden]
 url = "http://127.0.0.1:4816/mcp"
 http_headers = { Authorization = "Bearer <TOKEN>" }
 ```
@@ -71,7 +71,7 @@ the MCP session and protocol headers. It replaces the old downloaded
 ```json
 {
   "mcpServers": {
-    "vault-kosmos": {
+    "kosmos-oden": {
       "command": "node",
       "args": ["<PLUGIN-DIRECTORY>/kosmos-mcp-stdio.mjs"],
       "env": {
