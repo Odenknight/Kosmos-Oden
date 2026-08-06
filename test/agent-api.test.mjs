@@ -425,6 +425,21 @@ test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
   assert.match(note.content, /truncated/);
 });
 
+test("get_note returns a concise assessment verdict while detailed tools retain policy data", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  const note = await server.qNote({ title: "Engine v2" });
+  const summary = note.gkx.validating_projection.assessment;
+  assert.equal(typeof summary.verdict, "string");
+  assert.ok(summary.verdict.startsWith("assessment:"));
+  assert.equal(typeof summary.policy.id, "string");
+  assert.equal("weights" in summary.policy, false);
+  assert.equal("assessment_thresholds" in summary.policy, false);
+
+  const detailed = await server.qAssessment({ title: "Engine v2" });
+  assert.ok(detailed.policy.weights);
+  assert.ok(server.qPolicy().policy.assessmentThresholds);
+});
+
 test("GKX sensitivity ceiling filters search, note content, graph, and Graphiti pages", async () => {
   const files = [
     { relativePath: "Public.md", content: "---\ntype: semantic\nsensitivity: public\ntimestamp: 2026-01-01T00:00:00Z\n---\npublic" },

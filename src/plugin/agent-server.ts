@@ -674,6 +674,7 @@ export class KosmosAgentServer {
     const backlinks = graph.links.filter((l) => l.target === n.id && visible.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
     const semantic = graph.links.filter((l) => l.source === n.id && visible.has(l.target) && l.kind === "semantic").map((l) => l.target);
     const content = await this.provider.getNoteContent(n.path);
+    const assessment = n.gkx?.projection?.assessment;
     return {
       ...this.brief(n, graph, visible),
       aliases: n.aliases,
@@ -702,7 +703,19 @@ export class KosmosAgentServer {
           approved: n.gkx.projection.approved,
           effective: n.gkx.projection.effective,
           extensions: n.gkx.projection.extensions,
-          assessment: n.gkx.projection.assessment,
+          // Keep the default retrieval path compact. Full component scores,
+          // thresholds, and policy weights remain available through the
+          // dedicated get_assessment and get_policy tools.
+          assessment: assessment ? {
+            verdict: assessment.labels.derived[0] ?? "assessment:not-assessable",
+            overall: assessment.scores.overall,
+            interpretation: assessment.interpretation,
+            policy: {
+              id: assessment.policy.id,
+              version: assessment.policy.version,
+              hash: assessment.policy.hash,
+            },
+          } : null,
           diagnostics: n.gkx.projection.diagnostics,
         } : null,
       } : null,
@@ -962,7 +975,7 @@ export class KosmosAgentServer {
     return [
       tool("vault_overview", "Vault overview", "Sensitivity-filtered GKOS-Engine v2.0.1 GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, source Markdown tags, and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
-      tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
+      tool("get_note", "Get note", "Readable source note content, GKX metadata, concise assessment verdict, resolved lineage projection, and links. Use get_assessment or get_policy for full scoring details.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),

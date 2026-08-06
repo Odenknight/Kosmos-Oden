@@ -116,7 +116,7 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | --- | --- |
 | \`vault_overview\` | Sensitivity-filtered projection statistics and diagnostics |
 | \`search_notes\` | Lexical search over readable title/alias/source-Markdown-tag/path values |
-| \`get_note\` | Readable source content, legacy metadata, GKX v2.3 validating projection, lineage, and links |
+| \`get_note\` | Readable source content, GKX metadata, concise assessment verdict, lineage, and links |
 | \`get_lineage\` | Readable supersession chain oldest → newest |
 | \`get_related\` | Explicit \`related_to\`, legacy Related, wikilink, and backlink neighbors |
 | \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
