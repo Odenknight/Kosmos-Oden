@@ -27,9 +27,9 @@ The stable and experimental renderers should consume the same positioned scene d
 |---|---|---|---|
 | `kosmos-oden-stand-alone.html` | Modern Three.js `WebGLRenderer` / WebGL2 | Stable default | Universal offline standalone viewer |
 | `dist/kosmos-embed.html` | Modern Three.js `WebGLRenderer` / WebGL2 | Stable default | Sandboxed Obsidian plugin embed |
-| `vault-kosmos-webgpu.html` | Three.js `WebGPURenderer` + TSL | Experimental | Native WebGPU evaluation and future-facing performance/features |
+| `kosmos-oden-webgpu.html` | Three.js `WebGPURenderer` + TSL | Experimental | Native WebGPU evaluation and future-facing performance/features |
 | `dist/kosmos-embed-webgpu.html` | `WebGPURenderer` + TSL | Test/experimental | Obsidian runtime capability testing |
-| `vault-kosmos-legacy.html` | Frozen r128 or selected WebGL1-capable renderer | Optional legacy | Older hardware/browser compatibility only |
+| `kosmos-oden-legacy.html` | Frozen r128 or selected WebGL1-capable renderer | Optional legacy | Older hardware/browser compatibility only |
 
 ---
 
@@ -121,7 +121,7 @@ Those host differences justify separate entry points, but not separate stable sc
 
 ---
 
-## 5. Experimental standalone: `vault-kosmos-webgpu.html`
+## 5. Experimental standalone: `kosmos-oden-webgpu.html`
 
 ### Renderer
 
@@ -243,7 +243,7 @@ Do not choose until measured.
 
 ---
 
-## 7. Optional legacy: `vault-kosmos-legacy.html`
+## 7. Optional legacy: `kosmos-oden-legacy.html`
 
 ### Renderer
 
@@ -378,13 +378,13 @@ Build output mapping:
 await buildPage({
   entry: "src/standalone/standalone-webgl.ts",
   output: "kosmos-oden-stand-alone.html",
-  title: `Vault Kosmos ${VERSION} — Standalone WebGL2`
+  title: `Kosmos-Oden ${VERSION} — Standalone WebGL2`
 });
 
 await buildPage({
   entry: "src/standalone/standalone-webgpu.ts",
-  output: "vault-kosmos-webgpu.html",
-  title: `Vault Kosmos ${VERSION} — Experimental WebGPU`
+  output: "kosmos-oden-webgpu.html",
+  title: `Kosmos-Oden ${VERSION} — Experimental WebGPU`
 });
 ```
 

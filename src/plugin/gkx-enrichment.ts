@@ -246,7 +246,7 @@ class GkxEnrichmentPreviewModal extends Modal {
     if (unattachedIssues.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Run issues (${unattachedIssues.length})` }); for (const issue of unattachedIssues.slice(0, 50)) { const item = d.createEl("div", { cls: "gkx-review-issue" }); item.createEl("strong", { text: issue.path ? `${issue.path}: ` : "" }); item.createSpan({ text: issue.message }); item.createEl("div", { text: issue.action, cls: "setting-item-description" }); } }
     new Setting(contentEl)
       .addButton((button) => button.setButtonText("Close").onClick(() => this.close()))
-      .addButton((button) => button.setButtonText("Save pending queue").onClick(async () => { const path = await saveReviewQueue(this.app, this.result.records); new Notice(`Vault Kosmos: proposals saved to ${path}. No note frontmatter was changed.`, 10000); }))
+      .addButton((button) => button.setButtonText("Save pending queue").onClick(async () => { const path = await saveReviewQueue(this.app, this.result.records); new Notice(`Kosmos-Oden: proposals saved to ${path}. No note frontmatter was changed.`, 10000); }))
       .addButton((button) => {
         this.planButton = button.buttonEl;
         button.setButtonText("Build governed apply plan").setWarning().onClick(async () => {
@@ -283,7 +283,7 @@ export async function openGkxEnrichmentWorkflow(app: App, settings: AgentSetting
     catch (error: any) { new Notice(`Invalid model endpoint: ${String(error?.message || error)}`, 12000); return; }
     if (["lan", "cloud"].includes(settings.gkxEnrichmentProvider) && !(await confirmNetworkRun(app, settings))) return;
   }
-  const notice = new Notice("Vault Kosmos: building bounded GKX enrichment proposals…", 0);
+  const notice = new Notice("Kosmos-Oden: building bounded GKX enrichment proposals…", 0);
   try { const result = await buildRecords(app, settings); notice.hide(); new GkxEnrichmentPreviewModal(app, result, onApplied).open(); }
-  catch (error: any) { notice.hide(); new Notice(`Vault Kosmos enrichment stopped: ${String(error?.message || error)}. No notes were changed.`, 15000); }
+  catch (error: any) { notice.hide(); new Notice(`Kosmos-Oden enrichment stopped: ${String(error?.message || error)}. No notes were changed.`, 15000); }
 }

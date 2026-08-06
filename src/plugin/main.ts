@@ -35,7 +35,7 @@ import {
   type SyncSummary,
 } from "./nextcloud-sync";
 
-const VIEW_TYPE = "vault-kosmos-view";
+const VIEW_TYPE = "kosmos-oden-view";
 
 /** Decode the self-contained constellation page (Three.js + core + renderer). */
 function kosmosHtml(): string {
@@ -76,7 +76,7 @@ class KosmosView extends ItemView {
   async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
-    root.addClass("vault-kosmos-root");
+    root.addClass("kosmos-oden-root");
     const frame = document.createElement("iframe");
     frame.setAttribute("title", "Kosmos-Oden");
     // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
@@ -246,7 +246,7 @@ class KosmosView extends ItemView {
   }
 }
 
-export default class VaultKosmosPlugin extends Plugin {
+export default class KosmosOdenPlugin extends Plugin {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
   nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
@@ -286,7 +286,7 @@ export default class VaultKosmosPlugin extends Plugin {
         });
       });
     } catch (error) {
-      console.warn("Vault Kosmos: could not stamp note timestamps", file?.path, error);
+      console.warn("Kosmos-Oden: could not stamp note timestamps", file?.path, error);
     }
   }
 
@@ -295,9 +295,9 @@ export default class VaultKosmosPlugin extends Plugin {
   }
 
   startAgentApi(): void {
-    this.agentApi.start((msg) => new Notice("Vault Kosmos Agent API: " + msg));
+    this.agentApi.start((msg) => new Notice("Kosmos-Oden Agent API: " + msg));
     if (this.agentApi.status.startsWith("unavailable")) {
-      new Notice("Vault Kosmos: the Agent API needs desktop Obsidian.");
+      new Notice("Kosmos-Oden: the Agent API needs desktop Obsidian.");
     }
   }
 
@@ -317,8 +317,8 @@ export default class VaultKosmosPlugin extends Plugin {
       } catch (e: any) {
         // No secure RNG: leave the token empty. With agentRequireToken on, the
         // server rejects every request rather than accepting a weak token (§16).
-        console.error("Vault Kosmos:", e);
-        new Notice("Vault Kosmos: could not create a secure Agent API token; the API will refuse requests until one exists.");
+        console.error("Kosmos-Oden:", e);
+        new Notice("Kosmos-Oden: could not create a secure Agent API token; the API will refuse requests until one exists.");
       }
     }
     if (!this.agentSettings.agentGraphNamespace) {
@@ -335,8 +335,8 @@ export default class VaultKosmosPlugin extends Plugin {
     this.addCommand({ id: "write-agent-api-guide", name: "Write Agent API guide (AGENT-API.md) to vault", callback: () => void this.writeAgentGuide() });
 
     this.registerView(VIEW_TYPE, (leaf) => new KosmosView(leaf));
-    this.addRibbonIcon("orbit", "Open Vault Kosmos", () => void this.activate());
-    this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
+    this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
+    this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
     this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
@@ -461,7 +461,7 @@ export default class VaultKosmosPlugin extends Plugin {
     const source = `${this.manifest.id}-${this.app.vault.getName()}`.toLowerCase();
     let hash = 2166136261;
     for (let i = 0; i < source.length; i++) { hash ^= source.charCodeAt(i); hash = Math.imul(hash, 16777619); }
-    return `vault-kosmos-nextcloud-${(hash >>> 0).toString(16)}`;
+    return `kosmos-oden-nextcloud-${(hash >>> 0).toString(16)}`;
   }
 
   getNextcloudPassword(): string { return this.app.secretStorage.getSecret(this.nextcloudSecretId()) || ""; }
@@ -473,16 +473,16 @@ export default class VaultKosmosPlugin extends Plugin {
     try {
       await new NextcloudWebDavClient(this.nextcloudSettings, this.getNextcloudPassword()).test();
       this.nextcloudStatus = "Connection successful";
-      new Notice("Vault Kosmos: Nextcloud connection successful");
+      new Notice("Kosmos-Oden: Nextcloud connection successful");
     } catch (e: any) {
       this.nextcloudStatus = `Connection failed: ${e?.message || String(e)}`;
-      new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+      new Notice(`Kosmos-Oden: ${this.nextcloudStatus}`);
     }
   }
 
   async runNextcloudSync(showNotice = true): Promise<SyncSummary | null> {
     if (this.nextcloudSyncRunning) {
-      if (showNotice) new Notice("Vault Kosmos: a Nextcloud sync is already running");
+      if (showNotice) new Notice("Kosmos-Oden: a Nextcloud sync is already running");
       return null;
     }
     this.nextcloudSyncRunning = true;
@@ -497,11 +497,11 @@ export default class VaultKosmosPlugin extends Plugin {
       this.nextcloudStatus = result.errors.length
         ? `Completed with ${result.errors.length} error(s)`
         : `Synced: ${result.uploaded} up, ${result.downloaded} down, ${result.conflicts.length} conflict(s)`;
-      if (showNotice || result.errors.length || result.conflicts.length) new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+      if (showNotice || result.errors.length || result.conflicts.length) new Notice(`Kosmos-Oden: ${this.nextcloudStatus}`);
       return result;
     } catch (e: any) {
       this.nextcloudStatus = `Sync failed: ${e?.message || String(e)}`;
-      if (showNotice) new Notice(`Vault Kosmos: ${this.nextcloudStatus}`);
+      if (showNotice) new Notice(`Kosmos-Oden: ${this.nextcloudStatus}`);
       return null;
     } finally { this.nextcloudSyncRunning = false; }
   }
@@ -525,7 +525,7 @@ export default class VaultKosmosPlugin extends Plugin {
       installedBridgePath(this.app, this)
     );
     await this.app.vault.adapter.write("AGENT-API.md", md);
-    new Notice("Vault Kosmos: wrote AGENT-API.md to your vault root (with your address + token filled in)");
+    new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (with your address + token filled in)");
   }
 
   onunload(): void {
@@ -545,13 +545,13 @@ export default class VaultKosmosPlugin extends Plugin {
     await this.app.vault.adapter.write("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
     await this.app.vault.adapter.write("graphiti-ingestion-profile.json", JSON.stringify(graphitiIngestionProfile({ combinedExtraction: this.agentSettings.graphitiCombinedExtraction }), null, 2));
     await this.app.vault.adapter.write("graphiti-ingest-sample.py", SAMPLE_INGEST_PY);
-    new Notice(`Vault Kosmos: exported ${episodes.length} KGCP/Graphiti episodes, ingestion profile, and pinned sample script`);
+    new Notice(`Kosmos-Oden: exported ${episodes.length} KGCP/Graphiti episodes, ingestion profile, and pinned sample script`);
   }
 }
 
 /** Sample Graphiti ingestion script written next to the export. */
 const SAMPLE_INGEST_PY = `#!/usr/bin/env python3
-# Ingest an Obsidian vault (exported by Vault Kosmos v${KOSMOS_VERSION}, GKX) into Graphiti.
+# Ingest an Obsidian vault (exported by Kosmos-Oden v${KOSMOS_VERSION}, GKX) into Graphiti.
 # Graphiti: https://github.com/getzep/graphiti
 #
 #   pip install "graphiti-core[falkordb]==${GRAPHITI_CORE_VERSION}"   # tested pin; security floor is >=0.28.2

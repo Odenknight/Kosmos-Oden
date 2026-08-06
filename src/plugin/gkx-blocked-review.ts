@@ -107,7 +107,7 @@ export async function openGkxBlockedReview(app: App, plan: GkxMigrationPlan, set
   if (settings.gkxEnrichmentProvider === "lan") {
     if (!(await confirmLanBlockedReview(app, settings, plan.totals.blocked))) return;
   }
-  const notice = new Notice("Vault Kosmos: asking the configured model to triage blocked notes…", 0);
+  const notice = new Notice("Kosmos-Oden: asking the configured model to triage blocked notes…", 0);
   try { const report = await buildGkxBlockedReview(plan, settings); notice.hide(); new GkxBlockedReviewModal(app, report).open(); }
   catch (error: any) { notice.hide(); new Notice(`Blocked-note model review stopped: ${String(error?.message || error)} No notes were changed.`, 15000); }
 }

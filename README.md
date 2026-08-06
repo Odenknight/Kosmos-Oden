@@ -1,4 +1,4 @@
-# Kosmos Research Studio (KRS) — Vault Kosmos — v0.7.0
+# Kosmos-Oden — v0.7.0
 
 > **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
 > Tier: T3 · GKX schema: GKX current (2.3 line)
@@ -6,11 +6,11 @@
 > Lifecycle: Active · Relationships: active continuation of Kosmos-Oden-Lite (§3.1)
 > Authority for this block: GKOS-REGISTRY-001
 
-**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. Kosmos-Oden is built on a fork and rebuild of [H4R7W16/kosmos-oden](https://github.com/H4R7W16/kosmos-oden).
 
-Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
+Kosmos-Oden turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-The visualization changes nothing — KRS only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+The visualization changes nothing — Kosmos-Oden only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
 
 ## Two ways to use it
 
@@ -23,7 +23,7 @@ Both surfaces — plus the Agent API and the `kosmos-build` CLI — render **the
 
 ## Attribution & lineage
 
-**What comes from [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) (original):** the basic Three.js rendering framework and the foundational spatial metaphor — notes as celestial bodies.
+**What comes from [H4R7W16/kosmos-oden](https://github.com/H4R7W16/kosmos-oden) (original):** the basic Three.js rendering framework and the foundational spatial metaphor — notes as celestial bodies.
 
 **What OdenKnight's Obsidian adaptation (v0.5.0–v0.5.1) added:** a complete visualization redesign with accurate folder/file hierarchy mapping; gravitational orbital mechanics (notes orbit gravitational focal points by connection strength); Saturn-style rings for well-connected notes; a folder-safe context menu (right-clicking a folder galaxy expands it in Obsidian's file explorer — it never opens or creates a note); a live agent-traversal trail; the Agent API with MCP support; Graphiti episode export; render-loop suspension and other performance work; and early security hardening (constant-time token comparison, DNS-rebinding protection).
 
@@ -48,7 +48,7 @@ It works on desktop **and** on your phone or tablet, updates live as you edit, a
 
 ## Under the hood: one semantic engine
 
-Kosmos Research Studio is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
+Kosmos-Oden is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
 
 ```
                     ┌─────────────────────┐
@@ -133,9 +133,9 @@ The standalone scanner is **read-only**: it never renames, deletes, modifies, re
 
 Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
 
-1. Copy `manifest.json`, `main.js`, `styles.css`, and `kosmos-mcp-stdio.mjs` into `<your-vault>/.obsidian/plugins/vault-kosmos/` (the adapter is required only for stdio-only agent clients).
-2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
-3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
+1. Copy `manifest.json`, `main.js`, `styles.css`, and `kosmos-mcp-stdio.mjs` into `<your-vault>/.obsidian/plugins/kosmos-oden/` (the adapter is required only for stdio-only agent clients).
+2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Kosmos-Oden**.
+3. Click the orbit icon in the left ribbon (or run **Open Kosmos-Oden** from the command palette). That's it — your universe builds itself.
 
 The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **GKOS Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
 
@@ -151,7 +151,7 @@ it does not include or depend on code from Remotely Save.
 
 1. In Nextcloud, open **Personal settings → Security** and create an app
    password for this device.
-2. In Obsidian, open **Settings → Vault Kosmos → Connectivity to Sync Vault**.
+2. In Obsidian, open **Settings → Kosmos-Oden → Connectivity to Sync Vault**.
 3. Enter the instance address (for example `https://cloud.example.com`), your
    username, app password, and a remote vault-folder name.
 4. Select **Test connection**, then **Sync now**. Enable startup or scheduled
@@ -166,7 +166,7 @@ propagation is off by default; changed-versus-deleted cases always remain
 conflicts. `.obsidian/**`, `.git/**`, and `.trash/**` are excluded by default.
 The settings page exposes a dedicated `.obsidian` toggle plus per-path globs,
 so configuration files can be included selectively. Kosmos-Oden's own
-`.obsidian/plugins/vault-kosmos/data.json` always remains excluded because it
+`.obsidian/plugins/kosmos-oden/data.json` always remains excluded because it
 contains device-local sync state and Agent API credentials.
 
 HTTPS is required for public hostnames. Plain HTTP is accepted only for a
@@ -187,7 +187,7 @@ enumeration and local hashing on each run, favoring correctness over speed.
 
 ## GKX v2.3 Validating Projection Profile
 
-KRS implements the **GKX v2.3 Validating Projection Profile**. It is
+Kosmos-Oden implements the **GKX v2.3 Validating Projection Profile**. It is
 not a full GKOS governance engine and does not authorize or apply consequential
 semantic changes. Canonical 2.3 nested blocks are parsed into separate
 `authored`, `derived`, `proposed`, `approved`, and `effective` projections;
@@ -218,7 +218,7 @@ Notes written in **GKX** light up temporal features natively:
 
 ## GKX note formatting and compatibility onboarding
 
-Use **Settings → Vault Kosmos → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
+Use **Settings → Kosmos-Oden → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
 
 The governed writer uses compact **GKX 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
 
@@ -232,7 +232,7 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 
 ## Agent API — let agents query this vault (HTTP + MCP)
 
-Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
+Settings → **Kosmos-Oden → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
 
 **Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. GKOS-Engine v2.0.1 threads this value through `GkxIndex`, so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
 

@@ -39,10 +39,10 @@ SOFTWARE.
 
 Three.js: <https://github.com/mrdoob/three.js>
 
-## Upstream project — vault-kosmos
+## Upstream project — kosmos-oden
 
 Kosmos-Oden is an independent fork and rebuild of
-[**H4R7W16/vault-kosmos**](https://github.com/H4R7W16/vault-kosmos), also MIT
+[**H4R7W16/kosmos-oden**](https://github.com/H4R7W16/kosmos-oden), also MIT
 licensed. The MIT license permits this fork; substantial modifications in this
 repository are described in `CHANGELOG.md` and `docs/ARCHITECTURE.md`. This
 project is not endorsed by or affiliated with the upstream author.

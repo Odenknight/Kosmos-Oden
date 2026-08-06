@@ -26,8 +26,8 @@ export function buildAgentGuide(port: string | number, token: string, bindMode =
     ? (lanUrls.length
       ? `**Network access: LAN/VLAN enabled.** Agents on other devices on your network can reach this vault at:\n\n${lanUrls.map((u) => "- \`" + u + "\`").join("\n")}\n\n⚠️ **Anyone on that subnet/VLAN who has the token below can read every note in this vault.** Only enable this on a network you trust (e.g. your home or a private office VLAN), keep the auth token on, and turn it back to Localhost-only in Settings when you don't need remote agents.`
       : `**Network access: LAN/VLAN enabled**, but no network interface was detected on this machine right now.`)
-    : `**Network access: Localhost only** (default, recommended). Only this computer can reach the API. To let agents on other devices on your subnet/VLAN connect, go to Settings → Vault Kosmos → **Network access** → *Local network (LAN/VLAN)* — the settings page will then show you the exact address to give them.`;
-  return `# Vault Kosmos — Agent API guide (v${KOSMOS_VERSION})
+    : `**Network access: Localhost only** (default, recommended). Only this computer can reach the API. To let agents on other devices on your subnet/VLAN connect, go to Settings → Kosmos-Oden → **Network access** → *Local network (LAN/VLAN)* — the settings page will then show you the exact address to give them.`;
+  return `# Kosmos-Oden — Agent API guide (v${KOSMOS_VERSION})
 
 **Read-only · localhost by default · token-protected**
 
@@ -35,7 +35,7 @@ This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, the
 
 ## 1 · Turn it on (about 30 seconds)
 
-1. Obsidian → **Settings → Community plugins → Vault Kosmos** (gear icon).
+1. Obsidian → **Settings → Community plugins → Kosmos-Oden** (gear icon).
 2. Toggle **Enable local Agent API** on. The status line should read **running**.
 3. Your address is \`${URLB}\` and your token is \`${token}\` — both have **Copy** buttons in settings.
 
@@ -63,13 +63,13 @@ claude mcp add --transport http --header "Authorization: Bearer ${token}" kosmos
 }
 \`\`\`
 
-Then ask Claude Code things like *"use vault-kosmos to show the lineage of Engine v2"*.
+Then ask Claude Code things like *"use kosmos-oden to show the lineage of Engine v2"*.
 
 ### OpenAI Codex app, CLI, and IDE extension
 Codex surfaces share the same configuration layers. Open the MCP server settings or add this to \`config.toml\`:
 
 \`\`\`toml
-[mcp_servers.vault-kosmos]
+[mcp_servers.kosmos-oden]
 url = "${URLB}/mcp"
 http_headers = { Authorization = "Bearer ${token}" }
 \`\`\`
@@ -116,7 +116,7 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | --- | --- |
 | \`vault_overview\` | Sensitivity-filtered projection statistics and diagnostics |
 | \`search_notes\` | Lexical search over readable title/alias/source-Markdown-tag/path values |
-| \`get_note\` | Readable source content, legacy metadata, GKX v2.3 validating projection, lineage, and links |
+| \`get_note\` | Readable source content, GKX metadata, concise assessment verdict, lineage, and links |
 | \`get_lineage\` | Readable supersession chain oldest → newest |
 | \`get_related\` | Explicit \`related_to\`, legacy Related, wikilink, and backlink neighbors |
 | \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
@@ -337,7 +337,7 @@ export class KosmosSettingTab extends PluginSettingTab {
           await this.plugin.saveAgentSettings();
           new Notice("New token generated");
         } catch (e: any) {
-          new Notice("Vault Kosmos: " + (e?.message || "token generation failed"));
+          new Notice("Kosmos-Oden: " + (e?.message || "token generation failed"));
         }
         this.display();
       }));
@@ -428,7 +428,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const bridgePath = installedBridgePath(this.app, this.plugin);
     new Setting(connectEl).setName("Anthropic · Claude Code").setDesc("Copies a native MCP Streamable HTTP command with bearer-token authentication.")
       .addButton((b) => b.setButtonText("Copy command").onClick(() => {
-        navigator.clipboard.writeText(`claude mcp add --transport http --header "Authorization: Bearer ${s.agentToken}" vault-kosmos "${url()}/mcp"`);
+        navigator.clipboard.writeText(`claude mcp add --transport http --header "Authorization: Bearer ${s.agentToken}" kosmos-oden "${url()}/mcp"`);
         new Notice("Claude Code command copied — paste it in a terminal");
       }));
     new Setting(connectEl).setName("Anthropic · Claude Code project").setDesc("Copies a native Streamable HTTP .mcp.json block for a Claude Code project.")
@@ -438,7 +438,7 @@ export class KosmosSettingTab extends PluginSettingTab {
       }));
     new Setting(connectEl).setName("OpenAI · Codex app / CLI / IDE").setDesc("Copies config.toml for the shared Codex MCP configuration layers used across Codex surfaces.")
       .addButton((b) => b.setButtonText("Copy OpenAI config").onClick(() => {
-        navigator.clipboard.writeText(`[mcp_servers.vault-kosmos]\nurl = "${url()}/mcp"\nhttp_headers = { Authorization = "Bearer ${s.agentToken}" }\n`);
+        navigator.clipboard.writeText(`[mcp_servers.kosmos-oden]\nurl = "${url()}/mcp"\nhttp_headers = { Authorization = "Bearer ${s.agentToken}" }\n`);
         new Notice("OpenAI config.toml block copied");
       }));
     new Setting(connectEl).setName("Anthropic · Claude Desktop / stdio clients").setDesc("Copies stdio JSON using the bundled first-party adapter; no mcp-remote dependency.")
@@ -448,7 +448,7 @@ export class KosmosSettingTab extends PluginSettingTab {
       }));
     new Setting(connectEl).setName("Universal MCP client").setDesc("Copies vendor-neutral MCP Streamable HTTP connection details.")
       .addButton((b) => b.setButtonText("Copy universal config").onClick(() => {
-        navigator.clipboard.writeText(JSON.stringify({ name: "vault-kosmos", transport: "streamable-http", url: `${url()}/mcp`, headers: { Authorization: `Bearer ${s.agentToken}` }, protocolVersion: LATEST_MCP_PROTOCOL_VERSION }, null, 2));
+        navigator.clipboard.writeText(JSON.stringify({ name: "kosmos-oden", transport: "streamable-http", url: `${url()}/mcp`, headers: { Authorization: `Bearer ${s.agentToken}` }, protocolVersion: LATEST_MCP_PROTOCOL_VERSION }, null, 2));
         new Notice("Universal MCP connection details copied");
       }));
     new Setting(connectEl).setName("HTTP health check").setDesc("Copies a cURL health check using bearer-token authentication.")
@@ -474,7 +474,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     const tabList = document.createElement("div");
     tabList.className = "kosmos-settings-tabs";
     tabList.setAttribute("role", "tablist");
-    tabList.setAttribute("aria-label", "Vault Kosmos options sections");
+    tabList.setAttribute("aria-label", "Kosmos-Oden options sections");
     const panelsHost = document.createElement("div");
     panelsHost.className = "kosmos-settings-panels";
     const buttons = new Map<string, HTMLButtonElement>();

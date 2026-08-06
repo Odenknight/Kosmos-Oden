@@ -387,7 +387,7 @@ deterministic core as the **GKOS Engine v1.0 implementation line**.
   to travel with the vault.
 
 ### Security
-- `.obsidian/plugins/vault-kosmos/data.json` remains a non-overridable
+- `.obsidian/plugins/kosmos-oden/data.json` remains a non-overridable
   exclusion even when `.obsidian` sync is enabled, preventing local sync state
   and Agent API credentials from being copied or recursively synchronized.
 
@@ -646,7 +646,7 @@ engineering assessments (`docs/assessments/`).
 
 ## [0.5.0]
 
-Prior baseline (fork of `H4R7W16/vault-kosmos`): 3D cosmology renderer, GKX
+Prior baseline (fork of `H4R7W16/kosmos-oden`): 3D cosmology renderer, GKX
 temporal features, Agent API (REST + MCP), Graphiti export — shipped as a
 base64-embedded single HTML string.
 ## [0.6.5-beta.5] — 2026-07-18 (pre-release)

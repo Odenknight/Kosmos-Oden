@@ -187,7 +187,7 @@ export class GkxMigrationPreviewModal extends Modal {
       if (this.excluded.length > 100) list.createEl("li", { text: `…and ${this.excluded.length - 100} more.` });
     }
 
-    warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Vault Kosmos also creates a byte-exact local backup of every changed file under .gkx/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
+    warningBox(contentEl, "Back up the vault before continuing.", "Bulk metadata changes propagate through Obsidian Sync, Nextcloud, Dropbox, OneDrive, and Git. Sync is not a backup: it can synchronize an unwanted change. Make a separate, restorable snapshot first. Kosmos-Oden also creates a byte-exact local backup of every changed file under .gkx/backup/<run-id>, but that is a recovery aid—not a substitute for an independent backup.");
     warningBox(contentEl, "Repair and conversion are deterministic; model enrichment is a separate re-scan.", convertTo23 ? "This screen does not call any model or send note content anywhere. Editable 2.3 output keeps every property flat — scalars plus quoted-wikilink lists — so Obsidian Properties, humans, and agents can edit tags and relationships without touching nested YAML. No nested governance blocks are written into notes." : "This screen does not call any model or send note content anywhere. It restores flat Obsidian Properties for tags and relationship wikilinks. Only notes carrying the beta.10 deterministic-migration marker are flattened automatically; genuinely authored native 2.3 notes remain unchanged.");
     warningBox(contentEl, "Review sensitivity after migration.", "The default label is internal; it is not a content-based privacy classification. Review notes that may contain confidential data or protected health information before enabling cloud agents or raising connector access. Existing invalid governance values, duplicate UIDs, duplicate keys, and nested/ambiguous YAML are blocked instead of overwritten.");
     if (upgradeAll || convertTo23) warningBox(contentEl, "Convert-all is a governed override, not a force switch.", convertTo23 ? "Recoverable legacy values are mapped to conservative, flat editable GKX 2.3 Properties and their overridden originals are retained in the hash-bound migration plan. Unsafe relationship targets, ambiguous YAML, and duplicate UIDs remain blocked. Confidence measures mechanical migration safety only." : "Recoverable legacy values are mapped to conservative, flat GKX 2.2 Properties and their overridden originals are retained in the hash-bound migration plan. Unsafe relationship targets, ambiguous YAML, and duplicate UIDs remain blocked. Confidence measures mechanical migration safety only.");
@@ -216,7 +216,7 @@ export class GkxMigrationPreviewModal extends Modal {
     if (!plan.totals.changes) {
       new Setting(contentEl)
         .addButton((b) => b.setButtonText("Save audit report").onClick(async () => {
-          try { const path = await saveGkxMigrationPlan(this.app, plan); new Notice(`Vault Kosmos: audit saved to ${path}`); }
+          try { const path = await saveGkxMigrationPlan(this.app, plan); new Notice(`Kosmos-Oden: audit saved to ${path}`); }
           catch (error: any) { new Notice(`Could not save audit: ${String(error?.message || error)}`, 10000); }
         }))
         .addButton((b) => b.setButtonText("Close").setCta().onClick(() => this.close()));
@@ -233,7 +233,7 @@ export class GkxMigrationPreviewModal extends Modal {
     new Setting(contentEl)
       .addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((b) => b.setButtonText("Save audit only").onClick(async () => {
-        try { const path = await saveGkxMigrationPlan(this.app, plan); new Notice(`Vault Kosmos: audit saved to ${path}`); }
+        try { const path = await saveGkxMigrationPlan(this.app, plan); new Notice(`Kosmos-Oden: audit saved to ${path}`); }
         catch (error: any) { new Notice(`Could not save audit: ${String(error?.message || error)}`, 10000); }
       }))
       .addButton((b) => {
@@ -273,27 +273,27 @@ export async function openGkxMigrationWorkflow(
   onApplied?: (result: GkxMigrationApplyResult) => void,
   settings?: AgentSettings,
 ): Promise<void> {
-  const scanning = new Notice("Vault Kosmos: scanning notes for GKX frontmatter…", 0);
+  const scanning = new Notice("Kosmos-Oden: scanning notes for GKX frontmatter…", 0);
   try {
     const scan = await scanVaultForGkx(app, mode, settings);
     const plan = scan.plan;
     scanning.hide();
     new GkxMigrationPreviewModal(app, plan, async (approved) => {
-      const running = new Notice(`Vault Kosmos: backing up and applying ${approved.totals.changes} GKX changes…`, 0);
+      const running = new Notice(`Kosmos-Oden: backing up and applying ${approved.totals.changes} GKX changes…`, 0);
       try {
         const result = await applyGkxMigrationPlan(app, approved);
         running.hide();
         onApplied?.(result);
         const skipped = result.skippedChanged.length + result.skippedMissing.length;
-        new Notice(`Vault Kosmos: ${result.applied.length} notes updated; ${skipped} changed/missing notes skipped; ${result.failed.length} failed. Audit: ${result.resultPath}`, 12000);
+        new Notice(`Kosmos-Oden: ${result.applied.length} notes updated; ${skipped} changed/missing notes skipped; ${result.failed.length} failed. Audit: ${result.resultPath}`, 12000);
       } catch (error: any) {
         running.hide();
-        new Notice(`Vault Kosmos GKX migration stopped: ${String(error?.message || error)}. No unbacked note is intentionally written.`, 15000);
+        new Notice(`Kosmos-Oden GKX migration stopped: ${String(error?.message || error)}. No unbacked note is intentionally written.`, 15000);
         throw error;
       }
     }, settings, scan.excluded).open();
   } catch (error: any) {
     scanning.hide();
-    new Notice(`Vault Kosmos could not scan GKX frontmatter: ${String(error?.message || error)}`, 15000);
+    new Notice(`Kosmos-Oden could not scan GKX frontmatter: ${String(error?.message || error)}`, 15000);
   }
 }

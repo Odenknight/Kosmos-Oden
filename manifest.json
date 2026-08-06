@@ -1,9 +1,9 @@
 {
   "id": "kosmos-oden",
-  "name": "Vault Kosmos (KRS)",
+  "name": "Kosmos-Oden",
   "version": "0.7.0",
   "minAppVersion": "1.11.4",
-  "description": "Kosmos Research Studio: a responsive 3D knowledge view with the GKX v2.3 Validating Projection API, read-only MCP Agent API, origin-separated Graphiti adapter, and native Nextcloud WebDAV sync.",
+  "description": "Kosmos-Oden: a responsive 3D knowledge view with the GKX v2.3 Validating Projection API, read-only MCP Agent API, origin-separated Graphiti adapter, and native Nextcloud WebDAV sync.",
   "author": "OdenKnight",
   "authorUrl": "https://github.com/Odenknight/Kosmos-Oden",
   "isDesktopOnly": false
