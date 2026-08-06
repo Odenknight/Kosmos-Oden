@@ -1,4 +1,4 @@
-# Kosmos Research Studio (KRS) — Kosmos-Oden — v0.7.0
+# Kosmos-Oden — v0.7.0
 
 > **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
 > Tier: T3 · GKX schema: GKX current (2.3 line)
@@ -6,11 +6,11 @@
 > Lifecycle: Active · Relationships: active continuation of Kosmos-Oden-Lite (§3.1)
 > Authority for this block: GKOS-REGISTRY-001
 
-**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/kosmos-oden](https://github.com/H4R7W16/kosmos-oden).
+**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. Kosmos-Oden is built on a fork and rebuild of [H4R7W16/kosmos-oden](https://github.com/H4R7W16/kosmos-oden).
 
 Kosmos-Oden turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-The visualization changes nothing — KRS only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+The visualization changes nothing — Kosmos-Oden only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
 
 ## Two ways to use it
 
@@ -48,7 +48,7 @@ It works on desktop **and** on your phone or tablet, updates live as you edit, a
 
 ## Under the hood: one semantic engine
 
-Kosmos Research Studio is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
+Kosmos-Oden is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
 
 ```
                     ┌─────────────────────┐
@@ -187,7 +187,7 @@ enumeration and local hashing on each run, favoring correctness over speed.
 
 ## GKX v2.3 Validating Projection Profile
 
-KRS implements the **GKX v2.3 Validating Projection Profile**. It is
+Kosmos-Oden implements the **GKX v2.3 Validating Projection Profile**. It is
 not a full GKOS governance engine and does not authorize or apply consequential
 semantic changes. Canonical 2.3 nested blocks are parsed into separate
 `authored`, `derived`, `proposed`, `approved`, and `effective` projections;
