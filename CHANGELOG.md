@@ -7,6 +7,51 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-16
+
+### Added
+
+- Opt-in GKOS-Engine Navigation 1.0 MOC-center discovery, backed by the Engine
+  read path and exact `_archive/moc-runs/**` exclusion rule.
+- A settings toggle that preserves the prior eleven-name projection when off
+  and uses the canonical five (`index`, `_index`, `readme`, `moc`, `contents`)
+  when on.
+- Noncanonical findings for the former `home`, `map`, `overview`, `dashboard`,
+  `start`, and `toc` aliases; no silent promotion or source rename occurs.
+- Agent API capability reporting for Engine version, Navigation contract,
+  enabled state, Governance Store availability, fixture standing, and the
+  explicit false write/apply/archive/re-entry/rollback effects.
+
+### Changed
+
+- Pinned `gkos-engine` from 1.1.2 to 2.1.0 at release commit
+  `a3298da05bbd696763d414d08e70cf97410968af`.
+- Migrated consumer code to the Engine 2.x `Gkx*` public namespace and `.gkx`
+  graph state. New migration/enrichment audit data is stored under `.gkx/`.
+- Bumped Kosmos-Oden from the 0.7.0 development line to 0.8.0 and
+  synchronized `package.json`, `manifest.json`, `versions.json`, and
+  `src/kosmos-version.ts`.
+
+### Compatibility
+
+- This is a projection-observable pre-1.0 minor release. Enabling Navigation
+  removes six former built-in visual MOC aliases. Existing installations keep
+  Navigation disabled until a user opts in.
+- The REST/MCP `/okf/*` route and tool names remain available as compatibility
+  names, while their implementation now consumes the GKX 2.x Engine surface.
+- Kosmos-Oden configures no Governance Store. `apply_moc`, source-content
+  writes, archive deletion, re-entry writes, rollback execution, and delegated
+  re-entry recording all remain unavailable.
+
+### Verification
+
+- Added consumer tests for opt-out parity, canonical-five selection,
+  noncanonical flags, exact archive-ignore behavior, capability truthfulness,
+  and host/renderer feature-state validation.
+- Migrated the existing parser, lineage, temporal, incremental, migration,
+  enrichment, Graphiti, and Agent API suite to Engine 2.x vocabulary and data
+  shapes.
+
 ## [0.7.0] — 2026-07-27
 
 **First tagged release since 0.6.5.** The 0.6.6–0.6.9 entries below were

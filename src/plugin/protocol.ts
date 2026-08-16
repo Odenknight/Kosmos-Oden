@@ -16,6 +16,7 @@ export interface FilesPayload {
   folders?: string[];
   attachments?: string[];
   label?: string;
+  navigationEnabled?: boolean;
 }
 export interface UpdatePayload {
   changed?: Array<{ relativePath: string; content: string }>;
@@ -24,6 +25,7 @@ export interface UpdatePayload {
   folders?: string[];
   attachments?: string[];
   label?: string;
+  navigationEnabled?: boolean;
 }
 export interface OpenPayload {
   path: string;
@@ -97,6 +99,7 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
     }
     if (p.folders != null && !isArr(p.folders)) return { ok: false, reason: "folders must be an array" };
     if (p.attachments != null && !isArr(p.attachments)) return { ok: false, reason: "attachments must be an array" };
+    if (p.navigationEnabled != null && typeof p.navigationEnabled !== "boolean") return { ok: false, reason: "navigationEnabled must be a boolean" };
     return { ok: true, message: m as any };
   }
   if (m.type === "vault-delta") {
@@ -109,6 +112,7 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
       if (!isArr(p.renames)) return { ok: false, reason: "delta.renames must be an array" };
       for (const r of p.renames as any[]) if (!r || !safePath(r.from) || !safePath(r.to)) return { ok: false, reason: "delta rename entry malformed or unsafe path" };
     }
+    if (p.navigationEnabled != null && typeof p.navigationEnabled !== "boolean") return { ok: false, reason: "navigationEnabled must be a boolean" };
     return { ok: true, message: m as any };
   }
   if (m.type === "agent-traversal") {

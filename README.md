@@ -1,4 +1,4 @@
-# Kosmos Research Studio (KRS) — Vault Kosmos — v0.7.0
+# Kosmos-Oden (Vault Kosmos) — v0.8.0
 
 > **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
 > Tier: T3 · GKX schema: GKX current (2.3 line)
@@ -10,7 +10,13 @@
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
-The visualization changes nothing — KRS only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+
+Navigation is also source-content read-only. Enabling it changes only which
+existing note is selected as a visual MOC center; it never creates, renames,
+rewrites, archives, or deletes a note. Kosmos-Oden does not configure an Engine
+Governance Store, so MOC-name promotion and governed re-entry recording are not
+available in this release.
 
 ## Two ways to use it
 
@@ -73,12 +79,25 @@ The same vault produces materially the same nodes, links, lineage, HEAD status, 
 
 | You have… | You see… |
 |---|---|
-| A home/index note in your vault root | The **cluster core** — the bright heart of the whole universe, the gravitational focal point. |
+| A recognized MOC note in your vault root | The **cluster core** — the bright heart of the whole universe. With Navigation enabled, the built-ins are exactly `index`, `_index`, `readme`, `moc`, and `contents`. |
 | A top-level folder | A **galaxy**. If the folder has a manifest note (`index`/`README`/`MOC`/a note matching the folder's name), that note becomes the bright galactic center; otherwise the folder itself does. |
 | A well-connected note | A **star** with its own solar system — its spectral class and size read the weight of that system (see below). |
 | Notes linked from that note | **Planets**, **moons** and **moonlets**, chained by how closely they're related. Each planet gets a NASA exoplanet type from its own note (see below). |
 | Loose or barely-linked notes | **Asteroids**, tumbling near the galaxy they're gravitationally bound to. |
 | Images, PDFs, other attachments | The **Oort cloud** — a faint outer shell around the system that references them. |
+
+### Optional Engine 2.1 Navigation
+
+Open **Settings → GKOS Note Formatting → Enable Engine Navigation centers** to
+use the Engine 2.1 Navigation contract. The option is off on upgrade, preserving
+the earlier eleven-name visual heuristic until you choose the new behavior.
+
+When enabled, only the canonical five names above are built in. The former
+aliases `home`, `map`, `overview`, `dashboard`, `start`, and `toc` are surfaced
+as noncanonical findings and are not silently treated as MOCs. Kosmos-Oden does
+not auto-promote them. The Agent API `/health` and `/overview` responses publish
+the Engine version, Navigation contract, enabled state, and the false
+write/apply capability boundary.
 
 Moons carry dark maria patches and bright ejecta flecks; asteroids are irregular tumbling rocks with varied mineral coloring — all of it runs inside the existing shader passes (mobile keeps its dedicated lightweight path), so nothing got slower. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
 

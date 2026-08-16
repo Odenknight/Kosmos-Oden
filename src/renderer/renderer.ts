@@ -110,8 +110,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   };
   const hardwareConcurrency = Number((navigator as any).hardwareConcurrency) || 0;
   const deviceMemory = Number((navigator as any).deviceMemory) || 0;
-  // Touch input is not evidence of a weak GPU. Keep full materials on capable
-  // phones and reserve Lite mode for explicit requests or constrained devices.
+  // A touch screen is an input characteristic, not evidence of a weak GPU.
+  // Keep the full shader path on capable phones and reserve Lite for explicit
+  // requests or devices that actually report constrained CPU/RAM resources.
   const DEVICE_CONSTRAINED = (hardwareConcurrency > 0 && hardwareConcurrency <= 4)
     || (deviceMemory > 0 && deviceMemory <= 4);
   const LOWPOWER = CAPTURE.quality === "lite" ? true : CAPTURE.quality === "high" ? false
@@ -249,7 +250,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function positionFrom(graph: any) {
     ensureNodeIndex(graph);
     try {
-      const g = positionCosmos(graph, { attachments: __attach });
+      const g = positionCosmos(graph, { attachments: __attach, navigationEnabled: graph.__navigationEnabled === true });
       ensureNodeIndex(g);
       g.__cosmos = true;
       return g;
@@ -1824,13 +1825,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (now - lastAdjust < 1.2) return;
     const fps = fpsFrames / fpsAccum; fpsAccum = 0; fpsFrames = 0; lastAdjust = now;
     const floor = LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0);
-    const closeDetail = !!selectedId || !!hoveredId || !!cam.flight || cam.radius < overviewRadius * 0.62;
-    const viewCeiling = closeDetail ? MAXDPR : (MOBILE ? 1.25 : 1.5);
-    if (CAPTURE.dpr != null) return;
     slowWindows = fps < 42 ? slowWindows + 1 : 0;
-    if (dpr > viewCeiling) { dpr = Math.max(viewCeiling, dpr - 0.25); renderer.setPixelRatio(dpr); }
-    else if (slowWindows >= 2 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); slowWindows = 0; }
-    else if (fps > 58 && dpr < viewCeiling && lodScale <= 1) { dpr = Math.min(viewCeiling, dpr + 0.25); renderer.setPixelRatio(dpr); }
+    // Do not permanently blur the first seconds of a mobile session because
+    // shader compilation/layout made one sample slow. Require sustained load.
+    if (slowWindows >= 2 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); slowWindows = 0; }
+    else if (fps > 58 && dpr < MAXDPR && lodScale <= 1) { dpr = Math.min(MAXDPR, dpr + 0.25); renderer.setPixelRatio(dpr); }
     if (fps < 30 && dpr <= floor + 0.001) lodScale = Math.min(2.4, lodScale + 0.3);
     else if (fps > 58 && lodScale > 1) lodScale = Math.max(1, lodScale - 0.3);
   }

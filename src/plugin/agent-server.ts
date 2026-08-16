@@ -23,6 +23,7 @@
 import { projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
+import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
 import { GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
 import type { GkxGraph, GkxNode, GkxSensitivity } from "gkos-engine";
 
@@ -59,6 +60,8 @@ export interface AgentSettings {
   /** Accept `?token=` query authentication. Deprecated, OFF by default (Doc1 §3.6);
    *  always rejected in LAN mode regardless of this flag. */
   agentAllowQueryToken: boolean;
+  /** Opt into GKOS-Engine 2.1 canonical-five Navigation center discovery. */
+  navigationEnabled: boolean;
   /** Maintain portable ISO-8601 UTC created_at/updated_at note fields. */
   noteTimestampsEnabled: boolean;
   /** false (default) = UTC Zulu; true = local ISO-8601 with a numeric ±HH:MM offset. */
@@ -100,6 +103,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   defaultSensitivity: FAIL_CLOSED_SENSITIVITY_DEFAULT,
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
+  navigationEnabled: KOSMOS_NAVIGATION_DEFAULT_ENABLED,
   noteTimestampsEnabled: true,
   timestampUseLocalTimezone: false,
   timestampCreatedKey: "created_at",
@@ -144,6 +148,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   if (!["public", "internal", "confidential"].includes(s.gkxEnrichmentLanCeiling)) s.gkxEnrichmentLanCeiling = "internal";
   s.gkxExcludePatterns = Array.isArray(s.gkxExcludePatterns) ? s.gkxExcludePatterns.map(String).slice(0, 200) : [];
   s.gkxDeveloperExclusions = s.gkxDeveloperExclusions === true;
+  s.navigationEnabled = s.navigationEnabled === true;
   s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
   s.timestampUseLocalTimezone = s.timestampUseLocalTimezone === true;
   s.timestampCreatedKey = typeof s.timestampCreatedKey === "string" && s.timestampCreatedKey.trim() ? s.timestampCreatedKey.trim() : "created_at";
@@ -598,7 +603,8 @@ export class KosmosAgentServer {
       version: KOSMOS_VERSION,
       readOnly: true,
       gkxAuthority: "source notes + accepted semantic events; this API is a read projection",
-      gkxProfile: "GKX v2.3 Validating Projection Profile (GKOS-Engine v2.0.1; no governed writer)",
+      gkxProfile: "GKX v2.3 Validating Projection Profile (GKOS-Engine 2.1; no governed writer)",
+      navigation: getKosmosNavigationManifest(this.settings.navigationEnabled),
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       notes: ns.length,
       areas: [...new Set(ns.map((n) => n.area))].sort(),
@@ -1253,7 +1259,7 @@ export class KosmosAgentServer {
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;
-      case "/health": this.json(res, 200, { ok: true, name: "kosmos-oden", version: KOSMOS_VERSION, vault: this.provider.vaultName() }); return;
+      case "/health": this.json(res, 200, { ok: true, name: "vault-kosmos", version: KOSMOS_VERSION, vault: this.provider.vaultName(), navigation: getKosmosNavigationManifest(this.settings.navigationEnabled) }); return;
       case "/overview": this.json(res, 200, await this.qOverview()); return;
       case "/diagnostics": this.json(res, 200, await this.qDiagnostics()); return;
       case "/graph": this.json(res, 200, await this.qGraph()); return;

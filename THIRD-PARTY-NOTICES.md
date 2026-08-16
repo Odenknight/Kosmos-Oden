@@ -61,6 +61,16 @@ development/build dependencies only; they are not redistributed in the plugin
 or standalone artifacts. Exact versions are pinned in `package.json` and
 `package-lock.json`.
 
+## GKOS-Engine
+
+Kosmos-Oden bundles **GKOS-Engine 2.1.0**, © OdenKnight contributors, under
+the Apache License 2.0. The exact Git tag and resolved commit are recorded in
+`package.json` and `package-lock.json`. Navigation is consumed only through
+the source-content-read-only Engine surface; Kosmos-Oden does not configure a
+Governance Store or expose source-content write capabilities through it.
+
+GKOS-Engine: <https://github.com/Odenknight/GKOS-Engine>
+
 ## Project-authored material
 
 Project-authored documentation and original graphics use CC BY 4.0.

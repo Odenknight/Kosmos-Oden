@@ -68,7 +68,7 @@ class KosmosView extends ItemView {
   private maxwaitId = 0;
   private deferred = false;                    // a flush was skipped because the view was hidden
 
-  constructor(leaf: WorkspaceLeaf) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private navigationEnabled: () => boolean) { super(leaf); }
   getViewType(): string { return VIEW_TYPE; }
   getDisplayText(): string { return "Kosmos-Oden"; }
   getIcon(): string { return "orbit"; }
@@ -163,7 +163,7 @@ class KosmosView extends ItemView {
       this.hashes.set(f.path, hashContent(c));
     }
     this.fileCount = md.length;
-    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault" }));
+    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault", navigationEnabled: this.navigationEnabled() }));
     this.ready = true;
     this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
     this.syncVisibility();
@@ -235,7 +235,7 @@ class KosmosView extends ItemView {
 
     const folders = (wasStructural || renames.length) ? folderListFrom(md) : undefined;
     const attachments = attachmentListFrom(this.app.vault.getFiles());
-    this.post(wrap("vault-delta", { changed, removed, renames, folders, attachments, label: "Vault" }));
+    this.post(wrap("vault-delta", { changed, removed, renames, folders, attachments, label: "Vault", navigationEnabled: this.navigationEnabled() }));
   }
 
   async onClose(): Promise<void> {
@@ -334,7 +334,7 @@ export default class VaultKosmosPlugin extends Plugin {
     if (this.agentSettings.agentEnabled) this.startAgentApi();
     this.addCommand({ id: "write-agent-api-guide", name: "Write Agent API guide (AGENT-API.md) to vault", callback: () => void this.writeAgentGuide() });
 
-    this.registerView(VIEW_TYPE, (leaf) => new KosmosView(leaf));
+    this.registerView(VIEW_TYPE, (leaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled));
     this.addRibbonIcon("orbit", "Open Vault Kosmos", () => void this.activate());
     this.addCommand({ id: "open-vault-kosmos", name: "Open Vault Kosmos", callback: () => void this.activate() });
     this.addCommand({

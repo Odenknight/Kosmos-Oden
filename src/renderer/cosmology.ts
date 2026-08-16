@@ -14,9 +14,9 @@
  */
 import { ATTACHMENT_EXTENSIONS } from "gkos-engine";
 import type { GkxGraph } from "gkos-engine";
+import { projectKosmosNavigation } from "../navigation-integration";
 
 export const GOLDEN = 2.399963229728653;
-const MANIFEST_NAMES = ["index", "home", "readme", "_index", "moc", "map", "overview", "dashboard", "start", "contents", "toc"];
 
 export const ROLE_R: Record<string, number> = { cluster: 3.0, galaxy: 2.3, star: 1.7, planet: 0.95, moon: 0.55, moonlet: 0.40, asteroid: 0.34, oort: 0.18, hidden: 0 };
 export const GAP_SYS = 0.8;   // clear space between solar systems inside a galaxy
@@ -124,7 +124,7 @@ export function minChord(units: number[][]): number {
   return isFinite(m) ? Math.max(m, 1e-3) : 1;
 }
 
-export interface CosmosOptions { attachments?: string[] }
+export interface CosmosOptions { attachments?: string[]; navigationEnabled?: boolean }
 
 export function buildCosmos(graph: any, opts: CosmosOptions = {}): GkxGraph {
   const attachSet = new Set((opts.attachments || []).map((p) => String(p)));
@@ -156,12 +156,25 @@ export function buildCosmos(graph: any, opts: CosmosOptions = {}): GkxGraph {
   const fileNodes = nodes.filter((n) => n.kind === "file" && n.role !== "oort");
   const galaxyIds = [...new Set(fileNodes.map((n) => n.area).filter((a) => a && a !== "Root" && a !== "Unresolved" && a !== "Vault"))] as string[];
 
-  const rankName = (name: string) => { const k = stripExt(baseName(name)).toLowerCase(); const i = MANIFEST_NAMES.indexOf(k); return i < 0 ? 99 : i; };
+  const navigation = projectKosmosNavigation(fileNodes.map((node) => String(node.path || "")), opts.navigationEnabled === true);
+  graph.__navigation = {
+    enabled: navigation.enabled,
+    findings: navigation.findings,
+    sourceContentWrite: false,
+    applyMoc: false,
+  };
+  const rankName = (name: string) => {
+    const k = stripExt(baseName(name)).toLowerCase();
+    const i = navigation.orderedMocNames.indexOf(k);
+    return i < 0 ? 99 : i;
+  };
   function pickManifest(candidates: any[], folderName: string | null): any {
     let best: any = null, bestScore = 1e9;
     for (const c of candidates) {
       const bn = stripExt(baseName(c.path)).toLowerCase();
-      const score = (folderName && bn === String(folderName).toLowerCase()) ? -1 : rankName(c.path);
+      const namedForFolder = folderName && bn === String(folderName).toLowerCase();
+      const recognized = !navigation.enabled || navigation.recognizedPaths.has(String(c.path || "").replace(/\\/g, "/"));
+      const score = namedForFolder ? -1 : recognized ? rankName(c.path) : 99;
       if (score < bestScore) { bestScore = score; best = c; }
     }
     return (best && bestScore < 99) ? best : null;
