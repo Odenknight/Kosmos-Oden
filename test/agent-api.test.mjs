@@ -16,8 +16,8 @@ import {
   makeToken,
 } from "../dist/kosmos-agent-server.mjs";
 
-// Fixtures carry explicit sensitivity so they stay visible at the default
-// internal ceiling: gkos-engine v1.0.6 fails unlabeled notes closed to "secret".
+const buildProductGraph = (files, folders) => buildGraph(files, folders, undefined, { defaultSensitivity: "internal" });
+
 const FILES = [
   { relativePath: "Home.md", content: "# Home\n[[Engine v2]]" },
   { relativePath: "Ideas/Engine v1.md", content: "---\ntype: idea\ntimestamp: 2026-01-01T00:00:00Z\nsensitivity: internal\n---\nOld engine." },
@@ -25,7 +25,7 @@ const FILES = [
 ];
 
 function fixtureProvider() {
-  const graph = buildGraph(FILES, ["Ideas"]);
+  const graph = buildProductGraph(FILES, ["Ideas"]);
   const contents = new Map(FILES.map((f) => [f.relativePath, stripFrontmatter(f.content)]));
   return {
     getGraph: async () => graph,
@@ -327,7 +327,7 @@ test("agent api", async (t) => {
 test("Mitigation 4: a single agent's concurrent requests are capped for fairness", async () => {
   let release; const gate = new Promise((r) => { release = r; });
   const provider = {
-    getGraph: async () => { await gate; return buildGraph(FILES, ["Ideas"]); },
+    getGraph: async () => { await gate; return buildProductGraph(FILES, ["Ideas"]); },
     getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
   };
   const server = new KosmosAgentServer(http, settings(), provider);
@@ -403,7 +403,7 @@ test("LAN mode refuses to start without a token, fails closed (Doc1 §3.8)", () 
 test("query-token is rejected in LAN mode even when allowed (Doc1 §3.6)", async () => {
   // Bind to loopback so the test can connect, but exercise the LAN gate directly.
   const server = new KosmosAgentServer(http, settings({ agentAllowQueryToken: true, agentBindMode: "lan" }), {
-    getGraph: async () => buildGraph(FILES, ["Ideas"]), getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
+    getGraph: async () => buildProductGraph(FILES, ["Ideas"]), getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
   });
   // authorized() must not accept a query token in LAN mode regardless of the flag.
   const u = new URL(`http://127.0.0.1/health?token=${TOKEN}`);
@@ -415,7 +415,7 @@ test("query-token is rejected in LAN mode even when allowed (Doc1 §3.6)", async
 test("output cap: a huge note body is truncated (Doc2 §5.6)", async () => {
   const big = "x".repeat(MAX_NOTE_CONTENT_CHARS + 5000);
   const provider = {
-    getGraph: async () => buildGraph([{ relativePath: "Big.md", content: "---\ntype: note\nsensitivity: internal\ntimestamp: 2026-01-01T00:00:00Z\n---\n# Big\n" + big }], []),
+    getGraph: async () => buildProductGraph([{ relativePath: "Big.md", content: "---\ntype: note\nsensitivity: internal\ntimestamp: 2026-01-01T00:00:00Z\n---\n# Big\n" + big }], []),
     getNoteContent: async () => big,
     vaultName: () => "V", lanAddresses: () => [],
   };
@@ -432,7 +432,7 @@ test("GKX sensitivity ceiling filters search, note content, graph, and Graphiti 
     { relativePath: "Secret.md", content: "---\ntype: semantic\nsensitivity: confidential\ntimestamp: 2026-01-03T00:00:00Z\nsupersedes:\n  - Public\n---\nsecret" },
     { relativePath: "Patient.md", content: "---\ntype: semantic\nsensitivity: phi\ntimestamp: 2026-01-04T00:00:00Z\n---\npatient" },
   ];
-  const graph = buildGraph(files, []);
+  const graph = buildProductGraph(files, []);
   const provider = {
     getGraph: async () => graph,
     getNoteContent: async (p) => files.find((f) => f.relativePath === p)?.content || null,
@@ -539,7 +539,7 @@ test("onTraversal: paths are CAPPED per tool so broad results never flood the ha
     const sup = i > 0 ? `supersedes:\n  - Note ${i - 1}\n` : "";
     files.push({ relativePath: `Note ${i}.md`, content: `---\ntype: idea\ntimestamp: 2026-01-${String((i % 27) + 1).padStart(2, "0")}T00:00:00Z\nsensitivity: internal\n${sup}---\nnote body ${i}` });
   }
-  const graph = buildGraph(files, []);
+  const graph = buildProductGraph(files, []);
   const provider = { getGraph: async () => graph, getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [] };
   const server = new KosmosAgentServer(http, settings(), provider);
   const seen = [];

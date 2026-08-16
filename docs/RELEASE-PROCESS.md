@@ -9,7 +9,8 @@ Releases are built **from the tag in CI**, not copied from a workstation
 2. `npm run check:versions` — confirms `package.json`, `manifest.json`,
    `versions.json` and `src/kosmos-version.ts` agree.
 3. Update `CHANGELOG.md` (move `[Unreleased]` items under the new version).
-4. `npm run verify` locally to confirm the tree is release-ready. `main.js`,
+4. `npm run verify` locally to confirm the tree is release-ready, including the
+   package-lock binding to the released GKOS-Engine commit. `main.js`,
    `kosmos-oden-stand-alone.html`, and `dist/` are generated and **gitignored** — do not
    commit them; CI builds them fresh from source.
 5. Commit the version/changelog changes, then tag with the **exact manifest
@@ -20,7 +21,7 @@ Releases are built **from the tag in CI**, not copied from a workstation
 ## What CI does on a version tag (`.github/workflows/release.yml`)
 
 1. `npm ci` (clean, from lockfile).
-2. `npm run verify` — typecheck + build + tests + version/artifact/invariant checks.
+2. `npm run verify` — typecheck + build + tests + version/lockfile/artifact/invariant checks.
 3. Assert the tag matches `manifest.json`.
 4. `npm run package:release` — stages `release/` with `manifest.json`, `main.js`,
    `styles.css`, `versions.json`, `kosmos-oden-stand-alone.html`, `kosmos-mcp-stdio.mjs`, plus:

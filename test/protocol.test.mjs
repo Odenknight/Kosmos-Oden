@@ -23,6 +23,13 @@ test("valid snapshot accepted", () => {
   assert.equal(r.ok, true);
 });
 
+test("snapshot and delta accept only boolean Navigation feature state", () => {
+  assert.equal(validateHostMessage(wrap("vault-snapshot", { files: [], navigationEnabled: true })).ok, true);
+  assert.equal(validateHostMessage(wrap("vault-delta", { changed: [], navigationEnabled: false })).ok, true);
+  assert.match(validateHostMessage(wrap("vault-snapshot", { files: [], navigationEnabled: "yes" })).reason, /must be a boolean/);
+  assert.match(validateHostMessage(wrap("vault-delta", { changed: [], navigationEnabled: 1 })).reason, /must be a boolean/);
+});
+
 test("valid delta accepted", () => {
   const r = validateHostMessage(wrap("vault-delta", {
     changed: [{ relativePath: "A.md", content: "x" }], removed: ["B.md"], renames: [{ from: "C.md", to: "D.md" }],

@@ -18,6 +18,7 @@ import { hashUnit } from "gkos-engine";
 import type { GkxGraph } from "gkos-engine";
 
 export { buildCosmos, classifyStar, classifyPlanet, starScore, SPECTRAL, PLANET_COLORS } from "./cosmology";
+export { getKosmosNavigationManifest, projectKosmosNavigation } from "../navigation-integration";
 
 export function layoutCosmos(graph: any): GkxGraph {
   const nodes: any[] = graph.nodes;

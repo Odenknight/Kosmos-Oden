@@ -136,7 +136,7 @@ assessment, diagnostics, label, evidence, relationship, validation, and policy r
 
 ## 4 · Direct vs. indirect Graphiti
 
-- **Direct (KGCP):** agents read a sensitivity-filtered deterministic GKX temporal projection live — no database, no LLM. Search is lexical, not embeddings.
+- **Direct (KGCP):** agents read a sensitivity-filtered deterministic GKX temporal projection live from GKOS Engine 2.1 — no database, no LLM. Search is lexical, not embeddings.
 - **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative, origin-separated adapter projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
 
 ## 5 · Safety & troubleshooting
@@ -235,7 +235,16 @@ export class KosmosSettingTab extends PluginSettingTab {
       .addButton((b) => b.setButtonText("Safety validation pending").setDisabled(true));
 
     gkxEl.createEl("h2", { text: "GKOS Note Formatting" });
-    gkxEl.createEl("p", { text: "GKOS-Engine v2.0.1 note formatting for Kosmos-Oden. It implements the GKX v2.3 Validating Projection Profile: it preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be a full GKOS governance engine." });
+    gkxEl.createEl("p", { text: "GKOS-Engine 2.1 note formatting and source-content-read-only Navigation for Kosmos-Oden. It preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be the GKOS standard itself." });
+    gkxEl.createEl("h3", { text: "Navigation 1.0" });
+    new Setting(gkxEl).setName("Enable Engine Navigation centers")
+      .setDesc("Off preserves the prior eleven-name visual heuristic. On uses Engine 2.1's canonical five (index, _index, readme, moc, contents), flags former aliases such as home/map/overview/dashboard/start/toc, and never writes or renames source content.")
+      .addToggle((t) => t.setValue(s.navigationEnabled).onChange(async (v) => {
+        s.navigationEnabled = v;
+        await this.plugin.saveAgentSettings();
+        this.plugin.provider.markFullDirty();
+        new Notice("Kosmos-Oden: reopen or refresh the cosmos view to apply the Navigation center policy.");
+      }));
     gkxEl.createEl("h3", { text: "Portable note timestamps" });
     gkxEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .gkx files are excluded." });
     new Setting(gkxEl).setName("Stamp note creation and modification times")

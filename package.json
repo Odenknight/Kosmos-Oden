@@ -1,9 +1,21 @@
 {
   "name": "kosmos-oden",
-  "version": "0.7.0",
-  "description": "Kosmos Research Studio (KRS, Vault Kosmos v0.7.0) — human-editable GKX 2.2 Properties with optional Agent-Ready flat 2.3 conversion (GKOS-Engine v2.0.1), live MCP traversal, and Nextcloud WebDAV sync.",
+  "version": "0.8.0",
+  "description": "Kosmos Research Studio (KRS, Vault Kosmos v0.8.0) — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS Engine 2.1), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
+  "files": [
+    "main.js",
+    "manifest.json",
+    "styles.css",
+    "versions.json",
+    "kosmos-oden-stand-alone.html",
+    "kosmos-mcp-stdio.mjs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
   "engines": {
     "node": ">=22 <25",
     "npm": ">=10"
@@ -21,7 +33,7 @@
     "check:invariants": "node scripts/check-invariants.mjs",
     "check:renderer-provenance": "node scripts/check-renderer-provenance.mjs",
     "check:lockfile": "node scripts/check-lockfile-sha.mjs",
-    "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance",
+    "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:lockfile && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance",
     "test:browser": "playwright test --project=chromium --project=firefox --project=webkit",
     "test:browser:chromium": "playwright test --project=chromium --project=mobile-chromium test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts",
     "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/embed.spec.ts",
@@ -39,7 +51,7 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#v2.0.1",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#v2.1.0",
     "three": "0.185.1"
   }
 }

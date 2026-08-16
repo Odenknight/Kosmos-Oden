@@ -18,6 +18,7 @@ const lockPath = resolve(root, "package-lock.json");
 
 const lock = JSON.parse(readFileSync(lockPath, "utf8"));
 const packages = lock.packages ?? {};
+const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 const problems = [];
 let gitDeps = 0;
@@ -40,4 +41,32 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs.`);
+const lockRoot = packages[""];
+if (lock.version !== packageJson.version || lockRoot?.version !== packageJson.version) {
+  console.error(
+    `check-lockfile-sha: FAIL — package version ${packageJson.version} does not match lock top-level=${lock.version} root=${lockRoot?.version ?? "missing"}`,
+  );
+  process.exit(1);
+}
+
+for (const group of ["dependencies", "devDependencies"]) {
+  for (const [name, specifier] of Object.entries(packageJson[group] ?? {})) {
+    if (lockRoot?.[group]?.[name] !== specifier) {
+      console.error(
+        `check-lockfile-sha: FAIL — package-lock root ${group}.${name} does not match package.json`,
+      );
+      process.exit(1);
+    }
+  }
+}
+
+const engine = packages["node_modules/gkos-engine"];
+if (
+  engine?.version !== "2.1.0"
+  || !String(engine.resolved ?? "").endsWith("#a3298da05bbd696763d414d08e70cf97410968af")
+) {
+  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to released v2.1.0 commit a3298da05bbd");
+  process.exit(1);
+}
+
+console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; gkos-engine 2.1.0 @ a3298da05bbd.`);

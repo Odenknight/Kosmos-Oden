@@ -1,13 +1,13 @@
 # Architecture
 
-Kosmos-Oden is **three products sharing one semantic engine**. That engine —
-the Kosmos Core — is the single most important design decision: without it, the
-plugin, standalone page, Agent API, Graphiti exporter and CLI would drift into
-five different interpretations of the same vault.
+Kosmos-Oden is **three products sharing one semantic engine**. Since 0.8.0 that
+engine is the exact-pinned external `gkos-engine@2.1.0` package. The plugin,
+standalone page, Agent API, Graphiti exporter, CLI, and opt-in Navigation
+integration all consume that same dependency.
 
 ```
                     ┌─────────────────────┐
-                    │   Kosmos Core        │  src/core/
+                    │ GKOS-Engine 2.1      │  node_modules/gkos-engine
                     │  parsing             │
                     │  link resolution     │
                     │  canonical lineage   │
@@ -15,6 +15,7 @@ five different interpretations of the same vault.
                     │  graph construction  │
                     │  incremental index   │
                     │  Graphiti export     │
+                    │  Navigation 1.0      │
                     └──────────┬──────────┘
         ┌──────────────┬───────┴───────┬──────────────┐
         ▼              ▼               ▼              ▼
@@ -30,7 +31,7 @@ five different interpretations of the same vault.
 
 ## Modules
 
-### `src/core/` — the shared engine (DOM-free, runs in Node and the browser)
+### `gkos-engine` — the shared engine (DOM-free, runs in Node and the browser)
 | File | Responsibility |
 |---|---|
 | `types.ts` | Shared types: nodes, links, graph, diagnostics, lineage/temporal models. |
@@ -46,7 +47,12 @@ five different interpretations of the same vault.
 | `incremental.ts` | `GkxIndex`: parse only changed content, rename without reparse, structural-rebuild threshold, graph delta. |
 | `graphiti.ts` | Stable-UUID, chronological, non-authoritative Graphiti episodes without future-state leakage. |
 | `demo.ts` | Built-in demo vault. |
-| `version.ts` | Single version source of truth. |
+| `navigation/` | Source-content-read-only discovery, classification, diff/audit/context/re-entry planning, and truthful capabilities. |
+
+`src/navigation-integration.ts` is the product adapter. It keeps Navigation off
+by default, passes enabled discovery through the Engine contract, exposes
+findings to the local renderer, and advertises that Kosmos-Oden has no
+Governance Store or Navigation write effects.
 
 ### `src/renderer/` — the visualization (consumes a Core graph; never re-derives semantics)
 `cosmology.ts` classifies nodes into cluster/galaxy/star/planet/moon/moonlet/

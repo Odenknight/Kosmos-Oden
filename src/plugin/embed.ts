@@ -31,6 +31,7 @@ interface FilesMessage {
   folders?: string[];
   attachments?: string[];
   label?: string;
+  navigationEnabled?: boolean;
 }
 interface UpdateMessage {
   type: "kosmos:update";
@@ -40,19 +41,25 @@ interface UpdateMessage {
   folders?: string[];
   attachments?: string[];
   label?: string;
+  navigationEnabled?: boolean;
 }
+
+let navigationEnabled = false;
 
 function toSourceFiles(files: Array<{ relativePath: string; content: string }>): SourceFile[] {
   return (files || []).map((f) => ({ relativePath: f.relativePath, content: f.content, kind: "note" as const }));
 }
 
 function applySnapshot(msg: FilesMessage): void {
+  navigationEnabled = msg.navigationEnabled === true;
   const update = index.setFiles(toSourceFiles(msg.files), msg.folders || [], msg.attachments || []);
+  update.graph.__navigationEnabled = navigationEnabled;
   app.setAttachments(msg.attachments || []);
   app.renderGraph(update.graph, msg.label || "Vault");
   for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
 }
 function applyDelta(msg: UpdateMessage): void {
+  if (typeof msg.navigationEnabled === "boolean") navigationEnabled = msg.navigationEnabled;
   const changes: IndexChanges = {
     changed: toSourceFiles(msg.changed || []),
     removed: msg.removed || [],
@@ -61,6 +68,7 @@ function applyDelta(msg: UpdateMessage): void {
     attachments: msg.attachments,
   };
   const update = index.applyChanges(changes);
+  update.graph.__navigationEnabled = navigationEnabled;
   if (msg.attachments) app.setAttachments(msg.attachments);
   app.renderGraph(update.graph, msg.label || "Vault");
   for (const p of [...(msg.changed || []).map((c) => c.relativePath)]) {
