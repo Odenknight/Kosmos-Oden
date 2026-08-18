@@ -1,7 +1,7 @@
 # GKOS-Engine 2.1 compatibility
 
-Kosmos-Oden 0.8.0 pins GKOS-Engine 2.1.0. The resolved dependency commit is
-`a3298da05bbd696763d414d08e70cf97410968af`; package and lockfile must continue
+Kosmos-Oden 0.8.0 pins GKOS-Engine 2.1.1. The resolved dependency commit is
+`f4dfda16eac746c667cf042f908a918d9acc6713`; package and lockfile must continue
 to agree on that release line.
 
 ## Consumer boundary

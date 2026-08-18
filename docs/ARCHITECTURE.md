@@ -1,7 +1,7 @@
 # Architecture
 
 Kosmos-Oden is **three products sharing one semantic engine**. Since 0.8.0 that
-engine is the exact-pinned external `gkos-engine@2.1.0` package. The plugin,
+engine is the exact-pinned external `gkos-engine@2.1.1` package. The plugin,
 standalone page, Agent API, Graphiti exporter, CLI, and opt-in Navigation
 integration all consume that same dependency.
 
