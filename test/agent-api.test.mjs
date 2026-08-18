@@ -457,7 +457,7 @@ test("Default sensitivity threads through the projection for unlabeled notes", a
   // A GKX note that declares no sensitivity field fails closed by default.
   // always resolved to "secret" regardless of the setting (the case 0.6.7's
   // Compatibility note said the dropdown could NOT restore, because the setting
-  // could not reach the projection). GKOS-Engine v2.0.1 threads
+  // could not reach the projection). GKOS-Engine v2.1.1 threads
   // Gkx23ProjectionOptions through buildGraph/GkxIndex so the configured default governs it.
   // In production a single setting (settings.defaultSensitivity) drives BOTH the
   // projection option and the gate fallback, so the test mirrors that.

@@ -2,15 +2,24 @@
 
 > **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
 > Tier: T3 · GKX schema: GKX current (2.3 line)
-> Engine dependency: consumes GKOS-Engine `v2.0.1`
+> Engine dependency: consumes GKOS-Engine `v2.1.1`
 > Lifecycle: Active · Relationships: active continuation of Kosmos-Oden-Lite (§3.1)
 > Authority for this block: GKOS-REGISTRY-001
 
-**Version 0.7.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX 2.2 Obsidian Properties, optional Agent-Ready flat GKX 2.3 conversion, GKOS-Engine v2.0.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+**Version 0.8.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX records, GKOS-Engine v2.1.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
 
 Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
 
 The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+
+Kosmos-Oden is a visualization product using GKOS/GKX concepts. Read-only
+visualization does not confer approval, promotion, or activation authority,
+and the visualization changes no source content. Product behavior and tests do
+not amend gkos-standard or establish a GKOS conformance result.
+
+![A full Kosmos-Oden vault rendered as a navigable night-sky knowledge graph](docs/assets/kosmos-oden-night-sky.png)
+
+![A focused Kosmos-Oden view showing labeled projects and their lineage links](docs/assets/kosmos-oden-lineage-traversal.png)
 
 Navigation is also source-content read-only. Enabling it changes only which
 existing note is selected as a visual MOC center; it never creates, renames,
@@ -253,7 +262,7 @@ The migration scan is deterministic and contacts no model. The separate **Re-sca
 
 Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
 
-**Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. GKOS-Engine v2.0.1 threads this value through `GkxIndex`, so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
+**Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. GKOS-Engine v2.1.1 threads this value through `GkxIndex`, so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
 
 **Connecting an agent (no reimplementation required):**
 1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.

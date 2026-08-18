@@ -31,7 +31,7 @@ export function buildAgentGuide(port: string | number, token: string, bindMode =
 
 **Read-only · localhost by default · token-protected**
 
-This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, the OpenAI Codex app/CLI/IDE extension, Cursor, and other MCP clients. It exposes the sensitivity-filtered **Kosmos Governed Context Projection (KGCP)** from **GKOS-Engine v2.0.1** plus paginated GKX v2.3 Graphiti-adapter episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
+This plugin runs one standards-based MCP endpoint for Anthropic Claude Code, the OpenAI Codex app/CLI/IDE extension, Cursor, and other MCP clients. It exposes the sensitivity-filtered **Kosmos Governed Context Projection (KGCP)** from **GKOS-Engine v2.1.1** plus paginated GKX v2.3 Graphiti-adapter episodes. Source notes and accepted semantic events remain authoritative; the Graphiti export is explicitly non-authoritative. Queries never modify notes.
 
 ## 1 · Turn it on (about 30 seconds)
 
@@ -365,7 +365,7 @@ export class KosmosSettingTab extends PluginSettingTab {
         .onChange(async (v: any) => { s.agentSensitivityCeiling = v; await this.plugin.saveAgentSettings(); }));
 
     agentEl.createEl("h3", { text: "Kosmos Governed Context Projection (KGCP)" });
-    agentEl.createEl("p", { text: "KGCP is the deterministic, sensitivity-filtered agent-facing graph produced by GKOS-Engine v2.0.1. The GKX v2.3 Graphiti adapter is an optional non-authoritative semantic-memory projection; inferred facts return as proposals or derived sidecars, never authored governance." });
+    agentEl.createEl("p", { text: "KGCP is the deterministic, sensitivity-filtered agent-facing graph produced by GKOS-Engine v2.1.1. The GKX v2.3 Graphiti adapter is an optional non-authoritative semantic-memory projection; inferred facts return as proposals or derived sidecars, never authored governance." });
     new Setting(agentEl).setName("Graphiti combined extraction")
       .setDesc("Experimental and off by default. Graphiti 0.29 exposes this only through a low-level bulk utility, not add_episode. The adapter records the request and required benchmark fields without pretending the standard ingestion path enabled it.")
       .addToggle((t) => t.setValue(s.graphitiCombinedExtraction).onChange(async (v) => { s.graphitiCombinedExtraction = v; await this.plugin.saveAgentSettings(); }));
