@@ -281,3 +281,24 @@ test("event-stream 409 reports a possible gap and reconnects at live tail withou
   assert.ok(errors.some((message) => /reset required.*may have been missed.*live tail/iu.test(message)));
   assert.equal(subscription.lastSequence(), null);
 });
+
+test("event-stream session can change before any sequence is acknowledged", async () => {
+  let calls = 0; let subscription; const errors = [];
+  const reconnected = new Promise((resolve, reject) => {
+    const fake = async (_url, init) => {
+      calls++;
+      try {
+        assert.equal(init.headers["Last-Event-ID"], undefined);
+        assert.equal(init.headers["GKOS-Event-Session"], undefined);
+        if (calls === 2) resolve();
+        return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : `event-stream:fixture:${calls}` }, body: new ReadableStream({ start(controller) { if (calls === 1) controller.close(); } }) };
+      } catch (error) { reject(error); throw error; }
+    };
+    subscription = subscribeTraversalEvents({ api: "http://127.0.0.1:4814", token: "viewer-secret" }, {
+      onEvent() {}, onError(message) { errors.push(message); },
+    }, fake);
+  });
+  await reconnected; subscription.close();
+  assert.deepEqual(errors, []);
+  assert.equal(subscription.lastSequence(), null);
+});

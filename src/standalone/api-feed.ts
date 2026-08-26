@@ -263,9 +263,10 @@ export function subscribeTraversalEvents(
     while (!closed) {
       callbacks.onState?.("connecting");
       const headers: Record<string, string> = { Accept: "text/event-stream", Authorization: `Bearer ${params.token}` };
-      if (last != null && eventStreamSession != null) {
+      const resumeSession = last != null && eventStreamSession != null ? eventStreamSession : null;
+      if (resumeSession != null) {
         headers["Last-Event-ID"] = String(last);
-        headers["GKOS-Event-Session"] = eventStreamSession;
+        headers["GKOS-Event-Session"] = resumeSession;
       }
       try {
         const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", signal: controller.signal });
@@ -280,7 +281,7 @@ export function subscribeTraversalEvents(
         if (contentType !== "text/event-stream; charset=utf-8") throw new Error("unexpected event-stream content type");
         const responseSession = response.headers?.get("gkos-event-session")?.trim() || "";
         if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(responseSession)) throw new Error("missing or invalid event-stream session");
-        if (eventStreamSession != null && responseSession !== eventStreamSession) {
+        if (resumeSession != null && responseSession !== resumeSession) {
           last = null; eventStreamSession = null;
           throw new Error("event-stream session changed during resume; retained traversal events may have been missed");
         }
