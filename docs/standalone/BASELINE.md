@@ -37,7 +37,7 @@ or replacement correction was introduced.
 |---|---|
 | Node | `v24.18.0` |
 | npm | `10.9.4` |
-| Rust / Cargo | unavailable on this host; Rust-dependent qualification remains unavailable |
+| Rust / Cargo | installed at `%USERPROFILE%\\.cargo\\bin`: `rustc 1.98.0 (88d9e12ae 2026-08-18)`, `cargo 1.98.0 (797e8a9bc 2026-08-05)`; the inherited process PATH did not include that directory, so the initial bare commands were unavailable |
 | Kosmos `package-lock.json` SHA-256 | `c61314b6e3d0179e9a3df14351f0e128181701c9e979f2a6853916f5f1fce0b4` |
 | Kosmos `pnpm-lock.yaml` SHA-256 | `6222c996e30cbd84749877d54cfcf83c147df44f4e96c603b45a3ddfabe439d1` |
 | Engine `package-lock.json` SHA-256 | `498f425ee448aa7b7367e7a8730bacc4e6f1ebdf596a0b453182b353b3ba0608` |
@@ -102,4 +102,3 @@ Both worktrees were clean before changes. At their qualified P0 commits, each
 `git status --short --branch` printed only its branch/tracking line, with no
 modified or untracked paths. Subsequent implementation work is recorded after
 these coordinates and must not be mistaken for baseline state.
-
