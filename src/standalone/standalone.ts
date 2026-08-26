@@ -33,8 +33,15 @@ import {
   connectToEngine,
   parseApiFeedParams,
   probeHealth,
+  subscribeTraversalEvents,
+  type ServiceFeatureCapability,
   type ViewerGraph,
 } from "./api-feed";
+import {
+  TraversalReplay, TraversalSessionRecorder, TRAVERSAL_SESSION_MAX_BYTES,
+  type TraversalEventEnvelope, type TraversalSessionExport,
+} from "./observability";
+import { KOSMOS_VERSION } from "../kosmos-version";
 
 const app = createKosmosApp({ autoStart: "wait" });
 // No settings context in this viewer-only surface, so projection options are
@@ -51,6 +58,83 @@ let connectivityTimer = 0;
  * when a `/graph` fetch from the loopback sidecar succeeds; cleared otherwise.
  */
 let engine: { api: string; token: string | null } | null = null;
+let engineCapabilities: any = null;
+let eventSubscription: { close(): void; lastSequence(): number | null } | null = null;
+const sessionRecorder = new TraversalSessionRecorder();
+const sessionReplay = new TraversalReplay();
+let replayMode = false, replayTimer = 0;
+const liveDuringReplay: TraversalEventEnvelope[] = [];
+let liveDuringReplayBytes = 0;
+const MAX_LIVE_REPLAY_EVENTS = 5_000, MAX_LIVE_REPLAY_BYTES = 2_000_000;
+
+function feature(name: string): ServiceFeatureCapability | null { return engineCapabilities?.features?.[name] || null; }
+function featureAvailable(name: string): boolean { return feature(name)?.available === true; }
+function featureReady(name: string): boolean {
+  const state = feature(name);
+  return !!state && state.available && state.configured && state.authorized && state.enabled;
+}
+function stopEventStream(): void { eventSubscription?.close(); eventSubscription = null; ui?.setStatus({ eventStream: "unavailable" }); }
+function stopReplayTimer(): void { if (replayTimer) { clearInterval(replayTimer); replayTimer = 0; } }
+function leaveReplayForLive(): void {
+  stopReplayTimer();
+  replayMode = false;
+  app.clearTraversalObservability();
+  for (const event of liveDuringReplay.splice(0)) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+  liveDuringReplayBytes = 0;
+}
+function updateReplayUi(): void {
+  const state = sessionReplay.state, record = sessionRecorder.status;
+  ui.setObservability({
+    recording: record.active, recordedEvents: record.events, replayLoaded: state.loaded,
+    replayPlaying: state.playing, replayEnded: state.ended, replayPositionMs: state.positionMs,
+    replayDurationMs: state.durationMs, replaySpeed: state.speed as 1 | 2 | 5,
+  });
+}
+function ensureReplayTimer(): void {
+  if (replayTimer) return;
+  replayTimer = (setInterval(() => {
+    if (!replayMode) return;
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    updateReplayUi();
+    if (!sessionReplay.state.playing) stopReplayTimer();
+  }, 30) as unknown) as number;
+}
+function loadReplaySession(value: TraversalSessionExport): void {
+  if (value?.schema_version !== 1 || !Array.isArray(value.events)) throw new Error("unrecognized session shape");
+  stopReplayTimer(); app.clearTraversalObservability(); sessionReplay.load(value);
+  replayMode = true; liveDuringReplay.length = 0; liveDuringReplayBytes = 0; updateReplayUi();
+}
+function replayAction(action: "play" | "pause" | "restart" | "stop" | "live" | "stay"): void {
+  if (action === "play") { replayMode = true; sessionReplay.play(); ensureReplayTimer(); }
+  else if (action === "pause" || action === "stay") { sessionReplay.pause(); stopReplayTimer(); }
+  else if (action === "restart") { replayMode = true; app.clearTraversalObservability(); sessionReplay.restart(); sessionReplay.play(); ensureReplayTimer(); }
+  else if (action === "stop") { sessionReplay.stop(); leaveReplayForLive(); }
+  else if (action === "live") { sessionReplay.pause(); leaveReplayForLive(); }
+  updateReplayUi();
+}
+function receiveTraversalEvent(event: TraversalEventEnvelope): void {
+  sessionRecorder.record(event); updateReplayUi();
+  if (replayMode) {
+    const bytes = new TextEncoder().encode(JSON.stringify(event)).byteLength;
+    liveDuringReplay.push(event); liveDuringReplayBytes += bytes;
+    while (liveDuringReplay.length > MAX_LIVE_REPLAY_EVENTS || liveDuringReplayBytes > MAX_LIVE_REPLAY_BYTES) {
+      const removed = liveDuringReplay.shift();
+      if (!removed) break;
+      liveDuringReplayBytes -= new TextEncoder().encode(JSON.stringify(removed)).byteLength;
+    }
+    return;
+  }
+  app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+}
+function startEventStream(): void {
+  stopEventStream();
+  if (!engine || !engine.token || !featureReady("events")) { ui.setStatus({ eventStream: "unavailable" }); return; }
+  eventSubscription = subscribeTraversalEvents({ api: engine.api, token: engine.token }, {
+    onEvent: receiveTraversalEvent,
+    onState: (state) => ui.setStatus({ eventStream: state }),
+    onError: (message) => ui.addError(message),
+  });
+}
 
 /** Live connectivity dot. Snapshot/demo/graph.json are static data: always green.
  *  A live directory handle is probed by re-checking its read permission. */
@@ -120,6 +204,7 @@ function renderSnapshot(snapshot: DirectorySnapshot, label: string): void {
 }
 
 async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Promise<void> {
+  stopEventStream(); engineCapabilities = null;
   engine = null; // opening a local folder supersedes any live engine feed
   source = src;
   sourceName = src.name;
@@ -142,6 +227,7 @@ async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Pr
     monitoring: src.canRescan ? "active" : "unavailable",
     lastScanAt: snapshot.scannedAt,
     ...statusFromGraph(index.graph!),
+    graphConnected: false, mcpAvailable: false, eventStream: "unavailable", offlineFolderMode: true,
   });
   // Connectivity dot: a live directory handle is probed for read permission;
   // a file-snapshot import is static data and stays green.
@@ -195,7 +281,10 @@ function renderEngineGraph(graph: ViewerGraph, health: any): void {
   } catch {
     extra = { source: sourceName, notes: health?.notes_indexed };
   }
-  ui.setStatus({ mode: "live", monitoring: "unavailable", lastScanAt: Date.now(), ...extra });
+  ui.setStatus({
+    mode: "live", monitoring: "unavailable", lastScanAt: Date.now(), ...extra,
+    graphConnected: true, mcpAvailable: featureAvailable("mcp"), mcpEnabled: featureReady("mcp"), offlineFolderMode: false,
+  });
 }
 
 /** Poll /health so the connectivity dot reflects a live engine going away. */
@@ -205,6 +294,7 @@ function startEngineConnectivityProbe(): void {
     if (!engine) return;
     const r = await probeHealth(engine, fetch);
     app.setVaultStatus(r.ok);
+    ui.setStatus({ graphConnected: r.ok });
     if (r.ok && r.health && typeof r.health.notes_indexed === "number") {
       ui.setStatus({ notes: r.health.notes_indexed });
     }
@@ -218,6 +308,7 @@ async function connectEngine(api: string, token: string): Promise<void> {
   ui.clearErrors();
   const res = await connectToEngine({ api, token: token || null }, fetch);
   if (!res.ok || !res.graph) {
+    stopEventStream(); engineCapabilities = null;
     engine = null;
     stopConnectivityProbe();
     app.setVaultStatus(false);
@@ -233,8 +324,10 @@ async function connectEngine(api: string, token: string): Promise<void> {
     return;
   }
   engine = { api, token: token || null };
+  engineCapabilities = res.capabilities;
   renderEngineGraph(res.graph, res.health);
   startEngineConnectivityProbe();
+  startEventStream();
 }
 
 /** Manual "Refresh Graph" for the live feed (the sidecar has no push channel). */
@@ -246,7 +339,9 @@ async function refreshEngine(): Promise<void> {
     ui.addError(res.error || "Could not refresh the engine graph.");
     return;
   }
+  engineCapabilities = res.capabilities;
   renderEngineGraph(res.graph, res.health);
+  if (!eventSubscription) startEventStream();
 }
 
 /* ---------------- UI handlers ---------------- */
@@ -304,11 +399,12 @@ const ui: StandaloneUI = createStandaloneUI({
   onLoadDemo: () => {
     sourceName = "Demo vault";
     engine = null;
+    engineCapabilities = null; stopEventStream();
     ui.hideStartup();
     stopConnectivityProbe();
     app.showDemo();
     app.setVaultStatus(true);
-    ui.setStatus({ source: "Demo vault", mode: "demo", monitoring: "unavailable", lastScanAt: Date.now() });
+    ui.setStatus({ source: "Demo vault", mode: "demo", monitoring: "unavailable", lastScanAt: Date.now(), graphConnected: false, mcpAvailable: false, eventStream: "unavailable", offlineFolderMode: true });
   },
   onRescan: () => { void monitor?.scanNow("manual"); },
   onPauseMonitor: () => { monitor?.pause(); ui.setMonitorState("paused"); },
@@ -333,6 +429,44 @@ const ui: StandaloneUI = createStandaloneUI({
     const episodes = buildGraphitiEpisodesWithContent(index.graph, contents, { vault: sourceName });
     downloadFile("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
   },
+  onTrafficHeatmap: (enabled) => { app.setTrafficHeatmapEnabled(enabled); ui.setObservability({ heatEnabled: enabled }); },
+  onRecording: (enabled) => {
+    if (enabled) {
+      if (!engine || !featureReady("events")) { ui.addError("Recording requires an enabled, configured, and authorized traversal event stream."); return; }
+      sessionRecorder.start({
+        started_at: new Date().toISOString(),
+        service_protocol: String(engineCapabilities?.protocol?.version || "unknown"),
+        viewer_version: KOSMOS_VERSION,
+        corpus_hash: engineCapabilities?.corpus_hash || null,
+        redaction: "",
+      });
+    } else sessionRecorder.stop();
+    updateReplayUi();
+  },
+  onExportSession: () => {
+    const session = sessionRecorder.export();
+    if (!session) { ui.addError("Start a recording before exporting a session."); return; }
+    // Compact encoding is the byte-counted canonical export; pretty-printing
+    // could push an otherwise bounded session over its configured cap.
+    downloadFile("kosmos-traversal-session.json", JSON.stringify(session));
+  },
+  onLoadSession: (file) => {
+    if (file.size > TRAVERSAL_SESSION_MAX_BYTES) { ui.addError(`Replay file exceeds ${TRAVERSAL_SESSION_MAX_BYTES} bytes.`); return; }
+    void file.text().then((text) => {
+      if (new TextEncoder().encode(text).byteLength > TRAVERSAL_SESSION_MAX_BYTES) throw new Error(`replay file exceeds ${TRAVERSAL_SESSION_MAX_BYTES} bytes`);
+      const value = JSON.parse(text) as TraversalSessionExport;
+      loadReplaySession(value);
+    }).catch((error) => ui.addError(`Could not load replay: ${error?.message || error}`));
+  },
+  onReplayAction: (action) => {
+    replayAction(action);
+  },
+  onReplaySeek: (offsetMs) => {
+    replayMode = true; app.clearTraversalObservability(); sessionReplay.seek(offsetMs);
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    updateReplayUi();
+  },
+  onReplaySpeed: (speed) => { sessionReplay.setSpeed(speed); updateReplayUi(); },
 });
 
 /* ---------------- boot ---------------- */
@@ -364,17 +498,29 @@ async function tryLocalGraphJson(): Promise<boolean> {
 }
 
 async function boot(): Promise<void> {
+  // Remove legacy/accidental URL credentials immediately. They are ignored by
+  // parseApiFeedParams and must not remain in history or the visible URL bar.
+  const sanitized = new URL(location.href);
+  if (sanitized.searchParams.has("token")) {
+    sanitized.searchParams.delete("token");
+    try { history.replaceState(null, "", sanitized.href); }
+    catch { location.replace(sanitized.href); return; }
+  }
   // Deterministic visual-regression capture: the renderer boots the demo scene
   // itself, so suppress the startup overlay and leave the canvas clear.
   if (new URLSearchParams(location.search).has("capture")) { ui.hideStartup(); return; }
 
-  // Live engine feed: `?api=http://127.0.0.1:4814&token=<bearer>` auto-connects
-  // to the loopback GKOS Engine Desktop sidecar. On failure connectEngine()
-  // re-shows the startup overlay with the values prefilled and a clear error.
+  // `?api=` is a non-secret convenience only. The credential comes from the
+  // password field or a desktop-shell IPC bridge and never appears in the URL.
   const feed = parseApiFeedParams(location.search);
   if (feed.api) {
-    ui.hideStartup();
-    await connectEngine(feed.api, feed.token || "");
+    let ipcToken = "";
+    try {
+      const bridge = (window as any).__KOSMOS_DESKTOP_IPC__;
+      if (bridge && typeof bridge.takeViewerToken === "function") ipcToken = String(await bridge.takeViewerToken() || "");
+    } catch { /* secure IPC unavailable: ask in-page */ }
+    if (ipcToken) { ui.hideStartup(); await connectEngine(feed.api, ipcToken); }
+    else ui.showStartup({ canPicker: supportsDirectoryPicker(), canReopen: false, apiPrefill: feed.api, connectOpen: true });
     return;
   }
 
@@ -415,4 +561,10 @@ void boot();
       diagnostics: index.getDiagnostics(),
     };
   },
+  getObservabilityInfo(): any {
+    return { recorder: sessionRecorder.status, replay: sessionReplay.state, replayMode, bufferedLiveEvents: liveDuringReplay.length };
+  },
+  loadReplayForTest(session: TraversalSessionExport): void { loadReplaySession(session); },
+  receiveTraversalForTest(event: TraversalEventEnvelope): void { receiveTraversalEvent(event); },
+  replayActionForTest(action: "play" | "pause" | "restart" | "stop" | "live" | "stay"): void { replayAction(action); },
 };

@@ -26,6 +26,7 @@ import { KOSMOS_VERSION } from "../kosmos-version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";
+import { TrafficHeatmap, type MonotonicClock } from "../standalone/observability";
 
 /** Renderer descriptor exposed for browser tests / diagnostics (§7.4). */
 export const RENDERER_BACKEND = "webgl2";
@@ -49,6 +50,8 @@ export interface KosmosAppOptions {
   onOpenFolder?: (path: string) => void;
   /** 'wait' = host will push data; 'demo' = boot straight into the demo. */
   autoStart?: "wait" | "demo";
+  /** Monotonic clock injection for deterministic observability tests. */
+  monotonicClock?: MonotonicClock;
 }
 
 export interface KosmosApp {
@@ -63,11 +66,14 @@ export interface KosmosApp {
   notifyLiveEvent(ev: { path: string; type?: string }): void;
   /** Highlight the notes touched by one Agent API query with a fading trail.
    *  `agent` (optional) colours the trail per-agent and labels its rocket head. */
-  notifyAgentTraversal(paths: string[], tool: string, agent?: string): void;
+  notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay?: boolean): void;
+  clearTraversalObservability(): void;
+  setTrafficHeatmapEnabled(enabled: boolean): void;
+  clearTrafficHeatmap(): void;
   /** Host-side leaf visibility: false fully stops the render loop, true resumes it. */
   setHostVisible(visible: boolean): void;
   getDiagnostics(): any;
-  getRenderStats(): { frames: number; running: boolean };
+  getRenderStats(): { frames: number; running: boolean; drawCalls: number };
   showError(msg: string): void;
   showHint(msg: string): void;
   applyI18n(): void;
@@ -78,8 +84,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, setHostVisible() {},
-    getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false }; },
+    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
+    getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false, drawCalls: 0 }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
   const fail = (msg: string) => {
@@ -172,6 +178,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       // Projected-size LOD: expensive procedural surface work is reserved for
       // bodies large enough on screen for that detail to be visible.
       aDetail: new THREE.InstancedBufferAttribute(f(), 1),
+      // Traffic heat is a scalar on the existing instanced body draw. It never
+      // adds a mesh or draw call and is zero/off unless the operator opts in.
+      aHeat: new THREE.InstancedBufferAttribute(f(), 1),
     };
     for (const k in attrs) { attrs[k].setUsage(THREE.DynamicDrawUsage); geometry.setAttribute(k, attrs[k]); }
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -218,6 +227,18 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const AGENT_DUST_HEAD_MS = 90;
   let __agentDustHeadT = 0;
   const DEFAULT_AGENT = "agent";
+  const trafficHeat = new TrafficHeatmap(opts.monotonicClock || (() => performance.now()));
+  let trafficHeatEnabled = false, lastTrafficHeatUpdate = -Infinity;
+  function updateTrafficHeat(force = false): void {
+    if (!layers) return;
+    const now = (opts.monotonicClock || (() => performance.now()))();
+    if (!force && now - lastTrafficHeatUpdate < 100) return;
+    lastTrafficHeatUpdate = now;
+    for (const rec of nodeRender) rec.layer.attrs.aHeat.setX(rec.idx, trafficHeatEnabled ? trafficHeat.value(rec.node.id, now) : 0);
+    for (const body in layers) layers[body].attrs.aHeat.needsUpdate = true;
+  }
+  function setTrafficHeatmapEnabled(enabled: boolean): void { trafficHeatEnabled = !!enabled; updateTrafficHeat(true); }
+  function clearTrafficHeatmap(): void { trafficHeat.clear(); updateTrafficHeat(true); }
   const MAX_AGENTS_SHOWN = 6;      // distinct agents with a live rocket marker
   // Per-agent colour, derived from a stable hash of the agent's name so the
   // same agent keeps its hue across queries and multiple agents stay distinct.
@@ -385,6 +406,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     buildFilterUI();
     applyFilters();
     if (G.__cosmos) { applyConnVisibility(); if (showAllObjects) setAllObjectsGlow(true); }
+    updateTrafficHeat(true);
     fitCamera();
   }
 
@@ -1578,13 +1600,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     applyLive(); updateHalos();
   }
   /** Entry point: the host posts agent-traversal whenever the Agent API serves a query. */
-  function notifyAgentTraversal(paths: string[], tool: string, agent?: string): void {
+  function notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay = false): void {
     if (!Array.isArray(paths) || !G) return;
     const who = String(agent || "").trim() || DEFAULT_AGENT;
     const now = performance.now(); let touched = false;
     for (const p of paths) {
       const id = "file:" + String(p || "").replace(/\\/g, "/");
       if (!idToRender.has(id)) continue;
+      if (trafficHeatEnabled) trafficHeat.visit(id);
       // Find this agent's own head so interleaved agents retain independent
       // comet segments and never connect to somebody else's traversal.
       let last:any=null; for(let i=agentSteps.length-1;i>=0;i--)if(agentSteps[i].agent===who){last=agentSteps[i];break;}
@@ -1595,8 +1618,22 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
     if (!touched) return;
     refreshAgentLive(now); updateAgentTrail();
-    const label = who === DEFAULT_AGENT ? "Agent traversal" : who + " traversal";
+    updateTrafficHeat(true);
+    const label = replay ? `Replay · ${who}` : (who === DEFAULT_AGENT ? "Agent traversal" : who + " traversal");
     if (now - __agentHintT > 4000) { __agentHintT = now; showHint(label + ": " + (tool || "query")); }
+  }
+  function clearTraversalObservability(): void {
+    agentSteps = [];
+    for (const id of __agentLive) { liveIds.delete(id); agentIds.delete(id); }
+    __agentLive.clear();
+    if (agentTrail) agentTrail.geo.setDrawRange(0, 0);
+    if (agentDust) {
+      agentDust.alpha.fill(0); agentDust.active = 0;
+      agentDust.geo.attributes.aAlpha.needsUpdate = true;
+    }
+    for (const marker of agentMarkers) { marker.el.style.opacity = "0"; marker.agent = null; }
+    if (G) { applyLive(); updateHalos(); }
+    clearTrafficHeatmap();
   }
   function runCapture() {
     const cap = params.get("capture"); if (!cap) return; document.body.classList.add("capture");
@@ -1862,6 +1899,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       }
     }
     updateAgentDust(dt, performance.now());
+    if (trafficHeatEnabled) updateTrafficHeat();
     if (trailer) updateTrailer(dt);
     else if (navMode === "fly") updateFly(dt);
     else if (cam.flight) updateFlight(dt);
@@ -2053,9 +2091,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setAttachments(paths: string[]) { __attach = (paths || []).slice(); },
     notifyLiveEvent: onLiveEvent,
     notifyAgentTraversal,
+    clearTraversalObservability,
+    setTrafficHeatmapEnabled,
+    clearTrafficHeatmap,
     setHostVisible,
-    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentDustParticles: agentDust?.active ?? 0 } : null; },
-    getRenderStats() { return { frames: renderStats.frames, running: renderStats.running }; },
+    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
+    getRenderStats() { return { frames: renderStats.frames, running: renderStats.running, drawCalls: renderer.info.render.calls }; },
     showError: showFatal,
     showHint,
     applyI18n,

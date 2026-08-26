@@ -1,3 +1,5 @@
+import { normalizeTraversalEvent, type TraversalEventEnvelope } from "./observability";
+
 /**
  * Kosmos standalone — live Agent-API feed (GKOS Engine Desktop sidecar).
  *
@@ -9,14 +11,14 @@
  * instead of from a sibling graph.json).
  *
  * This module is the DOM-free, unit-testable core of that feed:
- *   - query-param parsing (`?api=...&token=...`)
+ *   - non-secret query-param parsing (`?api=...` only)
  *   - loopback-only address validation (we NEVER add a non-loopback path)
  *   - API-response → viewer-graph normalization
  *   - a connect orchestration with an injectable fetch, so the auth / error /
  *     mapping branches are all testable without a live server.
  *
  * Constraints honored here:
- *   - read-only (only GET /health and GET /graph are ever issued);
+ *   - read-only (only GET service routes are ever issued);
  *   - the token lives in memory only — this module never touches storage;
  *   - loopback-only — a non-loopback `api` is refused before any request.
  */
@@ -26,7 +28,6 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export interface ApiFeedParams {
   api: string | null;
-  token: string | null;
 }
 
 /** Trim and drop any trailing slashes from an API base URL. */
@@ -52,22 +53,20 @@ export function isLoopbackApiUrl(raw: string): boolean {
 }
 
 /**
- * Parse `?api=...&token=...` (a raw `location.search`, with or without the
- * leading `?`). Empty/missing values normalize to null.
+ * Parse the non-secret `?api=...` convenience. Tokens are deliberately ignored
+ * so URLs, browser history, logs, and shortcuts can never become credentials.
  */
 export function parseApiFeedParams(search: string): ApiFeedParams {
   const q = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const rawApi = q.get("api");
-  const rawToken = q.get("token");
   const api = rawApi ? normalizeApiBase(rawApi) : "";
-  const token = rawToken ? rawToken.trim() : "";
-  return { api: api || null, token: token || null };
+  return { api: api || null };
 }
 
-/** The two read-only routes the feed uses, derived from an API base. */
-export function buildFeedUrls(apiBase: string): { health: string; graph: string } {
+/** Unified read-only service routes used by the standalone viewer. */
+export function buildFeedUrls(apiBase: string): { health: string; capabilities: string; graph: string; events: string } {
   const base = normalizeApiBase(apiBase);
-  return { health: `${base}/health`, graph: `${base}/graph` };
+  return { health: `${base}/health`, capabilities: `${base}/capabilities`, graph: `${base}/graph`, events: `${base}/events` };
 }
 
 export interface ViewerGraph {
@@ -99,6 +98,8 @@ export interface FetchLikeResponse {
   ok: boolean;
   status: number;
   json(): Promise<any>;
+  body?: ReadableStream<Uint8Array> | null;
+  headers?: { get(name: string): string | null };
 }
 export type FetchLike = (url: string, init?: any) => Promise<FetchLikeResponse>;
 
@@ -107,11 +108,49 @@ export interface ConnectResult {
   status?: number;
   error?: string;
   health?: any;
+  capabilities?: ServiceCapabilities;
   graph?: ViewerGraph;
 }
 
+export interface ServiceFeatureCapability {
+  available: boolean;
+  configured: boolean;
+  authorized: boolean;
+  enabled: boolean;
+  reason_codes: string[];
+}
+
+export interface ServiceCapabilities {
+  schema_version: 1;
+  protocol: { id: "gkos-local-service"; version: "1.0.0-draft.1" };
+  features: Record<"graph" | "notes" | "graphiti_episodes" | "mcp" | "events" | "proposal_ingress" | "navigation" | "navigation_effects", ServiceFeatureCapability>;
+}
+
+export function normalizeCapabilitiesResponse(value: unknown): ServiceCapabilities | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as any;
+  const exactKeys = (object: any, expected: string[]) => {
+    if (!object || typeof object !== "object" || Array.isArray(object)) return false;
+    const keys = Object.keys(object).sort(), sorted = expected.slice().sort();
+    return keys.length === sorted.length && keys.every((key, index) => key === sorted[index]);
+  };
+  if (!exactKeys(v, ["schema_version", "protocol", "features"]) || !exactKeys(v.protocol, ["id", "version"])) return null;
+  if (v.schema_version !== 1 || v.protocol?.id !== "gkos-local-service" || v.protocol?.version !== "1.0.0-draft.1") return null;
+  const featureNames = ["graph", "notes", "graphiti_episodes", "mcp", "events", "proposal_ingress", "navigation", "navigation_effects"];
+  if (!exactKeys(v.features, featureNames)) return null;
+  for (const name of featureNames) {
+    const feature = v.features[name];
+    if (!exactKeys(feature, ["available", "configured", "authorized", "enabled", "reason_codes"])) return null;
+    if (![feature.available, feature.configured, feature.authorized, feature.enabled].every((item) => typeof item === "boolean")) return null;
+    if (!Array.isArray(feature.reason_codes) || feature.reason_codes.length > 8 || new Set(feature.reason_codes).size !== feature.reason_codes.length) return null;
+    if (!feature.reason_codes.every((code: unknown) => typeof code === "string" && /^[A-Z][A-Z0-9_]{0,63}$/u.test(code))) return null;
+  }
+  return v as ServiceCapabilities;
+}
+
 /**
- * Connect to the sidecar: probe `/health`, then fetch `/graph`. Read-only,
+ * Connect to the sidecar: probe `/health`, negotiate `/capabilities`, then
+ * fetch `/graph`. Read-only,
  * loopback-only, bearer-auth. Every failure mode returns a human-readable
  * `error` (unreachable, 401, bad shape) so the UI can degrade gracefully —
  * a browser CORS block surfaces here as an unreachable/network error, which
@@ -131,7 +170,7 @@ export async function connectToEngine(
     };
   }
 
-  const { health, graph } = buildFeedUrls(api);
+  const { health, capabilities, graph } = buildFeedUrls(api);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
   const init = { headers, cache: "no-store" as const };
@@ -164,7 +203,24 @@ export async function connectToEngine(
     /* health body is advisory; ignore a non-JSON health response */
   }
 
-  // 2) graph.
+  // 2) negotiate protocol/capabilities before accepting graph semantics.
+  let cres: FetchLikeResponse;
+  try { cres = await fetchImpl(capabilities, init); }
+  catch (e: any) { return { ok: false, error: `Connected to the engine, but capability negotiation failed (${e?.message || e}).` }; }
+  if (cres.status === 401) return { ok: false, status: 401, error: "The engine rejected the token (401) on /capabilities." };
+  if (!cres.ok) return { ok: false, status: cres.status, error: `The engine returned HTTP ${cres.status} for /capabilities.` };
+  let capabilityDoc: any;
+  try { capabilityDoc = await cres.json(); }
+  catch { return { ok: false, error: "The engine's /capabilities response was not valid JSON." }; }
+  capabilityDoc = normalizeCapabilitiesResponse(capabilityDoc);
+  if (!capabilityDoc) return { ok: false, error: "The engine returned an unrecognized capabilities document." };
+  const graphCapability = capabilityDoc.features.graph;
+  if (!(graphCapability.available && graphCapability.configured && graphCapability.authorized && graphCapability.enabled)) {
+    const reasons = graphCapability.reason_codes.length ? ` (${graphCapability.reason_codes.join(", ")})` : "";
+    return { ok: false, error: `The engine graph capability is not enabled for this credential${reasons}.` };
+  }
+
+  // 3) graph.
   let gres: FetchLikeResponse;
   try {
     gres = await fetchImpl(graph, init);
@@ -187,8 +243,74 @@ export async function connectToEngine(
   if (!normalized) {
     return { ok: false, error: "The engine returned an unrecognized graph shape (no nodes array)." };
   }
-  return { ok: true, status: 200, health: healthDoc, graph: normalized };
+  return { ok: true, status: 200, health: healthDoc, capabilities: capabilityDoc, graph: normalized };
 }
+
+export interface EventStreamCallbacks {
+  onEvent(event: TraversalEventEnvelope): void;
+  onState?(state: "connecting" | "connected" | "disconnected"): void;
+  onError?(message: string): void;
+}
+
+/** Authenticated fetch-stream subscription with bounded reconnect and sequence resume. */
+export function subscribeTraversalEvents(
+  params: { api: string; token: string }, callbacks: EventStreamCallbacks,
+  fetchImpl: typeof fetch = fetch,
+): { close(): void; lastSequence(): number | null } {
+  const api = normalizeApiBase(params.api); const controller = new AbortController();
+  let closed = false, last: number | null = null, lastSession: string | null = null, attempt = 0;
+  const run = async () => {
+    if (!isLoopbackApiUrl(api)) { callbacks.onError?.("Refusing non-loopback event stream."); return; }
+    while (!closed) {
+      callbacks.onState?.("connecting");
+      const headers: Record<string, string> = { Accept: "text/event-stream", Authorization: `Bearer ${params.token}` };
+      if (last != null) headers["Last-Event-ID"] = String(last);
+      try {
+        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", signal: controller.signal });
+        if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+        const contentType = response.headers?.get("content-type")?.trim().toLowerCase();
+        if (contentType !== "text/event-stream; charset=utf-8") throw new Error("unexpected event-stream content type");
+        callbacks.onState?.("connected"); attempt = 0;
+        const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = "";
+        while (!closed) {
+          const part = await reader.read(); if (part.done) break;
+          buffer += decoder.decode(part.value, { stream: true });
+          let boundary: number;
+          while ((boundary = buffer.search(/\r?\n\r?\n/)) >= 0) {
+            const block = buffer.slice(0, boundary); buffer = buffer.slice(boundary).replace(/^\r?\n\r?\n/, "");
+            const lines = block.split(/\r?\n/);
+            const eventLines = lines.filter((line) => line.startsWith("event:"));
+            const idLines = lines.filter((line) => line.startsWith("id:"));
+            const dataLines = lines.filter((line) => line.startsWith("data:"));
+            if (eventLines.length !== 1 || eventLines[0] !== "event: traversal" || idLines.length !== 1 || dataLines.length !== 1) continue;
+            const idText = idLines[0].slice(3).trim();
+            const streamId = idText == null || idText === "" ? null : Number(idText);
+            if (!Number.isSafeInteger(streamId) || Number(streamId) < 0) continue;
+            const raw = dataLines[0].slice(5).trimStart();
+            if (!raw) continue;
+            let parsed: unknown; try { parsed = JSON.parse(raw); } catch { continue; }
+            const event = normalizeTraversalEvent(parsed);
+            if (!event || event.sequence !== streamId) continue;
+            if (lastSession !== event.session_id) { lastSession = event.session_id; last = null; }
+            if (last != null && event.sequence <= last) continue;
+            callbacks.onEvent(event); last = event.sequence;
+          }
+        }
+      } catch (error: any) {
+        if (closed || error?.name === "AbortError") break;
+        callbacks.onError?.(`Traversal stream disconnected (${error?.message || error}).`);
+      }
+      callbacks.onState?.("disconnected");
+      if (closed) break;
+      const delay = Math.min(10_000, 500 * Math.pow(2, attempt++));
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  };
+  void run();
+  return { close() { closed = true; controller.abort(); }, lastSequence() { return last; } };
+}
+
+export * from "./observability";
 
 /** Probe just `/health` (connectivity dot + notes count). Never throws. */
 export async function probeHealth(
