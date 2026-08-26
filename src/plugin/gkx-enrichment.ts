@@ -7,11 +7,13 @@ import type { GkxSensitivity } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { GkxEnrichmentApplyPreviewModal } from "./gkx-enrichment-apply";
 import { requestGkxLlmJson, validateGkxLlmConfiguration } from "./gkx-llm";
+import { buildImmutableProposals, persistImmutableProposals, projectProposalConflicts, selectTriageCandidates, triageProposals, type ImmutableGkxProposal, type ProposalTriageFilters } from "./gkx-proposals";
 
 export interface GkxEnrichmentRecord {
   schema: "gkx-enrichment-proposal/1";
   proposalId: string;
   createdAt: string;
+  targetUid: string;
   path: string;
   noteHash: string;
   sensitivity: GkxSensitivity;
@@ -104,7 +106,8 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
       const suggestions = [...deterministic, ...llm].slice(0, settings.gkxEnrichmentMaxSuggestions);
       if (!suggestions.length) { skipped.push(`${file.path}: no supported suggestions`); if (stopAfterRecord) break; continue; }
       const noteHash = await sha256Text(raw);
-      const material = JSON.stringify({ path: file.path, noteHash, suggestions });
+      const createdAt = new Date().toISOString();
+      const material = JSON.stringify({ path: file.path, noteHash, suggestions, createdAt });
       const currentValues: Partial<Record<GkxEnrichmentField, string | string[]>> = {};
       const relationships = data.relationships && typeof data.relationships === "object" && !Array.isArray(data.relationships) ? data.relationships as Record<string, unknown> : {};
       for (const field of ["description", "type", "tags", "supersedes", "related_to"] as const) {
@@ -112,25 +115,50 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
         if (typeof value === "string") currentValues[field] = value;
         else if (Array.isArray(value)) currentValues[field] = value.map((item) => typeof item === "string" ? item : item && typeof item === "object" ? String((item as Record<string, unknown>).target ?? "") : "").filter(Boolean);
       }
-      records.push({ schema: "gkx-enrichment-proposal/1", proposalId: `gkxep-${(await sha256Text(material)).slice(0, 24)}`, createdAt: new Date().toISOString(), path: file.path, noteHash, sensitivity, provider: llm.length ? settings.gkxEnrichmentProvider as "local" | "lan" | "cloud" : "deterministic", model: llm.length ? settings.gkxEnrichmentModel : undefined, policy: { maxParagraphs: settings.gkxEnrichmentMaxParagraphs, maxInputChars: settings.gkxEnrichmentMaxInputChars, maxTotalInputChars: settings.gkxEnrichmentMaxTotalInputChars, maxSuggestions: settings.gkxEnrichmentMaxSuggestions, temperature: 0, tools: false, automaticWrite: false }, evidenceAssessment, evidence: blocks.map(({ text: _text, ...block }) => block), currentValues, suggestions, status: "pending", modelPass, modelIssue });
+      const targetUid = typeof data.uid === "string" ? data.uid.trim() : "";
+      if (!targetUid) { skipped.push(`${file.path}: a target UID is required for proposal quarantine`); if (stopAfterRecord) break; continue; }
+      records.push({ schema: "gkx-enrichment-proposal/1", proposalId: `gkxep-${(await sha256Text(material)).slice(0, 24)}`, createdAt, targetUid, path: file.path, noteHash, sensitivity, provider: llm.length ? settings.gkxEnrichmentProvider as "local" | "lan" | "cloud" : "deterministic", model: llm.length ? settings.gkxEnrichmentModel : undefined, policy: { maxParagraphs: settings.gkxEnrichmentMaxParagraphs, maxInputChars: settings.gkxEnrichmentMaxInputChars, maxTotalInputChars: settings.gkxEnrichmentMaxTotalInputChars, maxSuggestions: settings.gkxEnrichmentMaxSuggestions, temperature: 0, tools: false, automaticWrite: false }, evidenceAssessment, evidence: blocks.map(({ text: _text, ...block }) => block), currentValues, suggestions, status: "pending", modelPass, modelIssue });
       if (stopAfterRecord) break;
     } catch (error: any) { issues.push({ path: file.path, kind: "scan", message: String(error?.message || error), action: "This note was not included. Open it to correct the reported structure, then re-run the scan." }); }
   }
   return { records, skipped, excluded, issues };
 }
 
-async function saveReviewQueue(app: App, records: GkxEnrichmentRecord[]): Promise<string> {
-  const root = ".gkx"; const path = `${root}/review-queue.jsonl`;
-  if (!(await app.vault.adapter.exists(root))) await app.vault.createFolder(root);
-  const existing = await app.vault.adapter.exists(path) ? await app.vault.adapter.read(path) : "";
-  const ids = new Set(existing.split(/\r?\n/).filter(Boolean).flatMap((line) => { try { return [JSON.parse(line).proposalId]; } catch { return []; } }));
-  const additions = records.filter((record) => !ids.has(record.proposalId)).map((record) => JSON.stringify(record));
-  if (additions.length) await app.vault.adapter.write(path, existing.replace(/\s*$/, "") + (existing.trim() ? "\n" : "") + additions.join("\n") + "\n");
-  return path;
+async function saveProposalQuarantine(app: App, records: GkxEnrichmentRecord[]): Promise<{ created: number; unchanged: number; path: string }> {
+  const proposals = (await Promise.all(records.map((record) => buildImmutableProposals(record)))).flat();
+  const adapter = app.vault.adapter as any;
+  const result = await persistImmutableProposals({
+    exists: (path) => adapter.exists(path),
+    read: (path) => adapter.read(path),
+    write: (path, contents) => adapter.write(path, contents),
+    rename: (from, to) => adapter.rename(from, to),
+    remove: (path) => adapter.remove(path),
+    mkdir: async (path) => { try { await app.vault.createFolder(path); } catch (error) { if (!(await adapter.exists(path))) throw error; } },
+  }, proposals);
+  return { created: result.created.length, unchanged: result.unchanged.length, path: result.directory };
 }
 
 type ReviewDecision = "pending" | "accepted" | "rejected";
 interface ReviewControl { decision: ReviewDecision; text: string; }
+
+class ConfidenceBatchPreviewModal extends Modal {
+  private acknowledged = false;
+  constructor(app: App, private proposals: ImmutableGkxProposal[], private action: "select" | "accept", private onConfirm: () => void) { super(app); }
+  onOpen(): void {
+    const { contentEl } = this; contentEl.empty();
+    contentEl.createEl("h2", { text: this.action === "select" ? "Preview confidence-assisted selection" : "Preview selected candidates" });
+    contentEl.createEl("p", { text: `${this.proposals.length} visible candidate${this.proposals.length === 1 ? "" : "s"} will be ${this.action === "select" ? "selected for review" : "marked accepted for the governed apply preview"}. Confidence is evidence for triage only.` });
+    const list = contentEl.createEl("ul");
+    for (const proposal of this.proposals.slice(0, 100)) list.createEl("li", { text: `${proposal.target.path} · ${proposal.change.field} · ${Math.round(proposal.confidence * 100)}% · ${proposal.actor.id}` });
+    if (this.proposals.length > 100) list.createEl("li", { text: `…and ${this.proposals.length - 100} more` });
+    let confirmButton: HTMLButtonElement | undefined;
+    new Setting(contentEl).setName("Human acknowledgement").setDesc("Confidence approved nothing automatically. I reviewed this batch preview.")
+      .addToggle((toggle) => toggle.setValue(false).onChange((value) => { this.acknowledged = value; if (confirmButton) confirmButton.disabled = !value; }));
+    new Setting(contentEl)
+      .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()))
+      .addButton((button) => { confirmButton = button.buttonEl; confirmButton.disabled = true; button.setButtonText(this.action === "select" ? "Select for review" : "Mark selected accepted").setWarning().onClick(() => { if (!this.acknowledged) return; this.onConfirm(); this.close(); }); });
+  }
+}
 
 function reviewText(suggestion: GkxEnrichmentSuggestion): string {
   return Array.isArray(suggestion.value) ? JSON.stringify(suggestion.value) : suggestion.value;
@@ -147,11 +175,18 @@ function reviewedValue(suggestion: GkxEnrichmentSuggestion, text: string): strin
 
 class GkxEnrichmentPreviewModal extends Modal {
   private controls = new Map<string, ReviewControl>();
+  private selected = new Set<string>();
+  private filters: ProposalTriageFilters = { direction: "descending" };
+  private threshold = 0.8;
   private reviewRecords: GkxEnrichmentRecord[];
   private progressEl?: HTMLElement;
   private planButton?: HTMLButtonElement;
-  constructor(app: App, private result: Awaited<ReturnType<typeof buildRecords>>, private onApplied?: () => void) { super(app); this.reviewRecords = result.records.slice(0, 50); }
+  constructor(app: App, private result: Awaited<ReturnType<typeof buildRecords>>, private quarantinedProposals: ImmutableGkxProposal[], private onApplied?: () => void) {
+    super(app); this.reviewRecords = result.records.slice(0, 50);
+    for (const record of this.reviewRecords) record.suggestions.forEach((suggestion, index) => this.controls.set(this.key(record, index), { decision: "pending", text: reviewText(suggestion) }));
+  }
   private key(record: GkxEnrichmentRecord, index: number): string { return `${record.proposalId}:${index}`; }
+  private proposal(record: GkxEnrichmentRecord, index: number): ImmutableGkxProposal | undefined { return this.quarantinedProposals.filter((item) => item.operationId === record.proposalId)[index]; }
   private async buildApplyPlan(): Promise<void> {
     const pending = this.reviewCounts().pending;
     if (pending > 0) throw new Error(`Review or reject the ${pending} remaining proposal${pending === 1 ? "" : "s"} first.`);
@@ -195,6 +230,20 @@ class GkxEnrichmentPreviewModal extends Modal {
     for (const control of this.controls.values()) if (control.decision === "pending") control.decision = decision;
     this.onOpen();
   }
+  private visibleProposals(): ImmutableGkxProposal[] { return triageProposals(this.quarantinedProposals.filter((item) => this.reviewRecords.some((record) => record.proposalId === item.operationId)), this.filters); }
+  private selectAtThreshold(): void {
+    const visible = this.visibleProposals();
+    const ids = new Set(selectTriageCandidates(visible, this.threshold));
+    const candidates = visible.filter((item) => ids.has(item.proposalId));
+    new ConfidenceBatchPreviewModal(this.app, candidates, "select", () => { for (const item of candidates) this.selected.add(item.proposalId); this.onOpen(); }).open();
+  }
+  private acceptSelected(): void {
+    const candidates = this.quarantinedProposals.filter((item) => this.selected.has(item.proposalId));
+    new ConfidenceBatchPreviewModal(this.app, candidates, "accept", () => {
+      for (const record of this.reviewRecords) record.suggestions.forEach((_suggestion, index) => { const proposal = this.proposal(record, index); if (proposal && this.selected.has(proposal.proposalId)) (this.controls.get(this.key(record, index))!).decision = "accepted"; });
+      this.selected.clear(); this.onOpen();
+    }).open();
+  }
   onOpen(): void {
     const { contentEl } = this; contentEl.empty();
     contentEl.createEl("h2", { text: "GKX content-assisted proposals" });
@@ -215,8 +264,39 @@ class GkxEnrichmentPreviewModal extends Modal {
       .addButton((button) => button.setButtonText("Collapse all notes").onClick(() => contentEl.querySelectorAll("details.gkx-review-note").forEach((item) => item.removeAttribute("open"))))
       .addButton((button) => button.setButtonText("Reject all remaining").onClick(() => this.setRemaining("rejected")));
     contentEl.createEl("p", { text: "Evidence selection is objective and reproducible, not a claim that early prose is meaningful. No suggestion is accepted by default.", cls: "setting-item-description" });
+    const filterBox = contentEl.createEl("div", { cls: "gkx-review-filters" });
+    filterBox.createEl("h3", { text: "Confidence-assisted triage" });
+    filterBox.createEl("p", { text: "Sort, filter, and select candidates for visible review. Confidence never approves a proposal.", cls: "setting-item-description" });
+    new Setting(filterBox).setName("Sort direction")
+      .addDropdown((dropdown) => dropdown.addOption("descending", "Confidence: high to low").addOption("ascending", "Confidence: low to high").setValue(this.filters.direction).onChange((value) => { this.filters.direction = value as "descending" | "ascending"; this.onOpen(); }))
+      .addDropdown((dropdown) => dropdown.addOption("", "All fields").addOption("description", "Description").addOption("type", "Type").addOption("tags", "Tags").addOption("supersedes", "Supersedes").addOption("related_to", "Related to").setValue(this.filters.field ?? "").onChange((value) => { this.filters.field = value || undefined; this.onOpen(); }))
+      .addDropdown((dropdown) => dropdown.addOption("", "All sources").addOption("gkos-engine:deterministic", "Deterministic").addOption("local", "Local model").addOption("lan", "LAN model").addOption("cloud", "Cloud model").setValue(this.filters.source ?? "").onChange((value) => { this.filters.source = value || undefined; this.onOpen(); }));
+    new Setting(filterBox).setName("Confidence range (0–1)")
+      .addText((input) => input.setPlaceholder("Minimum").setValue(this.filters.minimumConfidence?.toString() ?? "").onChange((value) => { const parsed = Number(value); this.filters.minimumConfidence = value.trim() && Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : undefined; }))
+      .addText((input) => input.setPlaceholder("Maximum").setValue(this.filters.maximumConfidence?.toString() ?? "").onChange((value) => { const parsed = Number(value); this.filters.maximumConfidence = value.trim() && Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : undefined; }))
+      .addButton((button) => button.setButtonText("Apply filters").onClick(() => this.onOpen()));
+    new Setting(filterBox).setName("Conflict and agent filters")
+      .addDropdown((dropdown) => dropdown.addOption("", "All conflict states").addOption("conflicting", "Conflicts only").addOption("clear", "No conflicts").setValue(this.filters.conflict ?? "").onChange((value) => { this.filters.conflict = (value || undefined) as ProposalTriageFilters["conflict"]; this.onOpen(); }))
+      .addText((input) => input.setPlaceholder("Agent/actor ID").setValue(this.filters.agent ?? "").onChange((value) => { this.filters.agent = value.trim() || undefined; }))
+      .addButton((button) => button.setButtonText("Apply filters").onClick(() => this.onOpen()));
+    new Setting(filterBox).setName("Selection threshold")
+      .setDesc("Authority-bearing fields are always excluded from threshold and bulk selection.")
+      .addText((input) => input.setValue(this.threshold.toString()).onChange((value) => { const parsed = Number(value); if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) this.threshold = parsed; }))
+      .addButton((button) => button.setButtonText("Select candidates at or above threshold").onClick(() => this.selectAtThreshold()))
+      .addButton((button) => { button.setButtonText(`Review selected (${this.selected.size})`).setWarning().onClick(() => this.acceptSelected()); button.buttonEl.disabled = this.selected.size === 0; });
     if (this.result.records.length > this.reviewRecords.length) contentEl.createEl("p", { text: `This review batch is limited to the first ${this.reviewRecords.length} notes. Save the full queue, then lower the per-run note cap or process another batch before applying the remainder.`, cls: "setting-item-description" });
-    for (const record of this.reviewRecords) {
+    const visibleIds = new Set(this.visibleProposals().map((item) => item.proposalId));
+    const conflictingIds = new Set(projectProposalConflicts(this.quarantinedProposals).flatMap((item) => item.proposalIds));
+    const orderedRecords = [...this.reviewRecords].sort((a, b) => {
+      const aValues = a.suggestions.flatMap((item, index) => visibleIds.has(this.proposal(a, index)?.proposalId ?? "") ? [item.confidence] : []);
+      const bValues = b.suggestions.flatMap((item, index) => visibleIds.has(this.proposal(b, index)?.proposalId ?? "") ? [item.confidence] : []);
+      const aConfidence = this.filters.direction === "ascending" ? Math.min(...aValues) : Math.max(...aValues);
+      const bConfidence = this.filters.direction === "ascending" ? Math.min(...bValues) : Math.max(...bValues);
+      return (this.filters.direction === "ascending" ? aConfidence - bConfidence : bConfidence - aConfidence) || a.path.localeCompare(b.path);
+    });
+    for (const record of orderedRecords) {
+      const visibleSuggestions = record.suggestions.map((suggestion, index) => ({ suggestion, index, proposal: this.proposal(record, index) })).filter((item) => item.proposal && visibleIds.has(item.proposal.proposalId)).sort((a, b) => (this.filters.direction === "ascending" ? a.suggestion.confidence - b.suggestion.confidence : b.suggestion.confidence - a.suggestion.confidence));
+      if (!visibleSuggestions.length) continue;
       const details = contentEl.createEl("details", { cls: "gkx-review-note" }); details.createEl("summary", { text: `${record.path} (${record.suggestions.length}) · ${record.modelPass === "enhanced" ? "model-enhanced" : "deterministic-only"}` });
       if (record.modelIssue) {
         const issue = details.createEl("div", { cls: "gkx-review-issue" });
@@ -225,12 +305,15 @@ class GkxEnrichmentPreviewModal extends Modal {
         issue.createEl("div", { text: "You can still reconcile the deterministic proposals below. To try the model again, close this window, adjust its timeout/model if needed, and re-run the scan. No partial model response is retained." });
       }
       details.createEl("p", { text: `Evidence quality: ${record.evidenceAssessment.status} (${Math.round(record.evidenceAssessment.qualityScore * 100)}%) — ${record.evidenceAssessment.reasons.join(" ")}` });
-      record.suggestions.forEach((suggestion, index) => {
+      visibleSuggestions.forEach(({ suggestion, index, proposal }) => {
         const key = this.key(record, index); const control: ReviewControl = this.controls.get(key) ?? { decision: "pending", text: reviewText(suggestion) }; this.controls.set(key, control);
         const current = record.currentValues[suggestion.field];
+        const evidenceLines = proposal!.evidence.map((item) => item.startLine === item.endLine ? `${item.startLine}` : `${item.startLine}–${item.endLine}`).join(", ");
         const row = new Setting(details)
-          .setName(`${suggestion.field} · ${Math.round(suggestion.confidence * 100)}% · ${suggestion.source}`)
-          .setDesc(`Current: ${JSON.stringify(current ?? "<absent>")} · Reason: ${suggestion.reason}`)
+          .setName(`${suggestion.field} · ${Math.round(suggestion.confidence * 100)}% · ${suggestion.source}${conflictingIds.has(proposal!.proposalId) ? " · conflict" : ""}`)
+          .setDesc(`Current: ${JSON.stringify(current ?? "<absent>")} · Confidence explanation: ${suggestion.reason} · Evidence lines: ${evidenceLines}`)
+          .addButton((button) => button.setButtonText("Open evidence").setTooltip(`Open ${record.path} at evidence lines ${evidenceLines}`).onClick(async () => { await this.app.workspace.openLinkText(record.path, "", true); new Notice(`Evidence for this proposal is bounded to lines ${evidenceLines}.`, 6000); }))
+          .addToggle((toggle) => toggle.setTooltip("Select for batch review").setValue(this.selected.has(proposal!.proposalId)).onChange((value) => { if (value) this.selected.add(proposal!.proposalId); else this.selected.delete(proposal!.proposalId); }))
           .addDropdown((dropdown) => dropdown
             .addOption("pending", "Needs review")
             .addOption("accepted", "Accept")
@@ -246,7 +329,7 @@ class GkxEnrichmentPreviewModal extends Modal {
     if (unattachedIssues.length) { const d = contentEl.createEl("details"); d.createEl("summary", { text: `Run issues (${unattachedIssues.length})` }); for (const issue of unattachedIssues.slice(0, 50)) { const item = d.createEl("div", { cls: "gkx-review-issue" }); item.createEl("strong", { text: issue.path ? `${issue.path}: ` : "" }); item.createSpan({ text: issue.message }); item.createEl("div", { text: issue.action, cls: "setting-item-description" }); } }
     new Setting(contentEl)
       .addButton((button) => button.setButtonText("Close").onClick(() => this.close()))
-      .addButton((button) => button.setButtonText("Save pending queue").onClick(async () => { const path = await saveReviewQueue(this.app, this.result.records); new Notice(`Vault Kosmos: proposals saved to ${path}. No note frontmatter was changed.`, 10000); }))
+      .addButton((button) => button.setButtonText("Save immutable proposals").onClick(async () => { const saved = await saveProposalQuarantine(this.app, this.result.records); new Notice(`Vault Kosmos: ${saved.created} proposals saved to ${saved.path}; ${saved.unchanged} already existed unchanged. No note or decision was changed.`, 10000); }))
       .addButton((button) => {
         this.planButton = button.buttonEl;
         button.setButtonText("Build governed apply plan").setWarning().onClick(async () => {
@@ -284,6 +367,10 @@ export async function openGkxEnrichmentWorkflow(app: App, settings: AgentSetting
     if (["lan", "cloud"].includes(settings.gkxEnrichmentProvider) && !(await confirmNetworkRun(app, settings))) return;
   }
   const notice = new Notice("Vault Kosmos: building bounded GKX enrichment proposals…", 0);
-  try { const result = await buildRecords(app, settings); notice.hide(); new GkxEnrichmentPreviewModal(app, result, onApplied).open(); }
+  try {
+    const result = await buildRecords(app, settings);
+    const proposals = (await Promise.all(result.records.map((record) => buildImmutableProposals(record)))).flat();
+    notice.hide(); new GkxEnrichmentPreviewModal(app, result, proposals, onApplied).open();
+  }
   catch (error: any) { notice.hide(); new Notice(`Vault Kosmos enrichment stopped: ${String(error?.message || error)}. No notes were changed.`, 15000); }
 }
