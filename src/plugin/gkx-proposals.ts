@@ -3,6 +3,9 @@ import type { GkxEnrichmentField, GkxEnrichmentSuggestion } from "gkos-engine";
 export const GKX_PROPOSAL_SCHEMA = "gkx-proposal/1" as const;
 export const GKX_PROPOSAL_CONTRACT = "GKOS-PROPOSAL-QUARANTINE-1.0.0-draft.1" as const;
 export const GKX_PROPOSAL_ROOT = ".gkx/proposals" as const;
+export const GKX_DECISION_SCHEMA = "gkx-proposal-decision/1" as const;
+export const GKX_DECISION_CONTRACT = "GKOS-PROPOSAL-DECISION-1.0.0-draft.1" as const;
+export const GKX_DECISION_ROOT = ".gkx/decisions" as const;
 
 export const AUTHORITY_BEARING_FIELDS = new Set([
   "approval", "approval_state", "effective", "effective_state", "uid", "sensitivity",
@@ -43,6 +46,40 @@ export interface ImmutableGkxProposal {
   };
 }
 
+export interface CredentialBoundHumanActorRef {
+  kind: "credential-bound-human";
+  id: string;
+  credentialId: string;
+  credentialBound: true;
+}
+
+export type ProposalDisposition = "accepted" | "rejected" | "deferred";
+
+export interface ImmutableGkxDecision {
+  schema: typeof GKX_DECISION_SCHEMA;
+  contractVersion: typeof GKX_DECISION_CONTRACT;
+  decisionId: string;
+  proposal: { id: string; contentHash: string };
+  actor: CredentialBoundHumanActorRef;
+  disposition: ProposalDisposition;
+  source: { path: string; sourceSha256: string };
+  planSha256?: string;
+  reviewedValueSha256?: string;
+  createdAt: string;
+  operationId: string;
+  contentHash: string;
+}
+
+export interface BuildProposalDecisionInput {
+  proposal: ImmutableGkxProposal;
+  actor: CredentialBoundHumanActorRef;
+  disposition: ProposalDisposition;
+  createdAt: string;
+  operationId: string;
+  planSha256?: string;
+  reviewedValue?: unknown;
+}
+
 export interface EnrichmentProposalSource {
   proposalId: string;
   createdAt: string;
@@ -70,6 +107,12 @@ export interface PersistProposalResult {
   unchanged: string[];
 }
 
+export interface PersistDecisionResult {
+  directory: typeof GKX_DECISION_ROOT;
+  created: string[];
+  unchanged: string[];
+}
+
 export interface ProposalConflict {
   targetUid: string;
   field: GkxEnrichmentField;
@@ -90,8 +133,16 @@ export interface ProposalTriageFilters {
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 const SHA256 = /^(?:sha256:)?[0-9a-f]{64}$/;
 const PROPOSAL_ID = /^gkxp-[0-9a-f]{24}$/;
+const DECISION_ID = /^gkxd-[0-9a-f]{24}$/;
+const AUDIT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 function codeUnitCompare(a: string, b: string): number { return a < b ? -1 : a > b ? 1 : 0; }
+
+function hasExactKeys(value: unknown, expected: string[]): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value).sort(), wanted = expected.slice().sort();
+  return keys.length === wanted.length && keys.every((key, index) => key === wanted[index]);
+}
 
 function stable(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stable);
@@ -172,6 +223,149 @@ export function serializeProposalYaml(proposal: ImmutableGkxProposal): string { 
 export async function verifyProposalContentHash(proposal: ImmutableGkxProposal): Promise<boolean> {
   const { contentHash, ...content } = proposal;
   return contentHash === `sha256:${await proposalSha256(canonicalJson(content))}`;
+}
+
+/** Parse only exact canonical proposal bytes; callers never infer from a filename. */
+export async function parseImmutableProposalYaml(bytes: string): Promise<ImmutableGkxProposal> {
+  let proposal: ImmutableGkxProposal;
+  try { proposal = JSON.parse(bytes) as ImmutableGkxProposal; } catch { throw new Error("proposal sidecar is not valid canonical YAML/JSON"); }
+  if (!hasExactKeys(proposal, ["schema", "contractVersion", "proposalId", "actor", "target", "change", "confidence", "evidence", "createdAt", "operationId", "status", "contentHash", "provenance"])) throw new Error("proposal sidecar has an unexpected shape");
+  if (proposal.schema !== GKX_PROPOSAL_SCHEMA || proposal.contractVersion !== GKX_PROPOSAL_CONTRACT || !PROPOSAL_ID.test(proposal.proposalId)) throw new Error("proposal sidecar contract or ID is invalid");
+  if (serializeProposalYaml(proposal) !== bytes || !(await verifyProposalContentHash(proposal))) throw new Error("proposal sidecar bytes or content hash are invalid");
+  if (!hasExactKeys(proposal.actor, ["kind", "id", "credentialBound"]) || !["credential-bound-agent", "local-human", "deterministic-engine"].includes(proposal.actor.kind) || !AUDIT_ID.test(proposal.actor.id) || typeof proposal.actor.credentialBound !== "boolean") throw new Error("proposal actor is invalid");
+  if (proposal.actor.kind === "credential-bound-agent" && !proposal.actor.credentialBound) throw new Error("proposal agent identity is not credential-bound");
+  if (!hasExactKeys(proposal.target, ["uid", "path", "sourceSha256"]) || !proposal.target.uid.trim()) throw new Error("proposal target identity is invalid");
+  assertSafeVaultRelativePath(proposal.target.path);
+  if (!/^[0-9a-f]{64}$/.test(proposal.target.sourceSha256) || proposal.status !== "pending") throw new Error("proposal target hash or status is invalid");
+  if (!hasExactKeys(proposal.change, ["field", "canonicalValue"]) || !["description", "type", "tags", "supersedes", "related_to"].includes(proposal.change.field) || canonicalJson(canonicalValue(proposal.change.field, proposal.change.canonicalValue)) !== canonicalJson(proposal.change.canonicalValue)) throw new Error("proposal change is not canonical");
+  if (!Number.isFinite(proposal.confidence) || proposal.confidence < 0 || proposal.confidence > 1 || !Array.isArray(proposal.evidence) || !proposal.evidence.length || proposal.evidence.length > 16) throw new Error("proposal confidence or evidence is invalid");
+  if (proposal.evidence.some((item) => !hasExactKeys(item, ["blockId", "fingerprint", "startLine", "endLine"]) || !Number.isSafeInteger(item.blockId) || !/^sha256:[0-9a-f]{64}$/.test(item.fingerprint) || !Number.isSafeInteger(item.startLine) || !Number.isSafeInteger(item.endLine) || item.startLine < 1 || item.endLine < item.startLine)) throw new Error("proposal evidence is invalid");
+  const proposalCreatedAt = new Date(proposal.createdAt);
+  if (!/^gkxep-[0-9a-f]{24}$/.test(proposal.operationId) || !Number.isFinite(proposalCreatedAt.getTime()) || proposalCreatedAt.toISOString() !== proposal.createdAt) throw new Error("proposal operation or creation time is invalid");
+  const provenanceKeys = proposal.provenance?.model === undefined ? ["producer", "provider", "automaticApproval"] : ["producer", "provider", "model", "automaticApproval"];
+  if (!hasExactKeys(proposal.provenance, provenanceKeys) || !proposal.provenance.producer || !["deterministic", "local", "lan", "cloud"].includes(proposal.provenance.provider) || proposal.provenance.automaticApproval !== false || (proposal.provenance.model !== undefined && !proposal.provenance.model)) throw new Error("proposal provenance is invalid");
+  const identityHash = await proposalSha256(canonicalJson({ operationId: proposal.operationId, target: proposal.target, change: proposal.change, evidence: proposal.evidence, actor: proposal.actor }));
+  if (proposal.proposalId !== `gkxp-${identityHash.slice(0, 24)}`) throw new Error("proposal identity hash is invalid");
+  return proposal;
+}
+
+export async function buildImmutableProposalDecision(input: BuildProposalDecisionInput): Promise<ImmutableGkxDecision> {
+  const { proposal, actor, disposition } = input;
+  if (!(await verifyProposalContentHash(proposal)) || !PROPOSAL_ID.test(proposal.proposalId)) throw new Error("decision requires an intact immutable proposal");
+  assertSafeVaultRelativePath(proposal.target.path);
+  if (!SHA256.test(proposal.target.sourceSha256)) throw new Error("decision proposal source hash is invalid");
+  if (actor.kind !== "credential-bound-human" || actor.credentialBound !== true || !AUDIT_ID.test(actor.id) || !/^sha256:[0-9a-f]{64}$/.test(actor.credentialId)) throw new Error("decision requires a credential-bound human actor");
+  if (proposal.actor.kind === "credential-bound-agent" && proposal.actor.id === actor.id) throw new Error("an agent cannot approve its own proposal");
+  if (!["accepted", "rejected", "deferred"].includes(disposition)) throw new Error("decision disposition is invalid");
+  if (!AUDIT_ID.test(input.operationId)) throw new Error("decision operation ID is invalid");
+  const created = new Date(input.createdAt);
+  if (!Number.isFinite(created.getTime()) || created.toISOString() !== input.createdAt) throw new Error("decision creation time must be canonical UTC");
+  if (input.planSha256 !== undefined && !/^[0-9a-f]{64}$/.test(input.planSha256)) throw new Error("decision plan SHA-256 is invalid");
+  if (disposition === "accepted" && (!input.planSha256 || input.reviewedValue === undefined)) throw new Error("accepted decisions require a reviewed value and plan hash");
+  if (disposition !== "accepted" && input.reviewedValue !== undefined) throw new Error("only accepted decisions may bind a reviewed value");
+  const semantic = {
+    schema: GKX_DECISION_SCHEMA,
+    contractVersion: GKX_DECISION_CONTRACT,
+    proposal: { id: proposal.proposalId, contentHash: proposal.contentHash },
+    actor,
+    disposition,
+    source: { path: proposal.target.path, sourceSha256: proposal.target.sourceSha256.replace(/^sha256:/, "") },
+    ...(input.planSha256 ? { planSha256: input.planSha256 } : {}),
+    ...(input.reviewedValue !== undefined ? { reviewedValueSha256: `sha256:${await proposalSha256(canonicalJson(input.reviewedValue))}` } : {}),
+    operationId: input.operationId,
+  };
+  const decisionId = `gkxd-${(await proposalSha256(canonicalJson(semantic))).slice(0, 24)}`;
+  const content = { ...semantic, decisionId, createdAt: input.createdAt };
+  return { ...content, contentHash: `sha256:${await proposalSha256(canonicalJson(content))}` };
+}
+
+export function serializeDecisionYaml(decision: ImmutableGkxDecision): string { return `${canonicalJson(decision)}\n`; }
+
+export async function verifyDecisionContentHash(decision: ImmutableGkxDecision): Promise<boolean> {
+  const { contentHash, ...content } = decision;
+  return contentHash === `sha256:${await proposalSha256(canonicalJson(content))}`;
+}
+
+function semanticDecisionBytes(decision: ImmutableGkxDecision): string {
+  const { createdAt: _createdAt, contentHash: _contentHash, ...semantic } = decision;
+  return canonicalJson(semantic);
+}
+
+async function isExistingDecisionEquivalent(bytes: string, incoming: ImmutableGkxDecision): Promise<boolean> {
+  let existing: ImmutableGkxDecision;
+  try { existing = JSON.parse(bytes) as ImmutableGkxDecision; } catch { return false; }
+  try { await assertImmutableDecision(existing); } catch { return false; }
+  return serializeDecisionYaml(existing) === bytes
+    && existing.decisionId === incoming.decisionId
+    && semanticDecisionBytes(existing) === semanticDecisionBytes(incoming);
+}
+
+async function assertImmutableDecision(decision: ImmutableGkxDecision): Promise<void> {
+  const optional = [decision.planSha256 === undefined ? null : "planSha256", decision.reviewedValueSha256 === undefined ? null : "reviewedValueSha256"].filter((item): item is string => item !== null);
+  if (!hasExactKeys(decision, ["schema", "contractVersion", "decisionId", "proposal", "actor", "disposition", "source", "createdAt", "operationId", "contentHash", ...optional])) throw new Error("decision record has an unexpected shape");
+  if (decision.schema !== GKX_DECISION_SCHEMA || decision.contractVersion !== GKX_DECISION_CONTRACT || !DECISION_ID.test(decision.decisionId)) throw new Error("decision contract or ID is invalid");
+  if (!hasExactKeys(decision.proposal, ["id", "contentHash"]) || !PROPOSAL_ID.test(decision.proposal.id) || !/^sha256:[0-9a-f]{64}$/.test(decision.proposal.contentHash)) throw new Error("decision proposal binding is invalid");
+  if (!hasExactKeys(decision.actor, ["kind", "id", "credentialId", "credentialBound"]) || decision.actor.kind !== "credential-bound-human" || decision.actor.credentialBound !== true || !AUDIT_ID.test(decision.actor.id) || !/^sha256:[0-9a-f]{64}$/.test(decision.actor.credentialId)) throw new Error("decision actor binding is invalid");
+  if (!hasExactKeys(decision.source, ["path", "sourceSha256"]) || !/^[0-9a-f]{64}$/.test(decision.source.sourceSha256)) throw new Error("decision source binding is invalid");
+  assertSafeVaultRelativePath(decision.source.path);
+  if (!["accepted", "rejected", "deferred"].includes(decision.disposition) || !AUDIT_ID.test(decision.operationId)) throw new Error("decision disposition or operation is invalid");
+  const created = new Date(decision.createdAt);
+  if (!Number.isFinite(created.getTime()) || created.toISOString() !== decision.createdAt) throw new Error("decision creation time is invalid");
+  if (decision.planSha256 !== undefined && !/^[0-9a-f]{64}$/.test(decision.planSha256)) throw new Error("decision plan binding is invalid");
+  if (decision.disposition === "accepted" && (!decision.planSha256 || !/^sha256:[0-9a-f]{64}$/.test(decision.reviewedValueSha256 ?? ""))) throw new Error("accepted decision bindings are incomplete");
+  if (decision.disposition !== "accepted" && decision.reviewedValueSha256 !== undefined) throw new Error("non-accepted decision has a reviewed value binding");
+  if (!(await verifyDecisionContentHash(decision))) throw new Error(`decision content hash is invalid: ${decision.decisionId}`);
+  const { decisionId: _decisionId, createdAt: _createdAt, contentHash: _contentHash, ...semantic } = decision;
+  const identityHash = await proposalSha256(canonicalJson(semantic));
+  if (decision.decisionId !== `gkxd-${identityHash.slice(0, 24)}`) throw new Error("decision identity hash is invalid");
+}
+
+function decisionPath(decisionId: string): string {
+  if (!DECISION_ID.test(decisionId)) throw new Error("decision ID is unsafe");
+  return `${GKX_DECISION_ROOT}/${decisionId}.yaml`;
+}
+
+/** Atomic per-record decision persistence with a complete collision preflight. */
+export async function persistImmutableDecisions(adapter: ProposalStorageAdapter, decisions: ImmutableGkxDecision[]): Promise<PersistDecisionResult> {
+  const prepared = decisions.map((decision) => ({ decision, path: decisionPath(decision.decisionId), bytes: serializeDecisionYaml(decision) }));
+  const unique = new Map<string, typeof prepared[number]>();
+  for (const item of prepared) {
+    await assertImmutableDecision(item.decision);
+    const prior = unique.get(item.decision.decisionId);
+    if (prior && prior.bytes !== item.bytes) throw new Error(`different decision bytes share ID ${item.decision.decisionId}`);
+    unique.set(item.decision.decisionId, item);
+  }
+  const ordered = [...unique.values()].sort((a, b) => codeUnitCompare(a.path, b.path));
+  const unchanged = new Set<string>();
+  // Preflight the whole batch before creating even one decision record.
+  for (const item of ordered) if (await adapter.exists(item.path)) {
+    const existing = await adapter.read(item.path);
+    if (existing !== item.bytes && !(await isExistingDecisionEquivalent(existing, item.decision))) throw new Error(`immutable decision collision at ${item.path}`);
+    unchanged.add(item.path);
+  }
+  await ensureDirectory(adapter, GKX_DECISION_ROOT);
+  const result: PersistDecisionResult = { directory: GKX_DECISION_ROOT, created: [], unchanged: [] };
+  for (const item of ordered) {
+    if (unchanged.has(item.path)) { result.unchanged.push(item.path); continue; }
+    const temp = `${GKX_DECISION_ROOT}/.${item.decision.decisionId}.${item.decision.contentHash.slice(-12)}.tmp`;
+    try {
+      if (await adapter.exists(temp) && await adapter.read(temp) !== item.bytes) throw new Error(`different temporary decision bytes exist at ${temp}`);
+      if (!(await adapter.exists(temp))) await adapter.write(temp, item.bytes);
+      if (await adapter.read(temp) !== item.bytes) throw new Error(`temporary decision verification failed at ${temp}`);
+      if (await adapter.exists(item.path)) {
+        const existing = await adapter.read(item.path);
+        if (existing !== item.bytes && !(await isExistingDecisionEquivalent(existing, item.decision))) throw new Error(`immutable decision collision at ${item.path}`);
+        await adapter.remove(temp); result.unchanged.push(item.path); continue;
+      }
+      await adapter.rename(temp, item.path);
+      if (await adapter.read(item.path) !== item.bytes) throw new Error(`decision verification failed at ${item.path}`);
+      result.created.push(item.path);
+    } catch (error) {
+      try { if (await adapter.exists(temp)) await adapter.remove(temp); } catch { /* retain original failure */ }
+      throw error;
+    }
+  }
+  return result;
 }
 
 function semanticProposalBytes(proposal: ImmutableGkxProposal): string {
