@@ -145,4 +145,16 @@ test("reconciliation distinguishes safe, incremental, full, and blocking states"
 
   const corruptIntent = evaluateReconciliation({ ...base, intent: { ...empty, schemaVersion: 2 } });
   assert.equal(corruptIntent.classification, "block");
+
+  for (const corrupt of [
+    { ...base, expected: null },
+    { ...base, current: [] },
+    { ...base, intent: null },
+    { ...base, intent: { ...empty, reasons: null } },
+    null,
+  ]) {
+    const decision = evaluateReconciliation(corrupt);
+    assert.equal(decision.classification, "block");
+    assert.ok(decision.blockingReasons.length > 0);
+  }
 });

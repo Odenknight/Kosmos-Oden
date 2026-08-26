@@ -91,8 +91,13 @@ function validDigest(value: unknown): value is string {
   return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
 }
 
-function validateSnapshot(snapshot: ReconciliationSnapshot, label: string): string[] {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateSnapshot(snapshot: unknown, label: string): string[] {
   const failures: string[] = [];
+  if (!isRecord(snapshot)) return [`${label} snapshot is invalid`];
   for (const field of ["corpusDigest", "configurationDigest", "policyDigest", "ownershipDigest", "checkpointDigest", "journalDigest"] as const) {
     if (!validDigest(snapshot[field])) failures.push(`${label}.${field} is invalid`);
   }
@@ -116,13 +121,19 @@ function compareSnapshots(expected: ReconciliationSnapshot, current: Reconciliat
 }
 
 export function evaluateReconciliation(input: ReconciliationEvaluation): ReconciliationDecision {
+  if (!isRecord(input)) {
+    return { classification: "block", scopes: [], mismatches: [], blockingReasons: ["reconciliation evaluation is invalid or corrupt"] };
+  }
   const blockingReasons = [
     ...validateSnapshot(input.expected, "expected"),
     ...validateSnapshot(input.current, "current"),
   ];
-  if (input.intent.schemaVersion !== 1 || !Number.isSafeInteger(input.intent.revision) || input.intent.revision < 0
+  if (!isRecord(input.intent)
+    || input.intent.schemaVersion !== 1 || !Number.isSafeInteger(input.intent.revision) || Number(input.intent.revision) < 0
     || typeof input.intent.fullRequired !== "boolean"
+    || !Array.isArray(input.intent.reasons)
     || input.intent.reasons.some((reason) => !REASON_ORDER.includes(reason))
+    || !Array.isArray(input.intent.affectedScopes)
     || input.intent.affectedScopes.some((scope) => normalizeScope(scope) !== scope)) {
     blockingReasons.push("persisted reconciliation intent is invalid or corrupt");
   }
@@ -131,12 +142,15 @@ export function evaluateReconciliation(input: ReconciliationEvaluation): Reconci
   if (input.unresolvedRecovery) blockingReasons.push("startup recovery is unresolved");
   if (blockingReasons.length) return { classification: "block", scopes: [], mismatches: [], blockingReasons };
 
-  const mismatches = compareSnapshots(input.expected, input.current);
-  const scopes = [...new Set(input.intent.affectedScopes)].sort(compareCodeUnits);
-  if (mismatches.length === 0 && input.intent.reasons.length === 0) return { classification: "safe", scopes: [], mismatches, blockingReasons: [] };
+  const expected = input.expected as ReconciliationSnapshot;
+  const current = input.current as ReconciliationSnapshot;
+  const intent = input.intent as unknown as PersistedReconciliationIntent;
+  const mismatches = compareSnapshots(expected, current);
+  const scopes = [...new Set(intent.affectedScopes)].sort(compareCodeUnits);
+  if (mismatches.length === 0 && intent.reasons.length === 0) return { classification: "safe", scopes: [], mismatches, blockingReasons: [] };
 
   const structuralMismatch = mismatches.some((field) => ["configurationDigest", "policyDigest", "ownershipDigest", "checkpointDigest", "journalDigest"].includes(field));
-  if (input.intent.fullRequired || !input.dependencySetComplete || structuralMismatch || scopes.length === 0) {
+  if (intent.fullRequired || input.dependencySetComplete !== true || structuralMismatch || scopes.length === 0) {
     return { classification: "full", scopes: [], mismatches, blockingReasons: [] };
   }
   return { classification: "incremental", scopes, mismatches, blockingReasons: [] };
