@@ -1,14 +1,16 @@
 # Kosmos-Oden Standalone uplift baseline
 
-Date: 2026-08-26  
-Host: Windows NT 10.0.26200.0, AMD64  
+Date: 2026-08-26
+
+Host: Windows NT 10.0.26200.0, AMD64
+
 Status: Phase 0 implementation baseline; not release qualification
 
 ## Repository coordinates
 
 | Repository | Clean starting coordinate | Qualified Phase 0 coordinate | Branch/tag |
 |---|---|---|---|
-| Kosmos-Oden | `a7113c0ca3be8dd230a9549940e2f387d4cb2a96` | `bc55832` | `feature/kosmos-standalone-v0.85`; no tag at the starting commit |
+| Kosmos-Oden | `a7113c0ca3be8dd230a9549940e2f387d4cb2a96` | `bc5583214bdd019bc78f4f5dbef1797bfdb26063` | `feature/kosmos-standalone-v0.85`; no tag at the starting commit |
 | GKOS-Engine | `e29e04bdad1cd192a25eba2d682a4c46774def28` | `fe190feae101db1900201cdc09a5984dafa6f969` | `integration/kosmos-standalone-20260826`; no tag at the starting commit |
 
 The Kosmos branch starts from `origin/main@a7113c0`. The Engine branch starts
