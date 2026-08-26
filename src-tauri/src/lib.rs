@@ -8,7 +8,6 @@ use tauri::{Manager, State};
 
 const SERVICE_URL: &str = "http://127.0.0.1:4814";
 
-#[derive(Clone)]
 struct DesktopState {
     supervisor: Supervisor,
     state_root: PathBuf,

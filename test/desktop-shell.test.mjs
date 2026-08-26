@@ -29,6 +29,7 @@ test("desktop shell keeps write authority absent and secrets out of process argu
   assert.match(rust, /RunEvent::ExitRequested/);
   assert.match(rust, /pub fn shutdown\(&self\)/);
   assert.doesNotMatch(rust, /Arc::strong_count/);
+  assert.doesNotMatch(read("src-tauri/src/lib.rs"), /derive\(Clone\)[\s\S]{0,80}struct DesktopState/);
   assert.match(read("src-tauri/.gitignore"), /^\/gen\/schemas\/$/m);
 });
 
