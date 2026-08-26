@@ -1,383 +1,214 @@
-# Kosmos-Oden (Vault Kosmos) — v0.8.0
+# Kosmos-Oden
 
-> **Portfolio position** · Product: Kosmos-Oden · Repository: `Odenknight/Kosmos-Oden`
-> Tier: T3 · GKX schema: GKX current (2.3 line)
-> Engine dependency: consumes GKOS-Engine `v2.1.1`
-> Lifecycle: Active · Relationships: active continuation of Kosmos-Oden-Lite (§3.1)
-> Authority for this block: GKOS-REGISTRY-001
+Turn a folder of Markdown notes into a little universe you can explore.
 
-**Version 0.8.0** — a stable release with a responsive 3D "Local Cluster of Galaxies" view, human-editable GKX records, GKOS-Engine v2.1.1, live MCP agent traversal comet trails, portable UTC note timestamps, an origin-separated Graphiti 0.29 adapter, and native Nextcloud WebDAV sync. KRS is built on a fork and rebuild of [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos).
+Kosmos-Oden maps top-level folders to galaxies, connected notes to stars and
+planets, loose notes to asteroids, and attachments to an outer Oort cloud. It
+is a visual projection of your files: the sky is playful, but your Markdown
+remains the source of truth.
 
-Vault Kosmos turns your notes into a night sky you can fly through. Your most important, most-connected notes shine as **stars**; the notes linked to them orbit as **planets** and **moons**; stray notes drift by as **asteroids**; each top-level folder becomes its own **galaxy**. Images, PDFs and other attachments float in a faint outer shell (the **Oort cloud**), just like the icy debris at the edge of a real solar system.
+> Development status: this branch is an internal-alpha uplift. The offline
+> viewer and Obsidian plugin are usable from source, but the new standalone
+> service, managed-MOC write plane, native installers, signing, notarization,
+> and cross-platform release qualification are not complete. Package metadata
+> still identifies version 0.8.0; no 0.85 release is claimed here.
 
-The visualization changes nothing — Kosmos only *looks* at your notes. Close the view and your vault is exactly as you left it. Rendering runs locally, and a single `.html` file can render your notes without Obsidian at all. Separate GKX write workflows and optional Nextcloud sync are explicit, disabled-by-default features described below.
+![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
-Kosmos-Oden is a visualization product using GKOS/GKX concepts. Read-only
-visualization does not confer approval, promotion, or activation authority,
-and the visualization changes no source content. Product behavior and tests do
-not amend gkos-standard or establish a GKOS conformance result.
+## Pick your launchpad
 
-![A full Kosmos-Oden vault rendered as a navigable night-sky knowledge graph](docs/assets/kosmos-oden-night-sky.png)
+### Open the standalone sky
 
-![A focused Kosmos-Oden view showing labeled projects and their lineage links](docs/assets/kosmos-oden-lineage-traversal.png)
+`kosmos-oden-stand-alone.html` is a single offline file with the renderer and
+parser bundled inside it. It does not need Obsidian, Node.js, a web server, or
+an internet connection.
 
-Navigation is also source-content read-only. Enabling it changes only which
-existing note is selected as a visual MOC center; it never creates, renames,
-rewrites, archives, or deletes a note. Kosmos-Oden does not configure an Engine
-Governance Store, so MOC-name promotion and governed re-entry recording are not
-available in this release.
+1. Open `kosmos-oden-stand-alone.html` in a current browser.
+2. Choose **Open Knowledge Folder**.
+3. Select the root of your Markdown or Obsidian vault.
 
-## Two ways to use it
+Chromium-based browsers can grant a reusable directory handle and rescan while
+the page stays open. Other browsers can import a one-time folder snapshot. In
+either mode the viewer reads the selected files; it does not rewrite them.
 
-| | |
+### Fly from Obsidian
+
+For source builds, copy `manifest.json`, `main.js`, and `styles.css` into
+`<vault>/.obsidian/plugins/vault-kosmos/`, enable the plugin, and run **Open
+Vault Kosmos**. The view updates from Obsidian vault events and keeps the same
+cosmology and renderer as the standalone page.
+
+See [the community-plugin guide](docs/COMMUNITY-PLUGIN.md) for packaging and
+release details. This uplift branch is not a published community-plugin
+release.
+
+## What you can explore
+
+- Galaxies, stars, planets, moons, asteroids, and attachments derived from one
+  shared GKOS-Engine graph.
+- Canonical lineage and a Chrono view for seeing which note version was valid
+  at a selected time.
+- Stable, distinct trails for named agents when authorized traversal events
+  are available.
+- An optional **Traffic Heatmap** that brightens recently visited nodes. It is
+  off by default and measures recent visits only—not truth, quality,
+  importance, fuel, cost, or model confidence.
+- Explicit traversal-session recording and replay at 1x, 2x, or 5x. A session
+  contains redacted event envelopes, not rendered frames, and is bounded to
+  5,000 events or 2 MB, whichever comes first. Recording is in memory and is
+  never persisted unless you choose **Export session**.
+- Offline graph and Graphiti exports built in memory.
+- Optional, separately configured Nextcloud WebDAV sync in the Obsidian
+  plugin. It is not part of ordinary read-only viewing.
+
+Drag to orbit, scroll or pinch to zoom, and select a body to focus its
+neighbors. The Overview, Focus, Depth, and Fly modes offer different ways to
+move through the cluster; Chrono lets you scrub the graph through recorded GKX
+validity times. The full source-onboarding paths for GKX notes and the existing
+Obsidian Agent API remain documented below.
+
+## Optional local Engine connection
+
+The standalone viewer contains a client for a loopback-only local service. It
+can negotiate capabilities, fetch an authorized graph, and consume traversal
+events over an authenticated `fetch()` stream. The non-secret convenience URL
+may contain `?api=http://127.0.0.1:4814`.
+
+Credentials never belong in that URL. Query-token support has been removed
+from the standalone client. Enter the viewer credential in the password field,
+or let the internal-alpha desktop shell provide it through secure IPC. The
+client refuses non-loopback addresses.
+
+The matching unified Engine service is still on a separate draft Engine
+integration branch. Its contract foundation is not the same thing as an
+activated runtime. A live graph/MCP/event end-to-end connection is therefore
+not claimed for this Kosmos branch yet. Offline folder and snapshot mode remain
+available without it.
+
+## Suggestions stay suggestions
+
+Kosmos can help a reviewer sort and filter GKX enrichment candidates by
+confidence, but confidence grants no authority and nothing is auto-approved.
+
+When the optional review workflow is used:
+
+- pending proposals are immutable records under `.gkx/proposals/`;
+- accepted, rejected, or deferred human decisions are separate immutable
+  records under `.gkx/decisions/`;
+- a decision binds the proposal and reviewed plan by hashes;
+- the local human reviewer identity is credential-bound through Obsidian
+  Secret Storage, while the secret itself is never written to the decision;
+- accepted changes still pass through the existing explicit acknowledgement,
+  backup, source-hash recheck, guarded apply, and separate result receipt.
+
+An agent cannot approve its own proposal. Proposal records do not modify a
+source note, and proposed values do not become effective merely because they
+exist. Details are in [GKX Content-Assisted Enrichment](docs/GKX-ENRICHMENT.md).
+
+## Navigation and managed MOCs
+
+Navigation 1.0 remains read-only. This branch also contains fail-closed
+Navigation Effects settings, capability reporting, event debouncing,
+reconciliation classification, and receipt-bound self-write-suppression
+primitives. Every write setting—including automatic maintenance and automatic
+creation—defaults to off.
+
+Those primitives are development work, not a qualified managed-MOC runtime.
+The full Engine adapter, Obsidian and native host adapters, digest-bound
+adoption registry, durable journal/archive/lease, startup recovery controller,
+coordinator, and operator UI are not integrated and qualified here. Existing
+MOCs remain unmanaged, and this branch must not be described as automatically
+maintaining them.
+
+Operational state under `.gkx/**` and managed-MOC archives under
+`_archive/moc-runs/**` are excluded from Navigation, corpus graphs, retrieval,
+Graphiti, and agent context.
+
+## Desktop and portable packages
+
+A Tauri 2 shell and portable staging script exist in source for internal-alpha
+work. They provide a secure IPC boundary and can stage checksums, provenance,
+and an SPDX SBOM when real sidecar binaries are supplied.
+
+They are not finished installers. The repository does not currently supply the
+required signed Debian x64, Windows x64, macOS arm64, and macOS x64 sidecars;
+native installers are not signed, macOS output is not notarized, and clean-host
+cross-platform results are not recorded. Missing binaries stay reported as
+missing rather than being fabricated or relabelled.
+
+## What the status words mean
+
+| Word | Meaning in this repository |
 |---|---|
-| **Inside Obsidian** | Install the plugin — desktop and mobile, live-updating as you edit. See [Obsidian plugin](#obsidian-plugin). |
-| **Standalone, no Obsidian** | Download one file, `kosmos-oden-stand-alone.html`, and open it in a browser. No install, no server, no internet. See [Standalone — no Obsidian required](#standalone--no-obsidian-required). |
+| **Implemented** | Source and focused tests exist. |
+| **Configured** | Required host adapter, policy, credential, or runtime setting is present. |
+| **Authorized** | A valid external human or policy decision permits the operation. Connectivity alone never does. |
+| **Qualified** | The applicable security, crash, browser, platform, and performance gates have recorded evidence. |
+| **Released** | An owner-authorized artifact is versioned, packaged, and published. |
 
-Both surfaces — plus the Agent API and the `kosmos-build` CLI — render **the same vault the same way**, because they all share one engine (more on that below).
+These states are independent. “Implemented” does not mean configured,
+authorized, qualified, or released.
 
-## Attribution & lineage
+## Build and verify from source
 
-**What comes from [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos) (original):** the basic Three.js rendering framework and the foundational spatial metaphor — notes as celestial bodies.
-
-**What OdenKnight's Obsidian adaptation (v0.5.0–v0.5.1) added:** a complete visualization redesign with accurate folder/file hierarchy mapping; gravitational orbital mechanics (notes orbit gravitational focal points by connection strength); Saturn-style rings for well-connected notes; a folder-safe context menu (right-clicking a folder galaxy expands it in Obsidian's file explorer — it never opens or creates a note); a live agent-traversal trail; the Agent API with MCP support; Graphiti episode export; render-loop suspension and other performance work; and early security hardening (constant-time token comparison, DNS-rebinding protection).
-
-**What Kosmos-Oden adds:** a single shared **Kosmos Core** so the plugin, the standalone viewer, the Agent API and the CLI compute identical graphs instead of drifting into separate interpretations; canonical bidirectional lineage normalization with validation; a genuinely offline single-file standalone viewer with folder monitoring; and a full build-provenance / reproducibility / security-hardening pass (see [Security, assurance & governance](#security-assurance--governance)). The 0.6 beta upgrades the renderer to exact-pinned Three.js r185/WebGL2 while retaining the offline single-file model.
-
-Both projects use the MIT License — see [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The original code remains attributed to H4R7W16; new contributions are attributed to OdenKnight.
-
-## Why would I want it?
-
-A folder list shows you your notes one at a time. A cosmos shows you **the shape of everything you know, all at once**:
-
-- **See what matters.** Big, bright bodies are your hub notes — the ideas everything else connects to. A lonely asteroid tells you something needs linking up (or that it's fine on its own).
-- **Spot the clusters.** Related notes physically gather together, so themes and projects become visible neighborhoods instead of scattered filenames.
-- **Travel through time.** Press one button and watch your vault grow note by note, or scrub the Chrono timeline to see exactly what you knew — and what you'd already revised — on any past date.
-- **Find things by flying.** Tap any body to light up everything connected to it, then hop from neighbor to neighbor. It's search for people who think visually.
-- **Watch your AI assistant think.** If you let an AI agent read your vault (entirely optional, off by default), the notes it visits glow with a fading emerald trail across your universe, live.
-- **Improve GKX metadata without surrendering control.** A deterministic pass selects bounded evidence and explains weak document structure; an optional constrained local/cloud model can add pending proposals. Nothing is preselected, and only explicitly reviewed values can enter a hash-bound, backed-up apply plan. See [GKX content-assisted enrichment](docs/GKX-ENRICHMENT.md).
-
-It works on desktop **and** on your phone or tablet, updates live as you edit, and needs no internet connection at all.
-
----
-
-## Under the hood: one semantic engine
-
-Kosmos Research Studio is three products sharing **one semantic engine** — the Kosmos Core. This is the single most important design decision in the v0.5.5 rebuild: without it, the plugin, the standalone page, the Agent API and the CLI would gradually drift into five different interpretations of the same vault.
-
-```
-                    ┌─────────────────────┐
-                    │  Kosmos Core Graph  │
-                    │ parsing · resolution│
-                    │ canonical lineage   │
-                    │ temporal projection │
-                    │ graph construction  │
-                    │ Graphiti export     │
-                    └──────────┬──────────┘
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-      Obsidian plugin   Standalone HTML    Agent API layer
-      live vault events directory picker   REST + MCP
-      incremental sync  rescan + diff      graph queries
-      3D renderer       3D renderer        Graphiti episodes
-```
-
-The same vault produces materially the same nodes, links, lineage, HEAD status, temporal state and Graphiti episode structure whether you access it through Obsidian, `kosmos-oden-stand-alone.html`, `kosmos-build.mjs`, the REST Agent API, or MCP.
-
-## How your vault becomes a cosmos
-
-| You have… | You see… |
-|---|---|
-| A recognized MOC note in your vault root | The **cluster core** — the bright heart of the whole universe. With Navigation enabled, the built-ins are exactly `index`, `_index`, `readme`, `moc`, and `contents`. |
-| A top-level folder | A **galaxy**. If the folder has a manifest note (`index`/`README`/`MOC`/a note matching the folder's name), that note becomes the bright galactic center; otherwise the folder itself does. |
-| A well-connected note | A **star** with its own solar system — its spectral class and size read the weight of that system (see below). |
-| Notes linked from that note | **Planets**, **moons** and **moonlets**, chained by how closely they're related. Each planet gets a NASA exoplanet type from its own note (see below). |
-| Loose or barely-linked notes | **Asteroids**, tumbling near the galaxy they're gravitationally bound to. |
-| Images, PDFs, other attachments | The **Oort cloud** — a faint outer shell around the system that references them. |
-
-### Optional Engine 2.1 Navigation
-
-Open **Settings → GKOS Note Formatting → Enable Engine Navigation centers** to
-use the Engine 2.1 Navigation contract. The option is off on upgrade, preserving
-the earlier eleven-name visual heuristic until you choose the new behavior.
-
-When enabled, only the canonical five names above are built in. The former
-aliases `home`, `map`, `overview`, `dashboard`, `start`, and `toc` are surfaced
-as noncanonical findings and are not silently treated as MOCs. Kosmos-Oden does
-not auto-promote them. The Agent API `/health` and `/overview` responses publish
-the Engine version, Navigation contract, enabled state, and the false
-write/apply capability boundary.
-
-Moons carry dark maria patches and bright ejecta flecks; asteroids are irregular tumbling rocks with varied mineral coloring — all of it runs inside the existing shader passes (mobile keeps its dedicated lightweight path), so nothing got slower. The layout uses hierarchical packing and collision-resolution passes designed to keep bodies separated and minimize overlap; a diagnostic pass counts any residual intersections and reports them honestly rather than promising a mathematically perfect zero (they're rare — see [benchmarks/RESULTS.md](benchmarks/RESULTS.md)).
-
-### Stars follow the Hertzsprung–Russell main sequence
-
-A star's brightness, color and size read the **weight of its solar system** — how many notes it gathers, how many distinct subfolders they span, and their total byte size. Heavier systems sit further up the [H-R main sequence](https://en.wikipedia.org/wiki/Hertzsprung%E2%80%93Russell_diagram): hotter, bluer and larger. A tiny system is a cool red **M** dwarf (like Proxima Centauri); a Sun-sized hub is a yellow **G**; a sprawling, deeply-foldered hub climbs through **F · A · B** to a hot blue **O** giant. The scale is relative to your own vault's heaviest system, with a floor so a two-note folder never mints a blue giant. Select a star and the inspector names its class (e.g. *Class G Star*).
-
-| Class | Color | You have… |
-|---|---|---|
-| **M** | red | a small, shallow system |
-| **K** | orange | a modest system |
-| **G** | yellow (the Sun) | a mid-sized, Sun-like hub |
-| **F · A** | white | a large, multi-folder system |
-| **B · O** | blue | your biggest, deepest, heaviest hubs |
-
-### Planets are typed like NASA's exoplanets
-
-Each planet's appearance is a [NASA exoplanet type](https://science.nasa.gov/exoplanets/planet-types/) chosen from the note itself — its child notes (moons), the attachments it hosts, and its size:
-
-| Type | You have… | Looks like |
-|---|---|---|
-| **Gas giant** | a note with 4+ descendant notes | banded Jupiter/Saturn tones, with rings |
-| **Neptunian** (ice giant) | a note with 2–3 descendants | smooth, cold, blue/cyan haze (Neptune/Uranus) |
-| **Super-Earth** | one descendant, or a hefty note (>24 KB) | amplified continental relief |
-| **Terrestrial** | a leaf note | Mercury/Venus/Earth/Mars — rocky, land/sea + ice caps |
-
-Hosting attachments biases a planet toward its watery variety (an Earth-like water world, a super-Earth ocean, or Neptune). Rings appear on gas giants only. Select a planet and the inspector names its type.
-
----
-
-## Standalone — no Obsidian required
-
-`kosmos-oden-stand-alone.html` is one self-contained file: Three.js, the parser, the graph engine and the renderer are all inlined. No Obsidian, no Node.js, no Python, no local server, no internet connection — copy it to any folder and open it in a browser.
-
-1. Download **`kosmos-oden-stand-alone.html`** (or copy it anywhere — any folder works).
-2. Open it in a modern browser (double-click).
-3. Click **Open Knowledge Folder**.
-4. Select the root of your Markdown or Obsidian vault.
-5. Kosmos recursively scans and renders the folder — `.obsidian`, `.git`, `node_modules` are skipped, notes are read, attachments become Oort objects.
-6. Where the browser grants persistent directory access, Kosmos **monitors the folder** while the page is open: new notes appear, deleted notes disappear, and a new top-level folder becomes a new galaxy after the next rescan (visibility/focus triggers, a low-frequency poll, or **Rescan Now**).
-
-**Two access modes, clearly labelled in the status panel:**
-
-- **Persistent folder access** (Chromium browsers — Chrome, Edge, Brave): uses `showDirectoryPicker()`. The page can re-scan the folder while it stays open, and can remember the folder (IndexedDB handle) for **Reopen Last Folder** — the browser re-asks permission before any access. **Forget Folder** removes the stored handle.
-- **Imported folder snapshot** (all browsers, including Firefox/Safari and `file://` pages where the picker is restricted): a one-time import via the standard directory input. Everything renders identically, but there is **no live monitoring** — the page never implies otherwise.
-
-The standalone scanner is **read-only**: it never renames, deletes, modifies, rewrites, normalizes, moves or patches your files. Exports (**Export Graph JSON**, **Export Graphiti Episodes**) are generated in memory and downloaded through the browser — no filesystem write access is requested. Makes no network calls, collects nothing, works fully offline.
-
----
-
-## Obsidian plugin
-
-Renders inside Obsidian (desktop **and** mobile) in an isolated, sandboxed view.
-
-1. Copy `manifest.json`, `main.js`, `styles.css`, and `kosmos-mcp-stdio.mjs` into `<your-vault>/.obsidian/plugins/vault-kosmos/` (the adapter is required only for stdio-only agent clients).
-2. Settings → **Community plugins** → turn off Restricted mode if it's on, then enable **Vault Kosmos**.
-3. Click the orbit icon in the left ribbon (or run **Open Vault Kosmos** from the command palette). That's it — your universe builds itself.
-
-The Options page has four responsive tabs: **Agent API (HTTP + MCP)**, **GKOS Note Formatting**, **Quick Connect MCP**, and **Connectivity to Sync Vault**. Each tab keeps its own long-form settings in the normal scroll area; on phones, the tab strip scrolls horizontally and controls stack to full width.
-
-**Live refresh** is incremental and scales with vault size: a single edited note is re-read and re-parsed alone (verified by tests); a full re-read happens only on large structural changes (bulk import/delete/rename, more than `max(500, 25%)` of the vault). Refresh is debounced and paused while the view is hidden.
-
-**Battery-friendly:** the 3D view fully stops rendering the moment its tab is hidden or Obsidian is minimized — the plugin tells the iframe about leaf visibility, so even a background Kosmos tab inside a visible Obsidian window costs ~zero CPU/GPU — and resumes instantly when you come back. Idle bookkeeping (highlight halos, GPU uploads, label scans) is skipped when nothing is selected or pulsing.
-
-## Connectivity to Sync Vault — Nextcloud WebDAV (optional)
-
-Kosmos-Oden can sync the Obsidian vault directly to a Nextcloud Files folder
-through Nextcloud's WebDAV endpoint. This backend was written for Kosmos-Oden;
-it does not include or depend on code from Remotely Save.
-
-1. In Nextcloud, open **Personal settings → Security** and create an app
-   password for this device.
-2. In Obsidian, open **Settings → Vault Kosmos → Connectivity to Sync Vault**.
-3. Enter the instance address (for example `https://cloud.example.com`), your
-   username, app password, and a remote vault-folder name.
-4. Select **Test connection**, then **Sync now**. Enable startup or scheduled
-   sync only after the first run looks correct on both sides.
-
-The app password is stored through Obsidian Secret Storage, never in plugin
-`data.json`. Every file is compared against the last common local SHA-256 and
-remote ETag. If both changed, the Nextcloud version is first saved locally as
-`name.nextcloud-conflict-<timestamp>.ext`, then the local original becomes the
-common version on both sides. Deletion
-propagation is off by default; changed-versus-deleted cases always remain
-conflicts. `.obsidian/**`, `.git/**`, and `.trash/**` are excluded by default.
-The settings page exposes a dedicated `.obsidian` toggle plus per-path globs,
-so configuration files can be included selectively. Kosmos-Oden's own
-`.obsidian/plugins/vault-kosmos/data.json` always remains excluded because it
-contains device-local sync state and Agent API credentials.
-
-HTTPS is required for public hostnames. Plain HTTP is accepted only for a
-literal private or loopback address. The beta performs full remote metadata
-enumeration and local hashing on each run, favoring correctness over speed.
-
-## Flying around
-
-- **Drag** to orbit · **scroll / pinch** to zoom · **right-drag / two-finger** to pan.
-- **Tap a body** to focus it — everything connected to it lights up.
-- **Right-click** (long-press on iPhone/iPad) a body → **Go to Note** opens that note in a new tab. Right-clicking a **galaxy that is only a folder** (no manifest note) offers **Expand Folder** instead — it reveals and expands that folder in Obsidian's file explorer. It will never create or open a stray note for a folder.
-- **Labels** `R` · **All links** `C` · **All objects** `O` · **Chrono** `H` · **Grow** `G` · **Trailer** · **Key** (show/hide minimap and constellation legend). Timeline remains available through `T` and the renderer API, but its toolbar button is intentionally hidden.
-- **Modes:** Overview `A` · Focus `S` · Depth `D` · Fly `F` (WASD + mouse; touch pads on mobile) · Clear `Q`.
-- Zoom out as far as you like — once the whole cluster shrinks to ~10% of the screen it gently re-centers itself.
-- Mobile: adaptive pixel-ratio and geometry LOD keep the view smooth.
-
----
-
-## GKX v2.3 Validating Projection Profile
-
-KRS implements the **GKX v2.3 Validating Projection Profile**. It is
-not a full GKOS governance engine and does not authorize or apply consequential
-semantic changes. Canonical 2.3 nested blocks are parsed into separate
-`authored`, `derived`, `proposed`, `approved`, and `effective` projections;
-legacy and 2.2 notes remain readable through compatibility projections. The
-built-in deterministic assessment measures documentation, traceability, and
-support quality under a versioned policy—it is never a truth score or use
-authorization. See [the profile and limits](docs/GKX-2.3-PROFILE.md).
-
-Notes written in **GKX** light up temporal features natively:
-
-- **Canonical knowledge chains** — `supersedes` / `superseded_by` frontmatter is normalized internally into one canonical lineage graph, so both fields are projected bidirectionally: declaring **either side** is enough. Superseded notes render as ghosts; the newest version of a chain is flagged **HEAD**. Malformed lineage (cycles, self-references, unresolved targets, multiple successors, out-of-order timestamps) is detected and reported through diagnostics instead of silently breaking the graph.
-- **Temporal validity intervals** — each note is *valid* from its GKX `timestamp` (fallback: file creation/modification time) and becomes *invalid* the moment its earliest successor's validity begins. This supports point-in-time reconstruction from retained timestamps and supersession history; it does **not** reconstruct edits that were overwritten in place — that history no longer exists in the files.
-- **Chrono time-travel** — the **Chrono** button (`H`) scrubs the cosmos to any moment: notes not yet written vanish, notes already superseded dim to dark ghosts. Chrono, the Agent API's `graph_at_time`, and the temporal tests all use the **same** projector.
-- **GKX 2.3 validating projection** — canonical nested identity, authorship,
-  epistemic, sensitivity, provenance, evidence, relationships, lineage, review,
-  assessment, authorization, and origin-separated labels are parsed without
-  changing source notes. Flat 2.2 metadata and the legacy `**Related:**` footer
-  remain available through compatibility mode. Flat Obsidian relationship
-  Properties are also read as authored corrections and update incrementally.
-- **Human-editable labels** — source Markdown `tags` are the simple,
-  user-selectable Obsidian label surface used by the cosmos, lexical search,
-  REST, MCP, and Graphiti projection. Advanced governed `labels` remain a
-  separate read projection and are never silently promoted from tags.
-- **Sensitivity-aware agent reads** — the Agent API defaults to an `internal` ceiling. `confidential` and `phi` notes are excluded from search, note reads, graph/lineage traversal, diagnostics, and Graphiti pages unless the user explicitly raises the ceiling.
-- The viewer is read-only: it never patches your notes.
-
----
-
-## GKX note formatting and compatibility onboarding
-
-Use **Settings → Vault Kosmos → GKOS Note Formatting**, or run the corresponding command-palette audit/upgrade action.
-
-The governed writer uses compact **GKX 2.2** frontmatter as the default human authoring format. Tags and relationship wikilinks stay in ordinary Obsidian Properties, so a human correction flows through the viewer, graph, search, REST, MCP, and Graphiti projection on the next vault update. Native authored 2.3 notes remain readable and unchanged. If you want authored nested 2.3 metadata, use **Convert all to native 2.3**; the conversion preserves editable Obsidian tag and wikilink relationship overlays.
-
-Beta.11 also includes a bounded remediation for the beta.10 regression. The safe scan recognizes only notes carrying beta.10's deterministic-migration marker, previews a flattening repair, removes duplicate `created_at`/`updated_at` keys and generated governance boilerplate, preserves extensions and Markdown body bytes, and restores flat tags and relationship wikilinks. It does not automatically flatten genuinely authored native 2.3 notes.
-
-Nothing changes during the scan. The preview shows counts, paths, reasons, and a SHA-256 plan hash. You can save the content-free audit alone, or confirm an independent backup and apply the exact plan. Apply writes a byte-exact pre-change copy under `.gkx/backup/<run-id>/`, stores the audit/result under `.gkx/migrations/<run-id>/`, uses Obsidian's atomic note processor, and preserves each human-authored Markdown body byte-for-byte. Cloud sync is not treated as a backup.
-
-The migration scan is deterministic and contacts no model. The separate **Re-scan editable GKX notes** workflow proposes user-reviewable tags, descriptions, types, and evidenced relationships through deterministic selection or an explicitly configured OpenAI-compatible endpoint. Nothing is selected by default; accepted flat Properties use the same live incremental update path as a manual Obsidian edit. See [the migration guide](docs/GKX-MIGRATION.md) and [v2.3 profile](docs/GKX-2.3-PROFILE.md).
-
----
-
-## Agent API — let agents query this vault (HTTP + MCP)
-
-Settings → **Vault Kosmos → Agent API (HTTP + MCP)** → set **Default sensitivity** (see below), then toggle **Enable local Agent API**.
-
-**Default sensitivity (fail closed):** the first control in the Agent API section governs the effective sensitivity of notes that declare no sensitivity of their own. GKOS-Engine v2.1.1 threads this value through `GkxIndex`, so unlabeled notes are actually **projected** at the level you choose and then filtered by the network-facing read gate. It ships closed at `secret`, so unlabeled notes are never exposed as an open level unless you choose otherwise. The vocabulary is the engine's seven levels (`public → internal → restricted → confidential → regulated → phi → secret`). Classification is **raise-only**: the engine may raise a note's effective sensitivity above this default but never lowers a note that declares a higher one. Setting it to `internal` restores agent visibility for unlabeled notes at the default `internal` ceiling. Changing it re-projects the vault. Enabling the Agent API (or Nextcloud sync) shows a reminder that notes become network-reachable and how unlabeled notes are governed.
-
-**Connecting an agent (no reimplementation required):**
-1. Open **Quick Connect MCP**, then copy the entry for **Anthropic Claude Code**, **OpenAI Codex app / CLI / IDE**, **Claude Desktop / stdio**, or a universal MCP client.
-2. Paste the copied configuration into that product.
-
-That's it — the address and access token are filled in automatically, so there's nothing to type or get wrong. Want a reference for later? Run **"Write Agent API guide"** from the command palette and the plugin drops a ready-to-read `AGENT-API.md` into your vault with your connection details already filled in. Full guide: [AGENT-API.md](AGENT-API.md).
-
-**Watch it work:** note-specific MCP/HTTP queries are mirrored live in the Kosmos view. Visited notes pulse with per-agent halos and connect into a fading breadcrumb with a glowing comet tail, rocket head, and residual snow-dust. Trails retain roughly 24 hops for 30 seconds; whole-vault exports and diagnostics do not invent traversal events.
-
-**Technical:** a read-only server starts on `127.0.0.1` (opt into **Local network (LAN/VLAN)** in the same settings to let agents on other devices on your subnet reach it) exposing `vault_overview`, `search_notes`, `get_note`, `get_lineage`, `get_related`, `graph_at_time`, and paginated `export_graphiti_episodes` over the current MCP Streamable HTTP transport (`2025-11-25`, with compatible earlier revisions) plus REST mirrors. The release also includes a first-party stdio adapter for clients that cannot connect to HTTP directly.
-
-Security: tokens are generated from a cryptographically secure RNG only (32 bytes, base64url — token creation fails loudly rather than falling back to a weak source) and compared in constant time; `Host`/`Origin` headers are validated to block DNS-rebinding and cross-site requests; request bodies are capped at 4 MiB (measured in **bytes**); non-loopback clients are rate-limited with a concurrency cap; note bodies, search results and episode pages are capped; every response sets `Cache-Control: no-store`. MCP sessions and post-initialization protocol headers are validated, unknown/expired sessions return 404, JSON-RPC envelopes/tool inputs are checked, and tool declarations are marked read-only/idempotent. `?token=` query authentication is deprecated and off by default. **LAN mode refuses to start without a token.** Desktop only (Obsidian mobile has no local server support).
-
----
-
-## Graphiti export
-
-The built-in agent functionality is formally named the **Kosmos Governed Context Projection (KGCP)**. KGCP is deterministic and works without Graphiti. Graphiti is an optional semantic-memory and hybrid-retrieval adapter; its inferred facts remain derived proposals, never authored GKX data.
-
-Export readable source assertions as [getzep/graphiti](https://github.com/getzep/graphiti)-ingestable JSON episodes. Every episode has a stable UUID (the GKX `uid` when valid, otherwise a deterministic fallback), a collision-resistant per-vault assertion namespace, a reference time, separate source tags and origin-preserving governance labels. Episodes are chronological and carry only forward lineage (`resolved_supersedes` / `declared_supersedes`): later `superseded_by`, `head`, and `invalid_at` projection state is never backfilled into an earlier event. Content is capped to stay within Graphiti's LLM context. Graphiti remains a disposable projection; its LLM pipeline may infer entities differently from Kosmos and does not become the GKX authority.
-
-The GKX 2.3 adapter also exports origin-separated governance, effective sensitivity, assessment summaries, diagnostic codes, evidence/contradictions, policy and schema hashes, filter metadata, authored `fact_triple` relationships, event/processing time, a 250-character derived-attribute cap, and optional saga hints. The generated ingestion script pins tested `graphiti-core==0.29.0`, prefers FalkorDB for local use or Neo4j for mature deployments, and reports readiness/benchmark fields honestly.
-
-## Portable UTC note timestamps
-
-With **Stamp note creation and modification times** enabled (the default), the Obsidian plugin adds `created_at` and `updated_at` frontmatter values in canonical ISO-8601 UTC/Zulu form, for example `2026-07-18T16:42:03.125Z`. Existing `created_at` values are preserved. `.obsidian/` and `.gkx/` internals are excluded.
-
-- **Plugin:** command palette → *Export Graphiti episodes (GKX)* → writes `graphiti-episodes.json` + `graphiti-ingest-sample.py` to the vault root.
-- **Standalone:** the **Export Graphiti Episodes** button downloads the same payload.
-- **CLI:** `node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json`
-
-Then: `pip install "graphiti-core==0.29.0"` (Python 3.10+), configure FalkorDB for straightforward local operation or Neo4j for a mature deployment, set the required model/provider variables, and run `python graphiti-ingest-sample.py`.
-
-## kosmos-build CLI
+Requirements: Node.js 22–24 and npm 10 or newer.
 
 ```bash
-node kosmos-build.mjs /path/to/vault graph.json
-node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json
-node kosmos-build.mjs /path/to/vault graph.json --episodes graphiti-episodes.json --group-id my-stable-vault
-node kosmos-build.mjs /path/to/vault graph.json --watch     # rebuild on change (Node)
+npm ci
+npm run verify
+npm run test:renderer
 ```
 
-Uses the same bundled Kosmos Core as the plugin and the standalone page — not a separate implementation. A `graph.json` placed next to `kosmos-oden-stand-alone.html` is auto-loaded when the page is served over http(s).
-
-## What writes what (read-only guarantees)
-
-**Never modify existing notes:** the 3D visualization, ordinary directory scanning, the Agent API, MCP/REST queries, Chrono projection, and in-memory Graphiti episode generation.
-
-**Write only through explicit or configured workflows:** *Mark notes in GKX format* performs a read-only audit first and can save `.gkx/migrations/<run-id>/plan.json`; only the separately confirmed apply step backs up and edits the listed notes. *Write Agent API guide* creates `AGENT-API.md`; *Export Graphiti episodes* creates `graphiti-episodes.json` + `graphiti-ingest-sample.py`; `kosmos-build.mjs` creates `graph.json` (+ episodes file). Nextcloud writes run only through **Sync now** or explicitly enabled startup/scheduled sync, guarded by common-state comparison and conditional requests. Visualization and Agent API queries remain read-only.
-
-## Private by design
-
-Visualization, the standalone viewer, and the Agent API run locally and collect nothing. The standalone viewer remains fully offline. Optional Nextcloud sync is disabled by default and contacts only the configured server; optional model enrichment contacts only its configured endpoint. The Agent API is off by default, reachable only from your own computer unless you explicitly say otherwise, and is read-only.
-
----
-
-## Build from source
+Useful focused commands:
 
 ```bash
-nvm use                  # Node 22 (see .nvmrc); engines pinned in package.json
-npm ci                   # clean install from the committed package-lock.json
-npm run typecheck        # tsc --noEmit
-npm run build            # plugin main.js + embed page + kosmos-oden-stand-alone.html + node bundles
-npm run build:standalone # just kosmos-oden-stand-alone.html
-npm test                 # 165 unit/API/artifact/classification/sync tests (node --test)
-npm run verify           # typecheck + build + test + version/artifact/invariant checks
-npm run bench            # reproducible synthetic-vault benchmarks
+npm run build:standalone
+npm run test:browser
+npm run test:visual
+npm run check:artifacts
+npm run check:renderer-provenance
 ```
 
-A clean checkout builds and tests with exactly these commands — no manually generated files required. Toolchain and dependencies are pinned (no `"latest"`), so repeated clean builds produce the **same** executable artifacts; a CI job proves it by building twice and diffing the hashes. CI (GitHub Actions, minimal `contents: read` permissions) runs typecheck, both builds, the test suite, version-synchronization, artifact self-containment, and the `kosmos-invariants.yml` policy on every push and pull request. Releases are built **from the tag** with `SHA256SUMS` + `BUILD-INFO.json` provenance and are gated on the full pipeline.
+Test totals are intentionally not advertised as permanent documentation; the
+commands and exact commit are the evidence. See [CONTRIBUTING.md](CONTRIBUTING.md)
+before changing renderer snapshots, protocol validation, security boundaries,
+or generated artifacts.
 
-Performance: see [benchmarks/RESULTS.md](benchmarks/RESULTS.md) for measured numbers (100 → 50,000 notes) — no claims beyond what the benchmark reproduces.
+## Technical map
 
-## Security, assurance & governance
+- [Technical README](TECHNICAL_README.md)—current architecture, contracts,
+  boundaries, implementation state, and verification commands
+- [Architecture](docs/ARCHITECTURE.md)—the established module map
+- [Standalone uplift baseline](docs/standalone/BASELINE.md)—recorded Phase 0
+  repository and toolchain evidence
+- [Draft qualification ledger](docs/standalone/QUALIFICATION.md)—implemented
+  evidence and open release blockers
+- [Threat model](docs/THREAT-MODEL.md) and [security policy](SECURITY.md)
+- [Renderer protocol](docs/RENDERER-PROTOCOL.md)
+- [GKX 2.3 validating projection profile](docs/GKX-2.3-PROFILE.md)
+- [GKX authoring and migration](docs/GKX-AUTHORING-MIGRATION.md)
+- [GKX migration workflow](docs/GKX-MIGRATION.md)
+- [Existing Obsidian Agent API](AGENT-API.md)
+- [Release process](docs/RELEASE-PROCESS.md)
+- [Roadmap](ROADMAP.md)
 
-- [SECURITY.md](SECURITY.md) — reporting, and the enforced security invariants.
-- [kosmos-invariants.yml](kosmos-invariants.yml) — machine-readable policy, checked in CI.
-- [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/RENDERER-PROTOCOL.md](docs/RENDERER-PROTOCOL.md) (incl. the iframe sandbox experiment) · [docs/RELEASE-PROCESS.md](docs/RELEASE-PROCESS.md).
-- [ROADMAP.md](ROADMAP.md) · [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-- The upstream engineering assessments this build was hardened against live in [docs/assessments/](docs/assessments/).
+## Engine direction
 
-## Repository layout
+At this commit, the installed consumer dependency remains exact-pinned to
+GKOS-Engine v2.1.1. GKOS-Engine TypeScript 2.1.2 is the compatibility oracle
+for the standalone uplift until the separately governed Rust 3.0 engine passes
+parity and cutover gates. Navigation Effects integration remains experimental
+and must not be presented as released Engine 2.2 compatibility.
 
-```
-src/core/        shared Kosmos Core (types, markdown, gkx, resolver, lineage,
-                 temporal, graph, graphiti, incremental index, demo)
-src/renderer/    cosmology, layout (+collision diagnostics), shaders, renderer
-src/plugin/      Obsidian plugin, iframe embed entry, host<->renderer protocol,
-                 Agent API server, settings
-src/standalone/  directory source, rescan monitor, handle persistence, UI, entry
-scripts/         build pipeline, version/artifact/invariant/renderer-provenance
-                 checks, release packaging, static test server
-test/            parser, resolver, lineage, temporal, incremental, graphiti,
-                 agent-api, protocol, cosmology, standalone-artifact tests;
-                 test/browser/ Playwright renderer + visual specs
-benchmarks/      synthetic-vault benchmark + measured results
-vendor/legacy/   frozen Three.js r128 global build (MIT), for an optional
-                 WebGL1-era compatibility artifact only
-```
+## Origin and licensing
 
-> **Renderer:** the stable 3D engine is **Three.js r185** (`three@0.185.1`),
-> an exact-pinned ESM dependency bundled into the offline single-file artifacts
-> (no CDN). On the `renderer/three-r185-webgl` branch this replaced the vendored
-> r128 global build; it is **WebGL2-only** and provenance-checked in CI. See
-> [docs/RENDERER-MIGRATION-r185.md](docs/RENDERER-MIGRATION-r185.md) and
-> [renderer-provenance.json](renderer-provenance.json). WebGPU/TSL is a separate
-> future phase.
+Kosmos-Oden is an independent fork and substantial rebuild of
+[H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos). See
+[ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md) and
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for provenance and bundled
+dependency notices.
 
-> **Browser tests:** the Chromium renderer specs run on every push against
-> software WebGL2 (ANGLE/SwiftShader) and are a required check. Firefox, WebKit
-> and the visual-regression baselines need a real GPU, so they run weekly and on
-> demand in the advisory `Browser (full matrix)` workflow and must be run
-> locally before a release — see
-> [CONTRIBUTING.md](CONTRIBUTING.md#browser-and-visual-tests).
-
-## License
-
-MIT — see [LICENSE](LICENSE) and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Project-authored software is Apache-2.0. Project-authored documentation and
+original graphics are CC BY 4.0 where declared. Inherited and third-party
+assets keep their own licenses. [LICENSE](LICENSE) contains the controlling
+project licensing structure.
