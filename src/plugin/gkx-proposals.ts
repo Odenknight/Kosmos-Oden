@@ -174,6 +174,21 @@ export async function verifyProposalContentHash(proposal: ImmutableGkxProposal):
   return contentHash === `sha256:${await proposalSha256(canonicalJson(content))}`;
 }
 
+function semanticProposalBytes(proposal: ImmutableGkxProposal): string {
+  const { createdAt: _createdAt, contentHash: _contentHash, ...semantic } = proposal;
+  return canonicalJson(semantic);
+}
+
+async function isExistingEquivalent(existingBytes: string, incoming: ImmutableGkxProposal): Promise<boolean> {
+  let existing: ImmutableGkxProposal;
+  try { existing = JSON.parse(existingBytes) as ImmutableGkxProposal; } catch { return false; }
+  if (serializeProposalYaml(existing) !== existingBytes || !(await verifyProposalContentHash(existing))) return false;
+  return existing.schema === GKX_PROPOSAL_SCHEMA
+    && existing.contractVersion === GKX_PROPOSAL_CONTRACT
+    && existing.proposalId === incoming.proposalId
+    && semanticProposalBytes(existing) === semanticProposalBytes(incoming);
+}
+
 function proposalPath(proposalId: string): string {
   if (!PROPOSAL_ID.test(proposalId)) throw new Error("proposal ID is unsafe");
   return `${GKX_PROPOSAL_ROOT}/${proposalId}.yaml`;
@@ -204,7 +219,8 @@ export async function persistImmutableProposals(adapter: ProposalStorageAdapter,
   const result: PersistProposalResult = { directory: GKX_PROPOSAL_ROOT, created: [], unchanged: [] };
   for (const item of [...new Map(prepared.map((entry) => [entry.proposal.proposalId, entry])).values()].sort((a, b) => codeUnitCompare(a.path, b.path))) {
     if (await adapter.exists(item.path)) {
-      if (await adapter.read(item.path) !== item.bytes) throw new Error(`immutable proposal collision at ${item.path}`);
+      const existing = await adapter.read(item.path);
+      if (existing !== item.bytes && !(await isExistingEquivalent(existing, item.proposal))) throw new Error(`immutable proposal collision at ${item.path}`);
       result.unchanged.push(item.path);
       continue;
     }
@@ -214,7 +230,8 @@ export async function persistImmutableProposals(adapter: ProposalStorageAdapter,
       if (!(await adapter.exists(temp))) await adapter.write(temp, item.bytes);
       if (await adapter.read(temp) !== item.bytes) throw new Error(`temporary proposal verification failed at ${temp}`);
       if (await adapter.exists(item.path)) {
-        if (await adapter.read(item.path) !== item.bytes) throw new Error(`immutable proposal collision at ${item.path}`);
+        const existing = await adapter.read(item.path);
+        if (existing !== item.bytes && !(await isExistingEquivalent(existing, item.proposal))) throw new Error(`immutable proposal collision at ${item.path}`);
         await adapter.remove(temp);
         result.unchanged.push(item.path);
         continue;

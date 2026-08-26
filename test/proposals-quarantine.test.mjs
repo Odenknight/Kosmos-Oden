@@ -62,6 +62,19 @@ test("atomic quarantine persistence is idempotent and never touches a source not
   assert.equal(adapter.files.get(first.created[0]), before, "an idempotent save leaves original proposal bytes unchanged");
 });
 
+test("a later equivalent submission preserves the first immutable creation bytes", async () => {
+  const adapter = new MemoryAdapter();
+  const firstDocuments = await proposals.buildImmutableProposals(source());
+  const first = await proposals.persistImmutableProposals(adapter, firstDocuments);
+  const originalBytes = adapter.files.get(first.created[0]);
+  const laterDocuments = await proposals.buildImmutableProposals(source({ createdAt: "2026-08-26T12:30:00.000Z" }));
+  assert.equal(laterDocuments[0].proposalId, firstDocuments[0].proposalId, "semantic duplicate keeps its idempotency identity");
+  assert.notEqual(proposals.serializeProposalYaml(laterDocuments[0]), originalBytes, "creation time is not rewritten to fake byte equality");
+  const later = await proposals.persistImmutableProposals(adapter, laterDocuments);
+  assert.deepEqual(later, { directory: ".gkx/proposals", created: [], unchanged: first.created });
+  assert.equal(adapter.files.get(first.created[0]), originalBytes, "the original record remains byte immutable");
+});
+
 test("a different immutable record at the same proposal path is rejected without overwrite", async () => {
   const [document] = await proposals.buildImmutableProposals(source());
   const path = `.gkx/proposals/${document.proposalId}.yaml`;
