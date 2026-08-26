@@ -19,15 +19,15 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
       attribute vec3 aColor; attribute float aSeed; attribute float aVisible;
-      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aBand; attribute float aDetail;
+      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aBand; attribute float aDetail; attribute float aHeat;
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat;
       #ifdef ROCK
       float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
       #endif
       void main(){
-        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vBand=aBand; vDetail=aDetail;
+        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vBand=aBand; vDetail=aDetail; vHeat=aHeat;
         vec3 p=position; vec3 nrm=normal;
         #ifdef SPIN
           float sa=uTime*${o.SPIN_SPEED.toFixed(3)}*(0.5+aSeed); mat3 RS=rotY(sa); p=RS*p; nrm=RS*nrm;
@@ -51,7 +51,7 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
     fragmentShader: `${D}${ACES}
       uniform float uTime; uniform vec3 uLightDir; uniform vec3 uCamPos; uniform float uGlowAll;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat;
       float h31(vec3 p){ return fract(sin(dot(p,vec3(17.1,113.5,71.7)))*43758.5453); }
       float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         float a=mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x), f.y);
@@ -119,6 +119,7 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
            }
           #endif
         #endif
+        col=mix(col,col+vec3(1.05,0.22,0.03),clamp(vHeat,0.0,1.0)*0.48);
         col+=vColor*vHi*1.7; col+=vColor*pow(1.0-NV,2.0)*vHi*1.5; col=mix(col,vec3(1.0),vHi*0.30);
         float lp=0.5+0.5*sin(uTime*4.0+vSeed*6.28);
         col+=vColor*vLive*(0.55+0.85*lp);
@@ -138,14 +139,14 @@ export function bodyMaterialLite(THREE: any, o: any): any {
     uniforms: { uTime: { value: 0 }, uGlowAll: { value: 0 }, uLightDir: { value: new THREE.Vector3(0.5, 0.62, 0.4).normalize() }, uCamPos: { value: new THREE.Vector3() } },
     vertexShader: `${D}${ROT}
       attribute vec3 aColor; attribute float aSeed; attribute float aVisible;
-      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aDetail;
+      attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aDetail; attribute float aHeat;
       uniform float uTime;
-      varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed;
+      varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vHeat;
       #ifdef ROCK
       float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
       #endif
       void main(){
-        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed;
+        vColor=aColor; vHi=aHi; vLive=aLive; vEmerge=aEmerge; vSeed=aSeed; vHeat=aHeat;
         vec3 p=position; vec3 nrm=normal;
         #ifdef SPIN
           float sa=uTime*${o.SPIN_SPEED.toFixed(3)}*(0.5+aSeed); mat3 RS=rotY(sa); p=RS*p; nrm=RS*nrm;
@@ -164,7 +165,7 @@ export function bodyMaterialLite(THREE: any, o: any): any {
       }`,
     fragmentShader: `${D}
       uniform float uTime; uniform vec3 uLightDir; uniform vec3 uCamPos; uniform float uGlowAll;
-      varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed;
+      varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vHeat;
       vec3 toSRGB(vec3 c){return pow(max(c,0.0),vec3(0.4545));}
       void main(){
         vec3 N=normalize(vWN); vec3 V=normalize(uCamPos-vWP); float NV=clamp(dot(N,V),0.0,1.0); vec3 col;
@@ -181,6 +182,7 @@ export function bodyMaterialLite(THREE: any, o: any): any {
           col=vc*(${o.AMBIENT.toFixed(3)}+(diff*0.9+0.1)*${o.DIFF.toFixed(3)});
           col+=vColor*pow(1.0-NV,3.0)*0.35*(0.4+0.6*diff);
         #endif
+        col=mix(col,col+vec3(1.0,0.2,0.03),clamp(vHeat,0.0,1.0)*0.40);
         col+=vColor*vHi*1.5; col+=vColor*pow(1.0-NV,2.0)*vHi*1.3; col=mix(col,vec3(1.0),vHi*0.28);
         float lp=0.5+0.5*sin(uTime*4.0+vSeed*6.28);
         col+=vColor*vLive*(0.5+0.7*lp)+vec3(1.0)*vEmerge*0.5;

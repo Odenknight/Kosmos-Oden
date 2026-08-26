@@ -120,3 +120,55 @@ test("constellation key and minimap can be shown from the toolbar", async ({ pag
   await expect(page.locator("#legendToggle")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#timelineBtn")).toHaveCount(0);
 });
+
+test("traffic heat is off by default, opt-in, bounded in the existing renderer, and truthfully labelled", async ({ page }) => {
+  await page.goto(CAPTURE);
+  await page.waitForFunction(() => (window as any).__kosmos?.ok === true, null, { timeout: 15_000 });
+  let diagnostics = await page.evaluate(() => (window as any).__kosmos.getDiagnostics());
+  expect(diagnostics.trafficHeatEnabled).toBe(false);
+  expect(diagnostics.trafficHeatNodes).toBe(0);
+  const callsBefore = await page.evaluate(() => (window as any).__kosmos.getRenderStats().drawCalls);
+  await page.evaluate(() => {
+    const k = (window as any).__kosmos;
+    k.setTrafficHeatmapEnabled(true);
+  });
+  await page.waitForTimeout(50);
+  expect(await page.evaluate(() => (window as any).__kosmos.getRenderStats().drawCalls)).toBe(callsBefore);
+  await page.evaluate(() => (window as any).__kosmos.notifyAgentTraversal(["10_Research/Spatial Computing.md"], "search_notes", "Alpha"));
+  diagnostics = await page.evaluate(() => (window as any).__kosmos.getDiagnostics());
+  expect(diagnostics.trafficHeatEnabled).toBe(true);
+  expect(diagnostics.trafficHeatNodes).toBe(1);
+  expect(await page.locator(".ko-observe").innerText()).toMatch(/Recent authorized visits only.*not quality.*fuel.*cost/is);
+});
+
+test("legacy query token is ignored, removed from the URL, and never copied into password input", async ({ page }) => {
+  await page.goto("/kosmos-oden-stand-alone.html?token=canary-secret");
+  await expect(page.locator("#ko-token")).toHaveValue("");
+  expect(page.url()).not.toContain("token=");
+  expect(await page.content()).not.toContain("canary-secret");
+});
+
+test("live events buffer during replay and do not interrupt it until return-live", async ({ page }) => {
+  await page.goto("/kosmos-oden-stand-alone.html");
+  await page.getByRole("button", { name: /Load Demo/ }).click();
+  await page.waitForFunction(() => (window as any).__kosmos?.ok === true, null, { timeout: 15_000 });
+  const base = { schema_version: 1, session_id: "s", operation_id: "op", agent_id: "a", agent_label: "Replay Alpha", tool: "search_notes", status: "completed", cost_units: null };
+  await page.evaluate(({ base }) => {
+    const s = (window as any).__kosmosStandalone;
+    s.loadReplayForTest({ schema_version: 1, metadata: { started_at: "2026-08-26T00:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: "Traversal envelopes only; no note bodies, tokens, prompts, credentials, or raw errors." }, truncated: false, events: [
+      { ...base, sequence: 1, offset_ms: 0, paths: ["10_Research/Spatial Computing.md"] },
+      { ...base, sequence: 2, offset_ms: 40, paths: ["10_Research/Literature Radar.md"] },
+    ] });
+    s.replayActionForTest("play");
+  }, { base });
+  await page.waitForFunction(() => (window as any).__kosmosStandalone.getObservabilityInfo().replay.ended === true);
+  const before = await page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops);
+  await page.evaluate(({ base }) => (window as any).__kosmosStandalone.receiveTraversalForTest({ ...base, agent_label: "Live Beta", sequence: 9, offset_ms: 90, paths: ["20_Projects/Review Dashboard.md"] }), { base });
+  let state = await page.evaluate(() => (window as any).__kosmosStandalone.getObservabilityInfo());
+  expect(state.bufferedLiveEvents).toBe(1);
+  expect((await page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops))).toBe(before);
+  await page.evaluate(() => (window as any).__kosmosStandalone.replayActionForTest("live"));
+  state = await page.evaluate(() => (window as any).__kosmosStandalone.getObservabilityInfo());
+  expect(state.bufferedLiveEvents).toBe(0);
+  expect((await page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops))).toBe(1);
+});

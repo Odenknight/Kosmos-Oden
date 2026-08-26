@@ -12,7 +12,7 @@ export interface StandaloneUIHandlers {
   onReopenLast: () => void;
   onOpenSnapshot: (files: FileList) => void;
   onLoadDemo: () => void;
-  /** Connect to a loopback GKOS Engine Desktop sidecar (read-only API feed). */
+  /** Connect to a loopback GKOS Engine service (read-only API feed). */
   onConnectEngine: (api: string, token: string) => void;
   onRescan: () => void;
   onRefreshEngine: () => void;
@@ -21,6 +21,13 @@ export interface StandaloneUIHandlers {
   onForgetFolder: () => void;
   onExportGraph: () => void;
   onExportEpisodes: () => void;
+  onTrafficHeatmap: (enabled: boolean) => void;
+  onRecording: (enabled: boolean) => void;
+  onExportSession: () => void;
+  onLoadSession: (file: File) => void;
+  onReplayAction: (action: "play" | "pause" | "restart" | "stop" | "live" | "stay") => void;
+  onReplaySeek: (offsetMs: number) => void;
+  onReplaySpeed: (speed: 1 | 2 | 5) => void;
 }
 
 export interface StatusModel {
@@ -37,6 +44,23 @@ export interface StatusModel {
   supersededNotes?: number;
   lineageWarnings?: string[];
   residualCollisions?: number;
+  graphConnected?: boolean;
+  mcpAvailable?: boolean;
+  mcpEnabled?: boolean;
+  eventStream?: "unavailable" | "connecting" | "connected" | "disconnected";
+  offlineFolderMode?: boolean;
+}
+
+export interface ObservabilityModel {
+  heatEnabled: boolean;
+  recording: boolean;
+  recordedEvents: number;
+  replayLoaded: boolean;
+  replayPlaying: boolean;
+  replayEnded: boolean;
+  replayPositionMs: number;
+  replayDurationMs: number;
+  replaySpeed: 1 | 2 | 5;
 }
 
 export interface StandaloneUI {
@@ -53,6 +77,7 @@ export interface StandaloneUI {
   setMonitorState(state: "active" | "paused" | "unavailable"): void;
   addError(message: string): void;
   clearErrors(): void;
+  setObservability(model: Partial<ObservabilityModel>): void;
 }
 
 const CSS = `
@@ -83,7 +108,9 @@ const CSS = `
 .ko-errors{position:fixed;left:14px;bottom:96px;z-index:45;max-width:340px;display:flex;flex-direction:column;gap:6px}
 .ko-err{background:rgba(60,18,28,.92);border:1px solid rgba(251,113,133,.4);color:#ffd7dd;border-radius:10px;padding:8px 30px 8px 12px;font:500 12px/1.4 var(--font,system-ui,sans-serif);position:relative}
 .ko-err button{position:absolute;right:6px;top:6px;border:none;background:transparent;color:#fb7185;cursor:pointer;font-size:13px}
-@media (max-width:760px){.ko-status{top:auto;bottom:150px;right:10px;width:200px}.ko-errors{bottom:150px}}
+.ko-observe{position:fixed;right:252px;top:64px;z-index:42;width:270px;background:rgba(10,16,30,.78);border:1px solid rgba(140,170,210,.16);border-radius:12px;padding:10px;color:#c9d6ea;font:500 10.5px/1.35 var(--font,system-ui,sans-serif);backdrop-filter:blur(8px)}
+.ko-observe h4{margin:0 0 7px;color:#f59e0b;font:700 10px/1 var(--mono,monospace);letter-spacing:.08em;text-transform:uppercase}.ko-observe .ko-legend{color:#9fb0c6;margin:4px 0 8px}.ko-observe .ko-row{display:flex;align-items:center;gap:6px;margin:5px 0}.ko-observe button,.ko-observe select{border:1px solid rgba(125,211,252,.25);background:rgba(125,211,252,.07);color:#c9d6ea;border-radius:6px;padding:4px 6px;font:600 10px/1.2 var(--font,system-ui,sans-serif)}.ko-observe input[type=range]{width:100%}.ko-observe .ko-live-choice{color:#fbbf24}
+@media (max-width:760px){.ko-status{top:auto;bottom:150px;right:10px;width:200px}.ko-errors{bottom:150px}.ko-observe{right:10px;top:112px;width:240px}}
 `;
 
 export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI {
@@ -152,7 +179,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     const connectPrefilled = !!(opts.apiPrefill || opts.tokenPrefill) || !!opts.connectOpen;
     const connectToggle = mkBtn(
       "Connect to Local Engine",
-      "Read a live graph from a running GKOS Engine Desktop (loopback only)",
+      "Read a live graph and authorized traversal events from a local GKOS Engine service (loopback only)",
       true,
       () => {}
     );
@@ -163,8 +190,8 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       <label for="ko-api">Engine address</label>
       <input id="ko-api" type="text" spellcheck="false" placeholder="http://127.0.0.1:4814" />
       <label for="ko-token">Bearer token</label>
-      <input id="ko-token" type="password" spellcheck="false" placeholder="token from GKOS Engine Desktop" />
-      <p class="ko-connect-hint">Loopback only. The token is held in memory for this session and is never stored. Read-only: Kosmos only reads the engine's graph.</p>`;
+      <input id="ko-token" type="password" autocomplete="off" spellcheck="false" placeholder="viewer credential from the local Engine service" />
+      <p class="ko-connect-hint">Loopback only. The credential is held in memory for this session and is never stored. Read-only: Kosmos reads the authorized graph and traversal stream.</p>`;
     const goBtn = document.createElement("button");
     goBtn.className = "ko-btn ko-connect-go";
     goBtn.textContent = "Connect";
@@ -230,6 +257,11 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       ["HEAD notes", m.headNotes],
       ["Superseded", m.supersededNotes],
     ];
+    if (m.mode === "live") {
+      const mcp = !m.mcpAvailable ? "Unavailable" : (m.mcpEnabled ? "Enabled" : "Available · disabled");
+      rows.push(["Graph", m.graphConnected ? "Connected" : "Disconnected"], ["MCP", mcp], ["Events", m.eventStream || "Unavailable"]);
+    }
+    if (m.offlineFolderMode) rows.push(["Network", "Offline folder mode"]);
     if (m.residualCollisions != null && m.residualCollisions > 0) rows.push(["Residual overlaps", m.residualCollisions]);
     if (m.lineageWarnings && m.lineageWarnings.length) rows.push(["Lineage warnings", m.lineageWarnings.length]);
     const showMonitorControls = m.mode === "persistent";
@@ -290,7 +322,33 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
   }
   function clearErrors(): void { errHost.innerHTML = ""; seen.clear(); }
 
-  return { showStartup, hideStartup, setStatus, setMonitorState, addError, clearErrors };
+  /* ---- truthful traffic + replay observability (in-memory only) ---- */
+  const observe = document.createElement("section"); observe.className = "ui ko-observe"; document.body.appendChild(observe);
+  const replayInput = document.createElement("input"); replayInput.type = "file"; replayInput.accept = "application/json,.json"; replayInput.style.display = "none"; document.body.appendChild(replayInput);
+  replayInput.addEventListener("change", () => { const file = replayInput.files?.[0]; if (file) handlers.onLoadSession(file); replayInput.value = ""; });
+  let obs: ObservabilityModel = { heatEnabled: false, recording: false, recordedEvents: 0, replayLoaded: false, replayPlaying: false, replayEnded: false, replayPositionMs: 0, replayDurationMs: 0, replaySpeed: 1 };
+  function renderObservability(): void {
+    const ended = obs.replayLoaded && obs.replayEnded;
+    observe.innerHTML = `<h4>Traffic &amp; Replay</h4>
+      <label class="ko-row"><input data-act="heat" type="checkbox" ${obs.heatEnabled ? "checked" : ""}> Traffic Heatmap</label>
+      <div class="ko-legend">Recent authorized visits only — not quality, truth, importance, fuel, or cost.</div>
+      <div class="ko-row"><button data-act="record">${obs.recording ? "Stop recording" : "Start recording"}</button><span>${obs.recordedEvents}/5000 events</span></div>
+      <div class="ko-row"><button data-act="export">Export session</button><button data-act="load">Load replay</button></div>
+      ${obs.replayLoaded ? `<div class="ko-row"><button data-act="${obs.replayPlaying ? "pause" : "play"}">${obs.replayPlaying ? "Pause" : "Play"}</button><button data-act="restart">Restart</button><button data-act="stop">Stop</button><select data-act="speed"><option value="1" ${obs.replaySpeed === 1 ? "selected" : ""}>1x</option><option value="2" ${obs.replaySpeed === 2 ? "selected" : ""}>2x</option><option value="5" ${obs.replaySpeed === 5 ? "selected" : ""}>5x</option></select></div><input data-act="seek" type="range" min="0" max="${Math.max(1, obs.replayDurationMs)}" value="${Math.min(obs.replayPositionMs, obs.replayDurationMs)}">` : ""}
+      ${ended ? `<div class="ko-row ko-live-choice">Replay ended: <button data-act="live">Return live</button><button data-act="stay">Stay paused</button></div>` : ""}`;
+    observe.querySelector<HTMLInputElement>('[data-act="heat"]')?.addEventListener("change", (e) => handlers.onTrafficHeatmap((e.target as HTMLInputElement).checked));
+    observe.querySelectorAll<HTMLElement>("[data-act]").forEach((el) => el.addEventListener("click", () => {
+      const act = el.dataset.act!;
+      if (act === "record") handlers.onRecording(!obs.recording); else if (act === "export") handlers.onExportSession(); else if (act === "load") replayInput.click();
+      else if (["play", "pause", "restart", "stop", "live", "stay"].includes(act)) handlers.onReplayAction(act as any);
+    }));
+    observe.querySelector<HTMLSelectElement>('[data-act="speed"]')?.addEventListener("change", (e) => handlers.onReplaySpeed(Number((e.target as HTMLSelectElement).value) as 1 | 2 | 5));
+    observe.querySelector<HTMLInputElement>('[data-act="seek"]')?.addEventListener("input", (e) => handlers.onReplaySeek(Number((e.target as HTMLInputElement).value)));
+  }
+  function setObservability(update: Partial<ObservabilityModel>): void { obs = { ...obs, ...update }; renderObservability(); }
+  renderObservability();
+
+  return { showStartup, hideStartup, setStatus, setMonitorState, addError, clearErrors, setObservability };
 }
 
 /** Trigger a browser download for generated content (§34 — no filesystem writes). */
