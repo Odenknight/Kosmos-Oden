@@ -22,6 +22,7 @@ import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
+import { filterKosmosCorpusFiles } from "./corpus-exclusions";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -154,7 +155,7 @@ class KosmosView extends ItemView {
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
     if (!this.frame || !this.frame.contentWindow) return;
-    const md = this.app.vault.getMarkdownFiles();
+    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
     const files: { relativePath: string; content: string }[] = [];
     this.hashes.clear();
     for (const f of md) {
@@ -163,7 +164,7 @@ class KosmosView extends ItemView {
       this.hashes.set(f.path, hashContent(c));
     }
     this.fileCount = md.length;
-    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault", navigationEnabled: this.navigationEnabled() }));
+    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles())), label: "Vault", navigationEnabled: this.navigationEnabled() }));
     this.ready = true;
     this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
     this.syncVisibility();
@@ -203,7 +204,7 @@ class KosmosView extends ItemView {
     if (!this.isVisible()) { this.deferred = true; return; }   // do no work while hidden (§27)
     this.deferred = false;
 
-    const md = this.app.vault.getMarkdownFiles();
+    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
     this.fileCount = md.length;
 
     // A big structural change (bulk import/delete, sync) is cheaper to rebuild than to diff (§10.2).
@@ -234,7 +235,7 @@ class KosmosView extends ItemView {
     if (!changed.length && !removed.length && !renames.length) return;   // content hashes proved nothing real changed
 
     const folders = (wasStructural || renames.length) ? folderListFrom(md) : undefined;
-    const attachments = attachmentListFrom(this.app.vault.getFiles());
+    const attachments = attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles()));
     this.post(wrap("vault-delta", { changed, removed, renames, folders, attachments, label: "Vault", navigationEnabled: this.navigationEnabled() }));
   }
 

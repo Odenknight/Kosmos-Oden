@@ -12,6 +12,7 @@ import { GkxIndex } from "gkos-engine";
 import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
+import { filterKosmosCorpusFiles, isKosmosOperationalPath } from "./corpus-exclusions";
 
 declare const require: any;
 
@@ -133,9 +134,9 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   private async rebuild(): Promise<GkxGraph> {
-    const md = this.app.vault.getMarkdownFiles();
+    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
     const folders = folderListFrom(md);
-    const attachments = attachmentListFrom(this.app.vault.getFiles());
+    const attachments = attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles()));
     if (this.fullDirty || !this.index.graph) {
       const files: SourceFile[] = [];
       for (const f of md) files.push(await this.toSourceFile(f));
@@ -162,6 +163,7 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   async getNoteContent(path: string): Promise<string | null> {
+    if (isKosmosOperationalPath(path)) return null;
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!f || !("stat" in (f as any))) return null;
     try {
