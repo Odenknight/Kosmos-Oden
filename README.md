@@ -149,15 +149,22 @@ no-write groundwork for a future, separately governed managed-MOC plane:
   SHA-256 digest; and
 - authority evaluation requires a credential-bound actor and exact grant for
   the operation, vault, root, object class, sensitivity ceiling, policy, and
-  time. Agents cannot approve their own grants.
+  time. Agents cannot approve their own grants; and
+- browser-safe ownership/adoption registry and receipt primitives,
+  deterministic exact-byte preview/confirmation logic, an in-memory test
+  store, and a two-stage trusted adoption-preview modal are present as injected
+  components.
 
-These pieces validate inputs and denials; they do not write an MOC. The branch
-does not yet contain managed-MOC adoption, an Obsidian or standalone host
-adapter, a durable journal/archive/lease, the event coordinator, recovery or
-reconciliation runtime, self-write suppression, operator UI, rollback/audit
-workflow, cross-platform crash evidence, scale evidence, or the 24-hour soak.
-Existing MOCs therefore remain unmanaged and untouched, and automatic writes
-remain unavailable.
+These pieces validate inputs and denials; they do not provide a source-effect
+path or write an MOC. The adoption components are not registered with the
+plugin or standalone runtime and are not backed by a durable host store. The
+branch still has no Obsidian or standalone effect adapter, durable
+journal/archive/lease, event coordinator, recovery or reconciliation runtime,
+self-write suppression, complete operator workflow, rollback/audit workflow,
+cross-platform crash evidence, scale evidence, or 24-hour soak. No MOC has
+been adopted or written; automatic writes remain unavailable and off. The
+[Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+records historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
 `41172b91970aac869c161f4842e3526a62fd1fd9`. Its Effects contract says
@@ -288,9 +295,10 @@ no-write groundwork described above. The following remain roadmap work rather
 than working or qualified product behavior:
 
 - the new immutable proposal/decision quarantine and confidence-review system;
-- managed-MOC ownership/adoption, source writing, archives, durable journal,
-  vault lease, receipts, coordinator, recovery, reconciliation, self-write
-  suppression, rollback/audit UI, or automatic maintenance/creation;
+- durable host/runtime wiring for managed-MOC ownership/adoption and receipts,
+  source writing, archives, durable journal, vault lease, coordinator, recovery,
+  reconciliation, self-write suppression, complete trusted operator and
+  rollback/audit UI, or automatic maintenance/creation;
 - Tauri, native desktop, Docker, or cross-platform standalone-service packages;
 - installer signing, macOS notarization, publishing, or a new release label;
 - an owner-authorized released Engine 2.2 effects dependency or Rust 3.0

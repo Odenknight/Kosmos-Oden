@@ -30,7 +30,7 @@ makes no GKOS conformance or certification claim.
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
 | Nextcloud sync | WebDAV scan, three-way planning, conditional transfers, conflict preservation | Disabled by default; separately configured | One Nextcloud target; not a backup |
-| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings persistence/status, framework-neutral Engine adapter, exact policy validation, credential-bound authority decisions | All Effects and automatic flags false by default; no host executor is wired | No adoption, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, UI, or qualification |
+| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, exact policy and credential-bound authority validation, and injected ownership/adoption and trusted-preview components | All Effects and automatic flags false by default; no adoption component or host executor is wired into a runtime | No durable adoption store, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
 
 ## Controlling architecture
 
@@ -133,8 +133,9 @@ authority.
 
 ## Experimental Navigation Effects reconciliation scope
 
-The feature branch implements configuration and validation primitives only.
-It has no source-effect path.
+The feature branch contains configuration and validation primitives plus a
+browser-safe Packet B ownership/adoption core and trusted preview modal. It has
+no source-effect path or durable host/runtime wiring.
 
 ### Implemented no-write boundaries
 
@@ -147,34 +148,42 @@ It has no source-effect path.
 | Engine adapter | `src/navigation-effects/engine-adapter.ts` imports only `gkos-engine/navigation-effects`, exposes the exact experimental contract standing, and maps strict configured booleans | Even when Engine reports configured `apply_managed_moc`, Kosmos reports `currentEffectAuthorized: false` and both automatic modes false |
 | Policy validator | Accepts bounded UTF-8 JSON policy bytes, closed identity fields, canonical JSON, and an exact ID/version/lowercase-SHA-256 reference | No policy is bundled, selected, ratified, or made effective by validation |
 | Authority boundary | Validates a credential-bound actor, explicit approving actor, exact vault/root/path, operation/object class, sensitivity ceiling, policy binding, expiry, and injected evaluation time; denies agent self-approval and inference fields | No authority provider is configured; connectivity, bearer possession, client label, confidence, approval booleans, or timestamps cannot create a grant |
+| Packet B adoption core | Canonical ownership registries and adoption receipts, exact-byte preview/confirmation, stale-state and path/marker rejection, and an atomic/idempotent in-memory test store | No durable store, host adapter, runtime registration, MOC write, or adoption authority |
+| Trusted adoption preview | Two-stage modal shows target/digests/ownership/marker validation/exact diff, rechecks freshness, requires an exact confirmation phrase, and reports persistence failures without claiming a source write | The modal is not registered in the plugin or standalone host; its record callback is injected and confirmation fails closed without a freshness provider |
 
 Malformed settings, policy drift, noncanonical or unsafe paths, missing
 credentials, provider errors, grant mismatch, expiry, sensitivity overflow,
 agent self-approval, and unknown runtime facts fail closed. The implemented
-functions are pure or injected validators; they do not open files, write notes,
-hold leases, or recover effects.
+functions are pure or injected validators/components; the Packet B store is
+in-memory test infrastructure. They do not open files, write notes, hold leases,
+or recover effects.
 
 ### Runtime and qualification blockers
 
 The following are not implemented in this branch and remain hard blockers:
 
-- a digest-bound ownership/adoption registry and marker workflow;
+- durable host/runtime wiring for the ownership registry, adoption receipts,
+  freshness reads, and credential-bound recording;
 - Obsidian and standalone/native host adapters;
 - target containment and platform filesystem execution;
 - durable journal, checkpoint, archive, lease, receipt, rollback, and startup
   recovery wiring;
 - the event debouncer, affected-scope coordinator, reconciliation runtime, and
   receipt-bound self-write suppression;
-- trusted settings/adoption/status/recovery/rollback/audit UI;
+- trusted settings/status/recovery/rollback/audit UI and runtime registration
+  of the adoption-preview modal;
 - real-process crash qualification, Windows/macOS/Debian adapter parity and
   path-security evidence, 100/2,000/10,000/50,000-note measurements, and the
   24-hour watcher/reconciliation soak; and
 - replacement of the development pin with an owner-authorized immutable Engine
   2.2 artifact, plus release/signing/publishing authorization.
 
-Consequently, existing MOCs are not adopted or managed, no generated-region
-marker is inserted, no MOC or source note is written, no current effect is
-authorized, and automatic maintenance/creation remain unavailable and off.
+Consequently, no existing MOC has been adopted or managed, no generated-region
+marker has been inserted, no MOC or source note is written, no current effect
+is authorized, and automatic maintenance/creation remain unavailable and off.
+The [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+records historical local evidence only; it does not establish configured,
+authorized, runtime-safe, qualified, or released standing.
 The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 records the independent gate semantics at its stated pre-implementation audit
 coordinate; the
@@ -529,8 +538,9 @@ the current reconciliation branch and must not be described as implemented,
 configured, authorized, qualified, or released:
 
 - the new immutable proposal/decision quarantine and confidence-review system;
-- managed-MOC ownership/adoption, source writing, archives, journal, lease,
-  receipts, coordinator, reconciliation, recovery, self-write suppression,
+- durable host/runtime wiring for managed-MOC ownership/adoption and receipts,
+  source writing, archives, journal, lease, coordinator, reconciliation,
+  recovery, self-write suppression, complete trusted operator and
   rollback/audit UI, and automatic maintenance/creation;
 - a released Engine 2.2 effects dependency (the feature branch has only an
   exact development commit);
@@ -569,6 +579,7 @@ configured, authorized, qualified, or released:
 - [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
 - [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 - [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
+- [Navigation Effects Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)
