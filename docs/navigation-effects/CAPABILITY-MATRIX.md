@@ -13,7 +13,7 @@ Effects runtime.
 | Repository surface | Audited coordinate | Factual standing |
 | --- | --- | --- |
 | Kosmos-Oden reconciliation branch | `feature/navigation-effects-reconciliation-20260827@dd92d07cf49e50583108dbca31a89d4efbd37863` | Pins released `gkos-engine#v2.1.1`; contains the read-only Navigation 1.0 adapter and no `src/navigation-effects/` implementation or Effects settings |
-| Reconciled Engine candidate | `integration/navigation-effects-reconciliation-20260827@41172b9f94dcda7b3bb81e2752a16cf63a7e54b7` | Candidate contract/source evidence only; not the dependency installed by Kosmos |
+| Reconciled Engine candidate | `integration/navigation-effects-reconciliation-20260827@41172b91970aac869c161f4842e3526a62fd1fd9` | Exact development-only dependency candidate installed by this feature branch; not a released Engine artifact |
 | Effects contract | `ENGINE-NAV-EFFECTS-CONTRACT-1.0.0` | `standing: integration-only`, `gkos_conformance: false`, implementation phase `node-executor-experimental`, unreleased Engine target 2.2.0 |
 
 The reconciled Engine candidate does not turn its package version, its Node

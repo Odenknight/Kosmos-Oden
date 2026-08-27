@@ -62,11 +62,11 @@ for (const group of ["dependencies", "devDependencies"]) {
 
 const engine = packages["node_modules/gkos-engine"];
 if (
-  engine?.version !== "2.1.1"
-  || !String(engine.resolved ?? "").endsWith("#f4dfda16eac746c667cf042f908a918d9acc6713")
+  engine?.version !== "2.1.2"
+  || !String(engine.resolved ?? "").endsWith("#41172b91970aac869c161f4842e3526a62fd1fd9")
 ) {
-  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to released v2.1.1 commit f4dfda16eac7");
+  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to development-only Effects commit 41172b91970a");
   process.exit(1);
 }
 
-console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; gkos-engine 2.1.1 @ f4dfda16eac7.`);
+console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; development-only gkos-engine 2.1.2 @ 41172b91970a.`);
