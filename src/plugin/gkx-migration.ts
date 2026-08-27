@@ -12,6 +12,7 @@ import {
 } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { openGkxBlockedReview } from "./gkx-blocked-review";
+import { isKosmosOperationalPath } from "../operational-paths";
 
 export interface GkxMigrationApplyResult {
   runId: string;
@@ -42,7 +43,7 @@ export interface GkxMigrationScanResult { plan: GkxMigrationPlan; excluded: Arra
 
 export async function scanVaultForGkx(app: App, mode: GkxMigrationMode = "safe-onboarding", settings?: AgentSettings): Promise<GkxMigrationScanResult> {
   const files = app.vault.getMarkdownFiles()
-    .filter((f) => !f.path.toLowerCase().startsWith(".gkx/"));
+    .filter((file) => !isKosmosOperationalPath(file.path));
   const sources: GkxMigrationSource[] = [];
   const excluded: Array<{ path: string; pattern: string }> = [];
   for (const file of files) {
