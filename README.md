@@ -153,18 +153,23 @@ no-write groundwork for a future, separately governed managed-MOC plane:
 - browser-safe ownership/adoption registry and receipt primitives,
   deterministic exact-byte preview/confirmation logic, an in-memory test
   store, and a two-stage trusted adoption-preview modal are present as injected
-  components.
+  components; and
+- the Packet C0 host-neutral adapter contract and intentionally unavailable
+  Obsidian and standalone/native descriptors report primitive-specific gaps and
+  make every host operation unavailable.
 
 These pieces validate inputs and denials; they do not provide a source-effect
 path or write an MOC. The adoption components are not registered with the
 plugin or standalone runtime and are not backed by a durable host store. The
-branch still has no Obsidian or standalone effect adapter, durable
+branch still has no executable or registered Obsidian/standalone effect adapter,
+durable
 journal/archive/lease, event coordinator, recovery or reconciliation runtime,
 self-write suppression, complete operator workflow, rollback/audit workflow,
 cross-platform crash evidence, scale evidence, or 24-hour soak. No MOC has
 been adopted or written; automatic writes remain unavailable and off. The
 [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-records historical local evidence, not runtime or qualification standing.
+and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
 `41172b91970aac869c161f4842e3526a62fd1fd9`. Its Effects contract says

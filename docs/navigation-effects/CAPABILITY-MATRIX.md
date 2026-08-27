@@ -8,6 +8,11 @@ separately versioned Navigation Effects plane into Kosmos-Oden. It does not
 claim that Kosmos implements, configures, authorizes, qualifies, or releases an
 Effects runtime.
 
+Later working-tree Packet C0 code defines a host-neutral contract and
+intentionally unavailable Obsidian and standalone/native descriptors. It
+imports or registers no writer and changes none of the audited runtime
+conclusions below. See the [Packet C0 working-result receipt](PACKET-C0-WORKING-RESULT-20260827.md).
+
 ## Audited coordinates
 
 | Repository surface | Audited coordinate | Factual standing |

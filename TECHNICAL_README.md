@@ -30,7 +30,7 @@ makes no GKOS conformance or certification claim.
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
 | Nextcloud sync | WebDAV scan, three-way planning, conditional transfers, conflict preservation | Disabled by default; separately configured | One Nextcloud target; not a backup |
-| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, exact policy and credential-bound authority validation, and injected ownership/adoption and trusted-preview components | All Effects and automatic flags false by default; no adoption component or host executor is wired into a runtime | No durable adoption store, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
+| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, policy/authority validation, injected adoption/preview components, and a C0 host-neutral adapter contract with unavailable profile descriptors | All Effects and automatic flags false by default; every C0 host operation is unavailable and no host executor is imported or wired | No durable adoption store, executable host adapter, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
 
 ## Controlling architecture
 
@@ -150,6 +150,7 @@ no source-effect path or durable host/runtime wiring.
 | Authority boundary | Validates a credential-bound actor, explicit approving actor, exact vault/root/path, operation/object class, sensitivity ceiling, policy binding, expiry, and injected evaluation time; denies agent self-approval and inference fields | No authority provider is configured; connectivity, bearer possession, client label, confidence, approval booleans, or timestamps cannot create a grant |
 | Packet B adoption core | Canonical ownership registries and adoption receipts, exact-byte preview/confirmation, stale-state and path/marker rejection, and an atomic/idempotent in-memory test store | No durable store, host adapter, runtime registration, MOC write, or adoption authority |
 | Trusted adoption preview | Two-stage modal shows target/digests/ownership/marker validation/exact diff, rechecks freshness, requires an exact confirmation phrase, and reports persistence failures without claiming a source write | The modal is not registered in the plugin or standalone host; its record callback is injected and confirmation fails closed without a freshness provider |
+| Packet C0 adapter boundary | Host-neutral byte/effect/recovery/shutdown contract plus deterministic Obsidian and standalone/native capability descriptors | Both descriptors are intentionally unavailable; no writer, Engine Node executor, Vault binding, service endpoint, or runtime registration exists |
 
 Malformed settings, policy drift, noncanonical or unsafe paths, missing
 credentials, provider errors, grant mismatch, expiry, sensitivity overflow,
@@ -164,7 +165,8 @@ The following are not implemented in this branch and remain hard blockers:
 
 - durable host/runtime wiring for the ownership registry, adoption receipts,
   freshness reads, and credential-bound recording;
-- Obsidian and standalone/native host adapters;
+- executable Obsidian and standalone/native host adapters; the C0 descriptors
+  intentionally make every operation unavailable;
 - target containment and platform filesystem execution;
 - durable journal, checkpoint, archive, lease, receipt, rollback, and startup
   recovery wiring;
@@ -182,7 +184,8 @@ Consequently, no existing MOC has been adopted or managed, no generated-region
 marker has been inserted, no MOC or source note is written, no current effect
 is authorized, and automatic maintenance/creation remain unavailable and off.
 The [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-records historical local evidence only; it does not establish configured,
+and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+record historical local evidence only; neither establishes configured,
 authorized, runtime-safe, qualified, or released standing.
 The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 records the independent gate semantics at its stated pre-implementation audit
@@ -580,6 +583,7 @@ configured, authorized, qualified, or released:
 - [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 - [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
 - [Navigation Effects Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)
