@@ -2,10 +2,11 @@
 
 ## Scope and status vocabulary
 
-This document describes the source on `main` at the documentation baseline,
-not a future uplift branch. Repository and plugin metadata remain **0.8.0** and
-the semantic dependency remains the released, exact-pinned
-`gkos-engine#v2.1.1`.
+This document distinguishes the released/`main` product baseline from the
+current Navigation Effects reconciliation feature branch. Repository and
+plugin metadata remain **0.8.0**. The released product uses exact-pinned
+`gkos-engine#v2.1.1`; the feature branch uses a separate exact development
+commit solely for experimental integration work.
 
 Use these states independently:
 
@@ -29,6 +30,7 @@ makes no GKOS conformance or certification claim.
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
 | Nextcloud sync | WebDAV scan, three-way planning, conditional transfers, conflict preservation | Disabled by default; separately configured | One Nextcloud target; not a backup |
+| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, policy/authority validation, injected adoption/preview components, and a C0 host-neutral adapter contract with unavailable profile descriptors | All Effects and automatic flags false by default; every C0 host operation is unavailable and no host executor is imported or wired | No durable adoption store, executable host adapter, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
 
 ## Controlling architecture
 
@@ -62,28 +64,54 @@ review UI, spatial metaphor, layout, shaders, controls, and observability. The
 renderer consumes the Engine-backed graph; it does not reinterpret frontmatter
 or define another graph model.
 
+The Effects feature branch adds a separate no-write configuration and
+validation boundary. It does not change the Navigation 1.0 import graph or
+insert an executor into the plugin or standalone browser bundles.
+
 ## Versions and dependency integrity
 
 `package.json` declares version 0.8.0 and `manifest.json` carries the same
 version. `versions.json` maps 0.8.0 to Obsidian 1.11.4.
 
-The dependency is declared as:
+On the released/`main` line, the dependency is declared as:
 
 ```text
 gkos-engine: github:Odenknight/GKOS-Engine#v2.1.1
 ```
 
-The lockfile resolves Engine 2.1.1 to the exact commit recorded in
+That lockfile resolves Engine 2.1.1 to the exact commit recorded in
 [Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md). The lock guard
 checks that git dependencies resolve immutably. Three.js is exact-pinned to
 0.185.1, and renderer provenance is checked in source and generated artifacts.
+
+The current Effects feature branch instead pins this exact development
+coordinate:
+
+```text
+gkos-engine: github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9
+```
+
+The installed package declares version 2.1.2 and exports
+`gkos-engine/navigation-effects`. Its contract manifest identifies suite
+`ENGINE-NAV-EFFECTS-CONTRACT-1.0.0`, Navigation Effects contract `1.0.0`,
+Engine release target `2.2.0`, standing `integration-only`, implementation
+phase `node-executor-experimental`, and `gkos_conformance: false`. The optional
+`gkos-engine/navigation-effects/node` export exists in the dependency but is
+not imported by the Kosmos framework-neutral adapter or its browser build.
+
+This exact commit coordinate is development-only. It is not an Engine 2.2
+release or a product release dependency. Its lock coordinate and integrity are
+recorded in
+[the development-pin ledger](docs/navigation-effects/DEVELOPMENT-PIN.md). An
+owner-authorized immutable Engine 2.2 artifact and all qualification gates are
+required before any release claim.
 
 The TypeScript Engine remains the active dependency. Rust 3.0 is roadmap work,
 not a selected or bundled runtime.
 
 ## Semantic and graph behavior
 
-Engine 2.1.1 supplies a tolerant Markdown/GKX parser, path normalization,
+Released Engine 2.1.1 supplies a tolerant Markdown/GKX parser, path normalization,
 wikilink and Markdown-link resolution, ambiguity diagnostics, canonical
 lineage, temporal validity, graph assembly, incremental indexing, Graphiti
 episodes, and Navigation 1.0.
@@ -102,6 +130,68 @@ it does not invent historical file bytes.
 Assessments describe documentation completeness, support, and traceability
 under a versioned policy. They are not truth, approval, operational fitness, or
 authority.
+
+## Experimental Navigation Effects reconciliation scope
+
+The feature branch contains configuration and validation primitives plus a
+browser-safe Packet B ownership/adoption core and trusted preview modal. It has
+no source-effect path or durable host/runtime wiring.
+
+### Implemented no-write boundaries
+
+| Surface | Implemented behavior | Explicit non-capability |
+|---|---|---|
+| Operational exclusions | `src/operational-paths.ts` recognizes `.gkx` and `_archive/moc-runs` roots and descendants across standalone, plugin, migration, enrichment, and agent-facing corpus paths | It is an exclusion predicate, not filesystem containment or write authorization |
+| Settings persistence | `NavigationEffectsSettings` schema v1 migrates additively through the existing plugin settings object; missing values produce quiet defaults; malformed/unknown values produce repair diagnostics and force all write flags false | No new settings store, secret persistence, settings UI, prompt, or activation |
+| Defaults and timing bounds | Effects, automatic maintenance, and automatic creation default false; debounce defaults to 750 ms, maximum debounce to 3,000 ms, periodic reconciliation to five minutes; fixed roots remain `.gkx/effects` and `_archive/moc-runs` | Values configure future behavior only; no coordinator or reconciliation scheduler consumes them yet |
+| Independent status | Navigation 1.0, planner, host adapter, authority provider, journal, policy digest, lease, recovery, reconciliation, ownership, maintenance, and creation have independent ready/state/reason fields | Planner or adapter availability never renders as current authority or runtime safety |
+| Engine adapter | `src/navigation-effects/engine-adapter.ts` imports only `gkos-engine/navigation-effects`, exposes the exact experimental contract standing, and maps strict configured booleans | Even when Engine reports configured `apply_managed_moc`, Kosmos reports `currentEffectAuthorized: false` and both automatic modes false |
+| Policy validator | Accepts bounded UTF-8 JSON policy bytes, closed identity fields, canonical JSON, and an exact ID/version/lowercase-SHA-256 reference | No policy is bundled, selected, ratified, or made effective by validation |
+| Authority boundary | Validates a credential-bound actor, explicit approving actor, exact vault/root/path, operation/object class, sensitivity ceiling, policy binding, expiry, and injected evaluation time; denies agent self-approval and inference fields | No authority provider is configured; connectivity, bearer possession, client label, confidence, approval booleans, or timestamps cannot create a grant |
+| Packet B adoption core | Canonical ownership registries and adoption receipts, exact-byte preview/confirmation, stale-state and path/marker rejection, and an atomic/idempotent in-memory test store | No durable store, host adapter, runtime registration, MOC write, or adoption authority |
+| Trusted adoption preview | Two-stage modal shows target/digests/ownership/marker validation/exact diff, rechecks freshness, requires an exact confirmation phrase, and reports persistence failures without claiming a source write | The modal is not registered in the plugin or standalone host; its record callback is injected and confirmation fails closed without a freshness provider |
+| Packet C0 adapter boundary | Host-neutral byte/effect/recovery/shutdown contract plus deterministic Obsidian and standalone/native capability descriptors | Both descriptors are intentionally unavailable; no writer, Engine Node executor, Vault binding, service endpoint, or runtime registration exists |
+
+Malformed settings, policy drift, noncanonical or unsafe paths, missing
+credentials, provider errors, grant mismatch, expiry, sensitivity overflow,
+agent self-approval, and unknown runtime facts fail closed. The implemented
+functions are pure or injected validators/components; the Packet B store is
+in-memory test infrastructure. They do not open files, write notes, hold leases,
+or recover effects.
+
+### Runtime and qualification blockers
+
+The following are not implemented in this branch and remain hard blockers:
+
+- durable host/runtime wiring for the ownership registry, adoption receipts,
+  freshness reads, and credential-bound recording;
+- executable Obsidian and standalone/native host adapters; the C0 descriptors
+  intentionally make every operation unavailable;
+- target containment and platform filesystem execution;
+- durable journal, checkpoint, archive, lease, receipt, rollback, and startup
+  recovery wiring;
+- the event debouncer, affected-scope coordinator, reconciliation runtime, and
+  receipt-bound self-write suppression;
+- trusted settings/status/recovery/rollback/audit UI and runtime registration
+  of the adoption-preview modal;
+- real-process crash qualification, Windows/macOS/Debian adapter parity and
+  path-security evidence, 100/2,000/10,000/50,000-note measurements, and the
+  24-hour watcher/reconciliation soak; and
+- replacement of the development pin with an owner-authorized immutable Engine
+  2.2 artifact, plus release/signing/publishing authorization.
+
+Consequently, no existing MOC has been adopted or managed, no generated-region
+marker has been inserted, no MOC or source note is written, no current effect
+is authorized, and automatic maintenance/creation remain unavailable and off.
+The [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+record historical local evidence only; neither establishes configured,
+authorized, runtime-safe, qualified, or released standing.
+The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
+records the independent gate semantics at its stated pre-implementation audit
+coordinate; the
+[qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md) separates
+local synthetic work from the cross-platform and soak blockers.
 
 ## Local Cluster renderer
 
@@ -374,6 +464,8 @@ and is not a replacement for independent backup.
 | Graph/Graphiti/session export | Explicit download outside the source workflow |
 | Obsidian REST/MCP API | Read-only; no write routes or tools |
 | Navigation 1.0 | Selects existing visual centers; apply capability false |
+| Navigation Effects feature-branch planner/settings/status | Pure capability, configuration, policy, and authority-validation values; no source or sidecar write |
+| Navigation Effects execution | Not implemented or configured in Kosmos; unavailable and off |
 | GKX audit | Read-only until the operator separately saves an audit |
 | GKX migration/enrichment apply | Explicit acknowledgements, hash recheck, backup, guarded source processing |
 | Nextcloud sync | Separately enabled local/remote file synchronization with conflict and deletion policy |
@@ -395,6 +487,11 @@ confidence value, or timestamp supplies approval authority.
   Secret Storage.
 - Generated graphs, episodes, diagnostics, assessments, heat, and replay are
   projections and do not replace GKX source.
+- `.gkx/**` and `_archive/moc-runs/**` are operational namespaces and are
+  excluded from corpus, Navigation, graph, retrieval, enrichment, and agent
+  context on the feature branch.
+- The Effects adapter is framework-neutral; the optional Engine Node executor
+  does not enter the plugin or standalone browser import graph.
 - Build invariants check authentication defaults, listener rules, request caps,
   iframe sandboxing, artifact self-containment, and other security properties.
 
@@ -436,16 +533,20 @@ byte reproducibility. Browser workflows cover desktop and mobile-oriented
 projects. Exact test counts belong to the commit and runner that produced them;
 they are not evergreen documentation.
 
-## Explicitly excluded roadmap
+## Explicitly excluded roadmap and release gates
 
-The following are absent from current main and must not be described as
-implemented, configured, qualified, or released:
+The following are absent from the released/`main` product. Except for the
+no-write feature-branch primitives enumerated above, they are also absent from
+the current reconciliation branch and must not be described as implemented,
+configured, authorized, qualified, or released:
 
 - the new immutable proposal/decision quarantine and confidence-review system;
-- Navigation Effects, managed-MOC ownership/adoption, source writing, archives,
-  journal, lease, receipts, reconciliation, recovery, rollback, and automatic
-  maintenance;
-- an Engine 2.2 effects dependency;
+- durable host/runtime wiring for managed-MOC ownership/adoption and receipts,
+  source writing, archives, journal, lease, coordinator, reconciliation,
+  recovery, self-write suppression, complete trusted operator and
+  rollback/audit UI, and automatic maintenance/creation;
+- a released Engine 2.2 effects dependency (the feature branch has only an
+  exact development commit);
 - a Tauri/native desktop shell, bundled standalone sidecar, Docker profile,
   portable/native installers, or uninstall workflow;
 - signing, notarization, an automatic updater, cross-platform package
@@ -457,6 +558,8 @@ implemented, configured, qualified, or released:
 | Path | Responsibility |
 |---|---|
 | `src/navigation-integration.ts` | Read-only Engine Navigation adapter and truthful capability boundary |
+| `src/navigation-effects/` | Feature-branch no-write settings/status, framework-neutral Engine boundary, policy validation, and authority validation |
+| `src/operational-paths.ts` | Central `.gkx/**` and `_archive/moc-runs/**` corpus exclusion predicate |
 | `src/renderer/` | Cosmology, layout, shaders, controls, trails, heat, and renderer lifecycle |
 | `src/standalone/` | Folder/snapshot sources, monitoring, service client, observability, replay, and standalone UI |
 | `src/plugin/` | Obsidian lifecycle, message host, Agent API, explicit GKX workflows, and Nextcloud sync |
@@ -465,6 +568,7 @@ implemented, configured, qualified, or released:
 | `scripts/` | Deterministic builds, integrity checks, provenance, and release staging |
 | `test/` | Node unit/integration/security fixtures and browser suites |
 | `docs/` | Architecture, profiles, threat model, compatibility, and operator guidance |
+| `docs/navigation-effects/` | Development pin, independent capability semantics, and qualification/blocker plan |
 
 ## Related documents
 
@@ -475,6 +579,11 @@ implemented, configured, qualified, or released:
 - [GKX migration](docs/GKX-MIGRATION.md)
 - [Content-assisted enrichment](docs/GKX-ENRICHMENT.md)
 - [Obsidian Agent API](AGENT-API.md)
+- [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
+- [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
+- [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
+- [Navigation Effects Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)

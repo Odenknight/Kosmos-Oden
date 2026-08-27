@@ -7,6 +7,7 @@ import type { GkxSensitivity } from "gkos-engine";
 import type { AgentSettings } from "./agent-server";
 import { GkxEnrichmentApplyPreviewModal } from "./gkx-enrichment-apply";
 import { requestGkxLlmJson, validateGkxLlmConfiguration } from "./gkx-llm";
+import { isKosmosOperationalPath } from "../operational-paths";
 
 export interface GkxEnrichmentRecord {
   schema: "gkx-enrichment-proposal/1";
@@ -57,7 +58,7 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
   const records: GkxEnrichmentRecord[] = [], skipped: string[] = [], excluded: Array<{ path: string; pattern: string }> = [], issues: GkxEnrichmentIssue[] = [];
   let usedInputChars = 0;
   let consecutiveProviderErrors = 0;
-  const candidates = app.vault.getMarkdownFiles().filter((file) => !file.path.toLowerCase().startsWith(".gkx/")).sort((a, b) => a.path.localeCompare(b.path));
+  const candidates = app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path)).sort((a, b) => a.path.localeCompare(b.path));
   const files: TFile[] = [];
   for (const file of candidates) {
     const pattern = matchedGkxExclusion(file.path, settings.gkxExcludePatterns, settings.gkxDeveloperExclusions);

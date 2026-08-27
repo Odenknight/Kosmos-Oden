@@ -26,6 +26,14 @@ import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
 import { GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
 import type { GkxGraph, GkxNode, GkxSensitivity } from "gkos-engine";
+import {
+  DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
+  migrateNavigationEffectsSettings,
+} from "../navigation-effects/settings";
+import type {
+  NavigationEffectsSettings,
+  NavigationEffectsSettingsMigration,
+} from "../navigation-effects/types";
 
 // Newest first. 2025-11-25 is the current published MCP revision. Older
 // revisions remain negotiable for clients that still request them explicitly.
@@ -38,7 +46,7 @@ export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 export type AgentBindMode = "localhost" | "lan";
 
 /** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 8;
+export const AGENT_SETTINGS_SCHEMA = 9;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -62,6 +70,11 @@ export interface AgentSettings {
   agentAllowQueryToken: boolean;
   /** Opt into GKOS-Engine 2.1 canonical-five Navigation center discovery. */
   navigationEnabled: boolean;
+  /**
+   * Separately versioned Navigation Effects settings. These settings describe
+   * operator intent only; defaults expose no writer and enable no effect.
+   */
+  navigationEffects: NavigationEffectsSettings;
   /** Maintain portable ISO-8601 UTC created_at/updated_at note fields. */
   noteTimestampsEnabled: boolean;
   /** false (default) = UTC Zulu; true = local ISO-8601 with a numeric ±HH:MM offset. */
@@ -104,6 +117,10 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
   navigationEnabled: KOSMOS_NAVIGATION_DEFAULT_ENABLED,
+  navigationEffects: {
+    ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
+    policyRef: { ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS.policyRef },
+  },
   noteTimestampsEnabled: true,
   timestampUseLocalTimezone: false,
   timestampCreatedKey: "created_at",
@@ -126,9 +143,21 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   gkxDeveloperExclusions: false,
 };
 
+const navigationEffectsMigrations = new WeakMap<AgentSettings, NavigationEffectsSettingsMigration>();
+
+/** Return the retained repair diagnostics for this in-memory settings instance. */
+export function getNavigationEffectsSettingsMigration(settings: AgentSettings): NavigationEffectsSettingsMigration {
+  return navigationEffectsMigrations.get(settings) ?? migrateNavigationEffectsSettings(settings.navigationEffects);
+}
+
 /** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
 export function migrateAgentSettings(raw: any): AgentSettings {
+  // A missing nested value is an older/fresh install, not a repair condition.
+  // Supplied malformed values are sanitized by the dedicated fail-closed
+  // migrator and their diagnostics remain associated with this in-memory object.
+  const navigationEffectsMigration = migrateNavigationEffectsSettings(raw?.navigationEffects);
   const s: AgentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, raw || {});
+  s.navigationEffects = navigationEffectsMigration.settings;
   // v1 had no agentAllowQueryToken and accepted query tokens implicitly. Migrating
   // to v2 turns that OFF by default; the user can re-enable it explicitly.
   if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
@@ -162,6 +191,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   s.gkxEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(s.gkxEnrichmentMaxSuggestions) || 12));
   s.gkxEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, Number(s.gkxEnrichmentTimeoutMs) || 30000));
   s.schemaVersion = AGENT_SETTINGS_SCHEMA;
+  navigationEffectsMigrations.set(s, navigationEffectsMigration);
   return s;
 }
 
