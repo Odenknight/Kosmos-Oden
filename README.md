@@ -10,10 +10,12 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
-> **Status:** repository and plugin metadata remain at **0.8.0**, with the
-> released, exact-pinned **GKOS-Engine v2.1.1** dependency. Main also contains
-> read-only viewer-observability improvements; this documentation update is not
-> a new release, package, certification, or conformance claim.
+> **Status:** repository and plugin metadata remain at **0.8.0**. The released
+> product and `main` line use exact-pinned **GKOS-Engine v2.1.1**. This
+> experimental feature branch temporarily pins an exact unreleased Engine
+> development commit to test Navigation Effects boundaries. That pin is not
+> Engine 2.2, a new Kosmos release, write authority, production readiness,
+> certification, or a conformance claim.
 
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
@@ -100,7 +102,8 @@ to satisfy the visual metaphor.
 
 ## Lineage, time, and GKX
 
-Kosmos reads human-editable GKX metadata through GKOS-Engine v2.1.1. Declaring
+The released product reads human-editable GKX metadata through GKOS-Engine
+v2.1.1. Declaring
 either `supersedes` or `superseded_by` contributes to one canonical lineage
 graph. Cycles, ambiguous targets, self-links, multiple successors, and invalid
 time order are reported instead of silently becoming trusted edges.
@@ -124,6 +127,45 @@ note is selected as a visual MOC center and recognizes exactly `index`,
 
 Navigation cannot create, rename, rewrite, archive, or delete a note. Kosmos
 continues to report that MOC apply is unavailable.
+
+### Experimental managed-MOC groundwork
+
+There is a new workshop off to the side of the observatory—but the doors to
+the write machinery are still firmly locked.
+
+On the current Navigation Effects feature branch, Kosmos has implemented
+no-write groundwork for a future, separately governed managed-MOC plane:
+
+- `.gkx/**` and `_archive/moc-runs/**` are centrally excluded from the corpus,
+  graph, Navigation, enrichment, and agent context;
+- versioned settings migrate additively, persist quietly, and keep the Effects
+  plane, automatic maintenance, and automatic creation off;
+- status reports planner, adapter, authority provider, journal, policy, lease,
+  recovery, reconciliation, ownership, and automatic modes independently;
+- a browser-safe adapter imports only the framework-neutral Engine Effects
+  surface and treats configured infrastructure as capability—not current
+  authority;
+- policy validation binds exact ID, version, canonical bytes, and lowercase
+  SHA-256 digest; and
+- authority evaluation requires a credential-bound actor and exact grant for
+  the operation, vault, root, object class, sensitivity ceiling, policy, and
+  time. Agents cannot approve their own grants.
+
+These pieces validate inputs and denials; they do not write an MOC. The branch
+does not yet contain managed-MOC adoption, an Obsidian or standalone host
+adapter, a durable journal/archive/lease, the event coordinator, recovery or
+reconciliation runtime, self-write suppression, operator UI, rollback/audit
+workflow, cross-platform crash evidence, scale evidence, or the 24-hour soak.
+Existing MOCs therefore remain unmanaged and untouched, and automatic writes
+remain unavailable.
+
+The dependency is an exact development pin to Engine commit
+`41172b91970aac869c161f4842e3526a62fd1fd9`. Its Effects contract says
+`integration-only`, targets an unreleased Engine 2.2, labels the Node executor
+experimental, and claims no GKOS conformance. See the
+[development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
+[initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md), and
+[qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md).
 
 ## Watch authorized agent activity
 
@@ -238,16 +280,23 @@ Report vulnerabilities privately through GitHub Security Advisories. Do not
 include real vault content or live credentials. See [SECURITY.md](SECURITY.md)
 and [the threat model](docs/THREAT-MODEL.md).
 
-## Roadmap—not current main behavior
+## Roadmap and feature-branch boundary
 
-The following are not implemented or merged into this main scope:
+The released product and `main` do not include a Navigation Effects dependency
+or managed-MOC runtime. The experimental feature branch contains only the
+no-write groundwork described above. The following remain roadmap work rather
+than working or qualified product behavior:
 
 - the new immutable proposal/decision quarantine and confidence-review system;
-- Navigation Effects and managed-MOC adoption, writing, journaling, recovery,
-  rollback, or automatic maintenance;
+- managed-MOC ownership/adoption, source writing, archives, durable journal,
+  vault lease, receipts, coordinator, recovery, reconciliation, self-write
+  suppression, rollback/audit UI, or automatic maintenance/creation;
 - Tauri, native desktop, Docker, or cross-platform standalone-service packages;
 - installer signing, macOS notarization, publishing, or a new release label;
-- an Engine 2.2 effects dependency or Rust 3.0 engine cutover.
+- an owner-authorized released Engine 2.2 effects dependency or Rust 3.0
+  engine cutover; and
+- cross-platform path/crash/durability qualification, scale results, and the
+  required 24-hour soak for any Effects host profile.
 
 They are not hidden settings, dormant authority, or production-ready features.
 
@@ -300,6 +349,9 @@ exact command, commit, platform, failures, and documented skips.
 - [GKX migration](docs/GKX-MIGRATION.md) and
   [content-assisted enrichment](docs/GKX-ENRICHMENT.md)
 - [Agent API](AGENT-API.md)
+- [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
+  [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md), and
+  [qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
 - [Release process](docs/RELEASE-PROCESS.md)
 
 ## Origin and licensing
