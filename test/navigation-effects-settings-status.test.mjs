@@ -8,6 +8,12 @@ const bundled = await build({
       export * from "./src/navigation-effects/types.ts";
       export * from "./src/navigation-effects/settings.ts";
       export * from "./src/navigation-effects/status.ts";
+      export {
+        AGENT_SETTINGS_SCHEMA,
+        DEFAULT_AGENT_SETTINGS,
+        getNavigationEffectsSettingsMigration,
+        migrateAgentSettings,
+      } from "./src/plugin/agent-server.ts";
     `,
     resolveDir: process.cwd(),
     sourcefile: "navigation-effects-test-entry.ts",
@@ -24,7 +30,11 @@ const api = await import(`data:text/javascript;base64,${Buffer.from(bundled.outp
 
 const {
   DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
+  AGENT_SETTINGS_SCHEMA,
+  DEFAULT_AGENT_SETTINGS,
   buildNavigationEffectsStatus,
+  getNavigationEffectsSettingsMigration,
+  migrateAgentSettings,
   migrateNavigationEffectsSettings,
 } = api;
 
@@ -180,4 +190,53 @@ test("invalid runtime fact types and creation without maintenance fail closed", 
   });
   assert.equal(status.planner.ready, false);
   assert.equal(status.hostAdapter.ready, false);
+});
+
+test("single plugin settings migration adds quiet, disabled Effects defaults", () => {
+  const legacy = migrateAgentSettings({
+    schemaVersion: 8,
+    agentEnabled: true,
+    agentToken: "existing-token",
+  });
+  assert.equal(legacy.schemaVersion, AGENT_SETTINGS_SCHEMA);
+  assert.equal(legacy.agentEnabled, true);
+  assert.equal(legacy.agentToken, "existing-token");
+  assert.deepEqual(legacy.navigationEffects, {
+    ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
+    policyRef: { ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS.policyRef },
+  });
+  assert.equal(getNavigationEffectsSettingsMigration(legacy).repairRequired, false);
+  assert.equal(DEFAULT_AGENT_SETTINGS.navigationEffects.enabled, false);
+  assert.equal(DEFAULT_AGENT_SETTINGS.navigationEffects.automaticMaintenanceEnabled, false);
+  assert.equal(DEFAULT_AGENT_SETTINGS.navigationEffects.automaticCreationEnabled, false);
+});
+
+test("plugin migration retains malformed Effects diagnostics in memory and saves sanitized state", () => {
+  const migrated = migrateAgentSettings({
+    schemaVersion: 8,
+    navigationEffects: {
+      schemaVersion: 500,
+      enabled: true,
+      automaticMaintenanceEnabled: true,
+      automaticCreationEnabled: true,
+      stateRoot: "../../escape",
+      unknownAuthority: "self",
+    },
+  });
+  const retained = getNavigationEffectsSettingsMigration(migrated);
+  assert.equal(retained.repairRequired, true);
+  assert.ok(retained.diagnostics.some((entry) => entry.code === "schema-version-unsupported"));
+  assert.ok(retained.diagnostics.some((entry) => entry.code === "unknown-setting"));
+  assert.ok(retained.diagnostics.some((entry) => entry.code === "fixed-root-mismatch"));
+  assert.equal(migrated.navigationEffects.enabled, false);
+  assert.equal(migrated.navigationEffects.automaticMaintenanceEnabled, false);
+  assert.equal(migrated.navigationEffects.automaticCreationEnabled, false);
+  assert.equal(migrated.navigationEffects.stateRoot, ".gkx/effects");
+
+  // The existing save path spreads AgentSettings; only sanitized nested data is
+  // enumerable. Repair diagnostics remain in memory and are not persisted.
+  const persisted = { ...migrated };
+  assert.deepEqual(persisted.navigationEffects, migrated.navigationEffects);
+  assert.equal("navigationEffectsDiagnostics" in persisted, false);
+  assert.equal(getNavigationEffectsSettingsMigration(migrated), retained);
 });
