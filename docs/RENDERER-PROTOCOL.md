@@ -56,7 +56,7 @@ versions/types instead of acting on arbitrary `postMessage` data.
   payload: { changed?, removed?, renames?, folders?, attachments?, label? } }
 
 { protocol: "vault-kosmos", version: 1, type: "agent-traversal",
-  payload: { paths: string[], tool: string } }
+  payload: { paths: string[], tool: string, agent?: string, agentId?: string } }
 
 { protocol: "vault-kosmos", version: 1, type: "visibility",
   payload: { visible: boolean } }
@@ -110,8 +110,13 @@ of falling through to link resolution.
 The renderer method `notifyAgentTraversal(paths, tool, agentLabel?, replay?, agentId?)`
 accepts an optional opaque stable ID. Live service and recorded replay adapters
 must pass `agent_id` as the fifth argument and keep `agent_label` for display.
-Equal labels with different IDs retain separate heads and colors; renaming an ID
-does not create another head. IDs are not authentication or effect authority.
+Equal labels with different IDs retain separate heads and colors; renaming the
+display label for one ID does not create another head. IDs are not authentication
+or effect authority.
+The embedded Agent API host mints and retains a separate random visual ID for
+each MCP session; it never exposes the `Mcp-Session-Id` to the renderer. Clients
+cannot supply this visual ID. REST requests have no separate stable ID and
+remain label-only.
 Callers without stable IDs retain explicit label-only grouping, in a namespace
 separate from IDs. Missing/blank IDs use this legacy behavior. Retained traversal
 steps remain capped at 25, displayed markers at six, and the deterministic color

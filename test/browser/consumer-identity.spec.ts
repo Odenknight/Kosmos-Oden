@@ -23,3 +23,38 @@ test('stable identity survives live, replay, and buffered-live adapters without 
  },{base});
  expect(buffered.agentTraversalHops).toBe(2);expect(buffered.agentTraversalAgents).toBe(2);
 });
+
+test('stable identity survives the versioned embed request-to-render adapter', async ({ page }) => {
+  await page.goto('/dist/kosmos-embed.html?capture=1&seed=1907&time=0&animation=off');
+  await page.evaluate(() => window.postMessage({
+    protocol: 'vault-kosmos',
+    version: 1,
+    type: 'vault-snapshot',
+    payload: {
+      files: [
+        { relativePath: 'A/one.md', content: '# one' },
+        { relativePath: 'A/two.md', content: '# two' },
+      ],
+      folders: ['A'],
+      attachments: [],
+      label: 'EmbedIdentity',
+    },
+  }, '*'));
+  await page.waitForFunction(() => (window as any).__kosmos?.ok === true);
+
+  await page.evaluate(() => {
+    const traversal = (agentId: string, path: string) => window.postMessage({
+      protocol: 'vault-kosmos',
+      version: 1,
+      type: 'agent-traversal',
+      payload: { paths: [path], tool: 'get_note', agent: 'Shared label', agentId },
+    }, '*');
+    traversal('agent:a', 'A/one.md');
+    traversal('agent:b', 'A/two.md');
+  });
+  await page.waitForFunction(() => (window as any).__kosmos.getDiagnostics().agentTraversalAgents === 2);
+  const diagnostics = await page.evaluate(() => (window as any).__kosmos.getDiagnostics());
+
+  expect(diagnostics.agentTraversalHops).toBe(2);
+  expect(diagnostics.agentTraversalAgents).toBe(2);
+});

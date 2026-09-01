@@ -271,22 +271,66 @@ test("agent api", async (t) => {
     assert.match(String(r.headers["mcp-session-id"] || ""), /^[A-Za-z0-9_-]{10,}$/);
   });
 
-  await t.test("agent identity (clientInfo.name via Mcp-Session-Id) flows to the traversal callback", async () => {
+  await t.test("MCP traversal identity is stable within a session and separate from its session token", async () => {
     const init = await mcp({ jsonrpc: "2.0", id: 8, method: "initialize", params: initParams(LATEST_MCP_PROTOCOL_VERSION, "Hermes") });
     const sid = init.headers["mcp-session-id"];
     assert.ok(sid, "initialize should return a session id");
     await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
-    let seen = null;
-    server.onTraversal = (paths, tool, agent) => { seen = { paths, tool, agent }; };
-    await request(port, {
-      method: "POST", path: "/mcp",
-      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_lineage", arguments: { title: "Engine v2" } } }),
-    });
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => { seen.push({ paths, tool, agent, agentId }); };
+    for (const [id, name] of [[9, "get_lineage"], [91, "get_note"]]) {
+      const called = await request(port, {
+        method: "POST", path: "/mcp",
+        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
+        body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { title: "Engine v2" } } }),
+      });
+      assert.equal(called.status, 200);
+    }
     server.onTraversal = undefined;
-    assert.ok(seen, "traversal should have fired");
-    assert.equal(seen.agent, "Hermes");
-    assert.equal(seen.tool, "get_lineage");
+    assert.equal(seen.length, 2);
+    assert.ok(seen.every(({ agent }) => agent === "Hermes"));
+    assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
+    assert.equal(seen[1].agentId, seen[0].agentId);
+    assert.notEqual(seen[0].agentId, sid);
+    assert.equal(init.body.includes(seen[0].agentId), false, "visual identity must remain server-side");
+  });
+
+  await t.test("same MCP label keeps distinct traversal identities across sessions", async () => {
+    const initialize = async (id) => {
+      const init = await request(port, {
+        method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id, method: "initialize", params: initParams(LATEST_MCP_PROTOCOL_VERSION, "Shared") }),
+      });
+      assert.equal(init.status, 200);
+      const sid = init.headers["mcp-session-id"];
+      assert.ok(sid);
+      const initialized = await request(port, {
+        method: "POST", path: "/mcp",
+        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      });
+      assert.equal(initialized.status, 202);
+      return sid;
+    };
+    const sessionA = await initialize(81), sessionB = await initialize(82);
+    assert.notEqual(sessionA, sessionB);
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => { seen.push({ paths, tool, agent, agentId }); };
+    for (const [id, sid] of [[83, sessionA], [84, sessionB]]) {
+      const called = await request(port, {
+        method: "POST", path: "/mcp",
+        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
+        body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "get_note", arguments: { title: "Engine v2" } } }),
+      });
+      assert.equal(called.status, 200);
+    }
+    server.onTraversal = undefined;
+    assert.deepEqual(seen.map(({ agent }) => agent), ["Shared", "Shared"]);
+    assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
+    assert.match(seen[1].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
+    assert.notEqual(seen[0].agentId, seen[1].agentId);
+    assert.notEqual(seen[0].agentId, sessionA);
+    assert.notEqual(seen[1].agentId, sessionB);
   });
 
   await t.test("MCP rejects JSON-RPC 1.0, batches, and unknown tools", async () => {
@@ -565,10 +609,10 @@ test("onTraversal: whole-vault queries (overview/episodes/diagnostics) do NOT re
   assert.equal(fired, false);
 });
 
-test("onTraversal: REST routes emit the same events as MCP tools", async () => {
+test("onTraversal: REST routes emit the same events as MCP tools without inventing stable IDs", async () => {
   const server = new KosmosAgentServer(http, settings(), fixtureProvider());
   const seen = [];
-  server.onTraversal = (paths, tool) => seen.push({ tool, paths });
+  server.onTraversal = (paths, tool, agent, agentId) => seen.push({ tool, paths, agent, agentId });
   await new Promise((resolve) => { server.start(); server.server.on("listening", resolve); });
   const port = server.server.address().port;
   await request(port, { path: "/note?title=Engine%20v2", headers: auth });
@@ -576,6 +620,7 @@ test("onTraversal: REST routes emit the same events as MCP tools", async () => {
   server.stop();
   assert.ok(seen.some((s) => s.tool === "get_note" && s.paths.includes("Ideas/Engine v2.md")));
   assert.ok(seen.some((s) => s.tool === "graph_at_time"));
+  assert.ok(seen.every((s) => s.agentId === undefined));
 });
 
 test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", () => {
