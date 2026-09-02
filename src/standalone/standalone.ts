@@ -79,7 +79,7 @@ function leaveReplayForLive(): void {
   stopReplayTimer();
   replayMode = false;
   app.clearTraversalObservability();
-  for (const event of liveDuringReplay.splice(0)) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+  for (const event of liveDuringReplay.splice(0)) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false, event.agent_id);
   liveDuringReplayBytes = 0;
 }
 function updateReplayUi(): void {
@@ -94,7 +94,7 @@ function ensureReplayTimer(): void {
   if (replayTimer) return;
   replayTimer = (setInterval(() => {
     if (!replayMode) return;
-    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true, event.agent_id);
     updateReplayUi();
     if (!sessionReplay.state.playing) stopReplayTimer();
   }, 30) as unknown) as number;
@@ -124,7 +124,7 @@ function receiveTraversalEvent(event: TraversalEventEnvelope): void {
     }
     return;
   }
-  app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+  app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false, event.agent_id);
 }
 function startEventStream(): void {
   stopEventStream();
@@ -463,7 +463,7 @@ const ui: StandaloneUI = createStandaloneUI({
   },
   onReplaySeek: (offsetMs) => {
     replayMode = true; app.clearTraversalObservability(); sessionReplay.seek(offsetMs);
-    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true, event.agent_id);
     updateReplayUi();
   },
   onReplaySpeed: (speed) => { sessionReplay.setSpeed(speed); updateReplayUi(); },

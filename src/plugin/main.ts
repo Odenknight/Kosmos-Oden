@@ -144,7 +144,7 @@ class KosmosView extends ItemView {
   }
 
   /** Live AI-agent traversal (Agent API): light up visited bodies with the emerald trail. */
-  agentTraversal(paths: string[], tool: string, agent?: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool, agent })); }
+  agentTraversal(paths: string[], tool: string, agent?: string, agentId?: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool, agent, agentId })); }
 
   /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
   syncVisibility(): void { this.post(wrap("visibility", { visible: this.isVisible() })); }
@@ -391,7 +391,7 @@ export default class VaultKosmosPlugin extends Plugin {
         .filter((v): v is KosmosView => v instanceof KosmosView);
 
     // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
-    this.agentApi.onTraversal = (paths, tool, agent) => { for (const v of views()) v.agentTraversal(paths, tool, agent); };
+    this.agentApi.onTraversal = (paths, tool, agent, agentId) => { for (const v of views()) v.agentTraversal(paths, tool, agent, agentId); };
 
     // Live vault-connectivity indicator: a cheap read probe (no network stack) —
     // readability of the vault files IS the signal. Green when the adapter can

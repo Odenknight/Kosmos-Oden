@@ -16,6 +16,14 @@ read-only, and the standalone viewer works without Obsidian or the internet.
 > development commit to test Navigation Effects boundaries. That pin is not
 > Engine 2.2, a new Kosmos release, write authority, production readiness,
 > certification, or a conformance claim.
+>
+> The review branch `codex/complete-identity-protocol-20260901` adds a bounded
+> visual-identity successor. Its implementation evidence coordinate is
+> `caac0248529bcea94d7d37d582a9e45b3cc6df94`; later documentation commits require
+> their own exact-SHA checks. It has local unit and Chromium
+> evidence, but remains an unreleased review candidate. Hosted browser/mobile
+> lanes, cross-GPU qualification, and a live Engine request-to-render chain are
+> still required before promotion.
 
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
@@ -184,6 +192,21 @@ experimental, and claims no GKOS conformance. See the
 Stable agent identities keep stable, distinct colors across trails, dust,
 rocket markers, and labels. The viewer never draws a line segment between two
 different agents.
+
+For MCP traffic, the Agent API host mints a random visual identifier for each
+session and keeps it separate from the human-readable agent label. The
+renderer receives that opaque visual identifier across live, buffered, and
+replay paths, so two sessions with the same label remain visually distinct and
+a renamed label does not create a new identity. The visual identifier is not
+client supplied, is not returned to the client, and is not the
+`Mcp-Session-Id`; session credentials never enter renderer state. REST traffic
+continues to use label-only grouping because it has no equivalent session
+identity.
+
+This is display continuity only. A stable color, trail, label, or marker does
+not authenticate an agent and grants no GKOS authority, capability, approval,
+or Effects permission. See the
+[host/renderer protocol](docs/RENDERER-PROTOCOL.md) for the exact boundary.
 
 The optional **Traffic Heatmap** brightens recently visited nodes using a
 bounded score that fades with elapsed monotonic time. It is off by default and

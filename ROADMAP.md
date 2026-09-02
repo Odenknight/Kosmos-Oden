@@ -15,6 +15,27 @@ GKOS governance or GKX exchange contracts.
   workflows for writes and authoritative dispositions.
 - Publish engine-version compatibility and reproducible release evidence.
 
+### Stable visual-identity successor
+
+The bounded successor on `codex/complete-identity-protocol-20260901` has
+implementation evidence at `caac0248529bcea94d7d37d582a9e45b3cc6df94`;
+later documentation commits require their own exact-SHA checks. It separates
+the renderer's stable agent identity from its display label across live,
+buffered, replay, and embedded paths. The Agent API server mints a distinct
+random visual identifier for each MCP session and does not expose the
+`Mcp-Session-Id` to the renderer.
+Clients cannot choose or retrieve the visual identifier; REST remains
+label-only. This changes visualization fidelity only and grants no authority.
+
+Local unit and Chromium evidence makes this a reviewable candidate, not a
+release or qualification claim. Promotion remains gated on:
+
+1. hosted Chromium and mobile browser execution at the exact accepted SHA;
+2. the applicable Firefox/WebKit and cross-GPU renderer lanes;
+3. a live, authenticated Engine-to-Kosmos request-to-render chain rather than
+   synthetic traversal input; and
+4. repository-owned review, compatibility evidence, and release checks.
+
 ## Next
 
 - Replace any remaining vendored or duplicated active-core behavior with
@@ -26,6 +47,9 @@ GKOS governance or GKX exchange contracts.
 - Keep product claims distinct from GKOS conformance and certification claims.
 - Maintain a documented migration path from KRS-Lite without requiring changes
   to the substance of compatible notes.
+- Close the stable visual-identity successor's hosted browser, GPU, and live
+  request-to-render gates without treating renderer identity as authentication
+  or effect authority.
 
 ## Coordination gates
 

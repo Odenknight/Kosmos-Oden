@@ -270,6 +270,14 @@ export interface AgentDataProvider {
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]);
 
+interface AgentSession {
+  name: string;
+  visualId: string;
+  at: number;
+  protocolVersion: string;
+  initialized: boolean;
+}
+
 export class KosmosAgentServer {
   settings: AgentSettings;
   provider: AgentDataProvider;
@@ -280,14 +288,15 @@ export class KosmosAgentServer {
   private hits = new Map<string, number[]>(); // client -> recent request timestamps
   private lastSweep = -Infinity; // last time stale client keys were swept from `hits`
   private perAgentInFlight = new Map<string, number>(); // agent identity -> in-flight count (Mitigation 4)
-  private sessions = new Map<string, { name: string; at: number; protocolVersion: string; initialized: boolean }>();
+  private sessions = new Map<string, AgentSession>();
   private lanCache: { at: number; ips: string[] } = { at: 0, ips: [] }; // Host validation runs per request; cache the NIC scan
   /** Fired with the note paths one query touched, so the viewer can render a
    *  live agent-traversal trail. Emission is post-hoc from result objects
    *  (queries stay pure) and capped per tool so a broad result never floods
    *  the halo budget (v0.5.1 behavior). vault_overview / export / diagnostics
-   *  are not reported — lighting up the entire vault isn't a trail. */
-  onTraversal?: (paths: string[], tool: string, agent?: string) => void;
+   *  are not reported — lighting up the entire vault isn't a trail. MCP calls
+   *  include a separate server-minted visual identity; REST calls omit it. */
+  onTraversal?: (paths: string[], tool: string, agent?: string, agentId?: string) => void;
 
   /** Paths a query result touched, for the live traversal overlay (best-effort, capped). */
   private traversalPaths(tool: string, r: any): string[] {
@@ -303,10 +312,10 @@ export class KosmosAgentServer {
     } catch (_) { return []; }
   }
 
-  emitTraversal(tool: string, r: any, agent?: string): void {
+  emitTraversal(tool: string, r: any, agent?: string, agentId?: string): void {
     if (!this.onTraversal) return;
     const paths = this.traversalPaths(tool, r);
-    if (paths.length) { try { this.onTraversal(paths, tool, agent); } catch (_) { /* never break a request */ } }
+    if (paths.length) { try { this.onTraversal(paths, tool, agent, agentId); } catch (_) { /* never break a request */ } }
   }
 
   /* ---------------- agent identity (per-agent trail + fairness) ---------------- */
@@ -322,11 +331,14 @@ export class KosmosAgentServer {
     this.pruneSessions(now);
     while (this.sessions.size >= MAX_AGENT_SESSIONS) { const first = this.sessions.keys().next().value; if (first === undefined) break; this.sessions.delete(first); }
     const sid = makeToken().slice(0, 22);
-    this.sessions.set(sid, { name: this.cleanAgentName(name), at: now, protocolVersion, initialized: false });
+    let visualId = "";
+    do { visualId = `agent-${makeToken().slice(0, 22)}`; }
+    while (Array.from(this.sessions.values()).some((session) => session.visualId === visualId));
+    this.sessions.set(sid, { name: this.cleanAgentName(name), visualId, at: now, protocolVersion, initialized: false });
     return sid;
   }
 
-  private getSession(id: string): { name: string; at: number; protocolVersion: string; initialized: boolean } | null {
+  private getSession(id: string): AgentSession | null {
     this.pruneSessions();
     const session = this.sessions.get(id);
     if (!session) return null;
@@ -1058,9 +1070,9 @@ export class KosmosAgentServer {
     return a;
   }
 
-  async callTool(name: string, args: any, agent?: string): Promise<any> {
+  async callTool(name: string, args: any, agent?: string, agentId?: string): Promise<any> {
     args = this.validateToolArgs(name, args || {});
-    const done = (r: any) => { this.emitTraversal(name, r, agent); return r; };
+    const done = (r: any) => { this.emitTraversal(name, r, agent, agentId); return r; };
     switch (name) {
       case "vault_overview": return this.qOverview();
       case "search_notes": return done(await this.qSearch(args.query, args));
@@ -1094,8 +1106,8 @@ export class KosmosAgentServer {
     msg: any,
     ctx?: {
       agent?: string;
-      sessionId?: string;
-      session?: { name: string; at: number; protocolVersion: string; initialized: boolean };
+      agentId?: string;
+      session?: AgentSession;
       setSessionId?: (sid: string) => void;
     }
   ): Promise<any | null> {
@@ -1146,7 +1158,7 @@ export class KosmosAgentServer {
         if (typeof params.name !== "string") throw new McpRpcError(-32602, "tools/call requires string name");
         const args = this.validateToolArgs(params.name, params.arguments ?? {});
         try {
-          const result = await this.callTool(params.name, args, ctx?.agent);
+          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId);
           const structuredContent = Array.isArray(result) ? { items: result } : result;
           return ok({
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -1251,7 +1263,7 @@ export class KosmosAgentServer {
 
       const isInitialize = parsed && typeof parsed === "object" && parsed.method === "initialize";
       const sid = String(req.headers["mcp-session-id"] || "");
-      let session: { name: string; at: number; protocolVersion: string; initialized: boolean } | undefined;
+      let session: AgentSession | undefined;
       if (isInitialize) {
         if (sid) { this.json(res, 400, { error: "initialize must not reuse an existing MCP session" }); return; }
       } else {
@@ -1269,7 +1281,7 @@ export class KosmosAgentServer {
 
       const agent = session?.name || this.agentLabel(req);
       let newSid: string | undefined;
-      const ctx = { agent, sessionId: sid || undefined, session, setSessionId: (id: string) => { newSid = id; } };
+      const ctx = { agent, agentId: session?.visualId, session, setSessionId: (id: string) => { newSid = id; } };
       const sidHeader = () => (newSid ? { "Mcp-Session-Id": newSid } : undefined);
       const out = await this.mcpDispatch(parsed, ctx);
       if (!out) { res.writeHead(202, sidHeader()); res.end(); } else this.json(res, 200, out, sidHeader());
