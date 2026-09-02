@@ -56,7 +56,7 @@ versions/types instead of acting on arbitrary `postMessage` data.
   payload: { changed?, removed?, renames?, folders?, attachments?, label? } }
 
 { protocol: "vault-kosmos", version: 1, type: "agent-traversal",
-  payload: { paths: string[], tool: string } }
+  payload: { paths: string[], tool: string, agent?: string, agent_id?: string } }
 
 { protocol: "vault-kosmos", version: 1, type: "visibility",
   payload: { visible: boolean } }
@@ -73,6 +73,11 @@ from result objects and **capped per tool** (lineage 12, related 11, search 8,
 `graph_at_time` 6) so a broad result never floods the halo budget; whole-vault
 queries (`vault_overview`, `export_graphiti_episodes`, diagnostics) do not
 report a trail at all.
+
+For MCP callers, the server mints `agent_id` independently from the transport's
+`Mcp-Session-Id`. Only the visual ID and sanitized `clientInfo.name` label cross
+the host-to-renderer boundary; the raw session ID remains transport-private.
+REST callers do not receive a synthetic stable ID and retain label-only grouping.
 
 `visibility` carries the hosting Obsidian leaf's visibility. Inside Obsidian,
 `document.visibilitychange` fires only when the whole window hides — the host

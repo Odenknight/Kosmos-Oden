@@ -23,3 +23,20 @@ test('stable identity survives live, replay, and buffered-live adapters without 
  },{base});
  expect(buffered.agentTraversalHops).toBe(2);expect(buffered.agentTraversalAgents).toBe(2);
 });
+
+test('stable identity survives relabeling while equal labels keep distinct heads',async({page})=>{
+ await page.goto('/kosmos-oden-stand-alone.html?capture=1&seed=1907&time=0&animation=off');
+ await page.waitForFunction(()=>(window as any).__kosmos?.ok===true);
+ const diagnostics=await page.evaluate(()=>{
+  const k=(window as any).__kosmos;
+  k.clearTraversalObservability();
+  k.notifyAgentTraversal(['10_Research/Literature Radar.md'],'note_read','Before rename',false,'agent:stable');
+  k.notifyAgentTraversal(['10_Research/Literature Radar.md'],'note_read','After rename',false,'agent:stable');
+  k.notifyAgentTraversal(['10_Research/Literature Radar.md'],'note_read','After rename',false,'agent:other');
+  return k.getDiagnostics();
+ });
+ // The relabeled stable identity updates its existing head instead of minting
+ // another hop/head; the second opaque identity remains independently visible.
+ expect(diagnostics.agentTraversalHops).toBe(2);
+ expect(diagnostics.agentTraversalAgents).toBe(2);
+});
