@@ -85,3 +85,42 @@ qualification gap, not three product-rendering failures or three passes.
 The current result supports continued offline-viewer and plugin source
 development. It does not support changing the repository's internal-alpha
 designation or claiming the entire uplift is functionally complete.
+
+## 0.8.1 integration evidence
+
+This section records the clean integration run after the 0.8.1 preparation
+commit `87358670d108f894e1df7679df903810494182d2` was merged with `origin/main`
+at `3aab1e337a8442d6bc2463cab43cb9b4191291a2`. The resulting integration merge
+is `78c127e96ef29e5914d8f751babf8a1d6305e0d8`.
+
+The installed Engine dependency is the exact development pin
+`41172b91970aac869c161f4842e3526a62fd1fd9`, declared by the package as 2.1.2.
+Its Navigation Effects standing remains integration only. This coordinate is
+separate from the Kosmos 0.8.1 product version.
+
+Environment: Windows, Node `v24.18.0`, npm `10.9.4`, Cargo `1.98.0`.
+
+* `npm ci`: completed from the merged lockfile with zero reported
+  vulnerabilities.
+* `npm run verify`: passed with **316 tests**, zero failures and zero skips,
+  plus type checking, production builds, version agreement, lockfile pin,
+  artifact, invariant, and renderer provenance checks.
+* `npm run test:browser:chromium -- --workers=2`: **36 passed** across
+  Chromium and mobile Chromium.
+* `npm run test:browser:full -- --workers=2`: **34 passed** across Firefox and
+  WebKit.
+* `npm run test:visual -- --workers=2`: **3 passed** against the existing
+  Chromium baselines.
+* `cargo test --locked --manifest-path src-tauri/Cargo.toml`: **5 passed**,
+  with zero failures or ignored tests.
+* `git diff --check`: passed before the integration commit.
+
+An initial attempt to run independent Playwright commands at the same time
+contended for the configured local test server port. The complete Chromium,
+Firefox, WebKit, and visual suites were then run with bounded concurrency and
+passed as listed above. No visual baseline was added or changed.
+
+These results qualify the merged source against the listed repository checks.
+They do not supply the remaining real Obsidian, live unified service, managed
+MOC write runtime, packaged desktop, signing, notarization, cross platform, or
+soak evidence described above.

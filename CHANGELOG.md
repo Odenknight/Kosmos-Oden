@@ -75,8 +75,8 @@ remain internal alpha work. This entry does not claim a published installer.
   remain a qualification gap.
 * Recorded the original review in
   [the build assessment](docs/assessments/2026-09-05-build-review.md).
-  Its historical test results apply to that recorded working tree;
-  integration checks must be rerun after merging main.
+  Its historical section applies to the reviewed working tree, and its
+  0.8.1 integration section records the merged source checks.
 
 ## [0.8.0] — 2026-08-16
 
