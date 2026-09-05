@@ -172,7 +172,7 @@ export async function connectToEngine(
   const { health, capabilities, graph } = buildFeedUrls(api);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
-  const init = { headers, cache: "no-store" as const };
+  const init = { headers, cache: "no-store" as const, redirect: "error" as const };
 
   // 1) health probe — cheapest way to distinguish unreachable vs. 401.
   let hres: FetchLikeResponse;
@@ -269,7 +269,7 @@ export function subscribeTraversalEvents(
         headers["GKOS-Event-Session"] = resumeSession;
       }
       try {
-        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", signal: controller.signal });
+        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
         if (response.status === 409) {
           // The process session changed or the bounded ring no longer retains
           // the acknowledged sequence. Never pretend the gap was replayed.
@@ -338,7 +338,7 @@ export async function probeHealth(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
   try {
-    const r = await fetchImpl(health, { headers, cache: "no-store" });
+    const r = await fetchImpl(health, { headers, cache: "no-store", redirect: "error" });
     if (!r.ok) return { ok: false, status: r.status };
     let doc: any = null;
     try {

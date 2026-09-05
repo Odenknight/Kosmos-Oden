@@ -1,589 +1,448 @@
 # Kosmos-Oden Technical README
 
-## Scope and status vocabulary
+## Scope and status
 
-This document distinguishes the released/`main` product baseline from the
-current Navigation Effects reconciliation feature branch. Repository and
-plugin metadata remain **0.8.0**. The released product uses exact-pinned
-`gkos-engine#v2.1.1`; the feature branch uses a separate exact development
-commit solely for experimental integration work.
+Version **0.8.1** combines the standalone viewer corrections with the
+Navigation Effects and agent identity work retained from main. It is a
+versioned source update. Native distribution and the complete standalone
+service remain internal alpha work.
 
-Use these states independently:
+The offline viewer, Obsidian plugin, shared renderer, local service client,
+proposal review records, and experimental Effects components exist in source.
+A source implementation does not establish runtime configuration, permission
+to write, platform qualification, or a published release.
 
-- **Implemented**: source and relevant tests exist in this repository.
-- **Configured**: an operator supplied the settings or external dependency.
-- **Authorized**: an applicable human or policy decision permits an effect.
-- **Qualified**: the applicable test matrix has evidence at exact commits.
-- **Released**: an owner-authorized artifact was versioned and published.
+The Effects components include policy and authority validation, adoption
+records and previews, unavailable host descriptors, and coordination
+primitives. Automatic creation and maintenance remain off. There is no
+integrated managed MOC writer, durable coordinator, or recovery runtime.
 
-No earlier state implies the next. This README update changes none of them and
-makes no GKOS conformance or certification claim.
+See [the changelog](CHANGELOG.md) for the full fix list and
+[the build review](docs/assessments/2026-09-05-build-review.md) for the earlier
+viewer review and its qualification limits.
 
-| Surface | Implemented on main | Default/activation boundary | Current limit |
-|---|---|---|---|
-| Semantic core | Engine 2.1.1 parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No Engine 2.2 effects dependency or Rust runtime |
-| Local Cluster renderer | Shared cosmology, hierarchical layout, WebGL2 shaders, controls, Chrono, search, playback, agent trails | Viewer starts after a graph is loaded | Visual projection only |
-| Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
-| Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
-| Obsidian Agent API | Read-only REST and Streamable HTTP MCP, stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
-| Standalone service client | Loopback address validation, bearer graph fetch, capability negotiation, authenticated event stream | Requires an external compatible service and viewer credential | Client validates Draft.1; service is not bundled |
-| Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
-| GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
-| Nextcloud sync | WebDAV scan, three-way planning, conditional transfers, conflict preservation | Disabled by default; separately configured | One Nextcloud target; not a backup |
-| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, policy/authority validation, injected adoption/preview components, and a C0 host-neutral adapter contract with unavailable profile descriptors | All Effects and automatic flags false by default; every C0 host operation is unavailable and no host executor is imported or wired | No durable adoption store, executable host adapter, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
-
-## Controlling architecture
+## Architecture
 
 ```text
 Markdown / GKX corpus
         |
         v
-exact-pinned GKOS-Engine v2.1.1
+exact-pinned GKOS-Engine semantic core
  parsing | resolution | lineage | temporal projection | graph | Navigation 1.0
         |
-        +--------------------+----------------------+-------------------+
-        |                    |                      |                   |
-        v                    v                      v                   v
-Obsidian plugin      standalone HTML       Agent API 4816       kosmos-build CLI
-vault events         folder/snapshot       REST + MCP            JSON / Graphiti
-        |                    |
-        +---------> shared Local Cluster renderer <---------+
-                    cosmology/layout/shaders/controls
+        +-------------------+--------------------+------------------+
+        |                   |                    |                  |
+        v                   v                    v                  v
+Obsidian host       standalone HTML       Agent API 4816      build/CLI tools
+        |                   |
+        +---------> shared renderer <-----+
+                    cosmology/layout/
+                    shaders/controls
 
-Optional external read boundary:
-compatible loopback service -> /health /capabilities /graph /events
-                                  |
-                                  v
-                         standalone service client
+Separate draft boundary:
+GKOS local service contract -> /health /capabilities /graph /events /mcp
+                                      |
+                                      v
+                             standalone service client
 ```
 
-GKOS-Engine owns GKX parsing, validation, canonicalization, lineage, temporal
-projection, graph construction, the incremental index, Graphiti projection,
-and Navigation contracts. Kosmos owns host integration, product settings,
-review UI, spatial metaphor, layout, shaders, controls, and observability. The
-renderer consumes the Engine-backed graph; it does not reinterpret frontmatter
-or define another graph model.
+Kosmos owns visualization, host integration, local interaction, explicit
+review UI, and operational coordination. GKOS-Engine owns parsing,
+validation, canonicalization, lineage, temporal projection, graph semantics,
+and Navigation contracts. The renderer consumes a graph; it does not introduce
+a second GKX parser or alternate graph meaning.
 
-The Effects feature branch adds a separate no-write configuration and
-validation boundary. It does not change the Navigation 1.0 import graph or
-insert an executor into the plugin or standalone browser bundles.
+The active Engine dependency is the exact development commit
+`41172b91970aac869c161f4842e3526a62fd1fd9`. It declares version 2.1.2
+and supplies the experimental `gkos-engine/navigation-effects` contract.
+The contract standing is `integration-only`, its release target is 2.2.0,
+and `gkos_conformance` is false. This is not a released Engine 2.2 dependency.
 
-## Versions and dependency integrity
+The framework neutral adapter imports the contract surface. It does not
+import `gkos-engine/navigation-effects/node` into the browser or plugin.
+The TypeScript Engine remains active. Rust 3.0 is future work.
 
-`package.json` declares version 0.8.0 and `manifest.json` carries the same
-version. `versions.json` maps 0.8.0 to Obsidian 1.11.4.
+The previous viewer review used Engine 2.1.1. Its evidence remains bound to
+that earlier dependency and working tree. Final integration checks must use
+the development pin now recorded in the lockfile.
 
-On the released/`main` line, the dependency is declared as:
+## Offline standalone viewer
+
+`scripts/build.mjs` produces `kosmos-oden-stand-alone.html` as one offline
+file. It embeds the exact-pinned Three.js renderer and browser graph path.
+`src/standalone/directory-source.ts` supplies two read-only input profiles:
+
+- persistent directory selection where the browser supports the File System
+  Access API; and
+- one-time folder snapshot import as the portable fallback.
+
+The page works from `file://` without a local server. Folder and snapshot modes
+do not require the Engine service and must continue to make no external request
+unless the operator explicitly chooses the local-engine connection.
+
+The same renderer is embedded by the Obsidian plugin. Host-to-renderer messages
+use the versioned and validated protocol described in
+[docs/RENDERER-PROTOCOL.md](docs/RENDERER-PROTOCOL.md).
+
+### Exports and source changes
+
+The standalone host tracks the displayed source graph separately from its
+Markdown index. Graph JSON exports use that active graph in folder, demo,
+sibling `graph.json`, and live service modes, including attachment paths.
+Graphiti episode export requires the active local corpus and its note bodies.
+The control is absent in modes that cannot provide those bodies.
+
+A stopped or paused directory scan cannot publish late success or error
+callbacks. Selecting the demo stops an existing monitor. These boundaries
+prevent an older folder from replacing the current view.
+
+Folder names are inserted as text in the startup screen. The connection card
+scrolls within small viewports, and error alerts appear above the startup
+overlay.
+
+## Local service client contract
+
+`src/standalone/api-feed.ts` implements the viewer side of
+`GKOS-LOCAL-SERVICE-1.0.0-draft.1`.
+
+### Connection rules
+
+- Accepted destinations are HTTP(S) loopback hosts only:
+  `127.0.0.1`, `localhost`, or `::1`.
+- The non-secret `api` query parameter may select the loopback base URL.
+- Query-token parsing is removed. Credentials are accepted only from the
+  password control or the desktop shell's secure IPC bridge.
+* Requests use `Authorization: Bearer ...`, fetch `no-store`, and
+  `redirect: "error"`. Health, graph negotiation and traversal requests cannot
+  follow a redirect beyond the accepted local address.
+- Capability negotiation precedes graph acceptance.
+- Offline folder/snapshot behavior remains independent of service failure.
+
+The capability document is closed and versioned:
 
 ```text
-gkos-engine: github:Odenknight/GKOS-Engine#v2.1.1
+schema_version: 1
+protocol: { id: "gkos-local-service", version: "1.0.0-draft.1" }
+features:
+  graph | notes | graphiti_episodes | mcp | events |
+  proposal_ingress | navigation | navigation_effects
 ```
 
-That lockfile resolves Engine 2.1.1 to the exact commit recorded in
-[Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md). The lock guard
-checks that git dependencies resolve immutably. Three.js is exact-pinned to
-0.185.1, and renderer provenance is checked in source and generated artifacts.
-
-The current Effects feature branch instead pins this exact development
-coordinate:
+Every feature reports these fields independently:
 
 ```text
-gkos-engine: github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9
+available | configured | authorized | enabled | reason_codes
 ```
 
-The installed package declares version 2.1.2 and exports
-`gkos-engine/navigation-effects`. Its contract manifest identifies suite
-`ENGINE-NAV-EFFECTS-CONTRACT-1.0.0`, Navigation Effects contract `1.0.0`,
-Engine release target `2.2.0`, standing `integration-only`, implementation
-phase `node-executor-experimental`, and `gkos_conformance: false`. The optional
-`gkos-engine/navigation-effects/node` export exists in the dependency but is
-not imported by the Kosmos framework-neutral adapter or its browser build.
+The viewer does not translate “available” into “authorized.” Graph connection
+requires all applicable graph states to be true. Proposal ingress and
+Navigation Effects are not inferred from a bearer token or from connectivity.
 
-This exact commit coordinate is development-only. It is not an Engine 2.2
-release or a product release dependency. Its lock coordinate and integrity are
-recorded in
-[the development-pin ledger](docs/navigation-effects/DEVELOPMENT-PIN.md). An
-owner-authorized immutable Engine 2.2 artifact and all qualification gates are
-required before any release claim.
+### Traversal stream
 
-The TypeScript Engine remains the active dependency. Rust 3.0 is roadmap work,
-not a selected or bundled runtime.
+The event client uses authenticated `fetch()` streaming rather than native
+`EventSource`, because the bearer header is required. It expects:
 
-## Semantic and graph behavior
-
-Released Engine 2.1.1 supplies a tolerant Markdown/GKX parser, path normalization,
-wikilink and Markdown-link resolution, ambiguity diagnostics, canonical
-lineage, temporal validity, graph assembly, incremental indexing, Graphiti
-episodes, and Navigation 1.0.
-
-The product understands human-editable GKX 2.2 properties and exposes a
-source-preserving GKX 2.3 validating projection. Authored, derived, suggested,
-approved, and effective fields remain separate. Proposed relationships do not
-enter the effective graph merely because they are present.
-
-Canonical lineage normalizes declarations into one newer-to-older edge set.
-Self-reference, cycles, unresolved or ambiguous targets, multiple successors,
-duplicates, and invalid temporal ordering become diagnostics. The point-in-time
-projector derives validity intervals and HEAD state from the retained corpus;
-it does not invent historical file bytes.
-
-Assessments describe documentation completeness, support, and traceability
-under a versioned policy. They are not truth, approval, operational fitness, or
-authority.
-
-## Experimental Navigation Effects reconciliation scope
-
-The feature branch contains configuration and validation primitives plus a
-browser-safe Packet B ownership/adoption core and trusted preview modal. It has
-no source-effect path or durable host/runtime wiring.
-
-### Implemented no-write boundaries
-
-| Surface | Implemented behavior | Explicit non-capability |
-|---|---|---|
-| Operational exclusions | `src/operational-paths.ts` recognizes `.gkx` and `_archive/moc-runs` roots and descendants across standalone, plugin, migration, enrichment, and agent-facing corpus paths | It is an exclusion predicate, not filesystem containment or write authorization |
-| Settings persistence | `NavigationEffectsSettings` schema v1 migrates additively through the existing plugin settings object; missing values produce quiet defaults; malformed/unknown values produce repair diagnostics and force all write flags false | No new settings store, secret persistence, settings UI, prompt, or activation |
-| Defaults and timing bounds | Effects, automatic maintenance, and automatic creation default false; debounce defaults to 750 ms, maximum debounce to 3,000 ms, periodic reconciliation to five minutes; fixed roots remain `.gkx/effects` and `_archive/moc-runs` | Values configure future behavior only; no coordinator or reconciliation scheduler consumes them yet |
-| Independent status | Navigation 1.0, planner, host adapter, authority provider, journal, policy digest, lease, recovery, reconciliation, ownership, maintenance, and creation have independent ready/state/reason fields | Planner or adapter availability never renders as current authority or runtime safety |
-| Engine adapter | `src/navigation-effects/engine-adapter.ts` imports only `gkos-engine/navigation-effects`, exposes the exact experimental contract standing, and maps strict configured booleans | Even when Engine reports configured `apply_managed_moc`, Kosmos reports `currentEffectAuthorized: false` and both automatic modes false |
-| Policy validator | Accepts bounded UTF-8 JSON policy bytes, closed identity fields, canonical JSON, and an exact ID/version/lowercase-SHA-256 reference | No policy is bundled, selected, ratified, or made effective by validation |
-| Authority boundary | Validates a credential-bound actor, explicit approving actor, exact vault/root/path, operation/object class, sensitivity ceiling, policy binding, expiry, and injected evaluation time; denies agent self-approval and inference fields | No authority provider is configured; connectivity, bearer possession, client label, confidence, approval booleans, or timestamps cannot create a grant |
-| Packet B adoption core | Canonical ownership registries and adoption receipts, exact-byte preview/confirmation, stale-state and path/marker rejection, and an atomic/idempotent in-memory test store | No durable store, host adapter, runtime registration, MOC write, or adoption authority |
-| Trusted adoption preview | Two-stage modal shows target/digests/ownership/marker validation/exact diff, rechecks freshness, requires an exact confirmation phrase, and reports persistence failures without claiming a source write | The modal is not registered in the plugin or standalone host; its record callback is injected and confirmation fails closed without a freshness provider |
-| Packet C0 adapter boundary | Host-neutral byte/effect/recovery/shutdown contract plus deterministic Obsidian and standalone/native capability descriptors | Both descriptors are intentionally unavailable; no writer, Engine Node executor, Vault binding, service endpoint, or runtime registration exists |
-
-Malformed settings, policy drift, noncanonical or unsafe paths, missing
-credentials, provider errors, grant mismatch, expiry, sensitivity overflow,
-agent self-approval, and unknown runtime facts fail closed. The implemented
-functions are pure or injected validators/components; the Packet B store is
-in-memory test infrastructure. They do not open files, write notes, hold leases,
-or recover effects.
-
-### Runtime and qualification blockers
-
-The following are not implemented in this branch and remain hard blockers:
-
-- durable host/runtime wiring for the ownership registry, adoption receipts,
-  freshness reads, and credential-bound recording;
-- executable Obsidian and standalone/native host adapters; the C0 descriptors
-  intentionally make every operation unavailable;
-- target containment and platform filesystem execution;
-- durable journal, checkpoint, archive, lease, receipt, rollback, and startup
-  recovery wiring;
-- the event debouncer, affected-scope coordinator, reconciliation runtime, and
-  receipt-bound self-write suppression;
-- trusted settings/status/recovery/rollback/audit UI and runtime registration
-  of the adoption-preview modal;
-- real-process crash qualification, Windows/macOS/Debian adapter parity and
-  path-security evidence, 100/2,000/10,000/50,000-note measurements, and the
-  24-hour watcher/reconciliation soak; and
-- replacement of the development pin with an owner-authorized immutable Engine
-  2.2 artifact, plus release/signing/publishing authorization.
-
-Consequently, no existing MOC has been adopted or managed, no generated-region
-marker has been inserted, no MOC or source note is written, no current effect
-is authorized, and automatic maintenance/creation remain unavailable and off.
-The [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
-record historical local evidence only; neither establishes configured,
-authorized, runtime-safe, qualified, or released standing.
-The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
-records the independent gate semantics at its stated pre-implementation audit
-coordinate; the
-[qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md) separates
-local synthetic work from the cross-platform and soak blockers.
-
-## Local Cluster renderer
-
-`src/renderer/cosmology.ts` maps graph nodes into the cluster core, galaxies,
-stars, planets, moons, moonlets, asteroids, and Oort objects.
-`src/renderer/layout.ts` performs hierarchical packing, orbit placement,
-separation, and collision diagnostics. Remaining intersections are reported;
-zero overlap is not asserted as a universal mathematical guarantee.
-
-Stars use a relative Hertzsprung–Russell-inspired M-to-O visual scale based on
-the weight of their local systems. Planets use terrestrial, super-Earth,
-Neptunian, and gas-giant visual categories. Those classifications are renderer
-metaphors derived from graph structure.
-
-`src/renderer/renderer.ts` owns:
-
-- Overview, Focus, Depth, and Fly camera modes;
-- desktop, touch, and mobile fly controls;
-- search and live visibility filters;
-- note focus, outgoing links, backlinks, and an inspector;
-- labels, all-links/all-objects toggles, minimap, and legend;
-- Chrono point-in-time filtering;
-- Grow and timeline playback plus the cinematic Trailer;
-- note opening and safe folder expansion through host callbacks;
-- stable per-agent trails, markers, labels, and recent-visit heat; and
-- hidden-view suspension, adaptive pixel ratio, context-loss handling, and
-  explicit resource disposal.
-
-The renderer is WebGL2-based. Its low-power path reduces detail and effects
-without changing graph semantics.
-
-## Offline standalone application
-
-`scripts/build.mjs` bundles `src/standalone/standalone.ts` and the shared
-renderer into `kosmos-oden-stand-alone.html`. All application JavaScript, CSS,
-and Three.js code is inline; normal offline use has no CDN or external runtime
-URL dependency.
-
-Two source profiles are exposed:
-
-1. **Persistent folder access** uses the File System Access API where available.
-   The directory handle can be retained in IndexedDB, but the browser asks for
-   permission before reuse. The operator can forget the saved handle.
-2. **Imported folder snapshot** uses the standard directory-file input and
-   performs a one-time read when persistent access is unavailable.
-
-`DirectoryMonitor` rescans and diffs persistent sources. Added, changed,
-removed, and renamed paths are fed into the same `GkxIndex`; ordinary content
-changes use incremental parsing. Status distinguishes live monitoring,
-snapshot mode, offline mode, graph connection, MCP availability, and traversal
-stream state.
-
-Directory reading is source-content read-only. The viewer's downloads—graph,
-Graphiti episodes, and traversal sessions—are explicit browser-generated
-exports rather than writes into the selected source.
-
-## Optional standalone-service client
-
-`src/standalone/api-feed.ts` is a client adapter. There is no standalone
-service implementation or binary in this repository.
-
-### Address and credential rules
-
-- Destinations must use HTTP(S) and the literal loopback hosts `127.0.0.1`,
-  `localhost`, or `::1`.
-- The optional `api` query parameter carries only the non-secret base address.
-- Query-token parsing is absent. The password field provides the bearer token,
-  which remains in memory.
-- Requests send `Authorization: Bearer ...` and `cache: no-store`.
-- A viewer credential does not become an MCP agent identity or write authority.
-
-### Capability negotiation
-
-The client validates a closed capability document and accepts graph data only
-when the graph feature reports `available`, `configured`, `authorized`, and
-`enabled`. MCP and events are displayed as independent states.
-
-At `main@7a2a025`, the client accepts exactly
-`GKOS-LOCAL-SERVICE-1.0.0-draft.1`. A separately developed Draft.2 runtime is
-not bundled or released here and fails the client's exact-version check. A
-future client/runtime update requires reviewed contract alignment and live
-integration evidence; documentation cannot bridge that version boundary.
-
-### Authenticated traversal stream
-
-The client uses authenticated `fetch()` streaming because native
-`EventSource` cannot supply the bearer header reliably. It requires the exact
-`text/event-stream; charset=utf-8` content type, one traversal frame shape, a
-safe sequence number, and a valid service event-session identifier.
-
-Reconnect is bounded. Resume sends both `Last-Event-ID` and the bound event
-session. If the service session changes while resuming, the acknowledged state
-is cleared and the client fails that resume rather than joining sequences from
-different rings.
-
-Traversal envelopes are closed to schema/session/sequence/offset/operation,
-agent identity and label, tool, authorized paths, status, and nullable
-`cost_units`. Paths reject absolute, traversal, encoded, backslash, control,
-non-NFC, Windows-device, and trailing-dot/space hazards. Unknown fields, note
-bodies, prompts, credentials, and raw errors do not enter the normalized event.
-
-## Traffic Heatmap and session replay
-
-`src/standalone/observability.ts` is DOM-free and clock-injectable.
-
-### Heat
-
-`TrafficHeatmap` maintains an LRU-bounded map of recent node visits. The
-defaults are:
-
-- 15-second exponential half-life;
-- 120-second hard horizon, after which the value is exactly zero; and
-- 10,000 node entries maximum.
-
-Only validated traversal events increment traffic. The renderer sends the
-normalized scalar through the `aHeat` instanced attribute and blends it with
-the existing body color, adding no separate draw call. Heat is off by default.
-It is not a fuel, cost, truth, quality, importance, confidence, or authority
-metric. Non-null `cost_units` remains event data and does not silently change
-the heatmap's meaning.
-
-### Recording and replay
-
-`TraversalSessionRecorder` starts only after explicit operator action. It
-normalizes a closed metadata and event schema and caps a session at 5,000
-events or 2,000,000 encoded bytes. Reaching either limit stops recording and
-marks the export truncated. No automatic persistence is implemented.
-
-`TraversalReplay` validates imported size and schema, orders by sequence and
-then offset, and supports play, pause, seek, restart, stop, and 1x/2x/5x speed.
-Replay events are labelled and never written to the live recorder. Live events
-continue into a separately bounded buffer during replay; the operator decides
-whether to return to the current live state afterward.
-
-## Obsidian plugin host
-
-`src/plugin/main.ts` owns the Obsidian view, commands, settings, vault events,
-API lifecycle, explicit GKX workflows, and Nextcloud lifecycle. The generated
-renderer runs in an opaque-origin sandboxed iframe. A closed, versioned
-`postMessage` contract carries full snapshots, incremental deltas, navigation
-state, traversal notifications, visibility, and validated note/folder actions.
-
-Create, modify, rename, and delete events are debounced and coalesced. Content
-changes update the canonical incremental index; structural thresholds can
-trigger a complete rebuild. The renderer stops when its leaf is hidden and
-resumes when visible.
-
-The plugin is not desktop-only. The Agent API and model integrations are
-desktop-gated where their host primitives require it; the renderer itself
-supports Obsidian mobile.
-
-## Obsidian Agent API and MCP
-
-`src/plugin/agent-server.ts` is an opt-in, read-only server backed by the same
-Engine index as the viewer. Defaults are disabled, loopback port 4816,
-authentication required, and an `internal` sensitivity ceiling.
-
-REST includes health/root metadata, overview, diagnostics, graph, note,
-lineage, related notes, temporal projection, episodes, and GKX validating
-projection routes. MCP provides read tools for overview, search, note content,
-lineage, related notes, point-in-time graph, Graphiti episodes, validating
-projection, assessments, diagnostics, effective labels, evidence,
-relationships, policy, and a bounded vault assessment.
-
-The Streamable HTTP lifecycle validates supported protocol versions,
-server-issued sessions, initialization order, request envelopes, and DELETE
-termination. `kosmos-mcp-stdio.mjs` translates line-oriented stdio for clients
-that cannot send HTTP headers while preserving the upstream session and
-protocol headers.
-
-Security controls include:
-
-- CSPRNG bearer tokens and constant-time comparison;
-- Host and Origin validation, including DNS-rebinding defenses;
-- byte-accurate 4 MiB request-body cap;
-- rate, concurrency, result, note-content, response, and page caps;
-- `Cache-Control: no-store` responses;
-- sensitivity filtering across notes, links, diagnostics, temporal state,
-  Graphiti episodes, and counts; and
-- invalid explicit sensitivity failing closed.
-
-LAN mode is separately opt-in, token-required, and unencrypted. It is a
-compatibility feature for trusted private networks or secure tunnels, not a
-recommendation to expose the API publicly.
-
-## Graphiti and command-line export
-
-Graphiti episodes are origin-separated, non-authoritative projections. A valid
-GKX UUID becomes the stable episode UUID; legacy notes receive a deterministic
-fallback. Episodes are chronological, and earlier episodes do not receive
-future HEAD, invalidation, or supersession state.
-
-`kosmos-build.mjs` scans a directory with the same ignore and Engine semantics,
-writes graph JSON, optionally writes Graphiti episodes, and can watch for
-changes. It is a Node CLI, not a server:
-
-```bash
-node kosmos-build.mjs <vault-dir> [graph.json]
-node kosmos-build.mjs <vault-dir> graph.json \
-  --episodes episodes.json --group-id <stable-namespace>
-node kosmos-build.mjs <vault-dir> graph.json --watch
+```text
+Content-Type: text/event-stream; charset=utf-8
+id: <nonnegative safe-integer sequence>
+event: traversal
+data: <single-line JSON traversal envelope>
 ```
 
-## Explicit GKX maintenance workflows
+Reconnect sends `Last-Event-ID` and accepts only events strictly after the
+acknowledged sequence when the server retains them. The event envelope is
+closed to:
 
-The plugin registers commands for scan/repair, conversion to editable GKX 2.2
-or native 2.3, enrichment review, Graphiti export, and writing a local Agent API
-guide.
+```text
+schema_version, session_id, sequence, offset_ms, operation_id,
+agent_id, agent_label, tool, paths, status, cost_units
+```
 
-### Audit, migration, and conversion
+Paths must already be literal canonical vault-relative paths. Percent-encoded
+or malformed encodings, absolute paths, traversal, backslashes, control
+characters, portability hazards, Windows device names, and non-NFC forms are
+rejected. Events contain paths, not note bodies, prompts, credentials, tokens,
+or unredacted raw errors. `cost_units` remains `null` unless a real metering
+contract supplies it.
 
-The deterministic scan creates a hash-bound plan. Saving an audit writes a
-content-free report. Apply is a distinct boundary requiring backup and policy
-acknowledgements; conversion modes add an override acknowledgement. Before
-editing, each source is reread and compared with the approved hash. Every
-changed note receives a byte-exact local backup under `.gkx/backup/<run-id>`;
-Obsidian's atomic processor performs the source edit and a result audit records
-outcomes.
+The matching transport-neutral service foundation exists on a separate draft
+GKOS-Engine integration branch. It is contract/build work, not an activated
+runtime in this repository. `/health`, `/capabilities`, `/graph`, `/events`,
+and `/mcp` must not be described as live end-to-end standalone functionality
+until a compatible runtime commit is integrated and tested.
 
-### Content-assisted enrichment
+## Renderer observability
 
-The established enrichment workflow selects bounded evidence and produces
-human-review suggestions for descriptions, types, tags, and explicitly
-evidenced relationships. The deterministic pass always runs. An optional
-on-device, private-IP LAN, or HTTPS cloud model pass is disabled by default and
-uses strict endpoint, disclosure, sensitivity, timeout, note-count, and
-character caps. PHI is blocked from LAN/cloud enrichment, and cloud is limited
-to public/internal data.
+### Per-agent trails
 
-Nothing is preselected or automatically approved. The reviewer resolves every
-suggestion before building a second hash-bound apply preview. Relationship
-targets must resolve, current bytes must still match, and the established
-backup/apply modal remains the only source writer.
+Traversal events call the existing renderer traversal API. Stable agent labels
+retain stable colors across trails, dust, rockets, and labels. Events are kept
+separate by agent so no line segment joins different agents.
 
-This is not the newer immutable `.gkx/proposals/` and `.gkx/decisions/`
-quarantine design. That subsystem is absent from main.
+### Traffic Heatmap
 
-Blocked-note model review is advisory only, restricted to on-device or
-explicit private-LAN providers, and cannot generate executable YAML or reach a
-writer.
+`src/standalone/observability.ts` maintains a bounded per-node traffic score.
+Updates come only from validated traversal events. Decay is calculated from an
+injected monotonic clock, not frame count, and an explicit finite horizon
+returns exactly zero and evicts expired entries. The scalar is uploaded as the
+`aHeat` instanced shader attribute and blended in the existing material pass,
+so the normal desktop path adds no draw call.
 
-## Nextcloud WebDAV sync
+The control is off by default, including low-power/mobile paths. Its legend
+states that it measures recent visits. It does not represent truth, quality,
+importance, fuel, cost, confidence, or authority.
 
-`src/plugin/nextcloud-sync-core.ts` provides settings migration, URL/path
-validation, exclusion matching, and deterministic three-way planning.
-`src/plugin/nextcloud-sync.ts` implements the Obsidian/WebDAV adapter.
+### Session recording and replay
 
-Defaults are disabled, no startup or interval sync, no deletion propagation,
-and no `.obsidian` synchronization. `.git/**` and `.trash/**` are excluded;
-plugin credential/state data remains protected even if `.obsidian` is enabled.
-Up to 200 custom exclusion patterns are accepted.
+Recording is explicit and in-memory only. `TraversalSessionRecorder` accepts
+only normalized traversal-envelope fields and an exact metadata field set. It
+drops unknown properties and rejects invalid metadata. Limits are:
 
-The adapter scans local binary content, enumerates the configured DAV root,
-compares local SHA-256, remote ETag, and last-common state, and uses conditional
-requests. Simultaneous changes produce a timestamped local copy of the remote
-bytes before the local version becomes common. Changed-versus-deleted cases
-remain conflicts; unchanged deletions propagate only after explicit opt-in.
+- at most 5,000 events; and
+- at most 2,000,000 encoded bytes.
 
-Nextcloud app passwords are stored in Obsidian Secret Storage. HTTPS is
-required for public hosts; HTTP accepts only literal private or loopback
-addresses. The feature favors correctness over incremental remote performance
-and is not a replacement for independent backup.
+The first reached limit stops recording and marks the export truncated. Replay
+imports are size-checked before reading and validated again before retaining
+events. Replay sorts by sequence and then monotonic offset, supports play,
+pause, seek, restart, stop, and 1x/2x/5x speeds, and does not write replayed
+events back into the live recording.
 
-## Read/write boundary
+Live events continue to arrive in a separately bounded buffer while replay is
+active. At the end, the operator chooses whether to return to current live
+state or remain paused. Context loss or renderer restart clears transient live
+state; a replay file is loaded only by an explicit operator action.
 
-| Operation | Source-write behavior |
-|---|---|
-| Renderer, search, Chrono, heat, replay | No source or sidecar write |
-| Standalone folder/snapshot scan | Read-only source access |
-| Graph/Graphiti/session export | Explicit download outside the source workflow |
-| Obsidian REST/MCP API | Read-only; no write routes or tools |
-| Navigation 1.0 | Selects existing visual centers; apply capability false |
-| Navigation Effects feature-branch planner/settings/status | Pure capability, configuration, policy, and authority-validation values; no source or sidecar write |
-| Navigation Effects execution | Not implemented or configured in Kosmos; unavailable and off |
-| GKX audit | Read-only until the operator separately saves an audit |
-| GKX migration/enrichment apply | Explicit acknowledgements, hash recheck, backup, guarded source processing |
-| Nextcloud sync | Separately enabled local/remote file synchronization with conflict and deletion policy |
+## Proposal quarantine and human decisions
 
-No connectivity, bearer token, MCP session, client name, model output,
-confidence value, or timestamp supplies approval authority.
+`src/plugin/gkx-proposals.ts` defines canonical immutable records in the YAML
+1.2 JSON subset:
 
-## Security and privacy boundaries
+```text
+.gkx/proposals/<proposal-id>.yaml
+.gkx/decisions/<decision-id>.yaml
+```
 
-- Offline single-file use has no external runtime dependency and does not
-  contact a service unless the user selects that feature.
-- The renderer iframe is sandboxed without `allow-same-origin` and accepts only
-  validated host messages.
-- The standalone service client is loopback-only and rejects URL credentials.
-- The Obsidian Agent API is disabled and loopback-bound by default; LAN mode
-  requires authentication.
-- API outputs apply the configured sensitivity ceiling before serialization.
-- Tokens and Nextcloud passwords are not logged; Nextcloud secrets use Obsidian
-  Secret Storage.
-- Generated graphs, episodes, diagnostics, assessments, heat, and replay are
-  projections and do not replace GKX source.
-- `.gkx/**` and `_archive/moc-runs/**` are operational namespaces and are
-  excluded from corpus, Navigation, graph, retrieval, enrichment, and agent
-  context on the feature branch.
-- The Effects adapter is framework-neutral; the optional Engine Node executor
-  does not enter the plugin or standalone browser import graph.
-- Build invariants check authentication defaults, listener rules, request caps,
-  iframe sandboxing, artifact self-containment, and other security properties.
+A proposal binds its schema/contract, credential-bound producer, target UID
+and normalized path, source-byte SHA-256, field and canonical value,
+confidence in `0.0..1.0`, bounded evidence, creation operation, provenance,
+pending status, and content hash. Equivalent retries preserve the first
+creation bytes. Conflicts are computed as a projection; proposal files are not
+rewritten.
+
+A decision is a separate accepted, rejected, or deferred record. It binds the
+proposal ID/content hash, source path/hash, credential-bound human actor,
+operation, creation time, and plan/reviewed-value hashes where applicable.
+Reviewer secrets remain in Obsidian Secret Storage; only a stable derived
+credential ID/hash enters the record. Secret Storage absence blocks decision
+persistence and apply.
+
+Before any decision or source write, every reviewed plan item must match
+exactly one canonical proposal by operation, target, source hash, field, and
+canonical value. Zero or multiple matches block the complete batch. Decision
+persistence uses a same-directory temporary file, read-back verification,
+rename, and post-rename verification with idempotency and collision/tamper
+failure. Obsidian's adapter does not expose an fsync primitive, so no stronger
+fsync guarantee is claimed.
+
+Accepted decisions are persisted after explicit acknowledgements and before
+the established guarded apply. Backups, fresh source-hash checks, apply output,
+and result receipts remain separate. Rejected/deferred decision-only actions
+do not write source notes. Confidence is limited to review ordering, filtering,
+and candidate selection; autoapproval is absent.
+
+No standalone `POST /proposals` runtime is implemented here.
+
+## Operational corpus exclusions
+
+`src/plugin/corpus-exclusions.ts` removes these operational roots before graph
+or context construction:
+
+```text
+.gkx/**
+_archive/moc-runs/**
+```
+
+The same exclusion intent is used by Navigation and Effects event coalescing.
+Proposal, decision, policy/state, diagnostic, journal, receipt, and managed-MOC
+archive material must not become Navigation input, graph/Graphiti content,
+retrieval input, or agent context.
+
+## Navigation Effects development state
+
+Navigation 1.0 remains source-content read-only and must continue to advertise
+no MOC apply capability. The Effects plane is separate and experimental.
+
+Implemented components under `src/navigation-effects/` include:
+
+* Additive settings migration with all write modes off.
+* An Engine adapter that preserves the experimental contract standing.
+* Exact policy references, bounded canonical policy validation, and explicit
+  actor and authority grant validation.
+* Independent status for Navigation, planner, host adapter, authority,
+  journal, policy, lease, recovery, reconciliation, ownership, and enablement.
+* Ownership registries, adoption receipts, exact preview confirmation, and
+  an atomic in memory test store. The trusted adoption modal is not registered
+  in either product host and requires an injected freshness provider.
+* A host contract and Obsidian and native capability descriptors. Every
+  execution operation remains unavailable.
+* Bounded event debouncing, persisted reconciliation intent modeling, and
+  suppression tied to completed write receipts and index generations.
+
+These components do not form an active filesystem executor. A validated grant,
+a preview confirmation, or an available planner does not enable writes.
+
+The remaining work includes durable adoption storage, executable host
+adapters, target containment, journal, checkpoint, archive, lease, rollback,
+startup recovery, the complete coordinator, and trusted operator UI.
+Qualification still requires crash testing, host parity, scale measurements,
+and a sustained watcher and reconciliation run.
+
+Automatic maintenance and creation remain unavailable and off.
+Existing MOCs remain unmanaged. Planner reachability is not write authority.
+
+## Desktop shell and portable staging
+
+`src-tauri/` contains a Tauri 2 internal alpha shell. It embeds the generated
+viewer, selects a corpus directory, owns application-state lifecycle, and
+offers a narrow IPC bridge so the viewer credential is not placed in a URL or
+sidecar process argument. The bundle configuration is intentionally inactive;
+this source tree is not a signed installer.
+
+`scripts/package-release.mjs --portable` can stage a target only when a real
+sidecar binary is explicitly supplied. It emits build metadata, SHA-256 sums,
+and SPDX 2.3 SBOM material, and labels output `internal alpha`. Missing Debian
+x64, Windows x64, macOS arm64, or macOS x64 sidecars are recorded as blockers.
+The repository does not relabel binaries across architectures.
+
+Outstanding release work includes native installers, signing, notarization,
+clean-machine target tests, and owner-authorized version/release decisions.
+
+## Security and authority boundaries
+
+- GKX source files remain canonical; graphs, layouts, heat, replay, and
+  Graphiti are projections.
+- Loopback is the only service destination accepted by the standalone client.
+- Bearer tokens are never accepted from the URL.
+- Capability, configuration, authorization, enablement, qualification, and
+  release state remain independent.
+- MCP identity, token possession, client name, confidence, and timestamps do
+  not grant write authority.
+- Proposed values remain non-effective without a separate human decision and
+  guarded apply.
+- Operational sidecars and archives are excluded from semantic inputs.
+- Navigation Effects settings fail closed and never silently enable writes.
+- Missing adapters, recovery, reconciliation, policy, authority, ownership, or
+  durability state block managed-MOC writes.
 
 See [SECURITY.md](SECURITY.md) and
-[the threat model](docs/THREAT-MODEL.md). Security documentation also records
-the limits: no defense against a compromised Obsidian host or authorized agent,
-and no encryption for the optional LAN API.
+[docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) for the broader trust model.
 
-## Build, package staging, and verification
+## Obsidian, agent access, and synchronization
 
-Development requirements are Node.js 22–24 and npm 10 or newer.
+The plugin identifier is `kosmos-oden`. Install its built
+`manifest.json`, `main.js`, and `styles.css` under
+`<vault>/.obsidian/plugins/kosmos-oden/`. Obsidian 1.11.4 is the declared
+minimum. The plugin hosts the shared renderer in a sandbox without
+`allow-same-origin` and validates messages across that boundary.
 
-| Script | Purpose |
-|---|---|
-| `npm run typecheck` | TypeScript no-emit check |
-| `npm run build` | Plugin, embed, standalone HTML, and Node test/CLI bundles |
-| `npm run build:standalone` | Standalone HTML only |
-| `npm run dev` | Unminified development build |
-| `npm test` | Node test suite after test bundles are built |
-| `npm run bench` | Repository benchmark harness |
-| `npm run check:versions` | Package/manifest/version-map agreement |
-| `npm run check:lockfile` | Exact git dependency integrity |
-| `npm run check:artifacts` | Expected artifacts and self-containment |
-| `npm run check:invariants` | Declared security and architecture invariants |
-| `npm run check:renderer-provenance` | Three.js pin, build marker, and no-CDN provenance |
-| `npm run verify` | Typecheck, full build, Node tests, and all invariant/artifact checks |
-| `npm run test:browser` | Chromium, Firefox, and WebKit Playwright coverage |
-| `npm run test:visual` | Chromium visual-regression suite |
-| `npm run test:renderer` | Browser plus visual suites |
-| `npm run package:release` | Stage current JS/HTML plugin artifacts, build info, and checksums |
+The Obsidian Agent API is a separate compatibility service, normally on port
+4816. It supports REST and Streamable HTTP MCP plus the bundled stdio bridge.
+It is disabled by default. Loopback binding and authentication are defaults;
+LAN mode requires a token. Sensitivity filtering occurs before serialization.
+A token, client name, or MCP session cannot grant approval or write authority.
 
-`package:release` creates a conventional release directory for the existing
-plugin/HTML artifacts. It is not a Tauri or native package builder, signature,
-notarization, publication, or release authorization.
+Consumer and visual agent identity remain stable through the retained main
+implementation. Traversal display names must not replace the stable identity
+used to separate streams and trails.
 
-CI type-checks, builds, tests, checks invariants and provenance, performs
-dependency review on pull requests, and compares clean executable builds for
-byte reproducibility. Browser workflows cover desktop and mobile-oriented
-projects. Exact test counts belong to the commit and runner that produced them;
-they are not evergreen documentation.
+The formatting workflow supports editable GKX Properties, canonical
+`created_at` and `updated_at` keys, UTC or explicit local offsets, exclusions,
+previews, backups, and guarded conversion. Custom timestamp keys remain
+ordinary user fields. Legacy OKF compatibility names remain where required.
 
-## Explicitly excluded roadmap and release gates
+`noteTimestampsEnabled` defaults to true. Obsidian create and modify events
+schedule frontmatter writes while this setting is enabled. The standalone
+folder viewer has no corresponding source writer.
 
-The following are absent from the released/`main` product. Except for the
-no-write feature-branch primitives enumerated above, they are also absent from
-the current reconciliation branch and must not be described as implemented,
-configured, authorized, qualified, or released:
+Nextcloud synchronization is separately enabled and uses WebDAV with an app
+password in Obsidian Secret Storage. Runs are serialized. Conditional
+transfers and conflict handling protect concurrent edits. Deletion
+propagation defaults off. Optional `.obsidian` synchronization is a separate
+setting. Multiple concurrent providers are not qualified.
 
-- the new immutable proposal/decision quarantine and confidence-review system;
-- durable host/runtime wiring for managed-MOC ownership/adoption and receipts,
-  source writing, archives, journal, lease, coordinator, reconciliation,
-  recovery, self-write suppression, complete trusted operator and
-  rollback/audit UI, and automatic maintenance/creation;
-- a released Engine 2.2 effects dependency (the feature branch has only an
-  exact development commit);
-- a Tauri/native desktop shell, bundled standalone sidecar, Docker profile,
-  portable/native installers, or uninstall workflow;
-- signing, notarization, an automatic updater, cross-platform package
-  qualification, or a new release label; and
-- Rust 3.0 engine cutover.
+## Build and verification
+
+Supported development engines are declared in `package.json`: Node.js 22–24
+and npm 10 or newer.
+
+```bash
+npm ci
+npm run typecheck
+npm run build
+npm test
+npm run verify
+```
+
+Renderer qualification commands:
+
+```bash
+npx playwright install
+npm run test:browser:chromium
+npm run test:browser:full
+npm run test:visual
+```
+
+Focused validation is represented by repository tests for API-feed framing,
+observability/replay, corpus exclusions, immutable proposal/decision behavior,
+Navigation Effects settings/coordination, desktop-shell boundaries, and
+portable staging. `npm run verify` also checks versions, lock integrity,
+generated artifacts, invariants, and renderer provenance.
+
+Do not preserve a historical test total as an evergreen claim. Qualification
+evidence must record the exact command, commit, platform, failures, and skips.
+The current Phase 0 evidence is in
+[docs/standalone/BASELINE.md](docs/standalone/BASELINE.md); it is baseline
+evidence, not release qualification. Current focused evidence and unresolved
+gates are tracked in the
+[draft qualification ledger](docs/standalone/QUALIFICATION.md).
+
+Native source checks, after generating the viewer:
+
+```bash
+node scripts/prepare-desktop.mjs
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+```
+
+The native shell, JavaScript package, plugin manifest, version map, lockfiles,
+and `src/kosmos-version.ts` identify 0.8.1. Generated artifacts are ignored
+by Git. A version bump or merge does not publish installers; tagged releases
+are built separately by CI.
 
 ## Repository map
 
 | Path | Responsibility |
 |---|---|
-| `src/navigation-integration.ts` | Read-only Engine Navigation adapter and truthful capability boundary |
-| `src/navigation-effects/` | Feature-branch no-write settings/status, framework-neutral Engine boundary, policy validation, and authority validation |
-| `src/operational-paths.ts` | Central `.gkx/**` and `_archive/moc-runs/**` corpus exclusion predicate |
-| `src/renderer/` | Cosmology, layout, shaders, controls, trails, heat, and renderer lifecycle |
-| `src/standalone/` | Folder/snapshot sources, monitoring, service client, observability, replay, and standalone UI |
-| `src/plugin/` | Obsidian lifecycle, message host, Agent API, explicit GKX workflows, and Nextcloud sync |
-| `kosmos-build.mjs` | Read-only filesystem graph/Graphiti CLI |
-| `kosmos-mcp-stdio.mjs` | Stdio bridge for the Obsidian MCP compatibility surface |
-| `scripts/` | Deterministic builds, integrity checks, provenance, and release staging |
-| `test/` | Node unit/integration/security fixtures and browser suites |
-| `docs/` | Architecture, profiles, threat model, compatibility, and operator guidance |
-| `docs/navigation-effects/` | Development pin, independent capability semantics, and qualification/blocker plan |
+| `src/renderer/` | Cosmology, layout, shaders, controls, agent trails, and heat rendering |
+| `src/standalone/` | Folder/snapshot ingestion, local-service client, observability, replay, and standalone UI |
+| `src/plugin/` | Obsidian lifecycle, Agent API compatibility surface, enrichment, proposals/decisions, guarded apply, and sync |
+| `src/navigation-effects/` | Fail-closed Effects settings and coordination primitives; not a complete write runtime |
+| `src-tauri/` | Internal-alpha desktop shell source |
+| `scripts/` | Deterministic builds, artifact checks, and release staging |
+| `test/` | Unit, integration, protocol, security, and browser fixtures |
+| `docs/` | Architecture, contracts, threat model, migration, and release guidance |
 
-## Related documents
+## Related technical documents
 
+* [Wired capability inventory](docs/WIRED-CAPABILITIES.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Standalone engine design](docs/STANDALONE-GKX-ENGINE-DESIGN.md)
 - [Renderer host protocol](docs/RENDERER-PROTOCOL.md)
-- [Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md)
+- [GKX enrichment](docs/GKX-ENRICHMENT.md)
 - [GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)
-- [GKX migration](docs/GKX-MIGRATION.md)
-- [Content-assisted enrichment](docs/GKX-ENRICHMENT.md)
-- [Obsidian Agent API](AGENT-API.md)
-- [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
-- [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
-- [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
-- [Navigation Effects Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-- [Navigation Effects Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+- [GKX migration workflow](docs/GKX-MIGRATION.md)
+- [Existing Obsidian Agent API](AGENT-API.md)
+- [Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)

@@ -7,6 +7,85 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+## [0.8.1] 2026-09-05
+
+This source update combines the viewer review fixes with the newer work on
+main. The standalone service, desktop distribution, and managed MOC runtime
+remain internal alpha work. This entry does not claim a published installer.
+
+### Fixed
+
+* Graph JSON export now uses the graph being displayed, including local
+  folders, demo data, sibling `graph.json` files, and a compatible local
+  service. An empty or older local index no longer controls those downloads.
+* Graph exports retain attachment paths.
+* Graphiti episode export is offered only when the active source includes
+  the local note content it needs. Unsupported source modes no longer offer
+  an action that does nothing or exports another source.
+* Demo selection stops an existing folder monitor and reports the demo's
+  own graph statistics.
+* A stopped or paused folder scan cannot publish a late result or error.
+  Further scan requests are ignored after the monitor is stopped.
+* The folder permission error now tells the user to reopen the folder.
+  It no longer promises that Rescan will request permission.
+* Remembered folder names are rendered as text instead of HTML.
+* The expanded connection form scrolls within a short viewport, keeping
+  its fields and Connect button reachable.
+* Connection errors appear above the startup overlay and have an alert role.
+* Health checks, graph connections, and traversal streams reject HTTP
+  redirects, preserving the restriction to the local computer.
+* Clean builds now regenerate the corpus exclusion test bundle. This removes
+  a false local pass caused by an older generated file remaining in `dist`.
+* The native Linux dependency path now uses an audited in-repository backport
+  of the upstream `glib` 0.18.5 `VariantStrIter` pointer correction. The
+  original crate checksum, license, version, and upstream fix are recorded,
+  and optimized Linux CI exercises forward and backward string iteration.
+* The general README now uses the actual plugin identifier in the
+  installation path: `.obsidian/plugins/kosmos-oden/`.
+* Documentation separates working viewer features from experimental service,
+  desktop, and automatic note maintenance work.
+* Documentation now states that Obsidian timestamp maintenance starts enabled
+  and writes note frontmatter on create and modify events until disabled.
+
+### Retained from main
+
+* Stable consumer and visual agent identity, including the identity protocol
+  checks added on main.
+* Central exclusions for operational files, exact Engine development pin,
+  and the framework neutral Navigation Effects adapter.
+* Disabled Effects settings, independent capability reporting, policy and
+  authority validation, adoption records and previews, and unavailable
+  Obsidian and native host descriptors.
+
+### Included from the standalone development branch
+
+* Capability negotiation and an authenticated local service event client.
+* Optional traffic heat, bounded traversal recording, session export and
+  import, and replay controls.
+* Immutable proposal and human decision records with separate guarded apply.
+* Bounded event debouncing, reconciliation intent modeling, and suppression
+  tied to completed write receipts. These remain coordination primitives.
+* Tauri shell source and portable staging with explicit missing binary
+  reporting. Native installation and distribution are not qualified.
+
+### Documentation and verification
+
+* Rewrote the main README for a general audience and updated the separate
+  technical README for the combined implementation.
+* Synchronized product version 0.8.1 across JavaScript, Obsidian, and native
+  metadata and their lockfiles. The Engine dependency has its own version.
+* Added regressions for late scan completion and failure, actual folder
+  import from `file://`, unchanged source bytes, downloads in each graph
+  mode, literal folder names, small screens, visible errors, and redirects.
+* Included the new viewer flow tests in the browser CI commands while
+  retaining main's identity coverage.
+* Preserved existing visual baselines. Missing mobile screenshot baselines
+  remain a qualification gap.
+* Recorded the original review in
+  [the build assessment](docs/assessments/2026-09-05-build-review.md).
+  Its historical section applies to the reviewed working tree, and its
+  0.8.1 integration section records the merged source checks.
+
 ## [0.8.0] — 2026-08-16
 
 ### Added

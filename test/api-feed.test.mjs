@@ -235,6 +235,7 @@ test("event stream uses bearer auth, parses SSE envelopes, and resumes strictly 
       calls++;
       try {
         assert.equal(init.headers.Authorization, "Bearer viewer-secret");
+        assert.equal(init.redirect, "error");
         if (calls === 1) {
           assert.equal(init.headers["Last-Event-ID"], undefined);
           assert.equal(init.headers["GKOS-Event-Session"], undefined);
