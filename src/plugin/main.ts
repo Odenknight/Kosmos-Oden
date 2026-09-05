@@ -22,7 +22,7 @@ import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
-import { filterKosmosCorpusFiles } from "./corpus-exclusions";
+import { isKosmosOperationalPath } from "../operational-paths";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -144,7 +144,7 @@ class KosmosView extends ItemView {
   }
 
   /** Live AI-agent traversal (Agent API): light up visited bodies with the emerald trail. */
-  agentTraversal(paths: string[], tool: string, agent?: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool, agent })); }
+  agentTraversal(paths: string[], tool: string, agent?: string, agentId?: string): void { if (this.ready) this.post(wrap("agent-traversal", { paths, tool, agent, agentId })); }
 
   /** Tell the iframe whether its leaf is visible so it can halt/resume its render loop (CPU/GPU/battery). */
   syncVisibility(): void { this.post(wrap("visibility", { visible: this.isVisible() })); }
@@ -155,7 +155,7 @@ class KosmosView extends ItemView {
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
     if (!this.frame || !this.frame.contentWindow) return;
-    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
+    const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     const files: { relativePath: string; content: string }[] = [];
     this.hashes.clear();
     for (const f of md) {
@@ -164,17 +164,25 @@ class KosmosView extends ItemView {
       this.hashes.set(f.path, hashContent(c));
     }
     this.fileCount = md.length;
-    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles())), label: "Vault", navigationEnabled: this.navigationEnabled() }));
+    this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault", navigationEnabled: this.navigationEnabled() }));
     this.ready = true;
     this.dirty.clear(); this.removed.clear(); this.renames = []; this.structural = false; this.deferred = false;
     this.syncVisibility();
   }
 
   // --- change notifications from the plugin's event handlers ---
-  noteChanged(path: string): void { if (!this.ready) return; this.dirty.add(path); this.schedule(); }
-  noteCreated(path: string): void { if (!this.ready) return; this.dirty.add(path); this.structural = true; this.fileCount++; this.schedule(); }
-  noteDeleted(path: string): void { if (!this.ready) return; this.removed.add(path); this.dirty.delete(path); this.structural = true; this.fileCount = Math.max(0, this.fileCount - 1); this.schedule(); }
-  noteRenamed(path: string, oldPath: string): void { if (!this.ready) return; this.renames.push({ from: oldPath, to: path }); this.dirty.add(path); this.structural = true; this.schedule(); }
+  noteChanged(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.dirty.add(path); this.schedule(); }
+  noteCreated(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.dirty.add(path); this.structural = true; this.fileCount++; this.schedule(); }
+  noteDeleted(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.removed.add(path); this.dirty.delete(path); this.structural = true; this.fileCount = Math.max(0, this.fileCount - 1); this.schedule(); }
+  noteRenamed(path: string, oldPath: string): void {
+    if (!this.ready) return;
+    const oldOperational = isKosmosOperationalPath(oldPath);
+    const newOperational = isKosmosOperationalPath(path);
+    if (oldOperational && newOperational) return;
+    if (oldOperational) { this.noteCreated(path); return; }
+    if (newOperational) { this.noteDeleted(oldPath); return; }
+    this.renames.push({ from: oldPath, to: path }); this.dirty.add(path); this.structural = true; this.schedule();
+  }
 
   /** Debounce + max-wait, both scaled to vault size so large vaults coalesce more but still update. */
   private delays(): { trailing: number; maxWait: number } {
@@ -204,7 +212,7 @@ class KosmosView extends ItemView {
     if (!this.isVisible()) { this.deferred = true; return; }   // do no work while hidden (§27)
     this.deferred = false;
 
-    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
+    const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     this.fileCount = md.length;
 
     // A big structural change (bulk import/delete, sync) is cheaper to rebuild than to diff (§10.2).
@@ -235,7 +243,7 @@ class KosmosView extends ItemView {
     if (!changed.length && !removed.length && !renames.length) return;   // content hashes proved nothing real changed
 
     const folders = (wasStructural || renames.length) ? folderListFrom(md) : undefined;
-    const attachments = attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles()));
+    const attachments = attachmentListFrom(this.app.vault.getFiles());
     this.post(wrap("vault-delta", { changed, removed, renames, folders, attachments, label: "Vault", navigationEnabled: this.navigationEnabled() }));
   }
 
@@ -262,7 +270,7 @@ export default class VaultKosmosPlugin extends Plugin {
   private startupSyncTimer: number | null = null;
 
   scheduleTimestamp(file: any, delay = 350): void {
-    if (!this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
     if (previous != null) window.clearTimeout(previous);
@@ -274,7 +282,7 @@ export default class VaultKosmosPlugin extends Plugin {
   }
 
   async stampNote(file: any): Promise<void> {
-    if (!this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     try {
       const created = Number(file.stat?.ctime) || Date.now();
       const modified = Number(file.stat?.mtime) || Date.now();
@@ -383,7 +391,7 @@ export default class VaultKosmosPlugin extends Plugin {
         .filter((v): v is KosmosView => v instanceof KosmosView);
 
     // Agent API -> Kosmos views: broadcast each query's touched notes so the traversal renders live.
-    this.agentApi.onTraversal = (paths, tool, agent) => { for (const v of views()) v.agentTraversal(paths, tool, agent); };
+    this.agentApi.onTraversal = (paths, tool, agent, agentId) => { for (const v of views()) v.agentTraversal(paths, tool, agent, agentId); };
 
     // Live vault-connectivity indicator: a cheap read probe (no network stack) —
     // readability of the vault files IS the signal. Green when the adapter can

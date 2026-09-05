@@ -20,6 +20,7 @@ import {
   isNotePath,
 } from "gkos-engine";
 import type { SourceFile } from "gkos-engine";
+import { isKosmosOperationalPath } from "../operational-paths";
 
 export interface DirectorySnapshot {
   files: SourceFile[];          // notes WITH content
@@ -66,7 +67,7 @@ async function scanHandle(root: any, rootName: string): Promise<DirectorySnapsho
       const rel = prefix ? `${prefix}/${name}` : name;
       try {
         if (entry.kind === "directory") {
-          if (shouldIgnoreDir(name)) continue;
+          if (shouldIgnoreDir(name) || isKosmosOperationalPath(rel)) continue;
           folders.push(rel);
           await walk(entry, rel);
         } else {
@@ -134,7 +135,7 @@ export async function sourceFromFileList(list: FileList | File[]): Promise<{ sou
     const parts = rp.split("/");
     if (parts.length > 1) rootName = parts[0];
     const rel = parts.length > 1 ? parts.slice(1).join("/") : rp;
-    if (!rel) continue;
+    if (!rel || isKosmosOperationalPath(rel)) continue;
     // infer directory structure from the relative paths (§6.2)
     const dirs = rel.split("/").slice(0, -1);
     let acc = "";
@@ -142,6 +143,7 @@ export async function sourceFromFileList(list: FileList | File[]): Promise<{ sou
     for (const d of dirs) {
       if (shouldIgnoreDir(d)) { ignored = true; break; }
       acc = acc ? `${acc}/${d}` : d;
+      if (isKosmosOperationalPath(acc)) { ignored = true; break; }
       folderSet.add(acc);
     }
     if (ignored) continue;

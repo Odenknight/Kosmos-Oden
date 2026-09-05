@@ -12,7 +12,7 @@ import { GkxIndex } from "gkos-engine";
 import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
-import { filterKosmosCorpusFiles, isKosmosOperationalPath } from "./corpus-exclusions";
+import { isKosmosOperationalPath } from "../operational-paths";
 
 declare const require: any;
 
@@ -48,6 +48,7 @@ const ATTACH_EXT = new Set(["png", "jpg", "jpeg", "gif", "bmp", "webp", "avif", 
 export function folderListFrom(md: Array<{ path: string }>): string[] {
   const folders = new Set<string>();
   for (const f of md) {
+    if (isKosmosOperationalPath(f.path)) continue;
     const parts = String(f.path).split("/");
     parts.pop();
     let acc = "";
@@ -59,6 +60,7 @@ export function folderListFrom(md: Array<{ path: string }>): string[] {
 export function attachmentListFrom(all: Array<{ path: string; extension?: string }>): string[] {
   const out: string[] = [];
   for (const f of all) {
+    if (isKosmosOperationalPath(f.path)) continue;
     const ext = String(f.extension || "").toLowerCase();
     if (ext && ext !== "md" && ATTACH_EXT.has(ext)) out.push(f.path);
   }
@@ -87,9 +89,18 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   /* ---- change notifications (wired to vault events by the plugin) ---- */
-  markChanged(path: string): void { if (!this.fullDirty) this.changedPaths.add(path); }
-  markRemoved(path: string): void { if (!this.fullDirty) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
-  markRenamed(from: string, to: string): void { if (!this.fullDirty) { this.renamedPaths.push({ from, to }); this.changedPaths.add(to); } }
+  markChanged(path: string): void { if (!this.fullDirty && !isKosmosOperationalPath(path)) this.changedPaths.add(path); }
+  markRemoved(path: string): void { if (!this.fullDirty && !isKosmosOperationalPath(path)) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
+  markRenamed(from: string, to: string): void {
+    if (this.fullDirty) return;
+    const oldOperational = isKosmosOperationalPath(from);
+    const newOperational = isKosmosOperationalPath(to);
+    if (oldOperational && newOperational) return;
+    if (oldOperational) { this.changedPaths.add(to); return; }
+    if (newOperational) { this.removedPaths.add(from); this.changedPaths.delete(from); return; }
+    this.renamedPaths.push({ from, to });
+    this.changedPaths.add(to);
+  }
   markFullDirty(): void { this.fullDirty = true; this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = []; }
 
   /** Re-project the whole vault when the Default sensitivity setting changes so
@@ -134,9 +145,9 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   private async rebuild(): Promise<GkxGraph> {
-    const md = filterKosmosCorpusFiles(this.app.vault.getMarkdownFiles());
+    const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     const folders = folderListFrom(md);
-    const attachments = attachmentListFrom(filterKosmosCorpusFiles(this.app.vault.getFiles()));
+    const attachments = attachmentListFrom(this.app.vault.getFiles());
     if (this.fullDirty || !this.index.graph) {
       const files: SourceFile[] = [];
       for (const f of md) files.push(await this.toSourceFile(f));

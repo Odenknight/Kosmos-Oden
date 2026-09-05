@@ -55,9 +55,9 @@ let sourceName = "Vault";
 let connectivityTimer = 0;
 
 /**
- * Live engine feed state (§ GKOS Engine Desktop sidecar). The bearer token is
+ * Live local-service feed state. The bearer credential is
  * held in memory only for this session — it is NEVER written to storage. Set
- * when a `/graph` fetch from the loopback sidecar succeeds; cleared otherwise.
+ * when a `/graph` fetch from the loopback service succeeds; cleared otherwise.
  */
 let engine: { api: string; token: string | null } | null = null;
 let engineCapabilities: any = null;
@@ -81,7 +81,7 @@ function leaveReplayForLive(): void {
   stopReplayTimer();
   replayMode = false;
   app.clearTraversalObservability();
-  for (const event of liveDuringReplay.splice(0)) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+  for (const event of liveDuringReplay.splice(0)) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false, event.agent_id);
   liveDuringReplayBytes = 0;
 }
 function updateReplayUi(): void {
@@ -96,7 +96,7 @@ function ensureReplayTimer(): void {
   if (replayTimer) return;
   replayTimer = (setInterval(() => {
     if (!replayMode) return;
-    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true, event.agent_id);
     updateReplayUi();
     if (!sessionReplay.state.playing) stopReplayTimer();
   }, 30) as unknown) as number;
@@ -126,7 +126,7 @@ function receiveTraversalEvent(event: TraversalEventEnvelope): void {
     }
     return;
   }
-  app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false);
+  app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, false, event.agent_id);
 }
 function startEventStream(): void {
   stopEventStream();
@@ -267,9 +267,9 @@ function applyDiff(diff: SnapshotDiff, snapshot: DirectorySnapshot): void {
   );
 }
 
-/* ---------------- live engine feed (loopback sidecar) ---------------- */
+/* ---------------- live engine feed (loopback service) ---------------- */
 
-/** Render a graph fetched live from the sidecar and set live status. */
+/** Render a graph fetched live from the local service and set live status. */
 function renderEngineGraph(graph: ViewerGraph, health: any): void {
   activeGraph = graph;
   localContentsAvailable = false;
@@ -313,7 +313,7 @@ function startEngineConnectivityProbe(): void {
   connectivityTimer = (setInterval(() => void probe(), 10_000) as unknown) as number;
 }
 
-/** Connect (or reconnect) to the loopback sidecar and render its graph. */
+/** Connect (or reconnect) to the loopback service and render its graph. */
 async function connectEngine(api: string, token: string): Promise<void> {
   ui.clearErrors();
   const res = await connectToEngine({ api, token: token || null }, fetch);
@@ -340,7 +340,7 @@ async function connectEngine(api: string, token: string): Promise<void> {
   startEventStream();
 }
 
-/** Manual "Refresh Graph" for the live feed (the sidecar has no push channel). */
+/** Manual graph refresh; traversal activity has its own authenticated stream. */
 async function refreshEngine(): Promise<void> {
   if (!engine) return;
   const res = await connectToEngine(engine, fetch);
@@ -476,7 +476,7 @@ const ui: StandaloneUI = createStandaloneUI({
   },
   onReplaySeek: (offsetMs) => {
     replayMode = true; app.clearTraversalObservability(); sessionReplay.seek(offsetMs);
-    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true);
+    for (const event of sessionReplay.tick()) app.notifyAgentTraversal(event.paths, event.tool, event.agent_label, true, event.agent_id);
     updateReplayUi();
   },
   onReplaySpeed: (speed) => { sessionReplay.setSpeed(speed); updateReplayUi(); },
@@ -526,7 +526,7 @@ async function boot(): Promise<void> {
   if (new URLSearchParams(location.search).has("capture")) { ui.hideStartup(); return; }
 
   // `?api=` is a non-secret convenience only. The credential comes from the
-  // password field or a desktop-shell IPC bridge and never appears in the URL.
+  // password field or a trusted-host IPC bridge and never appears in the URL.
   const feed = parseApiFeedParams(location.search);
   if (feed.api) {
     let ipcToken = "";

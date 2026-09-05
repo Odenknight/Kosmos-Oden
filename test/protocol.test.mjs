@@ -82,12 +82,14 @@ test("visibility (host->renderer): boolean accepted, non-boolean rejected", () =
 });
 
 test("agent-traversal (host->renderer): valid accepted, unsafe paths rejected", () => {
-  const ok = validateHostMessage(wrap("agent-traversal", { paths: ["Ideas/Engine v2.md"], tool: "get_note" }));
+  const ok = validateHostMessage(wrap("agent-traversal", { paths: ["Ideas/Engine v2.md"], tool: "get_note", agent: "Hermes", agentId: "agent:hermes" }));
   assert.equal(ok.ok, true);
   const bad = validateHostMessage(wrap("agent-traversal", { paths: ["../secret.md"], tool: "get_note" }));
   assert.equal(bad.ok, false);
   const noTool = validateHostMessage(wrap("agent-traversal", { paths: ["a.md"], tool: 5 }));
   assert.equal(noTool.ok, false);
+  const badAgentId = validateHostMessage(wrap("agent-traversal", { paths: ["a.md"], tool: "get_note", agentId: 5 }));
+  assert.equal(badAgentId.ok, false);
 });
 
 test("renderer->host: open-note and open-folder accepted; unsafe/foreign rejected", () => {

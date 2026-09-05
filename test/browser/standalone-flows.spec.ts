@@ -111,7 +111,7 @@ test("local engine redirects fail visibly without contacting an external destina
     await page.locator("#ko-token").fill("review-token");
     await page.getByRole("button", { name: "Connect", exact: true }).click();
     const alert = page.getByRole("alert");
-    await expect(alert).toContainText("Could not reach the engine");
+    await expect(alert).toContainText("Could not reach the local GKOS Engine service");
     // Visibility alone doesn't detect an opaque overlay covering the error.
     expect(await alert.evaluate(el => {
       const box = el.getBoundingClientRect();

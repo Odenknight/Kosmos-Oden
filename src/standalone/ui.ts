@@ -12,7 +12,7 @@ export interface StandaloneUIHandlers {
   onReopenLast: () => void;
   onOpenSnapshot: (files: FileList) => void;
   onLoadDemo: () => void;
-  /** Connect to a loopback GKOS Engine Desktop sidecar (read-only API feed). */
+  /** Connect to a loopback GKOS Engine service (read-only API feed). */
   onConnectEngine: (api: string, token: string) => void;
   onRescan: () => void;
   onRefreshEngine: () => void;
@@ -185,7 +185,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     const connectPrefilled = !!(opts.apiPrefill || opts.tokenPrefill) || !!opts.connectOpen;
     const connectToggle = mkBtn(
       "Connect to Local Engine",
-      "Read a live graph from a running GKOS Engine Desktop (loopback only)",
+      "Read a live graph and authorized traversal events from a local GKOS Engine service (loopback only)",
       true,
       () => {}
     );
@@ -196,8 +196,8 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
       <label for="ko-api">Engine address</label>
       <input id="ko-api" type="text" spellcheck="false" placeholder="http://127.0.0.1:4814" />
       <label for="ko-token">Bearer token</label>
-      <input id="ko-token" type="password" autocomplete="off" spellcheck="false" placeholder="token from GKOS Engine Desktop" />
-      <p class="ko-connect-hint">Loopback only. The token is held in memory for this session and is never stored. Read-only: Kosmos only reads the engine's graph.</p>`;
+      <input id="ko-token" type="password" autocomplete="off" spellcheck="false" placeholder="viewer credential from the local Engine service" />
+      <p class="ko-connect-hint">Loopback only. The credential is held in memory for this session and is never stored. Read-only: Kosmos reads the authorized graph and traversal stream.</p>`;
     const goBtn = document.createElement("button");
     goBtn.className = "ko-btn ko-connect-go";
     goBtn.textContent = "Connect";

@@ -1,90 +1,257 @@
-import type { EffectsPolicyRef, MocWriteSettings } from "./types";
+import {
+  NAVIGATION_EFFECTS_SETTINGS_SCHEMA,
+  type NavigationEffectsPolicyRef,
+  type NavigationEffectsSettings,
+  type NavigationEffectsSettingsDiagnostic,
+  type NavigationEffectsSettingsMigration,
+} from "./types";
 
-export const MOC_SETTINGS_SCHEMA_VERSION = 1 as const;
-export const MOC_DEBOUNCE_MIN_MS = 250;
-export const MOC_DEBOUNCE_MAX_MS = 10_000;
-export const MOC_MAXIMUM_DEBOUNCE_MIN_MS = 1_000;
-export const MOC_MAXIMUM_DEBOUNCE_MAX_MS = 30_000;
-export const MOC_RECONCILIATION_MINUTES_MIN = 1;
-export const MOC_RECONCILIATION_MINUTES_MAX = 1_440;
+export const NAVIGATION_EFFECTS_ARCHIVE_ROOT = "_archive/moc-runs" as const;
+export const NAVIGATION_EFFECTS_STATE_ROOT = ".gkx/effects" as const;
+export const NAVIGATION_EFFECTS_DEFAULT_DEBOUNCE_MS = 750;
+export const NAVIGATION_EFFECTS_DEFAULT_MAXIMUM_DEBOUNCE_MS = 3_000;
+export const NAVIGATION_EFFECTS_MIN_DEBOUNCE_MS = 100;
+export const NAVIGATION_EFFECTS_MAX_DEBOUNCE_MS = 3_000;
+export const NAVIGATION_EFFECTS_MIN_MAXIMUM_DEBOUNCE_MS = 750;
+export const NAVIGATION_EFFECTS_MAX_MAXIMUM_DEBOUNCE_MS = 30_000;
+export const NAVIGATION_EFFECTS_DEFAULT_RECONCILIATION_MINUTES = 5;
+export const NAVIGATION_EFFECTS_MIN_RECONCILIATION_MINUTES = 1;
+export const NAVIGATION_EFFECTS_MAX_RECONCILIATION_MINUTES = 1_440;
 
-export const DEFAULT_MOC_WRITE_SETTINGS: MocWriteSettings = Object.freeze({
-  schemaVersion: MOC_SETTINGS_SCHEMA_VERSION,
+const POLICY_DIGEST = /^sha256:[0-9a-f]{64}$/;
+
+const EMPTY_POLICY_REF: NavigationEffectsPolicyRef = Object.freeze({
+  id: "",
+  version: "",
+  digest: "",
+});
+
+export const DEFAULT_NAVIGATION_EFFECTS_SETTINGS: Readonly<NavigationEffectsSettings> = Object.freeze({
+  schemaVersion: NAVIGATION_EFFECTS_SETTINGS_SCHEMA,
   enabled: false,
   automaticMaintenanceEnabled: false,
   automaticCreationEnabled: false,
-  debounceMs: 750,
-  maximumDebounceMs: 3_000,
+  debounceMs: NAVIGATION_EFFECTS_DEFAULT_DEBOUNCE_MS,
+  maximumDebounceMs: NAVIGATION_EFFECTS_DEFAULT_MAXIMUM_DEBOUNCE_MS,
   periodicReconciliationEnabled: true,
-  periodicReconciliationMinutes: 5,
-  archiveRoot: "_archive/moc-runs",
-  stateRoot: ".gkx/effects",
-  policyRef: Object.freeze({ id: "", version: "", digest: "" }),
+  periodicReconciliationMinutes: NAVIGATION_EFFECTS_DEFAULT_RECONCILIATION_MINUTES,
+  archiveRoot: NAVIGATION_EFFECTS_ARCHIVE_ROOT,
+  stateRoot: NAVIGATION_EFFECTS_STATE_ROOT,
+  policyRef: EMPTY_POLICY_REF,
 });
 
-export interface MocSettingsMigrationResult {
-  settings: MocWriteSettings;
-  issues: string[];
-  repaired: boolean;
-}
-
-const EXACT_KEYS = new Set([
-  "schemaVersion", "enabled", "automaticMaintenanceEnabled", "automaticCreationEnabled",
-  "debounceMs", "maximumDebounceMs", "periodicReconciliationEnabled",
-  "periodicReconciliationMinutes", "archiveRoot", "stateRoot", "policyRef",
+const SETTING_KEYS = new Set([
+  "schemaVersion",
+  "enabled",
+  "automaticMaintenanceEnabled",
+  "automaticCreationEnabled",
+  "debounceMs",
+  "maximumDebounceMs",
+  "periodicReconciliationEnabled",
+  "periodicReconciliationMinutes",
+  "archiveRoot",
+  "stateRoot",
+  "policyRef",
 ]);
 
+const POLICY_KEYS = new Set(["id", "version", "digest"]);
+
+function defaults(): NavigationEffectsSettings {
+  return {
+    ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
+    policyRef: { ...EMPTY_POLICY_REF },
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function integerIn(value: unknown, minimum: number, maximum: number): value is number {
-  return Number.isInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
+function addDiagnostic(
+  diagnostics: NavigationEffectsSettingsDiagnostic[],
+  code: NavigationEffectsSettingsDiagnostic["code"],
+  path: string,
+  message: string,
+): void {
+  diagnostics.push({ code, path, message, repairRequired: true });
 }
 
-export function validatePolicyRef(value: unknown): value is EffectsPolicyRef {
-  if (!isRecord(value) || Object.keys(value).some((key) => !["id", "version", "digest"].includes(key))) return false;
-  return typeof value.id === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value.id)
-    && typeof value.version === "string" && /^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$/.test(value.version)
-    && typeof value.digest === "string" && /^sha256:[0-9a-f]{64}$/.test(value.digest);
+function readBoolean(
+  raw: Record<string, unknown>,
+  key: "enabled" | "automaticMaintenanceEnabled" | "automaticCreationEnabled" | "periodicReconciliationEnabled",
+  fallback: boolean,
+  diagnostics: NavigationEffectsSettingsDiagnostic[],
+): boolean {
+  if (!(key in raw)) return fallback;
+  if (typeof raw[key] === "boolean") return raw[key];
+  addDiagnostic(diagnostics, "invalid-boolean", key, `${key} must be a boolean.`);
+  return fallback;
+}
+
+function readBoundedInteger(
+  raw: Record<string, unknown>,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+  code: NavigationEffectsSettingsDiagnostic["code"],
+  diagnostics: NavigationEffectsSettingsDiagnostic[],
+): number {
+  if (!(key in raw)) return fallback;
+  const value = raw[key];
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= minimum && value <= maximum) return value;
+  addDiagnostic(diagnostics, code, key, `${key} must be an integer from ${minimum} through ${maximum}.`);
+  return fallback;
+}
+
+function readPolicyRef(
+  value: unknown,
+  diagnostics: NavigationEffectsSettingsDiagnostic[],
+): NavigationEffectsPolicyRef {
+  if (value === undefined) return { ...EMPTY_POLICY_REF };
+  if (!isRecord(value)) {
+    addDiagnostic(diagnostics, "policy-not-object", "policyRef", "policyRef must be an object.");
+    return { ...EMPTY_POLICY_REF };
+  }
+
+  for (const key of Object.keys(value).sort()) {
+    if (!POLICY_KEYS.has(key)) {
+      addDiagnostic(diagnostics, "unknown-policy-setting", `policyRef.${key}`, `Unknown policyRef setting: ${key}.`);
+    }
+  }
+
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  const version = typeof value.version === "string" ? value.version.trim() : "";
+  const digest = typeof value.digest === "string" ? value.digest.trim() : "";
+  const empty = id === "" && version === "" && digest === "";
+  if (empty) return { ...EMPTY_POLICY_REF };
+  if (!id || !version || !POLICY_DIGEST.test(digest)) {
+    addDiagnostic(
+      diagnostics,
+      "invalid-policy-reference",
+      "policyRef",
+      "policyRef requires non-empty id and version plus sha256:<64 lowercase hex> digest.",
+    );
+    return { ...EMPTY_POLICY_REF };
+  }
+  return { id, version, digest };
 }
 
 /**
- * Strict additive v1 migration. Unknown schemas, keys, values, or unsafe flag
- * combinations return defaults with every write mode disabled.
+ * Additively migrate one nested Navigation Effects settings value.
+ *
+ * `undefined` is a fresh/older install and returns quiet fail-closed defaults.
+ * Any supplied malformed, unsupported, or unknown value requires repair and
+ * forces every effects/write/automatic flag off.
  */
-export function migrateMocWriteSettings(raw: unknown): MocSettingsMigrationResult {
-  if (raw == null) return { settings: structuredClone(DEFAULT_MOC_WRITE_SETTINGS), issues: [], repaired: false };
-  const issues: string[] = [];
-  if (!isRecord(raw)) issues.push("Navigation Effects settings must be an object.");
-  else {
-    if (raw.schemaVersion !== 1) issues.push("Unknown Navigation Effects settings schema version.");
-    for (const key of Object.keys(raw)) if (!EXACT_KEYS.has(key)) issues.push(`Unknown Navigation Effects setting: ${key}.`);
-    for (const key of ["enabled", "automaticMaintenanceEnabled", "automaticCreationEnabled", "periodicReconciliationEnabled"] as const) {
-      if (typeof raw[key] !== "boolean") issues.push(`${key} must be boolean.`);
-    }
-    if (!integerIn(raw.debounceMs, MOC_DEBOUNCE_MIN_MS, MOC_DEBOUNCE_MAX_MS)) issues.push("debounceMs is outside its documented bounds.");
-    if (!integerIn(raw.maximumDebounceMs, MOC_MAXIMUM_DEBOUNCE_MIN_MS, MOC_MAXIMUM_DEBOUNCE_MAX_MS)) issues.push("maximumDebounceMs is outside its documented bounds.");
-    if (typeof raw.debounceMs === "number" && typeof raw.maximumDebounceMs === "number" && raw.maximumDebounceMs < raw.debounceMs) issues.push("maximumDebounceMs must not be lower than debounceMs.");
-    if (!integerIn(raw.periodicReconciliationMinutes, MOC_RECONCILIATION_MINUTES_MIN, MOC_RECONCILIATION_MINUTES_MAX)) issues.push("periodicReconciliationMinutes is outside its documented bounds.");
-    if (raw.archiveRoot !== "_archive/moc-runs") issues.push("archiveRoot must remain _archive/moc-runs in schema v1.");
-    if (raw.stateRoot !== ".gkx/effects") issues.push("stateRoot must remain .gkx/effects in schema v1.");
-    if (!validatePolicyRef(raw.policyRef)) issues.push("policyRef must bind an id, version, and lowercase SHA-256 digest.");
-    if (raw.enabled === false && (raw.automaticMaintenanceEnabled === true || raw.automaticCreationEnabled === true)) issues.push("Automatic modes require the effects plane to be enabled.");
+export function migrateNavigationEffectsSettings(raw: unknown): NavigationEffectsSettingsMigration {
+  const settings = defaults();
+  const diagnostics: NavigationEffectsSettingsDiagnostic[] = [];
+
+  if (raw === undefined || raw === null) return { settings, diagnostics, repairRequired: false };
+  if (!isRecord(raw)) {
+    addDiagnostic(diagnostics, "settings-not-object", "navigationEffects", "Navigation Effects settings must be an object.");
+    return { settings, diagnostics, repairRequired: true };
   }
-  if (issues.length || !isRecord(raw)) return { settings: structuredClone(DEFAULT_MOC_WRITE_SETTINGS), issues, repaired: true };
-  const settings: MocWriteSettings = {
-    schemaVersion: 1,
-    enabled: raw.enabled as boolean,
-    automaticMaintenanceEnabled: raw.automaticMaintenanceEnabled as boolean,
-    automaticCreationEnabled: raw.automaticCreationEnabled as boolean,
-    debounceMs: raw.debounceMs as number,
-    maximumDebounceMs: raw.maximumDebounceMs as number,
-    periodicReconciliationEnabled: raw.periodicReconciliationEnabled as boolean,
-    periodicReconciliationMinutes: raw.periodicReconciliationMinutes as number,
-    archiveRoot: "_archive/moc-runs",
-    stateRoot: ".gkx/effects",
-    policyRef: { ...(raw.policyRef as unknown as EffectsPolicyRef) },
-  };
-  return { settings, issues: [], repaired: false };
+
+  for (const key of Object.keys(raw).sort()) {
+    if (!SETTING_KEYS.has(key)) addDiagnostic(diagnostics, "unknown-setting", key, `Unknown Navigation Effects setting: ${key}.`);
+  }
+
+  if (!("schemaVersion" in raw)) {
+    addDiagnostic(diagnostics, "schema-version-missing", "schemaVersion", "Navigation Effects settings schemaVersion is required.");
+  } else if (raw.schemaVersion !== NAVIGATION_EFFECTS_SETTINGS_SCHEMA) {
+    addDiagnostic(
+      diagnostics,
+      "schema-version-unsupported",
+      "schemaVersion",
+      `Unsupported Navigation Effects settings schemaVersion; expected ${NAVIGATION_EFFECTS_SETTINGS_SCHEMA}.`,
+    );
+  }
+
+  settings.enabled = readBoolean(raw, "enabled", false, diagnostics);
+  settings.automaticMaintenanceEnabled = readBoolean(raw, "automaticMaintenanceEnabled", false, diagnostics);
+  settings.automaticCreationEnabled = readBoolean(raw, "automaticCreationEnabled", false, diagnostics);
+  settings.periodicReconciliationEnabled = readBoolean(raw, "periodicReconciliationEnabled", true, diagnostics);
+  settings.debounceMs = readBoundedInteger(
+    raw,
+    "debounceMs",
+    NAVIGATION_EFFECTS_DEFAULT_DEBOUNCE_MS,
+    NAVIGATION_EFFECTS_MIN_DEBOUNCE_MS,
+    NAVIGATION_EFFECTS_MAX_DEBOUNCE_MS,
+    "invalid-debounce",
+    diagnostics,
+  );
+  settings.maximumDebounceMs = readBoundedInteger(
+    raw,
+    "maximumDebounceMs",
+    NAVIGATION_EFFECTS_DEFAULT_MAXIMUM_DEBOUNCE_MS,
+    NAVIGATION_EFFECTS_MIN_MAXIMUM_DEBOUNCE_MS,
+    NAVIGATION_EFFECTS_MAX_MAXIMUM_DEBOUNCE_MS,
+    "invalid-maximum-debounce",
+    diagnostics,
+  );
+  settings.periodicReconciliationMinutes = readBoundedInteger(
+    raw,
+    "periodicReconciliationMinutes",
+    NAVIGATION_EFFECTS_DEFAULT_RECONCILIATION_MINUTES,
+    NAVIGATION_EFFECTS_MIN_RECONCILIATION_MINUTES,
+    NAVIGATION_EFFECTS_MAX_RECONCILIATION_MINUTES,
+    "invalid-reconciliation-interval",
+    diagnostics,
+  );
+
+  if (settings.maximumDebounceMs < settings.debounceMs) {
+    addDiagnostic(
+      diagnostics,
+      "maximum-debounce-before-debounce",
+      "maximumDebounceMs",
+      "maximumDebounceMs must be greater than or equal to debounceMs.",
+    );
+    settings.maximumDebounceMs = NAVIGATION_EFFECTS_DEFAULT_MAXIMUM_DEBOUNCE_MS;
+  }
+
+  if ("archiveRoot" in raw && raw.archiveRoot !== NAVIGATION_EFFECTS_ARCHIVE_ROOT) {
+    addDiagnostic(diagnostics, "fixed-root-mismatch", "archiveRoot", `archiveRoot is fixed at ${NAVIGATION_EFFECTS_ARCHIVE_ROOT}.`);
+  }
+  if ("stateRoot" in raw && raw.stateRoot !== NAVIGATION_EFFECTS_STATE_ROOT) {
+    addDiagnostic(diagnostics, "fixed-root-mismatch", "stateRoot", `stateRoot is fixed at ${NAVIGATION_EFFECTS_STATE_ROOT}.`);
+  }
+  settings.archiveRoot = NAVIGATION_EFFECTS_ARCHIVE_ROOT;
+  settings.stateRoot = NAVIGATION_EFFECTS_STATE_ROOT;
+  settings.policyRef = readPolicyRef(raw.policyRef, diagnostics);
+
+  if (!settings.enabled && (settings.automaticMaintenanceEnabled || settings.automaticCreationEnabled)) {
+    addDiagnostic(
+      diagnostics,
+      "invalid-boolean",
+      "enabled",
+      "Automatic modes cannot be enabled while the Effects plane is disabled.",
+    );
+  }
+  if (settings.automaticCreationEnabled && !settings.automaticMaintenanceEnabled) {
+    addDiagnostic(
+      diagnostics,
+      "automatic-creation-requires-maintenance",
+      "automaticCreationEnabled",
+      "Automatic creation requires automatic maintenance to be enabled.",
+    );
+  }
+
+  const repairRequired = diagnostics.length > 0;
+  if (repairRequired) {
+    settings.enabled = false;
+    settings.automaticMaintenanceEnabled = false;
+    settings.automaticCreationEnabled = false;
+  }
+  if (!settings.enabled) {
+    settings.automaticMaintenanceEnabled = false;
+    settings.automaticCreationEnabled = false;
+  }
+
+  return { settings, diagnostics, repairRequired };
+}
+
+export function isNavigationEffectsPolicyRefConfigured(policyRef: NavigationEffectsPolicyRef): boolean {
+  return Boolean(policyRef.id && policyRef.version && POLICY_DIGEST.test(policyRef.digest));
 }

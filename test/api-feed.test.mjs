@@ -127,14 +127,14 @@ test("connectToEngine: refuses a non-loopback address before any request", async
   assert.match(res.error, /loopback/);
 });
 
-test("connectToEngine: 401 on /health -> clear token error", async () => {
+test("connectToEngine: 401 on /health -> clear viewer-credential error", async () => {
   const res = await connectToEngine(
     { api: "http://127.0.0.1:4814", token: "bad" },
     fakeFetch({ "/health": { status: 401, body: { error: "unauthorized" } } }),
   );
   assert.equal(res.ok, false);
   assert.equal(res.status, 401);
-  assert.match(res.error, /token/i);
+  assert.match(res.error, /viewer credential/i);
 });
 
 test("connectToEngine: unreachable engine (fetch throws) -> graceful message", async () => {
@@ -171,7 +171,7 @@ test("traffic heat uses monotonic decay and reaches exact zero at its horizon", 
 test("session recorder is explicit, redacted, bounded by count, and never records replay implicitly", () => {
   const recorder = new TraversalSessionRecorder(2, 10_000);
   assert.equal(recorder.record(EVENT), false);
-  recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: "caller text discarded", token: "metadata-canary" });
+  recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: "caller text discarded", token: "metadata-canary" });
   assert.equal(recorder.record({ ...EVENT, secret: "canary-token", body: "secret note" }), false);
   assert.equal(recorder.record(EVENT), true);
   assert.equal(recorder.record({ ...EVENT, sequence: 3, offset_ms: 200 }), true);
@@ -185,10 +185,10 @@ test("session recorder is explicit, redacted, bounded by count, and never record
 
 test("session metadata and loaded replay bounds fail closed before retaining events", () => {
   const recorder = new TraversalSessionRecorder();
-  assert.throws(() => recorder.start({ started_at: "not-a-time", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: "" }), /metadata/);
-  assert.throws(() => recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: "A".repeat(64), redaction: "" }), /metadata/);
+  assert.throws(() => recorder.start({ started_at: "not-a-time", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: "" }), /metadata/);
+  assert.throws(() => recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: "A".repeat(64), redaction: "" }), /metadata/);
   const replay = new TraversalReplay(() => 0, 2, 1_500);
-  const metadata = { started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: TRAVERSAL_REDACTION };
+  const metadata = { started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: TRAVERSAL_REDACTION };
   assert.throws(() => replay.load({ schema_version: 1, metadata, events: [EVENT, { ...EVENT, sequence: 3 }, { ...EVENT, sequence: 4 }], truncated: false }), /exceeds 2 events/);
   assert.throws(() => replay.load({ schema_version: 1, metadata, events: [{ ...EVENT, paths: ["x".repeat(1024)] }], truncated: false }), /exceeds 1500 bytes/);
   assert.equal(replay.state.loaded, false);
@@ -196,7 +196,7 @@ test("session metadata and loaded replay bounds fail closed before retaining eve
 
 test("event validation rejects encoded traversal and malformed encodings", () => {
   const recorder = new TraversalSessionRecorder();
-  recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: "" });
+  recorder.start({ started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: "" });
   assert.equal(recorder.record({ ...EVENT, paths: ["safe/%2e%2e/secret.md"] }), false);
   assert.equal(recorder.record({ ...EVENT, paths: ["safe/%252e%252e/secret.md"] }), false);
   assert.equal(recorder.record({ ...EVENT, paths: ["safe/%41.md"] }), false);
@@ -210,7 +210,7 @@ test("event validation rejects encoded traversal and malformed encodings", () =>
 
 test("replay orders by sequence then offset, supports fake-clock speed and deterministic seek", () => {
   let now = 0; const replay = new TraversalReplay(() => now);
-  replay.load({ schema_version: 1, metadata: { started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: TRAVERSAL_REDACTION }, events: [
+  replay.load({ schema_version: 1, metadata: { started_at: "2026-08-26T12:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: TRAVERSAL_REDACTION }, events: [
     { ...EVENT, sequence: 3, offset_ms: 300 }, { ...EVENT, sequence: 1, offset_ms: 100 }, { ...EVENT, sequence: 2, offset_ms: 200 },
   ], truncated: false });
   replay.setSpeed(2); replay.play(); now = 100;
@@ -238,10 +238,13 @@ test("event stream uses bearer auth, parses SSE envelopes, and resumes strictly 
         assert.equal(init.redirect, "error");
         if (calls === 1) {
           assert.equal(init.headers["Last-Event-ID"], undefined);
-          return { ok: true, status: 200, headers: { get: () => "text/event-stream; charset=utf-8" }, body: new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`id: 2\nevent: traversal\ndata: ${JSON.stringify(EVENT)}\n\n`)); controller.close(); } }) };
+          assert.equal(init.headers["GKOS-Event-Session"], undefined);
+          return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : "event-stream:fixture:1" }, body: new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`id: 2\nevent: traversal\ndata: ${JSON.stringify(EVENT)}\n\n`)); controller.close(); } }) };
         }
-        assert.equal(init.headers["Last-Event-ID"], "2"); resolve();
-        return { ok: true, status: 200, headers: { get: () => "text/event-stream; charset=utf-8" }, body: new ReadableStream({ start() {} }) };
+        assert.equal(init.headers["Last-Event-ID"], "2");
+        assert.equal(init.headers["GKOS-Event-Session"], "event-stream:fixture:1");
+        resolve();
+        return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : "event-stream:fixture:1" }, body: new ReadableStream({ start() {} }) };
       } catch (error) { reject(error); throw error; }
     };
     subscription = subscribeTraversalEvents({ api: "http://127.0.0.1:4814", token: "viewer-secret" }, {
@@ -249,4 +252,54 @@ test("event stream uses bearer auth, parses SSE envelopes, and resumes strictly 
     }, fake);
   });
   await resumed; subscription.close(); assert.equal(subscription.lastSequence(), 2);
+});
+
+test("event-stream 409 reports a possible gap and reconnects at live tail without stale resume headers", async () => {
+  const encoder = new TextEncoder(); let calls = 0; let subscription; const errors = [];
+  const reset = new Promise((resolve, reject) => {
+    const fake = async (_url, init) => {
+      calls++;
+      try {
+        if (calls === 1) {
+          return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : "event-stream:fixture:old" }, body: new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`id: 2\nevent: traversal\ndata: ${JSON.stringify(EVENT)}\n\n`)); controller.close(); } }) };
+        }
+        if (calls === 2) {
+          assert.equal(init.headers["Last-Event-ID"], "2");
+          assert.equal(init.headers["GKOS-Event-Session"], "event-stream:fixture:old");
+          return { ok: false, status: 409, headers: { get: () => "application/json; charset=utf-8" }, body: null };
+        }
+        assert.equal(init.headers["Last-Event-ID"], undefined);
+        assert.equal(init.headers["GKOS-Event-Session"], undefined);
+        resolve();
+        return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : "event-stream:fixture:new" }, body: new ReadableStream({ start() {} }) };
+      } catch (error) { reject(error); throw error; }
+    };
+    subscription = subscribeTraversalEvents({ api: "http://127.0.0.1:4814", token: "viewer-secret" }, {
+      onEvent() {}, onError(message) { errors.push(message); },
+    }, fake);
+  });
+  await reset; subscription.close();
+  assert.ok(errors.some((message) => /reset required.*may have been missed.*live tail/iu.test(message)));
+  assert.equal(subscription.lastSequence(), null);
+});
+
+test("event-stream session can change before any sequence is acknowledged", async () => {
+  let calls = 0; let subscription; const errors = [];
+  const reconnected = new Promise((resolve, reject) => {
+    const fake = async (_url, init) => {
+      calls++;
+      try {
+        assert.equal(init.headers["Last-Event-ID"], undefined);
+        assert.equal(init.headers["GKOS-Event-Session"], undefined);
+        if (calls === 2) resolve();
+        return { ok: true, status: 200, headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : `event-stream:fixture:${calls}` }, body: new ReadableStream({ start(controller) { if (calls === 1) controller.close(); } }) };
+      } catch (error) { reject(error); throw error; }
+    };
+    subscription = subscribeTraversalEvents({ api: "http://127.0.0.1:4814", token: "viewer-secret" }, {
+      onEvent() {}, onError(message) { errors.push(message); },
+    }, fake);
+  });
+  await reconnected; subscription.close();
+  assert.deepEqual(errors, []);
+  assert.equal(subscription.lastSequence(), null);
 });

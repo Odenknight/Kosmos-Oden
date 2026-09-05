@@ -12,6 +12,7 @@
     "kosmos-oden-stand-alone.html",
     "kosmos-mcp-stdio.mjs",
     "README.md",
+    "TECHNICAL_README.md",
     "CHANGELOG.md",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md"
@@ -35,8 +36,8 @@
     "check:lockfile": "node scripts/check-lockfile-sha.mjs",
     "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:lockfile && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance",
     "test:browser": "playwright test --project=chromium --project=firefox --project=webkit",
-    "test:browser:chromium": "playwright test --project=chromium --project=mobile-chromium test/browser/standalone.spec.ts test/browser/standalone-flows.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts",
-    "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/standalone-flows.spec.ts test/browser/embed.spec.ts",
+    "test:browser:chromium": "playwright test --project=chromium --project=mobile-chromium test/browser/standalone.spec.ts test/browser/standalone-flows.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts test/browser/consumer-identity.spec.ts",
+    "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/standalone-flows.spec.ts test/browser/embed.spec.ts test/browser/consumer-identity.spec.ts",
     "test:visual": "playwright test test/browser/visual.spec.ts --project=chromium",
     "test:renderer": "npm run test:browser && npm run test:visual",
     "package:release": "node scripts/package-release.mjs"
@@ -51,10 +52,10 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#v2.1.1",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9",
     "three": "0.185.1"
   },
   "allowScripts": {
-    "github:Odenknight/GKOS-Engine#f4dfda16eac746c667cf042f908a918d9acc6713": true
+    "github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9": true
   }
 }

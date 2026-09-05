@@ -155,7 +155,7 @@ test("live events buffer during replay and do not interrupt it until return-live
   const base = { schema_version: 1, session_id: "s", operation_id: "op", agent_id: "a", agent_label: "Replay Alpha", tool: "search_notes", status: "completed", cost_units: null };
   await page.evaluate(({ base }) => {
     const s = (window as any).__kosmosStandalone;
-    s.loadReplayForTest({ schema_version: 1, metadata: { started_at: "2026-08-26T00:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.85", corpus_hash: null, redaction: "Traversal envelopes only; no note bodies, tokens, prompts, credentials, or raw errors." }, truncated: false, events: [
+    s.loadReplayForTest({ schema_version: 1, metadata: { started_at: "2026-08-26T00:00:00.000Z", service_protocol: "draft.1", viewer_version: "0.8.0", corpus_hash: null, redaction: "Traversal envelopes only; no note bodies, tokens, prompts, credentials, or raw errors." }, truncated: false, events: [
       { ...base, sequence: 1, offset_ms: 0, paths: ["10_Research/Spatial Computing.md"] },
       { ...base, sequence: 2, offset_ms: 40, paths: ["10_Research/Literature Radar.md"] },
     ] });

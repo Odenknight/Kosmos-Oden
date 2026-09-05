@@ -1,11 +1,10 @@
 import { normalizeTraversalEvent, type TraversalEventEnvelope } from "./observability";
 
 /**
- * Kosmos standalone — live Agent-API feed (GKOS Engine Desktop sidecar).
+ * Kosmos standalone — live local GKOS Engine service feed.
  *
- * The desktop app "GKOS Engine Desktop" supervises a headless sidecar
- * (`kosmos-agent`, GKOS-Engine desktop-agent.ts) that serves a LOOPBACK-ONLY,
- * read-only, bearer-token agent API on 127.0.0.1:4814. Its `/graph` route
+ * A compatible GKOS Engine runtime serves a LOOPBACK-ONLY, read-only,
+ * bearer-authenticated API on 127.0.0.1:4814. Its `/graph` route
  * returns the exact same GkxGraph the viewer already renders (see
  * `tryLocalGraphJson` in standalone.ts — this is the same shape, fetched live
  * instead of from a sibling graph.json).
@@ -149,7 +148,7 @@ export function normalizeCapabilitiesResponse(value: unknown): ServiceCapabiliti
 }
 
 /**
- * Connect to the sidecar: probe `/health`, negotiate `/capabilities`, then
+ * Connect to the local service: probe `/health`, negotiate `/capabilities`, then
  * fetch `/graph`. Read-only,
  * loopback-only, bearer-auth. Every failure mode returns a human-readable
  * `error` (unreachable, 401, bad shape) so the UI can degrade gracefully —
@@ -182,7 +181,7 @@ export async function connectToEngine(
   } catch (e: any) {
     return {
       ok: false,
-      error: `Could not reach the engine at ${api}. Is “GKOS Engine Desktop” running? (${e?.message || e})`,
+      error: `Could not reach the local GKOS Engine service at ${api}. Is it running? (${e?.message || e})`,
     };
   }
   if (hres.status === 401) {
@@ -190,7 +189,7 @@ export async function connectToEngine(
       ok: false,
       status: 401,
       error:
-        "The engine rejected the token (401). Copy the current bearer token from GKOS Engine Desktop and try again.",
+        "The engine rejected the credential (401). Enter the current viewer credential from the local GKOS Engine service and try again.",
     };
   }
   if (!hres.ok) {
@@ -258,18 +257,35 @@ export function subscribeTraversalEvents(
   fetchImpl: typeof fetch = fetch,
 ): { close(): void; lastSequence(): number | null } {
   const api = normalizeApiBase(params.api); const controller = new AbortController();
-  let closed = false, last: number | null = null, lastSession: string | null = null, attempt = 0;
+  let closed = false, last: number | null = null, eventStreamSession: string | null = null, attempt = 0;
   const run = async () => {
     if (!isLoopbackApiUrl(api)) { callbacks.onError?.("Refusing non-loopback event stream."); return; }
     while (!closed) {
       callbacks.onState?.("connecting");
       const headers: Record<string, string> = { Accept: "text/event-stream", Authorization: `Bearer ${params.token}` };
-      if (last != null) headers["Last-Event-ID"] = String(last);
+      const resumeSession = last != null && eventStreamSession != null ? eventStreamSession : null;
+      if (resumeSession != null) {
+        headers["Last-Event-ID"] = String(last);
+        headers["GKOS-Event-Session"] = resumeSession;
+      }
       try {
         const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
+        if (response.status === 409) {
+          // The process session changed or the bounded ring no longer retains
+          // the acknowledged sequence. Never pretend the gap was replayed.
+          last = null; eventStreamSession = null;
+          throw new Error("resume reset required; retained traversal events may have been missed, reconnecting at the live tail");
+        }
         if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
         const contentType = response.headers?.get("content-type")?.trim().toLowerCase();
         if (contentType !== "text/event-stream; charset=utf-8") throw new Error("unexpected event-stream content type");
+        const responseSession = response.headers?.get("gkos-event-session")?.trim() || "";
+        if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(responseSession)) throw new Error("missing or invalid event-stream session");
+        if (resumeSession != null && responseSession !== resumeSession) {
+          last = null; eventStreamSession = null;
+          throw new Error("event-stream session changed during resume; retained traversal events may have been missed");
+        }
+        eventStreamSession = responseSession;
         callbacks.onState?.("connected"); attempt = 0;
         const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = "";
         while (!closed) {
@@ -291,7 +307,6 @@ export function subscribeTraversalEvents(
             let parsed: unknown; try { parsed = JSON.parse(raw); } catch { continue; }
             const event = normalizeTraversalEvent(parsed);
             if (!event || event.sequence !== streamId) continue;
-            if (lastSession !== event.session_id) { lastSession = event.session_id; last = null; }
             if (last != null && event.sequence <= last) continue;
             callbacks.onEvent(event); last = event.sequence;
           }

@@ -37,7 +37,7 @@ test("Navigation consumes Engine's exact archive-ignore rule without removing ot
 
 test("consumer capability manifest is truthful about the 2.1 effect boundary", () => {
   const manifest = getKosmosNavigationManifest(true);
-  assert.equal(manifest.engine_version, "2.1.1");
+  assert.equal(manifest.engine_version, "2.1.2");
   assert.equal(manifest.navigation_contract, "1.0.0");
   assert.equal(manifest.governance_store_configured, false);
   assert.equal(manifest.capabilities.discover, true);

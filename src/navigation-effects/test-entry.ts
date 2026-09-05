@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./engine-adapter";
 export * from "./settings";
 export * from "./policy";
 export * from "./authority-provider";

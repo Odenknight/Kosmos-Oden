@@ -236,15 +236,21 @@ output caps (`MAX_NOTE_CONTENT_CHARS`, `MAX_SEARCH_RESULTS`, …).
 
 Agents typically **share one token**, so identity comes from the request, not auth:
 
-- On MCP `initialize`, read `params.clientInfo.name`, mint a short session id,
-  store `sessionId → {name, lastSeen}` (bounded map + TTL, e.g. 64 sessions / 30 min),
-  and return it as `Mcp-Session-Id`. Subsequent MCP requests carry that header.
+- On MCP `initialize`, read `params.clientInfo.name`, mint a short session id
+  plus a separate random visual agent ID, store
+  `sessionId → {name, visualAgentId, lastSeen}` (bounded map + TTL, e.g. 64
+  sessions / 30 min), and return only the session ID as `Mcp-Session-Id`.
+  Subsequent MCP requests carry that header; clients never supply or receive the
+  visual agent ID.
 - `agentLabel(req)` = the session's name (via `Mcp-Session-Id`) **else** the
   `User-Agent`, sanitized to a short token, else `"agent"`.
 
-Use the label as the per-agent fairness key (§7 M4) and pass it to the optional
-`onTraversal(paths, tool, agent)` callback so a viewer can colour/label each
-agent's activity. Identity is best-effort — never make correctness depend on it.
+Use the label as the per-agent fairness key (§7 M4). For MCP tool calls, pass
+both the display label and the session's separate server-minted visual ID to the optional
+`onTraversal(paths, tool, agent, agentId?)` callback so the viewer can keep
+same-label sessions visually distinct. REST calls omit `agentId` and retain
+legacy label grouping. This identity is best-effort visual state — never make
+correctness or authority depend on it.
 
 ---
 
