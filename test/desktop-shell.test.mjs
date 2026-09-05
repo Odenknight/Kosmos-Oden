@@ -33,6 +33,22 @@ test("desktop shell keeps write authority absent and secrets out of process argu
   assert.match(read("src-tauri/.gitignore"), /^\/gen\/schemas\/$/m);
 });
 
+test("desktop shell uses the audited glib 0.18.5 security backport", () => {
+  const cargo = read("src-tauri/Cargo.toml");
+  const vendoredCargo = read("src-tauri/vendor/glib-0.18.5/Cargo.toml");
+  const variantIter = read("src-tauri/vendor/glib-0.18.5/src/variant_iter.rs");
+  const provenance = read("src-tauri/vendor/glib-0.18.5/KOSMOS_BACKPORT.md");
+
+  assert.match(cargo, /\[patch\.crates-io\][\s\S]*glib = \{ path = "vendor\/glib-0\.18\.5" \}/);
+  assert.match(vendoredCargo, /name = "glib"[\s\S]*version = "0\.18\.5"/);
+  assert.match(vendoredCargo, /license = "MIT"/);
+  assert.match(variantIter, /let mut p: \*mut libc::c_char = std::ptr::null_mut\(\);/);
+  assert.match(variantIter, /g_variant_get_child\([\s\S]*&mut p,/);
+  assert.doesNotMatch(variantIter, /g_variant_get_child\([\s\S]*?\n\s*&p,/);
+  assert.match(provenance, /233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5/);
+  assert.match(provenance, /05dff0ee696f9bcd8617cd48c4b812d046d440cb/);
+});
+
 test("portable alpha stages supplied bytes and reports absent targets without fabrication", () => {
   const fixtureRoot = mkdtempSync(resolve(tmpdir(), "kosmos-sidecar-"));
   const fixture = resolve(fixtureRoot, "gkos-agent.exe");

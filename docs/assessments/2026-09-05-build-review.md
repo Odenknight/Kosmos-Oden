@@ -125,12 +125,24 @@ The first remote clean build found that `scripts/build.mjs` did not regenerate
 ignored file remained from an earlier build. The script now emits the bundle,
 and a local verification run passed after the generated file was removed first.
 
-GitHub dependency review reports moderate advisory
+GitHub dependency review initially reported moderate advisory
 `GHSA-wrw7-89jp-8q8g` in `glib` 0.18.5 through the Tauri Linux GTK dependency
-path. The advisory is fixed in `glib` 0.20.0, which is outside the compatible
-GTK generation selected by Tauri 2.11.5. No unsafe mixed generation upgrade,
-workflow exception, or advisory bypass was added. This remains a native desktop
-dependency blocker; it does not change the separate offline viewer evidence.
+path. The published fix in `glib` 0.20.0 is outside the compatible GTK
+generation selected by Tauri 2.11.5. The repository now uses the original
+0.18.5 crate source through a Cargo path override and applies the exact upstream
+two line pointer correction. The original crate SHA256, license, version,
+upstream pull request, and correction commit are recorded beside the vendored
+source. A focused optimized Linux test exercises forward, backward, and mixed
+direction `VariantStrIter` traversal. The security workflow has no exception or
+advisory bypass. Final dependency review results are recorded below.
+
+The local Windows rerun passed `npm run verify` with **317 tests** and
+`cargo test --locked --manifest-path src-tauri/Cargo.toml` with **5 tests**.
+Cargo metadata resolves `glib` 0.18.5 from
+`src-tauri/vendor/glib-0.18.5/Cargo.toml` with no registry source. The available
+Debian WSL environment could not run the Linux regression because its Cargo
+1.82 toolchain predates stable Edition 2024 and it lacks the required GLib
+development package. The Ubuntu CI job is the Linux execution evidence.
 
 These results qualify the merged source against the listed repository checks.
 They do not supply the remaining real Obsidian, live unified service, managed

@@ -430,6 +430,7 @@ are built separately by CI.
 
 ## Related technical documents
 
+* [Wired capability inventory](docs/WIRED-CAPABILITIES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Standalone engine design](docs/STANDALONE-GKX-ENGINE-DESIGN.md)
 - [Renderer host protocol](docs/RENDERER-PROTOCOL.md)

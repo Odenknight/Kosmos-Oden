@@ -127,6 +127,7 @@ does not make it a finished desktop release.
 
 ## More information
 
+* [Working capabilities](docs/WIRED-CAPABILITIES.md): connected features, controls, and requirements
 * [Technical README](TECHNICAL_README.md): architecture, setup, contracts, and checks
 * [Changelog](CHANGELOG.md): version history and fixes
 * [Build review](docs/assessments/2026-09-05-build-review.md): findings and test evidence

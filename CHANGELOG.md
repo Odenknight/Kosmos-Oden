@@ -36,6 +36,10 @@ remain internal alpha work. This entry does not claim a published installer.
   redirects, preserving the restriction to the local computer.
 * Clean builds now regenerate the corpus exclusion test bundle. This removes
   a false local pass caused by an older generated file remaining in `dist`.
+* The native Linux dependency path now uses an audited in-repository backport
+  of the upstream `glib` 0.18.5 `VariantStrIter` pointer correction. The
+  original crate checksum, license, version, and upstream fix are recorded,
+  and optimized Linux CI exercises forward and backward string iteration.
 * The general README now uses the actual plugin identifier in the
   installation path: `.obsidian/plugins/kosmos-oden/`.
 * Documentation separates working viewer features from experimental service,
