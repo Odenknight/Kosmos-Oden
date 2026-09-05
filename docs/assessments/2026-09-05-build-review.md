@@ -144,6 +144,11 @@ Debian WSL environment could not run the Linux regression because its Cargo
 1.82 toolchain predates stable Edition 2024 and it lacks the required GLib
 development package. The Ubuntu CI job is the Linux execution evidence.
 
+On backport commit `bb85aab7526aa1937daade1d07c96a65f2be8f5d`, the optimized
+Ubuntu `VariantStrIter` regression passed. GitHub dependency review also
+passed with the path override, so the earlier native dependency blocker is
+resolved without weakening the security workflow.
+
 These results qualify the merged source against the listed repository checks.
 They do not supply the remaining real Obsidian, live unified service, managed
 MOC write runtime, packaged desktop, signing, notarization, cross platform, or

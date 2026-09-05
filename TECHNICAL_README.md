@@ -361,6 +361,10 @@ The formatting workflow supports editable GKX Properties, canonical
 previews, backups, and guarded conversion. Custom timestamp keys remain
 ordinary user fields. Legacy OKF compatibility names remain where required.
 
+`noteTimestampsEnabled` defaults to true. Obsidian create and modify events
+schedule frontmatter writes while this setting is enabled. The standalone
+folder viewer has no corresponding source writer.
+
 Nextcloud synchronization is separately enabled and uses WebDAV with an app
 password in Obsidian Secret Storage. Runs are serialized. Conditional
 transfers and conflict handling protect concurrent edits. Deletion

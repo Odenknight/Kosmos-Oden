@@ -109,7 +109,7 @@ embed tests.
 | Reveal a folder | Folder context action | Uses the Obsidian file explorer when that host API is available. |
 | Show vault connectivity | Periodic adapter probe | Updates the view's connectivity indicator. |
 | Select Engine Navigation centers | Enable Engine Navigation centers setting | Uses canonical existing centers and reports legacy names. Does not create or maintain MOCs. View refresh or reopen is required after changing the setting. |
-| Maintain note timestamps | Timestamp setting and create/modify events | Writes configured timestamp fields when enabled; UTC or explicit local offset. Preserves existing creation timestamps. |
+| Maintain note timestamps | Timestamp setting and create/modify events | Enabled by default in Obsidian. Writes configured timestamp fields; UTC or explicit local offset. Preserves existing creation timestamps. Can be disabled in settings. |
 | Exclude files from GKX workflows | Developer preset and custom exclusions | Changes scan eligibility. Operational namespaces are excluded separately. |
 | Audit and repair formatting | Scan and repair human editable GKX formatting | Opens a scan and review workflow with preview and backup gates. |
 | Convert to editable GKX 2.2 | Convert recoverable notes command | Explicit preview and guarded source changes. |
@@ -122,6 +122,7 @@ embed tests.
 | Record human decisions | Reviewed decision controls | Requires bound reviewer identity and Obsidian Secret Storage. Persists separate immutable decisions. |
 | Apply accepted enrichment | Governed apply preview and acknowledgements | Rechecks hashes, backs up, applies reviewed changes, and writes separate results. |
 | Export Graphiti data and sample code | Export Graphiti episodes command | Writes episodes, ingestion profile and a sample Python script into the vault. Does not run an ingestion service automatically. |
+| Include Graphiti saga mapping | Graphiti saga mapping setting | Adds the configured lineage grouping hints to exported episodes. Does not start ingestion. |
 | Write an Agent API guide | Registered command or settings button | Writes `AGENT-API.md` into the vault with configured address and token. This file contains credentials. |
 
 Entry points: [plugin registration](../src/plugin/main.ts),

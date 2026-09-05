@@ -98,6 +98,10 @@ The plugin supports editable GKX Properties, timestamps, conversion previews,
 backups, and reviewed changes. Older material may use the names OKF or OKF+.
 GKX is the current name used by this project.
 
+In Obsidian, timestamp maintenance starts enabled. It updates creation and
+modification fields when notes change. Turn off **Stamp note creation and
+modification times** in settings if you do not want those writes.
+
 **Suggestions.** Optional enrichment can propose changes for review. A
 suggestion stays pending until a person decides what to do with it. Approval
 and applying the change are separate steps. An agent cannot approve its own

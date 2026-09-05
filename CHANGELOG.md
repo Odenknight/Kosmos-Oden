@@ -44,6 +44,8 @@ remain internal alpha work. This entry does not claim a published installer.
   installation path: `.obsidian/plugins/kosmos-oden/`.
 * Documentation separates working viewer features from experimental service,
   desktop, and automatic note maintenance work.
+* Documentation now states that Obsidian timestamp maintenance starts enabled
+  and writes note frontmatter on create and modify events until disabled.
 
 ### Retained from main
 
