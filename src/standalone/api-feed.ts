@@ -173,7 +173,7 @@ export async function connectToEngine(
   const { health, capabilities, graph } = buildFeedUrls(api);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
-  const init = { headers, cache: "no-store" as const };
+  const init = { headers, cache: "no-store" as const, redirect: "error" as const };
 
   // 1) health probe — cheapest way to distinguish unreachable vs. 401.
   let hres: FetchLikeResponse;
@@ -266,7 +266,7 @@ export function subscribeTraversalEvents(
       const headers: Record<string, string> = { Accept: "text/event-stream", Authorization: `Bearer ${params.token}` };
       if (last != null) headers["Last-Event-ID"] = String(last);
       try {
-        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", signal: controller.signal });
+        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
         if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
         const contentType = response.headers?.get("content-type")?.trim().toLowerCase();
         if (contentType !== "text/event-stream; charset=utf-8") throw new Error("unexpected event-stream content type");
@@ -323,7 +323,7 @@ export async function probeHealth(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
   try {
-    const r = await fetchImpl(health, { headers, cache: "no-store" });
+    const r = await fetchImpl(health, { headers, cache: "no-store", redirect: "error" });
     if (!r.ok) return { ok: false, status: r.status };
     let doc: any = null;
     try {

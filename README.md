@@ -1,214 +1,145 @@
-# Kosmos-Oden
+# Kosmos Oden
 
-Turn a folder of Markdown notes into a little universe you can explore.
+See how your notes connect.
 
-Kosmos-Oden maps top-level folders to galaxies, connected notes to stars and
-planets, loose notes to asteroids, and attachments to an outer Oort cloud. It
-is a visual projection of your files: the sky is playful, but your Markdown
-remains the source of truth.
+Kosmos Oden turns a folder of Markdown files into a map you can explore.
+Folders become galaxies. Connected notes become stars, planets, and moons.
+Loose notes become asteroids. Attachments sit around the edge of the map.
+Your files stay where they are.
 
-> Development status: this branch is an internal-alpha uplift. The offline
-> viewer and Obsidian plugin are usable from source, but the new standalone
-> service, managed-MOC write plane, native installers, signing, notarization,
-> and cross-platform release qualification are not complete. Package metadata
-> still identifies version 0.8.0; no 0.85 release is claimed here.
+Use it to explore a research library, find related ideas, or see where a
+collection needs more work. It runs in a browser or inside Obsidian.
 
-![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
+![A map of connected notes](docs/assets/kosmos-oden-night-sky.png)
 
-## Pick your launchpad
+## Current version
 
-### Open the standalone sky
+**0.8.1** fixes problems with exports, folder monitoring, connection handling,
+and the startup screen. The [changelog](CHANGELOG.md) lists every fix in this
+update.
 
-`kosmos-oden-stand-alone.html` is a single offline file with the renderer and
-parser bundled inside it. It does not need Obsidian, Node.js, a web server, or
-an internet connection.
+This is still an internal alpha. You can build and use the browser viewer and
+Obsidian plugin. The separate local service, desktop installers, and automatic
+maintenance of index notes are not ready for general use.
 
-1. Open `kosmos-oden-stand-alone.html` in a current browser.
-2. Choose **Open Knowledge Folder**.
-3. Select the root of your Markdown or Obsidian vault.
+## Try it in a browser
 
-Chromium-based browsers can grant a reusable directory handle and rescan while
-the page stays open. Other browsers can import a one-time folder snapshot. In
-either mode the viewer reads the selected files; it does not rewrite them.
+Open `kosmos-oden-stand-alone.html` from a build of this repository.
+Choose **Open Knowledge Folder**, then select the folder that holds your notes.
+If that option is unavailable, choose **Open Folder Snapshot**.
 
-### Fly from Obsidian
+You can also choose **Load Demo** to explore a sample collection first.
 
-For source builds, copy `manifest.json`, `main.js`, and `styles.css` into
-`<vault>/.obsidian/plugins/vault-kosmos/`, enable the plugin, and run **Open
-Vault Kosmos**. The view updates from Obsidian vault events and keeps the same
-cosmology and renderer as the standalone page.
+The HTML file contains everything the viewer needs. Once built, it works
+without Obsidian, Node.js, a web server, or an internet connection. Opening
+your folder does not upload, edit, move, or delete its files.
 
-See [the community-plugin guide](docs/COMMUNITY-PLUGIN.md) for packaging and
-release details. This uplift branch is not a published community-plugin
-release.
+Browsers that support persistent folder access can rescan your folder while
+the page is open. A folder snapshot is a single import. Import it again when
+you want to see later changes.
 
-## What you can explore
+## Use it in Obsidian
 
-- Galaxies, stars, planets, moons, asteroids, and attachments derived from one
-  shared GKOS-Engine graph.
-- Canonical lineage and a Chrono view for seeing which note version was valid
-  at a selected time.
-- Stable, distinct trails for named agents when authorized traversal events
-  are available.
-- An optional **Traffic Heatmap** that brightens recently visited nodes. It is
-  off by default and measures recent visits only—not truth, quality,
-  importance, fuel, cost, or model confidence.
-- Explicit traversal-session recording and replay at 1x, 2x, or 5x. A session
-  contains redacted event envelopes, not rendered frames, and is bounded to
-  5,000 events or 2 MB, whichever comes first. Recording is in memory and is
-  never persisted unless you choose **Export session**.
-- Offline graph and Graphiti exports built in memory.
-- Optional, separately configured Nextcloud WebDAV sync in the Obsidian
-  plugin. It is not part of ordinary read-only viewing.
+Build the project using the instructions in the [technical README](TECHNICAL_README.md).
+Copy `manifest.json`, `main.js`, and `styles.css` into
+`<vault>/.obsidian/plugins/kosmos-oden/`. Enable **Vault Kosmos (KRS)**, then run
+**Open Vault Kosmos** from the command palette.
 
-Drag to orbit, scroll or pinch to zoom, and select a body to focus its
-neighbors. The Overview, Focus, Depth, and Fly modes offer different ways to
-move through the cluster; Chrono lets you scrub the graph through recorded GKX
-validity times. The full source-onboarding paths for GKX notes and the existing
-Obsidian Agent API remain documented below.
+The view follows changes to your vault. The plugin also includes optional
+tools for note formatting, agent access, and Nextcloud sync.
 
-## Optional local Engine connection
+See the [plugin guide](docs/COMMUNITY-PLUGIN.md) for installation details.
 
-The standalone viewer contains a client for a loopback-only local service. It
-can negotiate capabilities, fetch an authorized graph, and consume traversal
-events over an authenticated `fetch()` stream. The non-secret convenience URL
-may contain `?api=http://127.0.0.1:4814`.
+## Explore your notes
 
-Credentials never belong in that URL. Query-token support has been removed
-from the standalone client. Enter the viewer credential in the password field,
-or let the internal-alpha desktop shell provide it through secure IPC. The
-client refuses non-loopback addresses.
+Drag to orbit the map. Scroll or pinch to zoom. Select a body to focus on
+its connections. Search for a note or use the filters to narrow the view.
 
-The matching unified Engine service is still on a separate draft Engine
-integration branch. Its contract foundation is not the same thing as an
-activated runtime. A live graph/MCP/event end-to-end connection is therefore
-not claimed for this Kosmos branch yet. Offline folder and snapshot mode remain
-available without it.
+**Overview**, **Focus**, **Depth**, and **Fly** give you different ways to move
+around. **Chrono** shows which recorded note version was valid at a chosen
+time. It uses dates and relationships in the notes. It cannot recover old
+file contents that were never saved.
 
-## Suggestions stay suggestions
+When an authorized agent visits notes, its trail can appear on the map.
+**Traffic Heatmap** highlights recent visits. It starts off and says nothing
+about the quality or truth of a note.
 
-Kosmos can help a reviewer sort and filter GKX enrichment candidates by
-confidence, but confidence grants no authority and nothing is auto-approved.
+You can record an available traversal stream and replay it at 1x, 2x, or 5x.
+Recordings stay in memory until you choose **Export session**. Each recording
+holds at most 5,000 events or 2 MB. It contains traversal records, not note
+bodies, prompts, or credentials.
 
-When the optional review workflow is used:
+## Export a map
 
-- pending proposals are immutable records under `.gkx/proposals/`;
-- accepted, rejected, or deferred human decisions are separate immutable
-  records under `.gkx/decisions/`;
-- a decision binds the proposal and reviewed plan by hashes;
-- the local human reviewer identity is credential-bound through Obsidian
-  Secret Storage, while the secret itself is never written to the decision;
-- accepted changes still pass through the existing explicit acknowledgement,
-  backup, source-hash recheck, guarded apply, and separate result receipt.
+**Export Graph JSON** downloads the graph for the source you are viewing.
+It works with local folders, the demo, an imported graph, and a compatible
+local service.
 
-An agent cannot approve its own proposal. Proposal records do not modify a
-source note, and proposed values do not become effective merely because they
-exist. Details are in [GKX Content-Assisted Enrichment](docs/GKX-ENRICHMENT.md).
+**Export Graphiti Episodes** is available after you open a local folder or
+folder snapshot. It needs the note content from that source. Both exports are
+created in memory and saved only when you choose the export action.
 
-## Navigation and managed MOCs
+## Optional tools
 
-Navigation 1.0 remains read-only. This branch also contains fail-closed
-Navigation Effects settings, capability reporting, event debouncing,
-reconciliation classification, and receipt-bound self-write-suppression
-primitives. Every write setting—including automatic maintenance and automatic
-creation—defaults to off.
+The Obsidian settings separate agent connections, connection setup, note
+formatting, and sync.
 
-Those primitives are development work, not a qualified managed-MOC runtime.
-The full Engine adapter, Obsidian and native host adapters, digest-bound
-adoption registry, durable journal/archive/lease, startup recovery controller,
-coordinator, and operator UI are not integrated and qualified here. Existing
-MOCs remain unmanaged, and this branch must not be described as automatically
-maintaining them.
+**Agent access.** The plugin can let an agent read an allowed view of your
+notes through REST or MCP. It is disabled by default. Sensitivity settings
+control what can be returned. A connection token does not grant permission
+to change your notes or approve a suggestion.
 
-Operational state under `.gkx/**` and managed-MOC archives under
-`_archive/moc-runs/**` are excluded from Navigation, corpus graphs, retrieval,
-Graphiti, and agent context.
+**Connection setup.** Quick Connect provides configuration for supported MCP
+clients. Treat copied configuration as a secret when it contains a token.
+The [Agent API guide](AGENT-API.md) explains the available connections.
 
-## Desktop and portable packages
+**Note formatting.** GKX stores structured information alongside your Markdown.
+The plugin supports editable GKX Properties, timestamps, conversion previews,
+backups, and reviewed changes. Older material may use the names OKF or OKF+.
+GKX is the current name used by this project.
 
-A Tauri 2 shell and portable staging script exist in source for internal-alpha
-work. They provide a secure IPC boundary and can stage checksums, provenance,
-and an SPDX SBOM when real sidecar binaries are supplied.
+**Suggestions.** Optional enrichment can propose changes for review. A
+suggestion stays pending until a person decides what to do with it. Approval
+and applying the change are separate steps. An agent cannot approve its own
+proposal.
 
-They are not finished installers. The repository does not currently supply the
-required signed Debian x64, Windows x64, macOS arm64, and macOS x64 sidecars;
-native installers are not signed, macOS output is not notarized, and clean-host
-cross-platform results are not recorded. Missing binaries stay reported as
-missing rather than being fabricated or relabelled.
+**Nextcloud sync.** The plugin can sync a separately configured Nextcloud
+folder over WebDAV. Sync is disabled by default and uses Obsidian Secret
+Storage for the app password. Deletion propagation is also off by default.
+Sync changes files when enabled, so keep your own backups.
 
-## What the status words mean
+## Work still in progress
 
-| Word | Meaning in this repository |
-|---|---|
-| **Implemented** | Source and focused tests exist. |
-| **Configured** | Required host adapter, policy, credential, or runtime setting is present. |
-| **Authorized** | A valid external human or policy decision permits the operation. Connectivity alone never does. |
-| **Qualified** | The applicable security, crash, browser, platform, and performance gates have recorded evidence. |
-| **Released** | An owner-authorized artifact is versioned, packaged, and published. |
+The viewer includes a connection form for a compatible service on the same
+computer. That service is separate from the Obsidian Agent API and is not
+bundled with this viewer. Enter credentials in the password field, never in
+the address. Connections are restricted to the local computer and redirects
+are rejected.
 
-These states are independent. “Implemented” does not mean configured,
-authorized, qualified, or released.
+Navigation can recognize existing index notes, often called maps of content
+or MOCs. Work on ownership records, adoption previews, and automatic
+maintenance is still experimental. Automatic creation and maintenance remain
+unavailable and off.
 
-## Build and verify from source
+A desktop shell exists in source. It still needs real service binaries,
+installer testing, signing, and platform checks. A successful source build
+does not make it a finished desktop release.
 
-Requirements: Node.js 22–24 and npm 10 or newer.
+## More information
 
-```bash
-npm ci
-npm run verify
-npm run test:renderer
-```
+* [Technical README](TECHNICAL_README.md): architecture, setup, contracts, and checks
+* [Changelog](CHANGELOG.md): version history and fixes
+* [Build review](docs/assessments/2026-09-05-build-review.md): findings and test evidence
+* [Security](SECURITY.md): reporting problems and understanding the boundaries
+* [Contributing](CONTRIBUTING.md): working on the project
 
-Useful focused commands:
+## Credits and license
 
-```bash
-npm run build:standalone
-npm run test:browser
-npm run test:visual
-npm run check:artifacts
-npm run check:renderer-provenance
-```
+Kosmos Oden is an independent fork and rebuild of
+[Vault Kosmos](https://github.com/H4R7W16/vault-kosmos).
+The [acknowledgments](ACKNOWLEDGMENTS.md) describe its origins.
 
-Test totals are intentionally not advertised as permanent documentation; the
-commands and exact commit are the evidence. See [CONTRIBUTING.md](CONTRIBUTING.md)
-before changing renderer snapshots, protocol validation, security boundaries,
-or generated artifacts.
-
-## Technical map
-
-- [Technical README](TECHNICAL_README.md)—current architecture, contracts,
-  boundaries, implementation state, and verification commands
-- [Architecture](docs/ARCHITECTURE.md)—the established module map
-- [Standalone uplift baseline](docs/standalone/BASELINE.md)—recorded Phase 0
-  repository and toolchain evidence
-- [Draft qualification ledger](docs/standalone/QUALIFICATION.md)—implemented
-  evidence and open release blockers
-- [Threat model](docs/THREAT-MODEL.md) and [security policy](SECURITY.md)
-- [Renderer protocol](docs/RENDERER-PROTOCOL.md)
-- [GKX 2.3 validating projection profile](docs/GKX-2.3-PROFILE.md)
-- [GKX authoring and migration](docs/GKX-AUTHORING-MIGRATION.md)
-- [GKX migration workflow](docs/GKX-MIGRATION.md)
-- [Existing Obsidian Agent API](AGENT-API.md)
-- [Release process](docs/RELEASE-PROCESS.md)
-- [Roadmap](ROADMAP.md)
-
-## Engine direction
-
-At this commit, the installed consumer dependency remains exact-pinned to
-GKOS-Engine v2.1.1. GKOS-Engine TypeScript 2.1.2 is the compatibility oracle
-for the standalone uplift until the separately governed Rust 3.0 engine passes
-parity and cutover gates. Navigation Effects integration remains experimental
-and must not be presented as released Engine 2.2 compatibility.
-
-## Origin and licensing
-
-Kosmos-Oden is an independent fork and substantial rebuild of
-[H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos). See
-[ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md) and
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for provenance and bundled
-dependency notices.
-
-Project-authored software is Apache-2.0. Project-authored documentation and
-original graphics are CC BY 4.0 where declared. Inherited and third-party
-assets keep their own licenses. [LICENSE](LICENSE) contains the controlling
-project licensing structure.
+Original software uses the Apache 2.0 license. Original documentation and
+graphics use CC BY 4.0 where declared. Inherited materials keep their own
+licenses. See [LICENSE](LICENSE) and the
+[dependency notices](THIRD-PARTY-NOTICES.md) for details.

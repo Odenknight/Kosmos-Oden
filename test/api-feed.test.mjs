@@ -235,6 +235,7 @@ test("event stream uses bearer auth, parses SSE envelopes, and resumes strictly 
       calls++;
       try {
         assert.equal(init.headers.Authorization, "Bearer viewer-secret");
+        assert.equal(init.redirect, "error");
         if (calls === 1) {
           assert.equal(init.headers["Last-Event-ID"], undefined);
           return { ok: true, status: 200, headers: { get: () => "text/event-stream; charset=utf-8" }, body: new ReadableStream({ start(controller) { controller.enqueue(encoder.encode(`id: 2\nevent: traversal\ndata: ${JSON.stringify(EVENT)}\n\n`)); controller.close(); } }) };

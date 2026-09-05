@@ -21,7 +21,7 @@
  * identical -> no-op (§11).
  */
 import * as THREE from "three";
-import { createDemoVaultEvents, createDemoVaultGraph } from "gkos-engine";
+import { createDemoVaultEvents, createDemoVaultGraph, type GkxGraph } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
@@ -57,7 +57,7 @@ export interface KosmosAppOptions {
 export interface KosmosApp {
   ok: boolean;
   renderGraph(graph: any, label?: string): void;
-  showDemo(): void;
+  showDemo(): GkxGraph | undefined;
   setConn(label: string, live: boolean): void;
   /** Live vault-connectivity signal: green dot + "connected" tooltip when the
    *  host can read the vault, red + "unreachable" when it cannot. */
@@ -84,7 +84,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
+    renderGraph() {}, showDemo() { return undefined; }, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false, drawCalls: 0 }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -2006,6 +2006,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     allEvents = createDemoVaultEvents(now);
     buildScene(positionFrom(graph)); reseedLive(); setConn("Demo vault", false);
     __prevSig = graphSignature(G);
+    return graph;
   }
   let __framed = false;
   function ensureFrame() {
@@ -2084,7 +2085,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     ok: true,
     renderGraph,
     showDemo() {
-      try { buildDemo(); ensureFrame(); } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
+      try { const graph = buildDemo(); ensureFrame(); return graph; } catch (e) { console.error("Vault Kosmos: demo failed", e); showFatal("The demo could not be built."); }
     },
     setConn,
     setVaultStatus,

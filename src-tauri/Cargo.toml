@@ -1,6 +1,6 @@
 [package]
 name = "kosmos-oden-desktop"
-version = "0.8.0"
+version = "0.8.1"
 description = "Internal-alpha native shell for Kosmos-Oden Standalone"
 edition = "2024"
 license = "Apache-2.0"
