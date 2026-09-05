@@ -34,6 +34,8 @@ remain internal alpha work. This entry does not claim a published installer.
 * Connection errors appear above the startup overlay and have an alert role.
 * Health checks, graph connections, and traversal streams reject HTTP
   redirects, preserving the restriction to the local computer.
+* Clean builds now regenerate the corpus exclusion test bundle. This removes
+  a false local pass caused by an older generated file remaining in `dist`.
 * The general README now uses the actual plugin identifier in the
   installation path: `.obsidian/plugins/kosmos-oden/`.
 * Documentation separates working viewer features from experimental service,

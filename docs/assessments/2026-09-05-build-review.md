@@ -120,6 +120,11 @@ contended for the configured local test server port. The complete Chromium,
 Firefox, WebKit, and visual suites were then run with bounded concurrency and
 passed as listed above. No visual baseline was added or changed.
 
+The first remote clean build found that `scripts/build.mjs` did not regenerate
+`dist/kosmos-corpus-exclusions.mjs`. The local run had passed because that
+ignored file remained from an earlier build. The script now emits the bundle,
+and a local verification run passed after the generated file was removed first.
+
 These results qualify the merged source against the listed repository checks.
 They do not supply the remaining real Obsidian, live unified service, managed
 MOC write runtime, packaged desktop, signing, notarization, cross platform, or
