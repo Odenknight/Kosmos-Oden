@@ -125,6 +125,13 @@ The first remote clean build found that `scripts/build.mjs` did not regenerate
 ignored file remained from an earlier build. The script now emits the bundle,
 and a local verification run passed after the generated file was removed first.
 
+GitHub dependency review reports moderate advisory
+`GHSA-wrw7-89jp-8q8g` in `glib` 0.18.5 through the Tauri Linux GTK dependency
+path. The advisory is fixed in `glib` 0.20.0, which is outside the compatible
+GTK generation selected by Tauri 2.11.5. No unsafe mixed generation upgrade,
+workflow exception, or advisory bypass was added. This remains a native desktop
+dependency blocker; it does not change the separate offline viewer evidence.
+
 These results qualify the merged source against the listed repository checks.
 They do not supply the remaining real Obsidian, live unified service, managed
 MOC write runtime, packaged desktop, signing, notarization, cross platform, or
