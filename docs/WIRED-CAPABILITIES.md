@@ -87,7 +87,10 @@ contract and normally a different port.
 | Return from replay | Return live; Stay paused | Live events buffer during replay; the user chooses when to return. |
 
 Service requests accept loopback addresses only, use bearer credentials,
-disable caching, and reject redirects. URL tokens are ignored and removed.
+disable caching, and reject redirects. Service base URLs reject embedded
+credentials, paths, queries and fragments before any request. URL tokens in
+the viewer location are ignored and removed. An SSE 401 or 403 stops automatic
+retry and requires explicit reconnection with an authorized credential.
 The full service lifecycle has not been qualified against a real bundled
 runtime in this repository.
 

@@ -66,4 +66,4 @@ K0 then K1. K2 precedes using new Engine runtime APIs. K3 waits for E1 where new
 
 ## Initial implementation ledger
 
-K0: plans authored. K1: queued for implementation after both plan commits are published. K2 through K6: planned, not implemented by this document.
+K0: both plans published, Engine 3c3b5e2c4ae572b20e7c31ae24d702e7d3679bd6 and Kosmos dbd61dbd279ac52953d539a11f0eaabd82be3ec5. K1 first slice implements service origin validation and terminal SSE authorization denial with regression tests. Shared generation/replay fixtures and live Engine qualification remain open. K2 through K6 remain planned. See the phase evidence report beside this plan.

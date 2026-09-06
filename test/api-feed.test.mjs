@@ -58,6 +58,57 @@ test("buildFeedUrls: derives unified service routes", () => {
   });
 });
 
+test("service origins reject credentials, routes, queries and fragments before any fetch", async () => {
+  const rejected = [
+    "http://user:secret@127.0.0.1:4814",
+    "http://127.0.0.1:4814/mcp",
+    "http://127.0.0.1:4814?token=secret",
+    "http://127.0.0.1:4814#secret",
+    "http://127.0.0.1:4814?",
+    "http://127.0.0.1:4814#",
+  ];
+  let requests = 0;
+  const fetchImpl = async () => { requests++; throw new Error("must not fetch"); };
+  for (const api of rejected) {
+    assert.equal(isLoopbackApiUrl(api), false);
+    assert.equal((await connectToEngine({ api, token: "synthetic" }, fetchImpl)).ok, false);
+    assert.equal((await probeHealth({ api, token: "synthetic" }, fetchImpl)).ok, false);
+    const subscription = subscribeTraversalEvents({ api, token: "synthetic" }, {}, fetchImpl);
+    subscription.close();
+  }
+  assert.equal(requests, 0);
+});
+
+for (const status of [401, 403]) {
+  test(`SSE authorization denial ${status} terminates without scheduling a retry`, async () => {
+    let requests = 0;
+    let retryTimers = 0;
+    const messages = [];
+    const states = [];
+    const originalTimer = globalThis.setTimeout;
+    let subscription;
+    // A retry timer is the observable distinction from transient disconnects.
+    globalThis.setTimeout = (...args) => { retryTimers++; return originalTimer(...args); };
+    try {
+      await new Promise((resolve) => {
+        subscription = subscribeTraversalEvents({ api: "http://127.0.0.1:4814", token: "synthetic-secret" }, {
+          onEvent: () => assert.fail("denied stream emitted an event"),
+          onState: (state) => states.push(state),
+          onError: (message) => { messages.push(message); queueMicrotask(resolve); },
+        }, async () => { requests++; return { status, ok: false, body: null }; });
+      });
+      assert.equal(requests, 1);
+      assert.equal(retryTimers, 0);
+      assert.deepEqual(states, ["connecting", "disconnected"]);
+      assert.match(messages[0], /Reconnect explicitly/);
+      assert.equal(messages[0].includes("synthetic-secret"), false);
+    } finally {
+      subscription?.close();
+      globalThis.setTimeout = originalTimer;
+    }
+  });
+}
+
 test("normalizeGraphResponse: accepts the sidecar's direct GkxGraph", () => {
   const g = normalizeGraphResponse({ nodes: [{ id: "file:a" }], links: [{ id: "l1" }], stats: { files: 1 } });
   assert.equal(g.nodes.length, 1);

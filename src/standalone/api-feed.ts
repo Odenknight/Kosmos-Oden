@@ -46,6 +46,10 @@ export function isLoopbackApiUrl(raw: string): boolean {
     return false;
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  // This is a service origin, not a route or a credential carrier. Appending
+  // endpoints to a query or fragment can silently target a different resource.
+  if (u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== "")) return false;
+  if (raw.includes("?") || raw.includes("#")) return false;
   // URL normalizes `[::1]` -> hostname "[::1]"; strip the brackets to compare.
   const host = u.hostname.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
   return LOOPBACK_HOSTS.has(host);
@@ -270,6 +274,13 @@ export function subscribeTraversalEvents(
       }
       try {
         const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
+        if (response.status === 401 || response.status === 403) {
+          closed = true;
+          controller.abort();
+          callbacks.onState?.("disconnected");
+          callbacks.onError?.("Traversal access denied. Reconnect explicitly with an authorized credential.");
+          return;
+        }
         if (response.status === 409) {
           // The process session changed or the bounded ring no longer retains
           // the acknowledged sequence. Never pretend the gap was replayed.
