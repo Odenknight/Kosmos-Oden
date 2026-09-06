@@ -1,7 +1,7 @@
 {
   "id": "kosmos-oden",
   "name": "Vault Kosmos (KRS)",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "minAppVersion": "1.11.4",
   "description": "Kosmos Research Studio: a 3D knowledge view with GKOS-Engine 2.1, opt-in source-content-read-only Navigation, read-only MCP, Graphiti, and Nextcloud WebDAV sync.",
   "author": "OdenKnight",

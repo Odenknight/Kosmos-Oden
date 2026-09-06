@@ -81,6 +81,16 @@ jobs:
       - name: Compare
         run: diff -u first.sha256 second.sha256
 
+  native-glib-backport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install GLib development library
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev
+      - name: Exercise optimized VariantStrIter backport
+        run: cargo test --release --locked --manifest-path src-tauri/vendor/glib-0.18.5/Cargo.toml test_variant_str_iter_security_backport_mixed_direction
+
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

@@ -61,12 +61,17 @@ for (const group of ["dependencies", "devDependencies"]) {
 }
 
 const engine = packages["node_modules/gkos-engine"];
+const engineSpecifier = packageJson.dependencies?.["gkos-engine"];
+if (packageJson.allowScripts?.[engineSpecifier] !== true) {
+  console.error("check-lockfile-sha: FAIL — active Engine dependency lacks its matching allowScripts entry");
+  process.exit(1);
+}
 if (
-  engine?.version !== "2.1.2"
-  || !String(engine.resolved ?? "").endsWith("#41172b91970aac869c161f4842e3526a62fd1fd9")
+  engine?.version !== "2.2.0"
+  || !String(engine.resolved ?? "").endsWith("#f1a95f8f3933f834eb4030f0f0d143051e6eecc2")
 ) {
-  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to development-only Effects commit 41172b91970a");
+  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to development-only Effects commit f1a95f8f3933");
   process.exit(1);
 }
 
-console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; development-only gkos-engine 2.1.2 @ 41172b91970a.`);
+console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; development-only gkos-engine 2.2.0 @ f1a95f8f3933.`);

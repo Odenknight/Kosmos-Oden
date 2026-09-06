@@ -39,6 +39,18 @@ SOFTWARE.
 
 Three.js: <https://github.com/mrdoob/three.js>
 
+## glib 0.18.5
+
+The native Linux dependency graph uses a repository copy of **glib 0.18.5**,
+copyright the gtk-rs Project Developers, under the MIT License. The copy is
+the crates.io source with the upstream `VariantStrIter` pointer correction
+backported. Its original crate SHA256, upstream source, correction pull
+request, and correction commit are recorded in
+`src-tauri/vendor/glib-0.18.5/KOSMOS_BACKPORT.md`. The complete MIT license is
+retained in `src-tauri/vendor/glib-0.18.5/LICENSE`.
+
+glib: <https://github.com/gtk-rs/gtk-rs-core>
+
 ## Upstream project — vault-kosmos
 
 Kosmos-Oden is an independent fork and rebuild of

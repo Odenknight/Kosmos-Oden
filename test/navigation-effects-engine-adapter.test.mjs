@@ -13,7 +13,7 @@ import {
 import { getNavigationCapabilities, NAVIGATION_CONTRACT_VERSION } from "gkos-engine/navigation";
 
 const ROOT = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const ENGINE_COMMIT = "41172b91970aac869c161f4842e3526a62fd1fd9";
+const ENGINE_COMMIT = "f1a95f8f3933f834eb4030f0f0d143051e6eecc2";
 
 test("adapter exposes the exact experimental contract standing", () => {
   assert.deepEqual(KOSMOS_NAVIGATION_EFFECTS_INTEGRATION, {

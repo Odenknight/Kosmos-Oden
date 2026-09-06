@@ -49,6 +49,8 @@ export interface StatusModel {
   mcpEnabled?: boolean;
   eventStream?: "unavailable" | "connecting" | "connected" | "disconnected";
   offlineFolderMode?: boolean;
+  canExportGraph?: boolean;
+  canExportEpisodes?: boolean;
 }
 
 export interface ObservabilityModel {
@@ -81,6 +83,7 @@ export interface StandaloneUI {
 }
 
 const CSS = `
+.ko-overlay .ko-card{max-height:calc(100dvh - 24px);overflow-y:auto;box-sizing:border-box}
 .ko-overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(3,6,15,.9);backdrop-filter:blur(6px)}
 .ko-card{max-width:440px;width:calc(100% - 48px);background:rgba(10,16,30,.92);border:1px solid rgba(140,170,210,.2);border-radius:16px;padding:26px 26px 22px;color:#f3f7ff;font:400 14px/1.5 var(--font,system-ui,sans-serif);box-shadow:0 24px 60px rgba(0,0,0,.6)}
 .ko-card h2{margin:0 0 4px;font-size:19px}
@@ -105,7 +108,7 @@ const CSS = `
 .ko-status .ko-actions button{flex:1 1 45%;padding:5px 6px;border-radius:7px;border:1px solid rgba(125,211,252,.25);background:rgba(125,211,252,.07);color:#c9d6ea;font:600 10.5px/1.2 var(--font,system-ui,sans-serif);cursor:pointer}
 .ko-status .ko-actions button:hover{background:rgba(125,211,252,.18)}
 .ko-status.ko-min .ko-body{display:none}
-.ko-errors{position:fixed;left:14px;bottom:96px;z-index:45;max-width:340px;display:flex;flex-direction:column;gap:6px}
+.ko-errors{position:fixed;left:14px;bottom:96px;z-index:65;max-width:340px;display:flex;flex-direction:column;gap:6px}
 .ko-err{background:rgba(60,18,28,.92);border:1px solid rgba(251,113,133,.4);color:#ffd7dd;border-radius:10px;padding:8px 30px 8px 12px;font:500 12px/1.4 var(--font,system-ui,sans-serif);position:relative}
 .ko-err button{position:absolute;right:6px;top:6px;border:none;background:transparent;color:#fb7185;cursor:pointer;font-size:13px}
 .ko-observe{position:fixed;right:252px;top:64px;z-index:42;width:270px;background:rgba(10,16,30,.78);border:1px solid rgba(140,170,210,.16);border-radius:12px;padding:10px;color:#c9d6ea;font:500 10.5px/1.35 var(--font,system-ui,sans-serif);backdrop-filter:blur(8px)}
@@ -154,7 +157,10 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     const mkBtn = (label: string, sub: string, ghost: boolean, onClick: () => void) => {
       const b = document.createElement("button");
       b.className = "ko-btn" + (ghost ? " ko-ghost" : "");
-      b.innerHTML = `${label}<small>${sub}</small>`;
+      b.appendChild(document.createTextNode(label));
+      const detail = document.createElement("small");
+      detail.textContent = sub;
+      b.appendChild(detail);
       b.addEventListener("click", onClick);
       card.appendChild(b);
       return b;
@@ -273,8 +279,8 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
           ${showMonitorControls ? `<button data-act="rescan">Rescan Now</button>
           <button data-act="pause">${m.monitoring === "paused" ? "Resume" : "Pause"} Monitoring</button>
           <button data-act="forget">Forget Folder</button>` : ""}
-          ${m.mode !== "none" ? `<button data-act="exportGraph">Export Graph JSON</button>
-          <button data-act="exportEpisodes">Export Graphiti Episodes</button>` : ""}
+          ${m.canExportGraph ? `<button data-act="exportGraph">Export Graph JSON</button>` : ""}
+          ${m.canExportEpisodes ? `<button data-act="exportEpisodes">Export Graphiti Episodes</button>` : ""}
           <button data-act="reopen">Open Another Folder</button>
         </div>
       </div>`;
@@ -312,6 +318,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     seen.add(message);
     const el = document.createElement("div");
     el.className = "ko-err";
+    el.setAttribute("role", "alert");
     el.textContent = message;
     const x = document.createElement("button");
     x.textContent = "×";

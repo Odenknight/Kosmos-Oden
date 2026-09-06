@@ -75,4 +75,4 @@ Browse**. Subsequent releases are picked up automatically from new tags.
   install directly from releases, including `0.6.0-beta.*` pre-releases for the
   r185 renderer line.
 - **Manual**: copy `manifest.json` + `main.js` + `styles.css` into
-  `<vault>/.obsidian/plugins/vault-kosmos/` and enable it.
+  `<vault>/.obsidian/plugins/kosmos-oden/` and enable it.

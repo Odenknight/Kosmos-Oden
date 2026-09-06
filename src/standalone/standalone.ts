@@ -47,6 +47,8 @@ const app = createKosmosApp({ autoStart: "wait" });
 // No settings context in this viewer-only surface, so projection options are
 // omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
 const index = new GkxIndex();
+let activeGraph: ViewerGraph | null = null;
+let localContentsAvailable = false;
 let source: KnowledgeSource | null = null;
 let monitor: DirectoryMonitor | null = null;
 let sourceName = "Vault";
@@ -166,13 +168,14 @@ function pickCoreNode(n: any) {
 function pickCoreLink(l: any) {
   return { id: l.id, source: l.source, target: l.target, kind: l.kind, label: l.label, sourcePath: l.sourcePath };
 }
-function exportableGraph(graph: GkxGraph) {
+function exportableGraph(graph: ViewerGraph) {
   return {
     nodes: graph.nodes.map(pickCoreNode),
     links: graph.links.map(pickCoreLink),
     stats: graph.stats,
     areas: graph.areas, tags: graph.tags, statuses: graph.statuses, types: graph.types,
     diagnostics: graph.diagnostics,
+    attachments: graph.attachments,
   };
 }
 
@@ -198,6 +201,8 @@ function statusFromGraph(graph: GkxGraph) {
 
 function renderSnapshot(snapshot: DirectorySnapshot, label: string): void {
   const update = index.setFiles(snapshot.files, snapshot.folders, snapshot.attachments);
+  activeGraph = { ...update.graph, attachments: snapshot.attachments };
+  localContentsAvailable = true;
   app.setAttachments(snapshot.attachments);
   app.renderGraph(update.graph, label);
   for (const w of update.graph.diagnostics.lineageWarnings) console.warn("Vault Kosmos lineage:", w);
@@ -228,6 +233,7 @@ async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Pr
     lastScanAt: snapshot.scannedAt,
     ...statusFromGraph(index.graph!),
     graphConnected: false, mcpAvailable: false, eventStream: "unavailable", offlineFolderMode: true,
+    canExportGraph: true, canExportEpisodes: true,
   });
   // Connectivity dot: a live directory handle is probed for read permission;
   // a file-snapshot import is static data and stays green.
@@ -251,6 +257,7 @@ function applyDiff(diff: SnapshotDiff, snapshot: DirectorySnapshot): void {
     attachments: snapshot.attachments,
   };
   const update = index.applyChanges(changes);
+  activeGraph = { ...update.graph, attachments: snapshot.attachments };
   app.setAttachments(snapshot.attachments);
   app.renderGraph(update.graph, sourceName);
   ui.setStatus({ lastScanAt: snapshot.scannedAt, ...statusFromGraph(update.graph) });
@@ -264,6 +271,8 @@ function applyDiff(diff: SnapshotDiff, snapshot: DirectorySnapshot): void {
 
 /** Render a graph fetched live from the local service and set live status. */
 function renderEngineGraph(graph: ViewerGraph, health: any): void {
+  activeGraph = graph;
+  localContentsAvailable = false;
   monitor?.stop();
   monitor = null;
   source = null;
@@ -284,6 +293,7 @@ function renderEngineGraph(graph: ViewerGraph, health: any): void {
   ui.setStatus({
     mode: "live", monitoring: "unavailable", lastScanAt: Date.now(), ...extra,
     graphConnected: true, mcpAvailable: featureAvailable("mcp"), mcpEnabled: featureReady("mcp"), offlineFolderMode: false,
+    canExportGraph: true, canExportEpisodes: false,
   });
 }
 
@@ -397,14 +407,17 @@ const ui: StandaloneUI = createStandaloneUI({
   onConnectEngine: (api: string, token: string) => { void connectEngine(api, token); },
   onRefreshEngine: () => { void refreshEngine(); },
   onLoadDemo: () => {
+    monitor?.stop(); monitor = null; source = null;
+    localContentsAvailable = false;
     sourceName = "Demo vault";
     engine = null;
     engineCapabilities = null; stopEventStream();
     ui.hideStartup();
     stopConnectivityProbe();
-    app.showDemo();
+    activeGraph = app.showDemo() || null;
     app.setVaultStatus(true);
-    ui.setStatus({ source: "Demo vault", mode: "demo", monitoring: "unavailable", lastScanAt: Date.now(), graphConnected: false, mcpAvailable: false, eventStream: "unavailable", offlineFolderMode: true });
+    ui.setStatus({ source: "Demo vault", mode: "demo", monitoring: "unavailable", lastScanAt: Date.now(), graphConnected: false, mcpAvailable: false, eventStream: "unavailable", offlineFolderMode: true, canExportGraph: !!activeGraph, canExportEpisodes: false,
+      ...(activeGraph ? statusFromGraph(activeGraph as GkxGraph) : {}) });
   },
   onRescan: () => { void monitor?.scanNow("manual"); },
   onPauseMonitor: () => { monitor?.pause(); ui.setMonitorState("paused"); },
@@ -419,11 +432,11 @@ const ui: StandaloneUI = createStandaloneUI({
     })();
   },
   onExportGraph: () => {
-    if (!index.graph) return;
-    downloadFile("graph.json", JSON.stringify(exportableGraph(index.graph), null, 2));
+    if (!activeGraph) return;
+    downloadFile("graph.json", JSON.stringify(exportableGraph(activeGraph), null, 2));
   },
   onExportEpisodes: () => {
-    if (!index.graph) return;
+    if (!localContentsAvailable || !index.graph) return;
     const contents = new Map<string, string>();
     for (const [path, rec] of index.getRecords()) contents.set(path, rec.parsed.content);
     const episodes = buildGraphitiEpisodesWithContent(index.graph, contents, { vault: sourceName });
@@ -484,13 +497,15 @@ async function tryLocalGraphJson(): Promise<boolean> {
     if (!r.ok) return false;
     const g = await r.json();
     if (!g || !Array.isArray(g.nodes)) return false;
+    activeGraph = { ...g, links: Array.isArray(g.links) ? g.links : [] };
+    localContentsAvailable = false;
     sourceName = "graph.json";
     ui.hideStartup();
     app.setAttachments(g.attachments || []);
     app.renderGraph(g, "graph.json");
     stopConnectivityProbe();
     app.setVaultStatus(true);
-    ui.setStatus({ source: "graph.json", mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now() });
+    ui.setStatus({ source: "graph.json", mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now(), canExportGraph: true, canExportEpisodes: false });
     return true;
   } catch {
     return false;
@@ -542,13 +557,16 @@ void boot();
     sourceName = label;
     ui.hideStartup();
     const update = index.setFiles(files, folders, attachments);
+    activeGraph = { ...update.graph, attachments };
+    localContentsAvailable = true;
     app.setAttachments(attachments);
     app.renderGraph(update.graph, label);
     app.setVaultStatus(true);
-    ui.setStatus({ mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now(), ...statusFromGraph(update.graph) });
+    ui.setStatus({ mode: "snapshot", monitoring: "unavailable", lastScanAt: Date.now(), ...statusFromGraph(update.graph), canExportGraph: true, canExportEpisodes: true });
   },
   applyChanges(changes: IndexChanges): any {
     const update = index.applyChanges(changes);
+    activeGraph = { ...update.graph, attachments: changes.attachments ?? activeGraph?.attachments ?? [] };
     if (changes.attachments) app.setAttachments(changes.attachments);
     app.renderGraph(update.graph, sourceName);
     ui.setStatus({ lastScanAt: Date.now(), ...statusFromGraph(update.graph) });

@@ -1,6 +1,6 @@
 # Navigation Effects implementation handoff
 
-Date: 2026-08-27  
+Date: 2026-08-27
 Status: feature-branch implementation handoff; no merge, release, deployment,
 MOC adoption, source-write authority, or automatic-write activation is implied
 

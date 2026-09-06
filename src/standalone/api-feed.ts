@@ -46,6 +46,10 @@ export function isLoopbackApiUrl(raw: string): boolean {
     return false;
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  // This is a service origin, not a route or a credential carrier. Appending
+  // endpoints to a query or fragment can silently target a different resource.
+  if (u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== "")) return false;
+  if (raw.includes("?") || raw.includes("#")) return false;
   // URL normalizes `[::1]` -> hostname "[::1]"; strip the brackets to compare.
   const host = u.hostname.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
   return LOOPBACK_HOSTS.has(host);
@@ -172,7 +176,7 @@ export async function connectToEngine(
   const { health, capabilities, graph } = buildFeedUrls(api);
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
-  const init = { headers, cache: "no-store" as const };
+  const init = { headers, cache: "no-store" as const, redirect: "error" as const };
 
   // 1) health probe — cheapest way to distinguish unreachable vs. 401.
   let hres: FetchLikeResponse;
@@ -269,7 +273,14 @@ export function subscribeTraversalEvents(
         headers["GKOS-Event-Session"] = resumeSession;
       }
       try {
-        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", signal: controller.signal });
+        const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
+        if (response.status === 401 || response.status === 403) {
+          closed = true;
+          controller.abort();
+          callbacks.onState?.("disconnected");
+          callbacks.onError?.("Traversal access denied. Reconnect explicitly with an authorized credential.");
+          return;
+        }
         if (response.status === 409) {
           // The process session changed or the bounded ring no longer retains
           // the acknowledged sequence. Never pretend the gap was replayed.
@@ -338,7 +349,7 @@ export async function probeHealth(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (params.token) headers["Authorization"] = `Bearer ${params.token}`;
   try {
-    const r = await fetchImpl(health, { headers, cache: "no-store" });
+    const r = await fetchImpl(health, { headers, cache: "no-store", redirect: "error" });
     if (!r.ok) return { ok: false, status: r.status };
     let doc: any = null;
     try {
