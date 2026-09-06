@@ -1,37 +1,34 @@
-# Navigation Effects development pin
+# Engine 2.2 development coordinate
 
-Status: exact development-only integration coordinate. This is not a released
-Engine 2.2 artifact, production compatibility claim, write authorization, or
-release qualification.
-
-## Exact coordinate
+Updated September 6, 2026 for K2 library adoption.
 
 | Field | Value |
 | --- | --- |
-| Engine repository | `Odenknight/GKOS-Engine` |
-| Engine branch | `integration/navigation-effects-reconciliation-20260827` |
-| Engine commit | `41172b91970aac869c161f4842e3526a62fd1fd9` |
-| Declared package version | `2.1.2` |
-| Navigation contract | `1.0.0`, read-only |
-| Navigation Effects contract | `ENGINE-NAV-EFFECTS-CONTRACT-1.0.0` |
-| Effects standing | `integration-only`; Node executor experimental; GKOS conformance false |
-| Kosmos dependency specifier | `github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9` |
-| Resolved lock coordinate | `git+ssh://git@github.com/Odenknight/GKOS-Engine.git#41172b91970aac869c161f4842e3526a62fd1fd9` |
-| Lock entry integrity | `sha512-GISF5ltiO9d9RiFJTdgR0VFFaE8BJntbNwi9/bWojZhLFeNQDZLxjt7/Vn7vF5NqLsspY1JDGU8NOvzbbmAkXQ==` |
-| `package-lock.json` SHA-256 | `fc9618601825896ba103bb1b4c0a2a5c82f01bbd3c4a81ab5eff14be1be186a3` |
-| Source-tree `npm pack --dry-run` shasum | `342368faeb5722291bcbe8dd30ba2bafdae68c28` |
-| Source-tree `npm pack --dry-run` integrity | `sha512-ygyxtEydZk+fenjTPGjiP3sAX8sV44O6ANSRqUDcMbc5XIsG9DlPcIbgo+XrVIt0FWSMhprso5J6Iz9KD2Bd7w==` |
+| Repository | Odenknight/GKOS-Engine |
+| Source branch inspected | main |
+| Commit | f1a95f8f3933f834eb4030f0f0d143051e6eecc2 |
+| Package version | 2.2.0 candidate |
+| Dependency and allowScripts | github:Odenknight/GKOS-Engine#f1a95f8f3933f834eb4030f0f0d143051e6eecc2 |
+| Lock resolution | git+ssh://git@github.com/Odenknight/GKOS-Engine.git#f1a95f8f3933f834eb4030f0f0d143051e6eecc2 |
+| Lock integrity | sha512-NEG6yQLGFl36B+YZDEMwXmpHqYjoqP75zOdCHeLXECVCvF94FHrOQuvuxnOgp+1ntMbaqQpSD4NmFq4gNJVdWQ== |
+| Lockfile SHA256 | e540167ff166c2e3f475a8580e76163ca3f8a56483ba4f30f732be79f883d9a3 |
 
-The installed package exports `gkos-engine/navigation-effects` and the
-optional host-specific `gkos-engine/navigation-effects/node`. Kosmos source
-must isolate framework-neutral imports behind its Engine adapter. Browser and
-Obsidian bundles must never import the Node executor.
+npm install --package-lock-only --ignore-scripts resolved the coordinate;
+npm ci installed it cleanly on Windows Node 24.18.0. npm reported that Git
+installation skips its integrity check, so the lock integrity is recorded
+metadata, not a claim that npm verified a release signature. Source identity
+is also checked by the exact commit assertions in the lock guard and tests.
 
-## Replacement gate
+The previous coordinate was 41172b91970aac869c161f4842e3526a62fd1fd9,
+package 2.1.2. Its package hashes remain historical evidence in Git history;
+they do not qualify this installation.
 
-Before release qualification, replace this Git commit dependency with the
-owner-authorized immutable Engine 2.2 version and integrity value. Then rerun
-all cross-repository, platform, path-security, crash, recovery,
-reconciliation, scale, and soak gates. Until then, every automatic write mode
-remains off and the dependency must be described as experimental integration
-work only.
+Navigation 1.0 remains read only. Effects 1.0 is experimental integration.
+The public neutral adapter remains isolated from navigation-effects/node.
+The Engine package includes managed MOC APIs, but Kosmos does not yet wire
+the host runtime. Package adoption is not activation or service qualification.
+
+No packaged sidecar is selected by this document. Sidecar artifact identity
+and native distribution qualification are separate K2 work. Rollback restores
+the previous dependency, lock, allowance, tests and documentation together;
+no source-note migration is required for this library update.

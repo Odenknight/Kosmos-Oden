@@ -53,7 +53,7 @@ and Navigation contracts. The renderer consumes a graph; it does not introduce
 a second GKX parser or alternate graph meaning.
 
 The active Engine dependency is the exact development commit
-`41172b91970aac869c161f4842e3526a62fd1fd9`. It declares version 2.1.2
+`f1a95f8f3933f834eb4030f0f0d143051e6eecc2`. It declares version 2.2.0
 and supplies the experimental `gkos-engine/navigation-effects` contract.
 The contract standing is `integration-only`, its release target is 2.2.0,
 and `gkos_conformance` is false. This is not a released Engine 2.2 dependency.

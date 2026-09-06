@@ -2,6 +2,11 @@
 
 Version 0.8.1. Source wiring reviewed on 2026-09-05.
 
+Dependency update on 2026-09-06: Engine 2.2.0 candidate at
+`f1a95f8f3933f834eb4030f0f0d143051e6eecc2` now supplies the embedded semantic
+library. This does not wire the Engine managed MOC runtime or service retrieval
+into Kosmos. See [K2 compatibility](plans/2026-09-06-k2-compatibility.md).
+
 This inventory follows real entry points: visible controls, registered
 Obsidian commands and events, HTTP routes, MCP tools, and executable scripts.
 An exported helper or passing isolated test does not count as a product feature

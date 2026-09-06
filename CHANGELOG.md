@@ -7,6 +7,12 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+- Adopt Engine 2.2.0 candidate at f1a95f8f3933f834eb4030f0f0d143051e6eecc2.
+  Update dependency, lock, script allowance, compatibility checks and provenance
+  together. Existing offline, Obsidian, Agent API and sync workflows remain.
+- Reject unsafe service base URLs and stop SSE retries after authorization
+  denial. Managed MOC runtime and retrieval integration remain subsequent work.
+
 ## [0.8.1] 2026-09-05
 
 This source update combines the viewer review fixes with the newer work on
