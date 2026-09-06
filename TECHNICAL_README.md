@@ -15,7 +15,10 @@ to write, platform qualification, or a published release.
 The Effects components include policy and authority validation, adoption
 records and previews, unavailable host descriptors, and coordination
 primitives. Automatic creation and maintenance remain off. There is no
-integrated managed MOC writer, durable coordinator, or recovery runtime.
+managed MOC writer in the ordinary Obsidian or browser workflow. Unreleased
+work adds standalone Engine retrieval and a trusted Node managed MOC host using
+Engine's durable runtime. See the [integration report](docs/plans/2026-09-06-retrieval-moc-progress.md)
+for setup, tested behavior, authority requirements and remaining work.
 
 See [the changelog](CHANGELOG.md) for the full fix list and
 [the build review](docs/assessments/2026-09-05-build-review.md) for the earlier

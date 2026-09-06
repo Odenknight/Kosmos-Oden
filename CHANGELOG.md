@@ -7,11 +7,19 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+- Add standalone Engine search with separate MCP credentials, capability
+  negotiation, verified citations and bounded result pages.
+- Add an explicit Node managed MOC host for trusted providers, with initial
+  reconciliation, monitoring and recovery through Engine's public runtime.
+- Correct MCP initialization notification shape and test actual service
+  retrieval, synthetic MOC creation, reconciliation and restart recovery.
+
 - Adopt Engine 2.2.0 candidate at f1a95f8f3933f834eb4030f0f0d143051e6eecc2.
   Update dependency, lock, script allowance, compatibility checks and provenance
   together. Existing offline, Obsidian, Agent API and sync workflows remain.
 - Reject unsafe service base URLs and stop SSE retries after authorization
-  denial. Managed MOC runtime and retrieval integration remain subsequent work.
+  denial. Obsidian managed MOC controls and packaged sidecar integration remain
+  subsequent work.
 
 ## [0.8.1] 2026-09-05
 

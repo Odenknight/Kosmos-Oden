@@ -5,6 +5,7 @@
   "main": "main.js",
   "type": "module",
   "files": [
+    "kosmos-moc.mjs",
     "main.js",
     "manifest.json",
     "styles.css",
@@ -22,6 +23,7 @@
     "npm": ">=10"
   },
   "scripts": {
+    "moc:host": "node kosmos-moc.mjs",
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",
     "build:standalone": "node scripts/build.mjs --standalone-only",

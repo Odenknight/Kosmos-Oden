@@ -22,6 +22,12 @@ This is still an internal alpha. You can build and use the browser viewer and
 Obsidian plugin. The separate local service, desktop installers, and automatic
 maintenance of index notes are not ready for general use.
 
+The next update adds search through Engine and an early host for maintaining
+index notes. Search is available in the standalone viewer when connected to
+Engine. Index maintenance still needs a trusted host configuration. The
+[technical report](docs/plans/2026-09-06-retrieval-moc-progress.md) explains what
+works and what remains.
+
 ## Try it in a browser
 
 Open `kosmos-oden-stand-alone.html` from a build of this repository.

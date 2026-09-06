@@ -16,6 +16,42 @@ async function exportGraph(page: Page) {
   return JSON.parse(await readFile((await download.path())!, "utf8"));
 }
 
+test("Engine retrieval uses its separate credential and renders citation text safely", async ({ page }) => {
+  const graph = createDemoVaultGraph(0);
+  await page.route("http://127.0.0.1:4814/**", async route => {
+    const request = route.request(); const path = new URL(request.url()).pathname;
+    if (path !== "/mcp") {
+      expect(request.headers().authorization).toBe("Bearer viewer-test");
+      const ready = { available: true, configured: true, authorized: true, enabled: true, reason_codes: [] };
+      return route.fulfill({ json: path === "/health" ? { notes_indexed: graph.stats.files } : path === "/graph" ? graph : { schema_version: 1, protocol: { id: "gkos-local-service", version: "1.0.0-draft.1" }, features: Object.fromEntries(["graph", "notes", "graphiti_episodes", "mcp", "events", "proposal_ingress", "navigation", "navigation_effects"].map(name => [name, { ...ready, enabled: name === "graph" }])) } });
+    }
+    expect(request.headers().authorization).toBe("Bearer mcp-test");
+    if (request.method() === "DELETE") return route.fulfill({ status: 204 });
+    const message = request.postDataJSON();
+    if (message.method === "notifications/initialized") return route.fulfill({ status: 202 });
+    let result;
+    if (message.method === "initialize") result = { protocolVersion: "2025-11-25" };
+    else if (message.method === "tools/list") result = { tools: [{ name: "gkos_search" }, { name: "gkos_capabilities" }] };
+    else if (message.params.name === "gkos_capabilities") result = { structuredContent: { capabilities: [{ capability_name: "note.fulltext.search", available: true }] } };
+    else result = { structuredContent: { extension_version: "observatory.mcp-retrieval.v0", items: [{ canonical_path: "notes/example.md", chunk: { text: "<img src=x onerror=alert(1)> apricot" }, citation: { verified: true, stale: false, source_digest: "sha256:test", start_line: 3, end_line: 4 } }], page: { next_cursor: null }, retrieval: {} } };
+    return route.fulfill({ headers: { "Mcp-Session-Id": "test-session", "Access-Control-Expose-Headers": "Mcp-Session-Id" }, json: { jsonrpc: "2.0", id: message.id, result } });
+  });
+  await page.goto("/kosmos-oden-stand-alone.html?api=http://127.0.0.1:4814");
+  await page.locator("#ko-token").fill("viewer-test"); await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByRole("button", { name: "Search with Engine" }).click();
+  const dialog = page.getByRole("dialog", { name: "Engine retrieval" });
+  await dialog.getByLabel("MCP credential").fill("mcp-test"); await dialog.getByRole("button", { name: "Connect search" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Connected.");
+  await expect(dialog.getByRole("button", { name: "Search", exact: true })).toBeEnabled();
+  await expect(dialog.getByLabel("MCP credential")).toHaveValue("");
+  await dialog.getByLabel("Search notes").fill("apricot"); await dialog.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(dialog).toContainText("notes/example.md"); await expect(dialog).toContainText("Verified lines 3–4");
+  expect(await dialog.locator("img").count()).toBe(0);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Search with Engine" }).click();
+  await expect(dialog).not.toContainText("notes/example.md");
+});
+
 test("file URL imports actual Markdown and exports the displayed graph without network or source changes", async ({ page }) => {
   const root = await mkdtemp(join(tmpdir(), "kosmos-review-"));
   const content = "# Review note\n\nA source file that must remain unchanged.\n";

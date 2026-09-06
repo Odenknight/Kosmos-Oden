@@ -42,8 +42,10 @@ import {
   type TraversalEventEnvelope, type TraversalSessionExport,
 } from "./observability";
 import { KOSMOS_VERSION } from "../kosmos-version";
+import { mountEngineSearch } from "./engine-search-ui";
 
 const app = createKosmosApp({ autoStart: "wait" });
+const engineSearch = mountEngineSearch();
 // No settings context in this viewer-only surface, so projection options are
 // omitted: the engine fail-closes unlabeled notes to secret (§ default-sensitivity).
 const index = new GkxIndex();
@@ -209,6 +211,7 @@ function renderSnapshot(snapshot: DirectorySnapshot, label: string): void {
 }
 
 async function loadSource(src: KnowledgeSource, snapshot: DirectorySnapshot): Promise<void> {
+  engineSearch.setApi(null);
   stopEventStream(); engineCapabilities = null;
   engine = null; // opening a local folder supersedes any live engine feed
   source = src;
@@ -315,6 +318,7 @@ function startEngineConnectivityProbe(): void {
 
 /** Connect (or reconnect) to the loopback service and render its graph. */
 async function connectEngine(api: string, token: string): Promise<void> {
+  engineSearch.setApi(null);
   ui.clearErrors();
   const res = await connectToEngine({ api, token: token || null }, fetch);
   if (!res.ok || !res.graph) {
@@ -334,6 +338,7 @@ async function connectEngine(api: string, token: string): Promise<void> {
     return;
   }
   engine = { api, token: token || null };
+  engineSearch.setApi(api);
   engineCapabilities = res.capabilities;
   renderEngineGraph(res.graph, res.health);
   startEngineConnectivityProbe();
@@ -407,6 +412,7 @@ const ui: StandaloneUI = createStandaloneUI({
   onConnectEngine: (api: string, token: string) => { void connectEngine(api, token); },
   onRefreshEngine: () => { void refreshEngine(); },
   onLoadDemo: () => {
+    engineSearch.setApi(null);
     monitor?.stop(); monitor = null; source = null;
     localContentsAvailable = false;
     sourceName = "Demo vault";

@@ -82,6 +82,8 @@ async function bundleEngineCore() {
 }
 
 async function buildNodeBundles() {
+  const engineSearch = await bundle("src/standalone/engine-search.ts", { format: "esm", platform: "browser", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-engine-search.mjs"), engineSearch);
   const operationalPaths = await bundle("src/operational-paths.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-operational-paths.mjs"), operationalPaths);
   const navigationEffects = await bundle("src/navigation-effects/test-entry.ts", { format: "esm", platform: "browser", extra: { minify: false } });
