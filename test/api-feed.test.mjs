@@ -21,6 +21,32 @@ import {
   normalizeCapabilitiesResponse,
 } from "../dist/kosmos-api-feed.mjs";
 
+test("service connections reject ambiguous origins before issuing requests", async () => {
+  for (const api of ["http://user:pass@localhost:4814", "http://localhost:4814/path", "http://localhost:4814/?q=x", "http://localhost:4814/#fragment"]) {
+    assert.equal(isLoopbackApiUrl(api), false);
+    assert.equal((await connectToEngine({ api, token: "secret" }, () => { throw new Error("must not fetch"); })).ok, false);
+  }
+});
+
+test("health requests refuse redirects away from the configured service", async () => {
+  await probeHealth({ api: "http://localhost:4814", token: "secret" }, async (_url, init) => {
+    assert.equal(init.redirect, "error");
+    return { ok: true, status: 200, json: async () => ({}) };
+  });
+});
+
+for (const status of [401, 403]) {
+  test(`traversal stops retrying rejected credentials (${status})`, async () => {
+    let calls = 0;
+    const states = [];
+    const stream = subscribeTraversalEvents({ api: "http://localhost:4814", token: "secret" }, { onEvent() {}, onState: state => states.push(state) }, async (_url, init) => {
+      calls++; assert.equal(init.redirect, "error"); return new Response(null, { status });
+    });
+    try { await new Promise(resolve => setTimeout(resolve, 650)); assert.equal(calls, 1); assert.equal(states.at(-1), "disconnected"); }
+    finally { stream.close(); }
+  });
+}
+
 test("parseApiFeedParams: reads only non-secret api and ignores query tokens", () => {
   const p = parseApiFeedParams("?api=http://127.0.0.1:4814/&token=abc123");
   assert.equal(p.api, "http://127.0.0.1:4814");

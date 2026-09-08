@@ -1,5 +1,9 @@
 # Navigation Effects development pin
 
+Historical ledger for the August integration. Kosmos 0.8.2 supersedes this
+coordinate with Engine `650eab4a6752227cae336d7556a57826c22a0d5a`
+(2.2.0 candidate); see [current review](../REVIEW-0.8.2.md).
+
 Status: exact development-only integration coordinate. This is not a released
 Engine 2.2 artifact, production compatibility claim, write authorization, or
 release qualification.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.2 — 2026-09-08
+
+- Adopt exact TypeScript Engine 2.2.0 candidate commit `650eab4a6752227cae336d7556a57826c22a0d5a`.
+- Preserve vault edits/deletes received during asynchronous full or incremental graph reads.
+- Reject service URLs containing userinfo, paths, queries or fragments; refuse HTTP redirects.
+- Recover safely from malformed persisted Nextcloud sync records.
+- Stop traversal reconnect attempts after HTTP 401/403 until explicitly reconnected.
+- Retain existing renderer, GKX, Graphiti, MCP, sync and disabled Effects defaults.
+- Update installation/review documentation and produce a locally testable plugin.
+
+
 All notable changes to Kosmos-Oden are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versioning is
 [SemVer](https://semver.org/) (pre-1.0: minor versions may include breaking

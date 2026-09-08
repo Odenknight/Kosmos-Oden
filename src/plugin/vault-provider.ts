@@ -76,6 +76,7 @@ export class VaultDataProvider implements AgentDataProvider {
    *  on the engine's GkxIndex) and a full rebuild is forced. */
   private projectedSensitivity: GkxSensitivity;
   private fullDirty = true;
+  private revision = 0;
   private changedPaths = new Set<string>();
   private removedPaths = new Set<string>();
   private renamedPaths: Array<{ from: string; to: string }> = [];
@@ -89,9 +90,10 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   /* ---- change notifications (wired to vault events by the plugin) ---- */
-  markChanged(path: string): void { if (!this.fullDirty && !isKosmosOperationalPath(path)) this.changedPaths.add(path); }
-  markRemoved(path: string): void { if (!this.fullDirty && !isKosmosOperationalPath(path)) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
+  markChanged(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.fullDirty) this.changedPaths.add(path); }
+  markRemoved(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.fullDirty) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
   markRenamed(from: string, to: string): void {
+    this.revision++;
     if (this.fullDirty) return;
     const oldOperational = isKosmosOperationalPath(from);
     const newOperational = isKosmosOperationalPath(to);
@@ -101,7 +103,7 @@ export class VaultDataProvider implements AgentDataProvider {
     this.renamedPaths.push({ from, to });
     this.changedPaths.add(to);
   }
-  markFullDirty(): void { this.fullDirty = true; this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = []; }
+  markFullDirty(): void { this.revision++; this.fullDirty = true; this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = []; }
 
   /** Re-project the whole vault when the Default sensitivity setting changes so
    *  the engine's projection defaults (which govern unlabeled notes) track the
@@ -145,6 +147,7 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   private async rebuild(): Promise<GkxGraph> {
+    const revision = this.revision;
     const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     const folders = folderListFrom(md);
     const attachments = attachmentListFrom(this.app.vault.getFiles());
@@ -152,7 +155,9 @@ export class VaultDataProvider implements AgentDataProvider {
       const files: SourceFile[] = [];
       for (const f of md) files.push(await this.toSourceFile(f));
       const update = this.index.setFiles(files, folders, attachments);
-      this.fullDirty = false;
+      // cachedRead yields: edits, deletes or settings changes during the scan
+      // must force a fresh snapshot instead of disappearing with this batch.
+      this.fullDirty = this.revision !== revision;
       this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = [];
       return update.graph;
     }
@@ -169,6 +174,7 @@ export class VaultDataProvider implements AgentDataProvider {
       folders,
       attachments,
     });
+    this.fullDirty = this.revision !== revision;
     this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = [];
     return update.graph;
   }
