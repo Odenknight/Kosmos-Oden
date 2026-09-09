@@ -1035,24 +1035,14 @@ export class KosmosAgentServer {
   private validateToolArgs(name: string, args: unknown): Record<string, any> {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new McpRpcError(-32602, "tools/call arguments must be an object");
     const a = args as Record<string, any>;
-    const known = new Set(this.toolDefs().map((t) => t.name));
-    if (!known.has(name)) throw new McpRpcError(-32602, `Unknown tool: ${name}`);
-    const allowed: Record<string, string[]> = {
-      vault_overview: [],
-      search_notes: ["query", "tag", "area", "limit"],
-      get_note: ["path", "title"],
-      get_lineage: ["path", "title"],
-      get_related: ["path", "title"],
-      graph_at_time: ["time", "limit"],
-      export_graphiti_episodes: ["cursor", "limit"],
-      get_gkx_note: ["path", "title", "uid"], get_assessment: ["path", "title", "uid"],
-      get_diagnostics: ["path", "title", "uid"], get_effective_labels: ["path", "title", "uid"],
-      get_evidence: ["path", "title", "uid"], get_relationships: ["path", "title", "uid"],
-      get_policy: [], validate_note: ["path", "title", "uid"], assess_note: ["path", "title", "uid"],
-      assess_vault: ["limit"],
-      graphiti_ingestion_status: [],
-    };
-    for (const key of Object.keys(a)) if (!allowed[name].includes(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
+    const def = this.toolDefs().find((t) => t.name === name);
+    if (!def) throw new McpRpcError(-32602, `Unknown tool: ${name}`);
+    // The advertised inputSchema is the only source of truth for accepted argument
+    // keys. A parallel hand-maintained allowlist drifted from selectionSchema and
+    // rejected the `uid` selector that get_note, get_lineage and get_related
+    // advertise, so a schema-following client got -32602 for a documented selector.
+    const allowed = new Set(Object.keys((def.inputSchema as { properties?: Record<string, unknown> }).properties ?? {}));
+    for (const key of Object.keys(a)) if (!allowed.has(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
     }
