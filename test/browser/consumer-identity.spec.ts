@@ -27,7 +27,7 @@ test('stable identity survives live, replay, and buffered-live adapters without 
 test('stable identity survives the versioned embed request-to-render adapter', async ({ page }) => {
   await page.goto('/dist/kosmos-embed.html?capture=1&seed=1907&time=0&animation=off');
   await page.evaluate(() => window.postMessage({
-    protocol: 'vault-kosmos',
+    protocol: 'kosmos-oden',
     version: 1,
     type: 'vault-snapshot',
     payload: {
@@ -44,7 +44,7 @@ test('stable identity survives the versioned embed request-to-render adapter', a
 
   await page.evaluate(() => {
     const traversal = (agentId: string, path: string) => window.postMessage({
-      protocol: 'vault-kosmos',
+      protocol: 'kosmos-oden',
       version: 1,
       type: 'agent-traversal',
       payload: { paths: [path], tool: 'get_note', agent: 'Shared label', agentId },

@@ -46,7 +46,7 @@ const lockHash = (() => {
 
 const buildInfo = {
   schemaVersion: 1,
-  project: "vault-kosmos",
+  project: "kosmos-oden",
   version: pkg.version,
   repository: "https://github.com/Odenknight/Kosmos-Oden",
   gitCommit: process.env.GITHUB_SHA || git("rev-parse HEAD"),

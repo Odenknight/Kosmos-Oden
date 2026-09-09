@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
   "version": "0.8.2",
-  "description": "Kosmos Research Studio (KRS, Vault Kosmos v0.8.2) — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
+  "description": "Kosmos-Oden v0.8.2 — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
   "files": [

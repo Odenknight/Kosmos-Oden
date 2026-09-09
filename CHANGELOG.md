@@ -18,6 +18,41 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+### Changed
+
+- Restored **Kosmos-Oden** as the product name across the plugin manifest,
+  settings, commands, documentation and build metadata. The manifest name is
+  `Kosmos-Oden` again and `BUILD-INFO.json` records `project: kosmos-oden`.
+  The 0.8.x mainline had reverted to the earlier `Vault Kosmos (KRS)` label
+  while the rename lived only on an unmerged branch. Technical descriptions
+  are unchanged. Upstream MIT attribution to `H4R7W16/vault-kosmos` and
+  changelog entries predating the 0.6.6 plugin-id rename are left verbatim.
+- Renamed the internal view type to `kosmos-oden-view`, the root CSS class to
+  `kosmos-oden-root`, the renderer postMessage protocol to `kosmos-oden` and
+  the command id to `open-kosmos-oden`. The previous view type stays
+  registered and is still consulted when locating a leaf, so a workspace
+  saved by an earlier build keeps its Kosmos pane.
+
+### Fixed
+
+- Nextcloud WebDAV credentials survive the rename. The secret key is now
+  `kosmos-oden-nextcloud-<hash>`; a credential stored under the previous
+  `vault-kosmos-nextcloud-<hash>` key is read and promoted on first access.
+  The per-vault hash is unchanged. Without this, sync would have restarted
+  with an empty password and reported an authentication failure.
+- The non-overridable exclusion for the plugin's own `data.json` now matches
+  version-suffixed install folders such as `kosmos-oden_v0.8.2`, and the
+  sync engine additionally excludes the host-reported install directory. The
+  previous literal `.obsidian/plugins/kosmos-oden/data.json` matched nothing
+  in a versioned install, so enabling `.obsidian` sync could have uploaded
+  the Agent API credential and local sync state.
+
+### Compatibility
+
+- A custom hotkey bound to the old `open-vault-kosmos` command id must be set
+  again; Obsidian does not alias command ids.
+
+
 ## [0.8.0] — 2026-08-16
 
 ### Added

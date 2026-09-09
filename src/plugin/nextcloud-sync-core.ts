@@ -1,7 +1,11 @@
 /** Pure, DOM-free Nextcloud sync settings, URL, exclusion, and three-way planning logic. */
 export const NEXTCLOUD_SYNC_SCHEMA = 2;
 export const OBSIDIAN_CONFIG_PATTERN = ".obsidian/**";
-export const PROTECTED_SYNC_EXCLUDES = [".obsidian/plugins/kosmos-oden/data.json"];
+/** Kosmos-Oden's own plugin data holds the Agent API credential and local
+ *  sync state and must never be uploaded. The glob also covers
+ *  version-suffixed install folders such as `kosmos-oden_v0.8.2`, which the
+ *  previous literal path silently failed to match. */
+export const PROTECTED_SYNC_EXCLUDES = [".obsidian/plugins/kosmos-oden*/data.json"];
 export const DEFAULT_SYNC_EXCLUDES = [".git/**", ".trash/**"];
 
 export interface NextcloudSettings {
@@ -63,10 +67,17 @@ export function isExcluded(path: string, patterns: string[]): boolean {
   const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
   return patterns.some((pattern) => { const p = pattern.replace(/\\/g, "/").replace(/^\/+/, "").trim(); return Boolean(p) && (globRegex(p).test(normalized) || (!p.includes("/") && normalized.split("/").includes(p))); });
 }
-export function effectiveSyncExcludes(settings: NextcloudSettings): string[] {
+export function effectiveSyncExcludes(settings: NextcloudSettings, pluginDir?: string): string[] {
   const patterns = [...settings.excludePatterns];
   if (!settings.syncObsidianConfig) patterns.push(OBSIDIAN_CONFIG_PATTERN);
-  for (const protectedPath of PROTECTED_SYNC_EXCLUDES) {
+  // The host-reported install directory is authoritative. The globs above
+  // remain as the fallback for a folder named outside that pattern.
+  // isExcluded() normalises separators on both sides, so no path rewriting
+  // is needed here beyond trimming.
+  const guarded = [...PROTECTED_SYNC_EXCLUDES];
+  const dir = (pluginDir || "").trim();
+  if (dir) guarded.push(`${dir}/data.json`);
+  for (const protectedPath of guarded) {
     if (!patterns.some((p) => p.toLowerCase() === protectedPath.toLowerCase())) patterns.push(protectedPath);
   }
   return patterns;

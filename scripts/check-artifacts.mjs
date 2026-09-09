@@ -13,7 +13,12 @@ must(existsSync(resolve(root, "main.js")), "main.js is missing (run npm run buil
 if (existsSync(resolve(root, "main.js"))) {
   const mainJs = readFileSync(resolve(root, "main.js"), "utf8");
   must(statSync(resolve(root, "main.js")).size > 100_000, "main.js suspiciously small");
-  must(mainJs.includes("vault-kosmos-view"), "main.js does not register the Kosmos view");
+  must(mainJs.includes("kosmos-oden-view"), "main.js does not register the Kosmos view");
+  // Backward-compatibility literals. These name data already written by
+  // shipped builds (saved workspace leaves, stored WebDAV secrets), so a
+  // rename sweep must never collapse them into the current names.
+  must(mainJs.includes("vault-kosmos-view"), "main.js lost the legacy view-type alias; a saved workspace would drop its Kosmos pane");
+  must(mainJs.includes("vault-kosmos-nextcloud-"), "main.js lost the legacy Nextcloud secret key; stored WebDAV credentials would not migrate");
 }
 
 // kosmos-oden-stand-alone.html exists, single-file, no external runtime deps
@@ -44,7 +49,7 @@ const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8")
 must(pkg.version === manifest.version, `package (${pkg.version}) and manifest (${manifest.version}) versions differ`);
 if (existsSync(standalonePath)) {
   const html = readFileSync(standalonePath, "utf8");
-  must(html.includes(`Vault Kosmos ${pkg.version}`), "standalone artifact was built from a different version");
+  must(html.includes(`Kosmos-Oden ${pkg.version}`), "standalone artifact was built from a different version");
 }
 const versions = JSON.parse(readFileSync(resolve(root, "versions.json"), "utf8"));
 must(!!versions[pkg.version], `versions.json has no entry for ${pkg.version}`);

@@ -81,6 +81,17 @@ test(".obsidian sync is selectable while Kosmos credential state stays protected
   assert.equal(isExcluded(".obsidian/hotkeys.json", enabledPatterns), false);
   assert.equal(isExcluded(".obsidian/plugins/example/data.json", enabledPatterns), false);
   assert.equal(isExcluded(".obsidian/plugins/kosmos-oden/data.json", enabledPatterns), true);
+  // Version-suffixed install folders are the common real-world case and a
+  // literal path missed them entirely.
+  assert.equal(isExcluded(".obsidian/plugins/kosmos-oden_v0.8.2/data.json", enabledPatterns), true);
+  assert.equal(isExcluded(".obsidian/plugins/kosmos-oden_v0.7.0/data.json", enabledPatterns), true);
+  // A folder renamed outside that pattern is still covered when the host
+  // reports its actual install directory.
+  const named = effectiveSyncExcludes(enabled, ".obsidian/plugins/my-kosmos-build");
+  assert.equal(isExcluded(".obsidian/plugins/my-kosmos-build/data.json", named), true);
+  assert.equal(isExcluded(".obsidian/plugins/my-kosmos-build/data.json", enabledPatterns), false);
+  // Another plugin's data is still the user's choice to sync.
+  assert.equal(isExcluded(".obsidian/plugins/example/data.json", named), false);
 });
 
 test("sync state resets when the remote scope changes", () => {

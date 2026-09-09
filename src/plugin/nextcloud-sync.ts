@@ -162,6 +162,9 @@ export class NextcloudSyncEngine {
     private state: NextcloudSyncState,
     private readonly password: string,
     private readonly saveState: (state: NextcloudSyncState) => Promise<void>,
+    /** Actual install directory, so the plugin's own data.json stays excluded
+     *  however the folder was named on disk. */
+    private readonly pluginDir?: string,
   ) {}
 
   async run(): Promise<SyncSummary> {
@@ -171,7 +174,7 @@ export class NextcloudSyncEngine {
     try {
       const client = new NextcloudWebDavClient(this.settings, this.password);
       await client.ensureRoot();
-      const excludes = effectiveSyncExcludes(this.settings);
+      const excludes = effectiveSyncExcludes(this.settings, this.pluginDir);
       const local = await this.scanLocal();
       const allRemote = await client.listTree();
       const remote = Object.fromEntries(Object.entries(allRemote).filter(([p]) => !isExcluded(p, excludes)));
@@ -188,7 +191,7 @@ export class NextcloudSyncEngine {
 
   private async scanLocal(): Promise<Record<string, LocalEntry>> {
     const out: Record<string, LocalEntry> = {};
-    const excludes = effectiveSyncExcludes(this.settings);
+    const excludes = effectiveSyncExcludes(this.settings, this.pluginDir);
     for (const file of this.app.vault.getFiles()) {
       const path = file.path.replace(/\\/g, "/");
       if (!safeRelativePath(path) || isExcluded(path, excludes)) continue;
