@@ -24,7 +24,7 @@ import { projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
-import { GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
+import { ENGINE_VERSION, GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
 import type { GkxGraph, GkxNode, GkxSensitivity } from "gkos-engine";
 import {
   DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
@@ -645,6 +645,9 @@ export class KosmosAgentServer {
       version: KOSMOS_VERSION,
       readOnly: true,
       gkxAuthority: "source notes + accepted semantic events; this API is a read projection",
+      // DO NOT interpolate ENGINE_VERSION here: "GKOS-Engine 2.1" names the
+      // Navigation/profile contract generation, which is versioned separately
+      // from the gkos-engine library release.
       gkxProfile: "GKX v2.3 Validating Projection Profile (GKOS-Engine 2.1; no governed writer)",
       navigation: getKosmosNavigationManifest(this.settings.navigationEnabled),
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
@@ -1008,7 +1011,7 @@ export class KosmosAgentServer {
     });
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
-      tool("vault_overview", "Vault overview", "Sensitivity-filtered GKOS-Engine v2.1.1 GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.", { type: "object", properties: {}, additionalProperties: false }),
+      tool("vault_overview", "Vault overview", `Sensitivity-filtered GKOS-Engine v${ENGINE_VERSION} GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.`, { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, source Markdown tags, and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
       tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
@@ -1016,7 +1019,7 @@ export class KosmosAgentServer {
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
       tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
       tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
-      tool("get_gkx_note", "Get GKX note projection", "Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS-Engine v2.1.1.", selectionSchema),
+      tool("get_gkx_note", "Get GKX note projection", `Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS-Engine v${ENGINE_VERSION}.`, selectionSchema),
       tool("get_assessment", "Get assessment", "Policy-bound deterministic documentation-quality assessment; never a truth or use authorization.", selectionSchema),
       tool("get_diagnostics", "Get GKX diagnostics", "Stable structured validation diagnostics for one readable note.", selectionSchema),
       tool("get_effective_labels", "Get effective labels", "Origin-separated labels plus the effective non-proposed projection.", selectionSchema),
@@ -1149,7 +1152,7 @@ export class KosmosAgentServer {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION },
-          instructions: "GKOS-Engine v2.1.1 read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.",
+          instructions: `GKOS-Engine v${ENGINE_VERSION} read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.`,
         });
       }
       if (method === "ping") return ok({});
