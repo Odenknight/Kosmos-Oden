@@ -1,4 +1,4 @@
-# Kosmos-Oden — v0.8.0
+# Kosmos-Oden — v0.8.2
 
 Turn a folder of Markdown notes into a universe you can explore.
 
@@ -10,20 +10,11 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
-> **Status:** repository and plugin metadata remain at **0.8.0**. The released
-> product and `main` line use exact-pinned **GKOS-Engine v2.1.1**. This
-> experimental feature branch temporarily pins an exact unreleased Engine
-> development commit to test Navigation Effects boundaries. That pin is not
-> Engine 2.2, a new Kosmos release, write authority, production readiness,
-> certification, or a conformance claim.
->
-> The review branch `codex/complete-identity-protocol-20260901` adds a bounded
-> visual-identity successor. Its implementation evidence coordinate is
-> `caac0248529bcea94d7d37d582a9e45b3cc6df94`; later documentation commits require
-> their own exact-SHA checks. It has local unit and Chromium
-> evidence, but remains an unreleased review candidate. Hosted browser/mobile
-> lanes, cross-GPU qualification, and a live Engine request-to-render chain are
-> still required before promotion.
+> **Version 0.8.2:** uses the TypeScript GKOS-Engine 2.2.0 development candidate
+> at exact commit `650eab4a6752227cae336d7556a57826c22a0d5a`. This update preserves the
+> existing plugin and standalone workflows, repairs overlapping vault updates,
+> and hardens local service connections. It includes no Rust build.
+> Automatic MOC writes remain unavailable. See [review and testing](docs/REVIEW-0.8.2.md).
 
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
@@ -60,7 +51,7 @@ memory and downloaded only when you ask for them.
 ## Fly from Obsidian
 
 For a source installation, copy `manifest.json`, `main.js`, and `styles.css`
-into `<vault>/.obsidian/plugins/vault-kosmos/`, enable the plugin, and run
+into `<vault>/.obsidian/plugins/kosmos-oden/`, enable the plugin, and run
 **Open Vault Kosmos**. The view follows Obsidian create, modify, rename, and
 delete events without rebuilding the whole vault for an ordinary note edit.
 
@@ -110,8 +101,8 @@ to satisfy the visual metaphor.
 
 ## Lineage, time, and GKX
 
-The released product reads human-editable GKX metadata through GKOS-Engine
-v2.1.1. Declaring
+Kosmos reads human-editable GKX metadata through GKOS-Engine
+2.2.0 candidate. Declaring
 either `supersedes` or `superseded_by` contributes to one canonical lineage
 graph. Cycles, ambiguous targets, self-links, multiple successors, and invalid
 time order are reported instead of silently becoming trusted edges.
@@ -141,7 +132,7 @@ continues to report that MOC apply is unavailable.
 There is a new workshop off to the side of the observatory—but the doors to
 the write machinery are still firmly locked.
 
-On the current Navigation Effects feature branch, Kosmos has implemented
+On the Navigation Effects integration, Kosmos has implemented
 no-write groundwork for a future, separately governed managed-MOC plane:
 
 - `.gkx/**` and `_archive/moc-runs/**` are centrally excluded from the corpus,
@@ -180,7 +171,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`41172b91970aac869c161f4842e3526a62fd1fd9`. Its Effects contract says
+`650eab4a6752227cae336d7556a57826c22a0d5a`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

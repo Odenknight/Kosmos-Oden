@@ -2,11 +2,9 @@
 
 ## Scope and status vocabulary
 
-This document distinguishes the released/`main` product baseline from the
-current Navigation Effects reconciliation feature branch. Repository and
-plugin metadata remain **0.8.0**. The released product uses exact-pinned
-`gkos-engine#v2.1.1`; the feature branch uses a separate exact development
-commit solely for experimental integration work.
+Kosmos-Oden 0.8.2 consumes the TypeScript Engine 2.2.0 development candidate
+at exact commit `650eab4a6752227cae336d7556a57826c22a0d5a`. Navigation Effects remain
+experimental and default-disabled. See [review evidence](docs/REVIEW-0.8.2.md).
 
 Use these states independently:
 
@@ -21,7 +19,7 @@ makes no GKOS conformance or certification claim.
 
 | Surface | Implemented on main | Default/activation boundary | Current limit |
 |---|---|---|---|
-| Semantic core | Engine 2.1.1 parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No Engine 2.2 effects dependency or Rust runtime |
+| Semantic core | Engine 2.2.0 candidate parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No configured Effects executor or Rust runtime |
 | Local Cluster renderer | Shared cosmology, hierarchical layout, WebGL2 shaders, controls, Chrono, search, playback, agent trails | Viewer starts after a graph is loaded | Visual projection only |
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
@@ -38,7 +36,7 @@ makes no GKOS conformance or certification claim.
 Markdown / GKX corpus
         |
         v
-exact-pinned GKOS-Engine v2.1.1
+exact-pinned GKOS-Engine 2.2.0 candidate
  parsing | resolution | lineage | temporal projection | graph | Navigation 1.0
         |
         +--------------------+----------------------+-------------------+
@@ -64,54 +62,25 @@ review UI, spatial metaphor, layout, shaders, controls, and observability. The
 renderer consumes the Engine-backed graph; it does not reinterpret frontmatter
 or define another graph model.
 
-The Effects feature branch adds a separate no-write configuration and
+The Effects integration adds a separate no-write configuration and
 validation boundary. It does not change the Navigation 1.0 import graph or
 insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-`package.json` declares version 0.8.0 and `manifest.json` carries the same
-version. `versions.json` maps 0.8.0 to Obsidian 1.11.4.
+Product version: **0.8.2**; minimum Obsidian: **1.11.4**.
 
-On the released/`main` line, the dependency is declared as:
-
-```text
-gkos-engine: github:Odenknight/GKOS-Engine#v2.1.1
-```
-
-That lockfile resolves Engine 2.1.1 to the exact commit recorded in
-[Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md). The lock guard
-checks that git dependencies resolve immutably. Three.js is exact-pinned to
-0.185.1, and renderer provenance is checked in source and generated artifacts.
-
-The current Effects feature branch instead pins this exact development
-coordinate:
-
-```text
-gkos-engine: github:Odenknight/GKOS-Engine#41172b91970aac869c161f4842e3526a62fd1fd9
-```
-
-The installed package declares version 2.1.2 and exports
-`gkos-engine/navigation-effects`. Its contract manifest identifies suite
-`ENGINE-NAV-EFFECTS-CONTRACT-1.0.0`, Navigation Effects contract `1.0.0`,
-Engine release target `2.2.0`, standing `integration-only`, implementation
-phase `node-executor-experimental`, and `gkos_conformance: false`. The optional
-`gkos-engine/navigation-effects/node` export exists in the dependency but is
-not imported by the Kosmos framework-neutral adapter or its browser build.
-
-This exact commit coordinate is development-only. It is not an Engine 2.2
-release or a product release dependency. Its lock coordinate and integrity are
-recorded in
-[the development-pin ledger](docs/navigation-effects/DEVELOPMENT-PIN.md). An
-owner-authorized immutable Engine 2.2 artifact and all qualification gates are
-required before any release claim.
-
-The TypeScript Engine remains the active dependency. Rust 3.0 is roadmap work,
-not a selected or bundled runtime.
+Engine is pinned in package.json and package-lock.json to
+`github:Odenknight/GKOS-Engine#650eab4a6752227cae336d7556a57826c22a0d5a` (2.2.0 candidate).
+The dependency guard verifies the exact lock coordinate. Three.js remains
+0.185.1. Supported build runtimes are Node 22 and 24. No Rust runtime or
+Node Effects executor is added to the browser or Obsidian plugin.
+Historical Effects evidence remains in docs/navigation-effects; current
+consumer validation is in [REVIEW-0.8.2.md](docs/REVIEW-0.8.2.md).
 
 ## Semantic and graph behavior
 
-Released Engine 2.1.1 supplies a tolerant Markdown/GKX parser, path normalization,
+The pinned Engine supplies a tolerant Markdown/GKX parser, path normalization,
 wikilink and Markdown-link resolution, ambiguity diagnostics, canonical
 lineage, temporal validity, graph assembly, incremental indexing, Graphiti
 episodes, and Navigation 1.0.

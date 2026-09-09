@@ -14,6 +14,16 @@ const L = (hash) => ({ hash, size: 1 });
 const R = (etag) => ({ etag, mtime: 1, size: 1 });
 const S = (hash, etag) => ({ localHash: hash, remoteEtag: etag, remoteMtime: 1, remoteSize: 1, syncedAt: 1 });
 
+test("malformed saved sync state recovers without losing valid records", () => {
+  const base = migrateNextcloudState(null, "scope");
+  for (const files of [null, [], "invalid"]) {
+    assert.deepEqual(migrateNextcloudState({ ...base, files }, "scope"), base);
+  }
+  const restored = migrateNextcloudState({ ...base, files: { "bad.md": null, "array.md": [], "good.md": S("a", "b") } }, "scope");
+  assert.deepEqual(Object.keys(restored.files), ["good.md"]);
+  assert.equal(restored.files["good.md"].localHash, "a");
+});
+
 test("first sync uploads one-sided files, downloads the other side, and compares collisions", () => {
   assert.deepEqual(planSync({ "local.md": L("a"), "both.md": L("b") }, { "remote.md": R("r"), "both.md": R("x") }, {}, false), [
     { kind: "compare", path: "both.md", reason: "exists on both sides without common state" },
