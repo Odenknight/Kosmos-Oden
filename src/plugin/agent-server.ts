@@ -13,7 +13,7 @@
  *    creation fails loudly (§16).
  *  - modern MCP carries version and client identity per request, validated
  *    against the mirrored HTTP headers; there is no handshake or session;
- *    unknown client versions get the server's latest, never an echo (§15).
+ *    unsupported versions are rejected with the supported version list (§15).
  *  - Request bodies are limited by ACTUAL BYTES (4 MiB default) using a byte
  *    accumulator, not JS string length (§17).
  *  - Host and Origin headers are validated against the bind mode to block
@@ -454,8 +454,8 @@ export class KosmosAgentServer {
     const protocolBody = meta && typeof meta === "object" ? meta[MCP_META_PROTOCOL_VERSION] : undefined;
     if (typeof protocolBody !== "string") {
       return {
-        code: MCP_ERR_HEADER_MISMATCH,
-        message: `Header mismatch: params._meta["${MCP_META_PROTOCOL_VERSION}"] is required and must be a string`,
+        code: -32602,
+        message: `Invalid params: params._meta["${MCP_META_PROTOCOL_VERSION}"] is required and must be a string`,
       };
     }
     if (protocolHeader !== protocolBody) {
@@ -485,7 +485,7 @@ export class KosmosAgentServer {
       };
     }
 
-    const nameField = method ? MCP_NAME_SOURCE[method] : undefined;
+    const nameField = method && Object.hasOwn(MCP_NAME_SOURCE, method) ? MCP_NAME_SOURCE[method] : undefined;
     const nameHeaderRaw = header("mcp-name");
     if (nameField) {
       if (nameHeaderRaw === undefined) {
@@ -511,6 +511,14 @@ export class KosmosAgentServer {
     // No tool parameter carries an x-mcp-header annotation, so this server
     // designates no Mcp-Param-* header and must not expect one. An unrecognised
     // Mcp-Param-* header is forwarded and ignored, as RFC 9110 requires.
+    const capabilities = meta?.[MCP_META_CLIENT_CAPABILITIES];
+    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) {
+      return { code: -32602, message: `Invalid params: params._meta["${MCP_META_CLIENT_CAPABILITIES}"] is required and must be an object` };
+    }
+    const info = meta?.[MCP_META_CLIENT_INFO];
+    if (info !== undefined && (!info || typeof info !== "object" || Array.isArray(info) || typeof info.name !== "string" || typeof info.version !== "string")) {
+      return { code: -32602, message: "Invalid params: clientInfo must contain string name and version" };
+    }
     return null;
   }
 
@@ -1270,14 +1278,18 @@ export class KosmosAgentServer {
       return error(-32600, "Invalid Request: expected one JSON-RPC 2.0 request or notification");
     }
     const isNotification = msg.id === undefined;
-    if (!isNotification && !(typeof msg.id === "string" || (typeof msg.id === "number" && Number.isFinite(msg.id)))) {
-      return error(-32600, "Invalid Request: id must be a string or number");
+    if (!isNotification && !(typeof msg.id === "string" || (typeof msg.id === "number" && Number.isInteger(msg.id)))) {
+      return error(-32600, "Invalid Request: id must be a string or integer");
     }
     if (msg.params !== undefined && (!msg.params || typeof msg.params !== "object" || Array.isArray(msg.params))) {
       return isNotification ? null : error(-32602, "Invalid params: expected an object");
     }
     const { id, method, params = {} } = msg;
-    const ok = (result: any) => ({ jsonrpc: "2.0", id, result });
+    const ok = (result: any) => ({ jsonrpc: "2.0", id, result: {
+      ...result,
+      resultType: "complete",
+      _meta: { ...result._meta, [MCP_META_SERVER_INFO]: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION } },
+    } });
 
     if (isNotification) {
       // This revision of the core protocol defines no client-to-server
@@ -1412,6 +1424,15 @@ export class KosmosAgentServer {
         return;
       }
 
+      // Validate the envelope before interpreting metadata or registering a
+      // caller. A malformed request is not a metadata/header disagreement.
+      const validId = typeof parsed?.id === "string" || (typeof parsed?.id === "number" && Number.isInteger(parsed.id));
+      if (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
+          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed) {
+        this.json(res, 400, { jsonrpc: "2.0", ...(validId ? { id: parsed.id } : {}), error: { code: -32600, message: "Invalid Request: expected one JSON-RPC 2.0 request or notification with a string or integer id" } });
+        return;
+      }
+
       // A JSON-RPC notification is a bare POST: this revision defines no
       // client-to-server notification over Streamable HTTP and states that
       // header requirements for notification POSTs are undefined, so metadata
@@ -1421,6 +1442,11 @@ export class KosmosAgentServer {
       if (!isNotification) {
         const bad = this.validateRequestMetadata(req, parsed);
         if (bad) {
+          // Keep the required validation error/status. Even a legacy request
+          // with no modern metadata must explain which versions are supported.
+          if (parsed.method === "initialize") {
+            bad.message += `; supported protocol versions: ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(", ")}`;
+          }
           const rid = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id !== undefined ? parsed.id : null;
           this.json(res, 400, { jsonrpc: "2.0", id: rid, error: bad });
           return;
@@ -1436,7 +1462,7 @@ export class KosmosAgentServer {
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
       // what distinguishes a modern server from a legacy one that simply does
       // not host this endpoint.
-      const status = out?.error?.code === -32601 ? 404 : 200;
+      const status = out?.error?.code === -32601 ? 404 : [-32600, -32602, -32021].includes(out?.error?.code) ? 400 : 200;
       this.json(res, status, out);
       return;
     }
@@ -1450,7 +1476,7 @@ export class KosmosAgentServer {
           version: KOSMOS_VERSION,
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
-          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;

@@ -49,7 +49,7 @@ function requestError(message, detail) {
   writeMessage({
     jsonrpc: "2.0",
     id: message?.id ?? null,
-    error: { code: -32000, message: "Kosmos-Oden MCP transport error", data: detail },
+    error: { code: -30000, message: "Kosmos-Oden adapter transport error", data: { source: "kosmos-stdio-adapter", detail } },
   });
 }
 
@@ -66,7 +66,7 @@ async function forward(message) {
     const version = message?.params?._meta?.[META_PROTOCOL_VERSION];
     if (typeof version === "string") headers["MCP-Protocol-Version"] = version;
     if (typeof message?.method === "string") headers["Mcp-Method"] = message.method;
-    const field = NAME_SOURCE[message?.method];
+    const field = Object.hasOwn(NAME_SOURCE, message?.method) ? NAME_SOURCE[message.method] : undefined;
     const name = field ? message?.params?.[field] : undefined;
     if (typeof name === "string") headers["Mcp-Name"] = headerValue(name);
   }
@@ -85,6 +85,15 @@ async function forward(message) {
   }
 
   const text = await response.text();
+  let payload;
+  try { payload = text ? JSON.parse(text) : undefined; } catch { /* diagnosed below */ }
+  // HTTP 400/404 carry protocol errors too. Preserve their codes and data so
+  // a stdio client can recognize the modern era and select a supported version.
+  if (message?.id !== undefined && payload?.jsonrpc === "2.0" && payload.id === message.id &&
+      Number.isInteger(payload.error?.code) && typeof payload.error.message === "string" && !("result" in payload)) {
+    writeMessage(payload);
+    return;
+  }
   if (!response.ok && response.status !== 202) {
     let detail = `${response.status} ${response.statusText}`;
     if (text) detail += `: ${text.slice(0, 2000)}`;
@@ -93,9 +102,7 @@ async function forward(message) {
   }
   if (!text) return; // accepted notification
 
-  let payload;
-  try { payload = JSON.parse(text); }
-  catch {
+  if (!payload) {
     requestError(message, "server returned a non-JSON response");
     return;
   }
