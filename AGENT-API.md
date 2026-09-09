@@ -102,7 +102,9 @@ batches are not part of this transport contract.
 > against it will fail against this endpoint, because it never sends the
 > handshake this server requires. Use a client that can still speak
 > `2025-11-25` (the specification calls a client that can do both "dual-era").
-> Dual-era support on the Kosmos side is not implemented yet.
+> This describes the shipped baseline only. The next build targets modern MCP
+> only, with no legacy fallback requirement. The transport upgrade is pending;
+> this documentation change does not implement it.
 
 ## Read tools
 
@@ -131,8 +133,9 @@ separate authorized decision exists.
 
 Graphiti pages default to 20 episodes and cap at 100. Follow `nextCursor`.
 Earlier episodes never receive later `superseded_by`, `head`, or `invalid_at`
-state. A valid GKX UUID becomes the Graphiti episode UUID, making re-ingestion
-idempotent; legacy notes receive a deterministic fallback UUID.
+state. A valid GKX UUID becomes the Graphiti episode UUID; notes without one
+receive a deterministic fallback UUID. Stable identifiers do not guarantee
+upstream deduplication. Verify ingestion behavior and searchability upstream.
 
 ## REST and troubleshooting
 

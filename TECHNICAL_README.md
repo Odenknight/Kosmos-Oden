@@ -568,3 +568,11 @@ original graphics are CC BY 4.0 where declared. Third-party and inherited
 materials remain under their original licenses and notices. See
 [LICENSE](LICENSE), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and
 [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md).
+
+## Next MCP build target
+
+The next Agent API and Engine retrieval client target modern MCP only
+(revision `2026-07-28` at this review). Legacy fallback is outside the build
+scope. Descriptions of sessions above document the shipped v0.8.2 baseline;
+this documentation update does not implement the transport upgrade. The exact
+Engine service must be qualified independently of the bundled library version.

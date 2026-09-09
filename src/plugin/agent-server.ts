@@ -44,8 +44,8 @@ import type {
 // protocol-level sessions and the GET stream, and instead carries the version
 // per request in `_meta`/`MCP-Protocol-Version` with a mandatory
 // `server/discover` RPC. A client speaking only 2026-07-28 therefore CANNOT
-// talk to this server. Adding dual-era support is tracked as its own piece of
-// work; do not describe this list as "current" until that lands.
+// talk to this server. The next transport implementation targets modern MCP
+// only; do not describe this list as current or modern until that lands.
 export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 export const LATEST_MCP_PROTOCOL_VERSION = SUPPORTED_MCP_PROTOCOL_VERSIONS[0];
 
@@ -1023,7 +1023,7 @@ export class KosmosAgentServer {
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
-      tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs prevent duplicate episode creation on re-ingest.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
+      tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs identify episodes; upstream deduplication is not guaranteed. Verify searchability after ingestion.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
       tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
       tool("get_gkx_note", "Get GKX note projection", "Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS-Engine v2.1.1.", selectionSchema),
       tool("get_assessment", "Get assessment", "Policy-bound deterministic documentation-quality assessment; never a truth or use authorization.", selectionSchema),

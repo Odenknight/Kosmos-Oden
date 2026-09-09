@@ -398,3 +398,11 @@ Project-authored software is Apache-2.0. Project-authored documentation and
 original graphics are CC BY 4.0 where declared. Inherited and third-party
 assets retain their own licenses. [LICENSE](LICENSE) contains the controlling
 licensing structure.
+
+## Next MCP build target
+
+The next Agent API and Engine retrieval client target modern MCP only
+(revision `2026-07-28` at this review). Legacy fallback is outside the build
+scope. Descriptions of sessions above document the shipped v0.8.2 baseline;
+this documentation update does not implement the transport upgrade. The exact
+Engine service must be qualified independently of the bundled library version.

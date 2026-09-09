@@ -185,7 +185,8 @@ POST /mcp     → read body (byte-capped) → JSON.parse → mcpDispatch()
 | `resources/list`, `prompts/list` | `{ resources: [] }` / `{ prompts: [] }` |
 | unknown | JSON-RPC error `-32601` |
 
-**Protocol version negotiation.** Keep an explicit supported list, newest first.
+**Shipped baseline (not the next-build implementation contract).** The current
+server keeps an explicit supported list, newest first.
 Every revision below is from the session-based ("legacy") MCP era; the current
 published revision `2026-07-28` is a different, stateless model and is not in
 this list:
@@ -203,15 +204,17 @@ Missing/mismatched protocol headers return 400; unknown/expired sessions return
 defined through MCP revision `2025-11-25`, instead of treating a stateful
 identity session as stateless.
 
-**Forward compatibility.** MCP `2026-07-28` deliberately makes the transport
+**Next-build target: modern MCP only.** MCP `2026-07-28` deliberately makes the transport
 stateless: no `initialize`, no `Mcp-Session-Id`, no GET stream, no
 `Last-Event-ID` resumability. Version and client identity move into each
 request's `_meta` (mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and
 `Mcp-Name` headers, which the server must validate against the body), and
-`server/discover` becomes a mandatory RPC. Serving both eras from one endpoint
-is explicitly allowed: a request carrying modern `_meta` is served statelessly,
-while an `initialize` request selects the legacy path. Until that is
-implemented here, this connector is legacy-only.
+`server/discover` becomes a mandatory RPC. Implement the modern contract for
+both the Agent API and the Engine retrieval client; legacy fallback is outside
+this build scope. Clients must accept JSON and SSE responses. Qualify the exact
+Engine service against that contract instead of assuming a library version
+proves transport support. The current connector remains legacy-only until the
+implementation and its tests land.
 
 ---
 
