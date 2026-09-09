@@ -327,7 +327,9 @@ relationships, policy, and a bounded vault assessment.
 
 The Streamable HTTP lifecycle validates supported protocol versions,
 server-issued sessions, initialization order, request envelopes, and DELETE
-termination. `kosmos-mcp-stdio.mjs` translates line-oriented stdio for clients
+termination. This is the session-based lifecycle of MCP revisions `2025-11-25`
+and earlier. MCP `2026-07-28` replaced it with a stateless, per-request model
+and is not supported; see the protocol-era note in `AGENT-API.md`. `kosmos-mcp-stdio.mjs` translates line-oriented stdio for clients
 that cannot send HTTP headers while preserving the upstream session and
 protocol headers.
 
@@ -548,6 +550,7 @@ configured, authorized, qualified, or released:
 - [GKX migration](docs/GKX-MIGRATION.md)
 - [Content-assisted enrichment](docs/GKX-ENRICHMENT.md)
 - [Obsidian Agent API](AGENT-API.md)
+- [MCP protocol eras](docs/MCP-PROTOCOL-ERAS.md)
 - [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
 - [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 - [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
@@ -565,3 +568,11 @@ original graphics are CC BY 4.0 where declared. Third-party and inherited
 materials remain under their original licenses and notices. See
 [LICENSE](LICENSE), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and
 [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md).
+
+## Next MCP build target
+
+The next Agent API and Engine retrieval client target modern MCP only
+(revision `2026-07-28` at this review). Legacy fallback is outside the build
+scope. Descriptions of sessions above document the shipped v0.8.2 baseline;
+this documentation update does not implement the transport upgrade. The exact
+Engine service must be qualified independently of the bundled library version.
