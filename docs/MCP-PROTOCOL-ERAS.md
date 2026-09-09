@@ -51,6 +51,35 @@ client is expected to detect the era once and cache it for the lifetime of the
 server process (stdio) or origin (HTTP), re-probing only if the cached
 assumption later fails.
 
+## How bad is this in practice? Less than the matrix suggests
+
+The matrix describes *eras*, not products. A conforming client is normally
+dual-era, and the official SDKs make that the default.
+
+All four Tier 1 SDKs — TypeScript, Python, Go and C# — speak `2026-07-28`. The
+Python SDK's v2 line is the current stable release (2.2.0, 2026-09-07). On the
+client side its **default mode probes for the modern server and falls back to
+the `initialize` handshake against a `2025-11-25`-or-earlier server**; the
+published guidance describes no strict, modern-only mode that would refuse to
+fall back. On the server side a v2 server answers both the legacy handshake and
+`server/discover` from one endpoint.
+
+So the realistic exposure for Kosmos-Oden's legacy-only server is narrower than
+"modern clients cannot connect". A client built on a Tier 1 SDK keeps working,
+because it detects the era and falls back. What actually breaks is a client
+that has deliberately disabled fallback, or a hand-rolled modern-only client.
+
+That makes dual-era support on the Kosmos side **hygiene rather than a cliff**.
+It is still worth doing — it removes a dependency on every client's fallback
+path staying polite, it is additive, and the fallback costs a wasted round trip
+on every new connection — but it is not the difference between being reachable
+and unreachable today.
+
+Do not soften the other direction, though: **Kosmos as an MCP client** has no
+such safety net unless whatever it is built on provides one. If the retrieval
+bridge is hand-rolled rather than SDK-based, its fallback behavior is something
+this project has to implement and test, not inherit.
+
 ## What `2026-07-28` changed
 
 Everything in this section is a change from `2025-11-25`.
