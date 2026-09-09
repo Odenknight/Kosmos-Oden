@@ -1,5 +1,12 @@
 # Building the Agent API (HTTP + MCP) connector
 
+
+> **Out of date as of the modern-transport change.** This guide still describes
+> the legacy session-based endpoint (`initialize`, `Mcp-Session-Id`, DELETE
+> termination). The server now implements MCP `2026-07-28` only. See
+> `AGENT-API.md` for the current contract; this guide is rewritten in a
+> follow-up candidate rather than half-edited here.
+
 A build guide for a **reusable, framework-free read-only Agent API** that exposes
 a data source to AI agents over **REST (GET) and MCP (Streamable HTTP)** at the
 same time, from one local Node process — no external deps, unit-testable in plain

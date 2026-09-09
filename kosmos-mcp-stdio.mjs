@@ -4,16 +4,33 @@
  *
  * Some desktop harnesses can launch stdio servers but cannot attach custom
  * headers to a local Streamable HTTP endpoint. This adapter translates one
- * newline-delimited JSON-RPC message at a time and preserves the negotiated
- * MCP session and protocol-version headers. Protocol output is stdout-only;
- * diagnostics go to stderr.
+ * newline-delimited JSON-RPC message at a time.
+ *
+ * Modern MCP (2026-07-28) has no handshake and no session, so the adapter
+ * holds no state between messages. Its whole job on the HTTP side is the
+ * mirroring the transport requires of a client: copy `method`, the protocol
+ * version from `params._meta`, and the name/uri of the methods that carry one
+ * into the matching headers. It deliberately does NOT synthesize `_meta` that
+ * the stdio client did not send -- doing so would manufacture a conforming
+ * request out of a non-conforming one and hide the server's own diagnostic.
+ * Protocol output is stdout-only; diagnostics go to stderr.
  */
 import readline from "node:readline";
 
 const endpoint = process.env.KOSMOS_MCP_URL || "http://127.0.0.1:4816/mcp";
 const token = process.env.KOSMOS_MCP_TOKEN || "";
-let sessionId = "";
-let protocolVersion = "";
+
+const META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
+/** Methods whose `Mcp-Name` header mirrors a body field, and which field. */
+const NAME_SOURCE = { "tools/call": "name", "resources/read": "uri", "prompts/get": "name" };
+
+/** Header-safe per RFC 9110 field-value rules: visible ASCII, space, tab, and
+ *  no leading/trailing whitespace. Anything else takes the Base64 sentinel. */
+function headerValue(value) {
+  const safe = /^[\x21-\x7E]([\x20-\x7E\x09]*[\x21-\x7E])?$/.test(value);
+  if (safe && !(value.startsWith("=?base64?") && value.endsWith("?="))) return value;
+  return `=?base64?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
 
 try {
   const parsed = new URL(endpoint);
@@ -42,8 +59,17 @@ async function forward(message) {
     Accept: "application/json, text/event-stream",
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (sessionId) headers["Mcp-Session-Id"] = sessionId;
-  if (sessionId && protocolVersion) headers["MCP-Protocol-Version"] = protocolVersion;
+
+  // Mirror the body into headers. A notification (no id) is exempt: this
+  // revision leaves header requirements for notification POSTs undefined.
+  if (message?.id !== undefined) {
+    const version = message?.params?._meta?.[META_PROTOCOL_VERSION];
+    if (typeof version === "string") headers["MCP-Protocol-Version"] = version;
+    if (typeof message?.method === "string") headers["Mcp-Method"] = message.method;
+    const field = NAME_SOURCE[message?.method];
+    const name = field ? message?.params?.[field] : undefined;
+    if (typeof name === "string") headers["Mcp-Name"] = headerValue(name);
+  }
 
   let response;
   try {
@@ -58,8 +84,6 @@ async function forward(message) {
     return;
   }
 
-  const newSession = response.headers.get("mcp-session-id");
-  if (newSession) sessionId = newSession;
   const text = await response.text();
   if (!response.ok && response.status !== 202) {
     let detail = `${response.status} ${response.statusText}`;
@@ -74,9 +98,6 @@ async function forward(message) {
   catch {
     requestError(message, "server returned a non-JSON response");
     return;
-  }
-  if (message?.method === "initialize" && payload?.result?.protocolVersion) {
-    protocolVersion = String(payload.result.protocolVersion);
   }
   writeMessage(payload);
 }
@@ -93,9 +114,5 @@ for await (const line of input) {
   await forward(message);
 }
 
-if (sessionId && protocolVersion) {
-  const headers = { "Mcp-Session-Id": sessionId, "MCP-Protocol-Version": protocolVersion };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  try { await fetch(endpoint, { method: "DELETE", headers, signal: AbortSignal.timeout(2_000) }); }
-  catch { /* process is already shutting down */ }
-}
+// No teardown: this revision removed session termination, and the endpoint
+// answers 405 to DELETE. Closing stdin is the whole shutdown.

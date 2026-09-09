@@ -10,6 +10,12 @@ import {
   MAX_CONCURRENT_PER_AGENT,
   MAX_NOTE_CONTENT_CHARS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  MODERN_MCP_PROTOCOL_VERSION,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+  MCP_NAME_SOURCE,
   AGENT_SETTINGS_SCHEMA,
   DEFAULT_AGENT_SETTINGS,
   migrateAgentSettings,
@@ -169,48 +175,91 @@ test("agent api", async (t) => {
     assert.deepEqual(late.superseded.map((n) => n.title), ["Engine v1"]);
   });
 
-  let mcpSession = "";
-  let mcpProtocol = "";
-  const initParams = (protocolVersion, name = "test-client") => ({
-    protocolVersion,
-    capabilities: {},
-    clientInfo: { name, version: "1.0.0" },
+  /** Client metadata for a modern request. Every request carries its own; the
+   *  transport has no handshake and no session to carry it for us. */
+  const meta = (client = "test-client") => ({
+    [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION,
+    [MCP_META_CLIENT_INFO]: { name: client, version: "1.0.0" },
+    [MCP_META_CLIENT_CAPABILITIES]: {},
   });
-  const mcp = async (msg, extraHeaders = {}) => {
-    const sessionHeaders = msg?.method === "initialize" || !mcpSession ? {} : {
-      "Mcp-Session-Id": mcpSession,
-      "MCP-Protocol-Version": mcpProtocol,
+
+  /** POST one JSON-RPC message as a conforming modern client: inject `_meta`
+   *  into params and mirror the body into the headers the server validates.
+   *  `opts.client` sets clientInfo.name; `opts.headers` overrides or deletes a
+   *  mirrored header (set a value to null to omit it) so header/body
+   *  disagreement can be exercised; `opts.raw` sends the body untouched. */
+  const mcp = async (msg, opts = {}) => {
+    const { client, headers: overrides = {}, raw = false } = opts;
+    const isNotification = msg && typeof msg === "object" && !Array.isArray(msg) && msg.id === undefined;
+    let body = msg;
+    let mirrored = {};
+    if (!raw && !isNotification && msg && typeof msg === "object" && !Array.isArray(msg)) {
+      body = { ...msg, params: { ...(msg.params ?? {}), _meta: meta(client) } };
+      mirrored = { "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": msg.method };
+      const nameField = MCP_NAME_SOURCE[msg.method];
+      const nameValue = nameField ? body.params[nameField] : undefined;
+      if (typeof nameValue === "string") mirrored["Mcp-Name"] = nameValue;
+    }
+    const headers = {
+      ...auth,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...mirrored,
+      ...overrides,
     };
-    const r = await request(port, {
-      method: "POST", path: "/mcp",
-      headers: { ...auth, "Content-Type": "application/json", ...sessionHeaders, ...extraHeaders },
-      body: JSON.stringify(msg),
-    });
-    if (r.headers["mcp-session-id"]) mcpSession = r.headers["mcp-session-id"];
-    try { if (r.json()?.result?.protocolVersion) mcpProtocol = r.json().result.protocolVersion; } catch {}
-    return r;
+    for (const [k, v] of Object.entries(headers)) if (v === null) delete headers[k];
+    return request(port, { method: "POST", path: "/mcp", headers, body: JSON.stringify(body) });
   };
 
-  await t.test("MCP initialize: supported version is echoed", async () => {
-    for (const v of SUPPORTED_MCP_PROTOCOL_VERSIONS) {
-      const r = await mcp({ jsonrpc: "2.0", id: 1, method: "initialize", params: initParams(v) });
-      assert.equal(r.json().result.protocolVersion, v);
-    }
+  await t.test("server/discover reports identity, capabilities and supported versions", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: 1, method: "server/discover" });
+    assert.equal(r.status, 200);
+    const result = r.json().result;
+    assert.equal(result.resultType, "complete");
+    assert.deepEqual(result.supportedVersions, [MODERN_MCP_PROTOCOL_VERSION]);
+    assert.equal(result.capabilities.tools.listChanged, false);
+    // serverInfo rides in _meta in this revision, and is a self-report.
+    assert.equal(result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
+    assert.match(result.instructions, /read-only/);
   });
 
-  await t.test("MCP initialize: unsupported version -> server's latest, never echoed (§15)", async () => {
-    const r = await mcp({ jsonrpc: "2.0", id: 2, method: "initialize", params: initParams("9999-12-31") });
-    assert.equal(r.json().result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
+  await t.test("modern era is the only one advertised: exactly 2026-07-28", () => {
+    assert.deepEqual(SUPPORTED_MCP_PROTOCOL_VERSIONS, ["2026-07-28"]);
+    assert.equal(LATEST_MCP_PROTOCOL_VERSION, "2026-07-28");
+    assert.equal(MODERN_MCP_PROTOCOL_VERSION, "2026-07-28");
   });
 
-  await t.test("MCP initialize validates required lifecycle fields", async () => {
-    const r = await mcp({ jsonrpc: "2.0", id: 3, method: "initialize", params: {} });
-    assert.equal(r.json().error.code, -32602);
+  await t.test("unsupported protocol version -> 400 with -32022 listing supported versions", async () => {
+    const r = await mcp(
+      { jsonrpc: "2.0", id: 2, method: "tools/list", params: { _meta: { [MCP_META_PROTOCOL_VERSION]: "2025-11-25" } } },
+      { raw: true, headers: { "MCP-Protocol-Version": "2025-11-25", "Mcp-Method": "tools/list" } },
+    );
+    assert.equal(r.status, 400);
+    const err = r.json().error;
+    assert.equal(err.code, -32022);
+    assert.deepEqual(err.data.supported, ["2026-07-28"]);
+    assert.equal(err.data.requested, "2025-11-25");
   });
 
-  await t.test("MCP initialized notification (no id) -> 202 accepted silently", async () => {
-    const r = await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
+  await t.test("legacy initialize -> 404 with -32601 naming the supported versions", async () => {
+    // A legacy client has no fall-forward mechanism, so this error message is
+    // the only diagnostic it can surface. The spec asks a modern-only server
+    // to name its versions here.
+    const r = await mcp({ jsonrpc: "2.0", id: 3, method: "initialize" });
+    assert.equal(r.status, 404);
+    const err = r.json().error;
+    assert.equal(err.code, -32601);
+    assert.match(err.message, /2026-07-28/);
+    assert.deepEqual(err.data.supported, ["2026-07-28"]);
+  });
+
+  await t.test("a notification (no id) -> 202 accepted silently, no metadata demanded", async () => {
+    // This revision defines no client-to-server notification over Streamable
+    // HTTP and leaves notification header requirements undefined, so one is
+    // accepted and ignored without _meta or mirrored headers.
+    const r = await mcp({ jsonrpc: "2.0", method: "notifications/something" });
     assert.equal(r.status, 202);
+    assert.equal(r.body, "");
   });
 
   await t.test("MCP tools/list exposes legacy and GKX 2.3 read-only tools", async () => {
@@ -264,73 +313,56 @@ test("agent api", async (t) => {
     assert.equal(r.json().error.code, -32601);
   });
 
-  await t.test("MCP initialize negotiates current 2025-11-25 and issues Mcp-Session-Id", async () => {
-    assert.equal(LATEST_MCP_PROTOCOL_VERSION, "2025-11-25");
-    const r = await mcp({ jsonrpc: "2.0", id: 7, method: "initialize", params: initParams("2025-11-25", "CARSON") });
-    assert.equal(r.json().result.protocolVersion, "2025-11-25");
-    assert.match(String(r.headers["mcp-session-id"] || ""), /^[A-Za-z0-9_-]{10,}$/);
+  await t.test("no session is minted or echoed, and session headers are ignored", async () => {
+    // The revision removed protocol sessions. A client that still sends
+    // Mcp-Session-Id or Last-Event-ID is served normally and told nothing
+    // about a session, rather than being rejected.
+    const r = await mcp(
+      { jsonrpc: "2.0", id: 7, method: "ping" },
+      { headers: { "Mcp-Session-Id": "left-over-from-a-legacy-client", "Last-Event-ID": "42" } },
+    );
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json().result, {});
+    assert.equal(r.headers["mcp-session-id"], undefined);
   });
 
-  await t.test("MCP traversal identity is stable within a session and separate from its session token", async () => {
-    const init = await mcp({ jsonrpc: "2.0", id: 8, method: "initialize", params: initParams(LATEST_MCP_PROTOCOL_VERSION, "Hermes") });
-    const sid = init.headers["mcp-session-id"];
-    assert.ok(sid, "initialize should return a session id");
-    await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
+  await t.test("traversal identity is stable per client name and stays server-side", async () => {
     const seen = [];
     server.onTraversal = (paths, tool, agent, agentId) => { seen.push({ paths, tool, agent, agentId }); };
+    let last;
     for (const [id, name] of [[9, "get_lineage"], [91, "get_note"]]) {
-      const called = await request(port, {
-        method: "POST", path: "/mcp",
-        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
-        body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { title: "Engine v2" } } }),
-      });
-      assert.equal(called.status, 200);
+      last = await mcp(
+        { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { title: "Engine v2" } } },
+        { client: "Hermes" },
+      );
+      assert.equal(last.status, 200);
     }
     server.onTraversal = undefined;
     assert.equal(seen.length, 2);
-    assert.ok(seen.every(({ agent }) => agent === "Hermes"));
+    assert.ok(seen.every(({ agent }) => agent === "Hermes"), "clientInfo.name identifies the caller");
     assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
-    assert.equal(seen[1].agentId, seen[0].agentId);
-    assert.notEqual(seen[0].agentId, sid);
-    assert.equal(init.body.includes(seen[0].agentId), false, "visual identity must remain server-side");
+    assert.equal(seen[1].agentId, seen[0].agentId, "same name keeps one trail identity across requests");
+    assert.equal(last.body.includes(seen[0].agentId), false, "visual identity must remain server-side");
   });
 
-  await t.test("same MCP label keeps distinct traversal identities across sessions", async () => {
-    const initialize = async (id) => {
-      const init = await request(port, {
-        method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id, method: "initialize", params: initParams(LATEST_MCP_PROTOCOL_VERSION, "Shared") }),
-      });
-      assert.equal(init.status, 200);
-      const sid = init.headers["mcp-session-id"];
-      assert.ok(sid);
-      const initialized = await request(port, {
-        method: "POST", path: "/mcp",
-        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
-        body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
-      });
-      assert.equal(initialized.status, 202);
-      return sid;
-    };
-    const sessionA = await initialize(81), sessionB = await initialize(82);
-    assert.notEqual(sessionA, sessionB);
+  await t.test("distinct client names get distinct traversal identities", async () => {
+    // Consequence of a stateless transport, recorded deliberately: identity is
+    // whatever the caller self-reports in clientInfo.name, so two callers using
+    // the same name are one identity. Legacy sessions could separate them
+    // because the server minted the key; nothing in this revision can.
     const seen = [];
-    server.onTraversal = (paths, tool, agent, agentId) => { seen.push({ paths, tool, agent, agentId }); };
-    for (const [id, sid] of [[83, sessionA], [84, sessionB]]) {
-      const called = await request(port, {
-        method: "POST", path: "/mcp",
-        headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": sid, "MCP-Protocol-Version": LATEST_MCP_PROTOCOL_VERSION },
-        body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "get_note", arguments: { title: "Engine v2" } } }),
-      });
+    server.onTraversal = (paths, tool, agent, agentId) => { seen.push({ agent, agentId }); };
+    for (const [id, client] of [[83, "Hermes"], [84, "Carson"], [85, "Hermes"]]) {
+      const called = await mcp(
+        { jsonrpc: "2.0", id, method: "tools/call", params: { name: "get_note", arguments: { title: "Engine v2" } } },
+        { client },
+      );
       assert.equal(called.status, 200);
     }
     server.onTraversal = undefined;
-    assert.deepEqual(seen.map(({ agent }) => agent), ["Shared", "Shared"]);
-    assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
-    assert.match(seen[1].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
+    assert.deepEqual(seen.map(({ agent }) => agent), ["Hermes", "Carson", "Hermes"]);
     assert.notEqual(seen[0].agentId, seen[1].agentId);
-    assert.notEqual(seen[0].agentId, sessionA);
-    assert.notEqual(seen[1].agentId, sessionB);
+    assert.equal(seen[2].agentId, seen[0].agentId);
   });
 
   await t.test("MCP rejects JSON-RPC 1.0, batches, and unknown tools", async () => {
@@ -340,31 +372,93 @@ test("agent api", async (t) => {
     assert.equal(unknown.json().error.code, -32602);
     const batch = await request(port, {
       method: "POST", path: "/mcp",
-      headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol },
+      headers: { ...auth, "Content-Type": "application/json", "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "ping" },
       body: JSON.stringify([{ jsonrpc: "2.0", id: 12, method: "ping" }]),
     });
     assert.equal(batch.status, 400);
     assert.equal(batch.json().error.code, -32600);
   });
 
-  await t.test("MCP enforces session and protocol headers, and DELETE terminates", async () => {
-    const missing = await request(port, {
-      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 13, method: "ping" }),
-    });
+  await t.test("mirrored headers are validated against the body: -32020 HeaderMismatch", async () => {
+    const cases = [
+      ["MCP-Protocol-Version missing", { "MCP-Protocol-Version": null }, /MCP-Protocol-Version header is required/],
+      ["Mcp-Method missing", { "Mcp-Method": null }, /Mcp-Method header is required/],
+      ["Mcp-Method disagrees with body", { "Mcp-Method": "tools/list" }, /does not match body value 'ping'/],
+      ["MCP-Protocol-Version disagrees with _meta", { "MCP-Protocol-Version": "2026-01-01" }, /does not match body value/],
+    ];
+    for (const [label, headers, expected] of cases) {
+      const r = await mcp({ jsonrpc: "2.0", id: 13, method: "ping" }, { headers });
+      assert.equal(r.status, 400, label);
+      assert.equal(r.json().error.code, -32020, label);
+      assert.match(r.json().error.message, expected, label);
+    }
+  });
+
+  await t.test("Mcp-Name is required for tools/call and must match the body", async () => {
+    const good = await mcp({ jsonrpc: "2.0", id: 14, method: "tools/call", params: { name: "get_policy", arguments: {} } });
+    assert.equal(good.status, 200);
+
+    const missing = await mcp(
+      { jsonrpc: "2.0", id: 15, method: "tools/call", params: { name: "get_policy", arguments: {} } },
+      { headers: { "Mcp-Name": null } },
+    );
     assert.equal(missing.status, 400);
-    const wrongVersion = await request(port, {
-      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": "2024-11-05" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 14, method: "ping" }),
-    });
-    assert.equal(wrongVersion.status, 400);
-    const ended = await request(port, { method: "DELETE", path: "/mcp", headers: { ...auth, "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol } });
-    assert.equal(ended.status, 204);
-    const expired = await request(port, {
-      method: "POST", path: "/mcp", headers: { ...auth, "Content-Type": "application/json", "Mcp-Session-Id": mcpSession, "MCP-Protocol-Version": mcpProtocol },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 15, method: "ping" }),
-    });
-    assert.equal(expired.status, 404);
+    assert.equal(missing.json().error.code, -32020);
+    assert.match(missing.json().error.message, /Mcp-Name header is required for tools\/call/);
+
+    const wrong = await mcp(
+      { jsonrpc: "2.0", id: 16, method: "tools/call", params: { name: "get_policy", arguments: {} } },
+      { headers: { "Mcp-Name": "vault_overview" } },
+    );
+    assert.equal(wrong.status, 400);
+    assert.equal(wrong.json().error.code, -32020);
+    assert.match(wrong.json().error.message, /'vault_overview' does not match body value 'get_policy'/);
+
+    // A method that does not mirror a name must not carry the header.
+    const stray = await mcp({ jsonrpc: "2.0", id: 17, method: "ping" }, { headers: { "Mcp-Name": "ping" } });
+    assert.equal(stray.status, 400);
+    assert.equal(stray.json().error.code, -32020);
+  });
+
+  await t.test("Mcp-Name accepts the Base64 sentinel and compares the decoded value", async () => {
+    // Tool names here are header-safe, so exercise the sentinel path with an
+    // encoded form of a real name plus a mismatching encoded value.
+    const encode = (v) => `=?base64?${Buffer.from(v, "utf8").toString("base64")}?=`;
+    const ok = await mcp(
+      { jsonrpc: "2.0", id: 18, method: "tools/call", params: { name: "get_policy", arguments: {} } },
+      { headers: { "Mcp-Name": encode("get_policy") } },
+    );
+    assert.equal(ok.status, 200);
+
+    const bad = await mcp(
+      { jsonrpc: "2.0", id: 19, method: "tools/call", params: { name: "get_policy", arguments: {} } },
+      { headers: { "Mcp-Name": encode("vault_overview") } },
+    );
+    assert.equal(bad.status, 400);
+    assert.equal(bad.json().error.code, -32020);
+
+    const malformed = await mcp(
+      { jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "get_policy", arguments: {} } },
+      { headers: { "Mcp-Name": "=?base64?not!valid!base64?=" } },
+    );
+    assert.equal(malformed.status, 400);
+    assert.equal(malformed.json().error.code, -32020);
+  });
+
+  await t.test("GET and DELETE on the MCP endpoint -> 405, the removed mechanisms", async () => {
+    for (const method of ["GET", "DELETE"]) {
+      const r = await request(port, { method, path: "/mcp", headers: auth });
+      assert.equal(r.status, 405, method);
+      assert.equal(r.headers.allow, "POST", method);
+    }
+  });
+
+  await t.test("an unimplemented method -> 404 carrying the JSON-RPC error", async () => {
+    // 404 with a modern JSON-RPC error body is what lets a dual-era client tell
+    // a modern server from a legacy one that simply does not host this path.
+    const r = await mcp({ jsonrpc: "2.0", id: 21, method: "subscriptions/listen" });
+    assert.equal(r.status, 404);
+    assert.equal(r.json().error.code, -32601);
   });
 });
 
