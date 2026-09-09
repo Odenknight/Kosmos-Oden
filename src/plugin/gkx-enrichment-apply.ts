@@ -121,10 +121,10 @@ export class GkxEnrichmentApplyPreviewModal extends Modal {
         button.onClick(async () => {
           if (this.applying || !backup || !reviewed || !relationship) return;
           this.applying = true; refresh(); applyButton!.textContent = "Applying safely…";
-          const notice = new Notice("Vault Kosmos: backing up and applying reviewed enrichment…", 0);
+          const notice = new Notice("Kosmos-Oden: backing up and applying reviewed enrichment…", 0);
           try {
             const result = await applyGkxEnrichmentPlan(this.app, plan); notice.hide(); this.onApplied?.(result);
-            new Notice(`Vault Kosmos: ${result.applied.length} notes updated; ${result.skippedChanged.length + result.skippedMissing.length} changed/missing skipped; ${result.failed.length} failed. Audit: ${result.resultPath}`, 12000); this.close();
+            new Notice(`Kosmos-Oden: ${result.applied.length} notes updated; ${result.skippedChanged.length + result.skippedMissing.length} changed/missing skipped; ${result.failed.length} failed. Audit: ${result.resultPath}`, 12000); this.close();
           } catch (error: any) { notice.hide(); this.applying = false; applyButton!.textContent = `Back up and apply ${plan.totals.ready} notes`; refresh(); new Notice(`Enrichment apply stopped: ${String(error?.message || error)}. No unbacked note is intentionally written.`, 15000); }
         });
       });

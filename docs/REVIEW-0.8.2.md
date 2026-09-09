@@ -44,7 +44,7 @@ authority is enabled by this update.
 
 Copy the packaged `kosmos-oden` folder into a test vault's
 `.obsidian/plugins/`, retaining your existing plugin settings when upgrading.
-Reload Obsidian, enable Vault Kosmos, and open its view. Test folder/note edits,
+Reload Obsidian, enable Kosmos-Oden, and open its view. Test folder/note edits,
 rapid edits during graph refresh, Chrono, navigation, settings and your optional
 Agent API/Nextcloud workflows. Keep the previous plugin files for rollback;
 this release does not migrate or rewrite source notes on installation.

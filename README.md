@@ -52,7 +52,7 @@ memory and downloaded only when you ask for them.
 
 For a source installation, copy `manifest.json`, `main.js`, and `styles.css`
 into `<vault>/.obsidian/plugins/kosmos-oden/`, enable the plugin, and run
-**Open Vault Kosmos**. The view follows Obsidian create, modify, rename, and
+**Open Kosmos-Oden**. The view follows Obsidian create, modify, rename, and
 delete events without rebuilding the whole vault for an ordinary note edit.
 
 The same renderer works on desktop and mobile. It pauses its render loop while

@@ -1,4 +1,4 @@
-# BUILD DIRECTIVE — Vault Kosmos v0.5.5 Correctness, Standalone Runtime, Temporal Lineage, Incremental Indexing, Security, Testing, and Documentation Rebuild
+# BUILD DIRECTIVE — Kosmos-Oden v0.5.5 Correctness, Standalone Runtime, Temporal Lineage, Incremental Indexing, Security, Testing, and Documentation Rebuild
 
 **Repository:** `Odenknight/Kosmos-Oden`
 **Target release:** `v0.5.5`
@@ -9,7 +9,7 @@
 
 # 1. Mission
 
-Rebuild Vault Kosmos so that the implementation, public README claims, standalone experience, temporal lineage model, Agent API, MCP compatibility, Graphiti export, incremental update behavior, and automated tests are mutually consistent and technically defensible.
+Rebuild Kosmos-Oden so that the implementation, public README claims, standalone experience, temporal lineage model, Agent API, MCP compatibility, Graphiti export, incremental update behavior, and automated tests are mutually consistent and technically defensible.
 
 This is not a cosmetic README update.
 
@@ -285,7 +285,7 @@ Expose warnings through:
 
 # 4. Clarify the Temporal Model
 
-Vault Kosmos v0.5.5 must not describe its current note model as fully bitemporal unless true transaction-time history is actually implemented.
+Kosmos-Oden v0.5.5 must not describe its current note model as fully bitemporal unless true transaction-time history is actually implemented.
 
 The current required model is:
 
@@ -376,7 +376,7 @@ Open Knowledge Folder
 ```
 
 5. Select a directory containing Markdown notes.
-6. Have Vault Kosmos recursively scan and render the directory.
+6. Have Kosmos-Oden recursively scan and render the directory.
 
 No Obsidian installation may be required.
 
@@ -1045,7 +1045,7 @@ The README must state this accurately.
 Never claim:
 
 ```text
-Vault Kosmos never writes anything to the vault
+Kosmos-Oden never writes anything to the vault
 ```
 
 when explicit export commands can create files.
@@ -1547,7 +1547,7 @@ Use these accuracy rules.
 ## Allowed claim
 
 ```text
-Vault Kosmos uses hierarchical packing and collision-resolution passes to keep visual bodies separated.
+Kosmos-Oden uses hierarchical packing and collision-resolution passes to keep visual bodies separated.
 ```
 
 Do not use:
@@ -1901,7 +1901,7 @@ artifact checks pass
 
 # 39. Final Engineering Standard
 
-Treat Vault Kosmos v0.5.5 as three products sharing one semantic engine:
+Treat Kosmos-Oden v0.5.5 as three products sharing one semantic engine:
 
 ```text
                     ┌─────────────────────┐

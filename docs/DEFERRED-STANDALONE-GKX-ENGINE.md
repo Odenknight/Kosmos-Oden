@@ -1,7 +1,7 @@
 # Deferred: Standalone GKX 2.3 Engine and Agentic Service
 
 Status: **filed for a later development cycle**. This work is not part of the
-Vault Kosmos 0.6.5-beta.9 plugin release.
+Kosmos-Oden 0.6.5-beta.9 plugin release.
 
 ## Objective
 

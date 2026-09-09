@@ -49,8 +49,8 @@ adding an entry to `community-plugins.json`:
 
 ```json
 {
-  "id": "vault-kosmos",
-  "name": "Vault Kosmos (Kosmos-Oden)",
+  "id": "kosmos-oden",
+  "name": "Kosmos-Oden (Kosmos-Oden)",
   "author": "OdenKnight",
   "description": "A 3D constellation view of your notes …",
   "repo": "Odenknight/Kosmos-Oden"
@@ -59,7 +59,7 @@ adding an entry to `community-plugins.json`:
 
 Pre-flight checklist (Obsidian bot + reviewers check these):
 - [ ] `manifest.json` at repo root with `id`, `name`, `version`, `minAppVersion`, `description`, `author`, `isDesktopOnly`. ✔ (current)
-- [ ] `id` is unique, lowercase-hyphen, no "obsidian"/"plugin". ✔ `vault-kosmos`
+- [ ] `id` is unique, lowercase-hyphen, no "obsidian"/"plugin". ✔ `kosmos-oden`
 - [ ] `name` does not contain "Obsidian". ✔
 - [ ] A GitHub **release whose tag == manifest version, no `v` prefix**, with `manifest.json`, `main.js`, `styles.css` as individual assets. ← use the flow above (the only prior tag, `v0.5.1`, is prefixed and pre-dates this policy).
 - [ ] `versions.json` maps plugin version → minAppVersion. ✔
@@ -75,4 +75,4 @@ Browse**. Subsequent releases are picked up automatically from new tags.
   install directly from releases, including `0.6.0-beta.*` pre-releases for the
   r185 renderer line.
 - **Manual**: copy `manifest.json` + `main.js` + `styles.css` into
-  `<vault>/.obsidian/plugins/vault-kosmos/` and enable it.
+  `<vault>/.obsidian/plugins/kosmos-oden/` and enable it.
