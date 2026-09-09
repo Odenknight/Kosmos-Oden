@@ -1,6 +1,6 @@
 # Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
 
-**Read-only · localhost by default · token-protected · MCP 2025-11-25 (legacy era)**
+**Read-only · localhost by default · token-protected · MCP 2026-07-28 (modern era)**
 
 > This is the generic guide. In Obsidian, run **Write Agent API guide** to
 > create a vault-local copy with the actual address, token, and stdio-adapter
@@ -89,22 +89,50 @@ Node.js 18 or newer is required for the adapter.
 
 - URL: `http://127.0.0.1:4816/mcp`
 - Header: `Authorization: Bearer <TOKEN>`
-- Transport: MCP Streamable HTTP, session-based ("legacy") era
-- Highest revision this server supports: `2025-11-25`
-- Current published MCP revision: `2026-07-28` — **not supported here**
+- Transport: MCP Streamable HTTP, stateless per-request ("modern") era
+- Only revision this server supports: `2026-07-28`
 
-After `initialize`, return both `Mcp-Session-Id` and
-`MCP-Protocol-Version` on later requests. Send one JSON-RPC message per POST;
-batches are not part of this transport contract.
+There is no handshake and no session. Every request carries its protocol
+version and `io.modelcontextprotocol/clientCapabilities` object in
+`params._meta`. Client identity (`io.modelcontextprotocol/clientInfo`, with
+string `name` and `version`) is optional. Selected body fields are mirrored
+into headers the server validates:
 
-> **Client compatibility.** MCP revision `2026-07-28` removed the `initialize`
-> handshake, protocol-level sessions and the GET stream; a client built only
-> against it will fail against this endpoint, because it never sends the
-> handshake this server requires. Use a client that can still speak
-> `2025-11-25` (the specification calls a client that can do both "dual-era").
-> This describes the shipped baseline only. The next build targets modern MCP
-> only, with no legacy fallback requirement. The transport upgrade is pending;
-> this documentation change does not implement it.
+| Header | Mirrors | Required for |
+| --- | --- | --- |
+| `MCP-Protocol-Version` | `_meta["io.modelcontextprotocol/protocolVersion"]` | every request |
+| `Mcp-Method` | `method` | every request |
+| `Mcp-Name` | `params.name` / `params.uri` | `tools/call`, `resources/read`, `prompts/get` |
+
+A value that is not header-safe is carried Base64-encoded as
+`=?base64?<b64>?=`; the server decodes before comparing. Send one JSON-RPC
+message per POST; batches are not part of this transport contract. Call
+`server/discover` for identity, capabilities and supported versions in one
+request.
+
+Error responses, all distinct:
+
+| Condition | HTTP | JSON-RPC |
+| --- | --- | --- |
+| header missing, malformed, or disagreeing with the body | 400 | `-32020` `HeaderMismatch` |
+| required body metadata missing or invalid | 400 | `-32602` Invalid params |
+| protocol version not supported | 400 | `-32022`, `data.supported` lists ours |
+| method not implemented | 404 | `-32601` |
+
+> **Client compatibility.** This server is modern-only: it implements no
+> `initialize` handshake, mints no `Mcp-Session-Id`, hosts no GET stream and
+> answers `405` to GET and DELETE. A legacy client built against `2025-11-25`
+> or earlier cannot connect and has no fall-forward mechanism, so the error
+> returned to `initialize` names the versions this server does support.
+> A legacy request without modern headers receives `400`/`-32020`, including
+> that version guidance; `initialize` with valid modern metadata reaches
+> dispatch and receives `404`/`-32601`. No validation is bypassed.
+> `Mcp-Session-Id` and `Last-Event-ID` on a request are ignored rather than
+> rejected.
+
+Successful responses include `resultType: "complete"` and server identity in
+`result._meta`. The stdio adapter preserves upstream JSON-RPC errors, including
+their codes and structured data on HTTP 400/404 responses.
 
 ## Read tools
 
@@ -187,8 +215,9 @@ the `/gkx/` routes listed by the server root. Note selectors accept `uid`,
 `path`, or `title`. Validate/assess routes compute in memory and remain GET-only.
 
 - `401`: token missing or stale.
-- `400` after initialization: session or protocol-version header missing.
-- `404` on MCP: session expired or was terminated; initialize again.
+- `400` on MCP: inspect the JSON-RPC error for malformed metadata, header
+  disagreement, or an unsupported protocol version.
+- `404` on MCP: the RPC method is not implemented; no initialization is needed.
 - `403`: disallowed Host/Origin.
 - `429`: back off; fairness/rate limit reached.
 - No confidential note found: raise the sensitivity ceiling only if policy permits.

@@ -11,8 +11,9 @@
  *  - Tokens come from a cryptographically secure RNG ONLY (32 bytes,
  *    base64url). There is no insecure fallback: without WebCrypto, token
  *    creation fails loudly (§16).
- *  - MCP `initialize` negotiates against an explicit supported-version list;
- *    unknown client versions get the server's latest, never an echo (§15).
+ *  - modern MCP carries version and client identity per request, validated
+ *    against the mirrored HTTP headers; there is no handshake or session;
+ *    unsupported versions are rejected with the supported version list (§15).
  *  - Request bodies are limited by ACTUAL BYTES (4 MiB default) using a byte
  *    accumulator, not JS string length (§17).
  *  - Host and Origin headers are validated against the bind mode to block
@@ -36,19 +37,40 @@ import type {
   NavigationEffectsSettingsMigration,
 } from "../navigation-effects/types";
 
-// Newest first. These are the "legacy"-era MCP revisions: the ones that open
-// with an `initialize` handshake and carry a server-issued session. Older
-// revisions remain negotiable for clients that still request them explicitly.
+// Modern-era MCP only, per owner direction of 2026-09-09. "Modern" is the
+// spec's own term for revisions carrying version, identity and capabilities as
+// per-request metadata (2026-07-28 and later); "legacy" revisions (2025-11-25
+// and earlier) open with an `initialize` handshake and hold a server-issued
+// session. This server implements no legacy path and is not dual-era: it mints
+// no sessions, hosts no GET stream, and rejects a request that omits the
+// per-request metadata.
 //
-// The current published MCP revision is 2026-07-28, which is NOT in this list
-// and is not backwards compatible: it removes the initialize handshake,
-// protocol-level sessions and the GET stream, and instead carries the version
-// per request in `_meta`/`MCP-Protocol-Version` with a mandatory
-// `server/discover` RPC. A client speaking only 2026-07-28 therefore CANNOT
-// talk to this server. The next transport implementation targets modern MCP
-// only; do not describe this list as current or modern until that lands.
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
-export const LATEST_MCP_PROTOCOL_VERSION = SUPPORTED_MCP_PROTOCOL_VERSIONS[0];
+// A legacy client therefore cannot talk to this server and has no
+// fall-forward mechanism. The spec asks a modern-only server to name its
+// supported versions in any error it returns to `initialize`, so that such a
+// client can surface something actionable; mcpDispatch does that.
+export const MODERN_MCP_PROTOCOL_VERSION = "2026-07-28";
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = [MODERN_MCP_PROTOCOL_VERSION];
+export const LATEST_MCP_PROTOCOL_VERSION = MODERN_MCP_PROTOCOL_VERSION;
+
+/** `_meta` keys the transport defines, spelled exactly as the spec spells
+ *  them. These are wire identifiers, not internal names. */
+export const MCP_META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
+export const MCP_META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo";
+export const MCP_META_CLIENT_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
+export const MCP_META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
+
+/** Protocol-defined JSON-RPC error codes this transport returns. */
+export const MCP_ERR_HEADER_MISMATCH = -32020;
+export const MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION = -32022;
+
+/** Methods whose `Mcp-Name` header mirrors a body field, and which field it
+ *  mirrors. Other methods must not carry `Mcp-Name`. */
+export const MCP_NAME_SOURCE: Record<string, "name" | "uri"> = {
+  "tools/call": "name",
+  "resources/read": "uri",
+  "prompts/get": "name",
+};
 
 /** Request-body cap in BYTES (4 MiB). Documented unit: bytes, not JS chars. */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -228,9 +250,13 @@ export const REQUEST_TIMEOUT_MS = 30_000;
  */
 export const MAX_CONCURRENT_PER_AGENT = 12;
 
-/** Agent identity sessions (per-agent trail colour/label + fairness key).
- *  Minted on MCP `initialize` from the client's `clientInfo.name`, echoed back
- *  as `Mcp-Session-Id`. Bounded + TTL'd so the map never grows unbounded. */
+/** Agent identity records (per-agent trail colour/label + fairness key).
+ *  Modern MCP has no protocol session, so identity is derived per request from
+ *  `_meta` clientInfo.name and this map only *remembers* the trail colour
+ *  already assigned to that name, keeping it stable across requests. It is not
+ *  a session: it grants nothing, is never echoed to the client, and losing an
+ *  entry costs only colour stability. Bounded + TTL'd so it cannot grow
+ *  unbounded. */
 export const AGENT_SESSION_TTL_MS = 30 * 60_000;
 export const MAX_AGENT_SESSIONS = 64;
 
@@ -285,7 +311,6 @@ interface AgentSession {
   visualId: string;
   at: number;
   protocolVersion: string;
-  initialized: boolean;
 }
 
 export class KosmosAgentServer {
@@ -330,22 +355,31 @@ export class KosmosAgentServer {
 
   /* ---------------- agent identity (per-agent trail + fairness) ---------------- */
 
-  /** Register an MCP session from `initialize` and return its id (echoed as
-   *  `Mcp-Session-Id`). Prunes expired sessions and bounds the map size. */
+  /** Remember (or refresh) the trail identity for a modern client name and
+   *  return its key. Prunes expired records and bounds the map size. */
   private pruneSessions(now = Date.now()): void {
     for (const [k, v] of this.sessions) if (now - v.at > AGENT_SESSION_TTL_MS) this.sessions.delete(k);
   }
 
+  /** Idempotent per cleaned client name: the same name keeps the same trail
+   *  colour across requests, which is what makes a stateless transport still
+   *  show one agent as one agent. Keyed by the cleaned name rather than a
+   *  minted token because there is no session to hang a token on, and a
+   *  client-supplied token could otherwise be used to borrow another
+   *  caller's identity. Two callers reporting the same name are therefore one
+   *  identity; nothing in this revision can separate them. */
   private registerSession(name: string, protocolVersion: string): string {
     const now = Date.now();
     this.pruneSessions(now);
+    const key = this.cleanAgentName(name);
+    const existing = this.sessions.get(key);
+    if (existing) { existing.at = now; existing.protocolVersion = protocolVersion; return key; }
     while (this.sessions.size >= MAX_AGENT_SESSIONS) { const first = this.sessions.keys().next().value; if (first === undefined) break; this.sessions.delete(first); }
-    const sid = makeToken().slice(0, 22);
     let visualId = "";
     do { visualId = `agent-${makeToken().slice(0, 22)}`; }
     while (Array.from(this.sessions.values()).some((session) => session.visualId === visualId));
-    this.sessions.set(sid, { name: this.cleanAgentName(name), visualId, at: now, protocolVersion, initialized: false });
-    return sid;
+    this.sessions.set(key, { name: key, visualId, at: now, protocolVersion });
+    return key;
   }
 
   private getSession(id: string): AgentSession | null {
@@ -365,12 +399,127 @@ export class KosmosAgentServer {
     return first.replace(/[^\w.-]/g, "").slice(0, 40) || "agent";
   }
 
-  /** Best-effort identity of the agent behind a request: the MCP session's
-   *  clientInfo.name (via `Mcp-Session-Id`), else the User-Agent, else "agent". */
+  /** Best-effort identity of the agent behind a request. Modern MCP carries no
+   *  session, so an MCP caller is identified from `_meta` clientInfo.name by
+   *  mcpIdentity(); this remains the fallback for the REST surface and for a
+   *  request whose metadata carried no usable name. `Mcp-Session-Id` is
+   *  deliberately not consulted: this revision removed protocol sessions, and
+   *  trusting a client-supplied session header for identity would let a caller
+   *  choose another caller's fairness key. */
   agentLabel(req: any): string {
-    const sid = String(req?.headers?.["mcp-session-id"] || "");
-    if (sid) { const s = this.getSession(sid); if (s) return s.name; }
     return this.cleanAgentName(req?.headers?.["user-agent"]);
+  }
+
+  /** Decode the spec's Base64 sentinel form `=?base64?<b64>?=`, else return the
+   *  value unchanged. Applies to `Mcp-Name` and `Mcp-Param-*`, which clients
+   *  must encode this way when a value is not header-safe. Markers are
+   *  case-sensitive and lowercase. */
+  static decodeHeaderSentinel(raw: string): string | null {
+    if (!(raw.startsWith("=?base64?") && raw.endsWith("?=") && raw.length >= 11)) return raw;
+    const b64 = raw.slice(9, -2);
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) return null;
+    try {
+      const buf = Buffer.from(b64, "base64");
+      if (buf.toString("base64").replace(/=+$/, "") !== b64.replace(/=+$/, "")) return null;
+      return buf.toString("utf8");
+    } catch (_) { return null; }
+  }
+
+  /** Identity of a modern MCP caller, from the request body's `_meta`. */
+  mcpIdentity(parsed: any, req: any): { agent: string; agentId?: string } {
+    const info = parsed?.params?._meta?.[MCP_META_CLIENT_INFO];
+    const name = info && typeof info === "object" && typeof info.name === "string" ? info.name : "";
+    if (!name.trim()) return { agent: this.agentLabel(req) };
+    const key = this.registerSession(name, MODERN_MCP_PROTOCOL_VERSION);
+    const rec = this.getSession(key);
+    return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId };
+  }
+
+  /** Validate the mirrored request-metadata headers against the body.
+   *  Returns null when the request conforms, else the JSON-RPC error to send
+   *  with HTTP 400. Header names are compared case-insensitively by Node
+   *  (already lowercased); header *values* are case-sensitive per the spec. */
+  validateRequestMetadata(req: any, parsed: any): { code: number; message: string; data?: unknown } | null {
+    const header = (k: string) => {
+      const v = req?.headers?.[k];
+      return typeof v === "string" ? v : Array.isArray(v) ? v[0] : undefined;
+    };
+    const method = typeof parsed?.method === "string" ? parsed.method : undefined;
+    const meta = parsed?.params?._meta;
+
+    const protocolHeader = header("mcp-protocol-version");
+    if (protocolHeader === undefined) {
+      return { code: MCP_ERR_HEADER_MISMATCH, message: "Header mismatch: MCP-Protocol-Version header is required" };
+    }
+    const protocolBody = meta && typeof meta === "object" ? meta[MCP_META_PROTOCOL_VERSION] : undefined;
+    if (typeof protocolBody !== "string") {
+      return {
+        code: -32602,
+        message: `Invalid params: params._meta["${MCP_META_PROTOCOL_VERSION}"] is required and must be a string`,
+      };
+    }
+    if (protocolHeader !== protocolBody) {
+      return {
+        code: MCP_ERR_HEADER_MISMATCH,
+        message: `Header mismatch: MCP-Protocol-Version header value '${protocolHeader}' does not match body value '${protocolBody}'`,
+      };
+    }
+    // Version is checked only after header/body agreement, so a disagreeing
+    // request cannot pick which value gets version-checked.
+    if (!SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(protocolBody)) {
+      return {
+        code: MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+        message: "Unsupported protocol version",
+        data: { supported: [...SUPPORTED_MCP_PROTOCOL_VERSIONS], requested: protocolBody },
+      };
+    }
+
+    const methodHeader = header("mcp-method");
+    if (methodHeader === undefined) {
+      return { code: MCP_ERR_HEADER_MISMATCH, message: "Header mismatch: Mcp-Method header is required" };
+    }
+    if (methodHeader !== method) {
+      return {
+        code: MCP_ERR_HEADER_MISMATCH,
+        message: `Header mismatch: Mcp-Method header value '${methodHeader}' does not match body value '${String(method)}'`,
+      };
+    }
+
+    const nameField = method && Object.hasOwn(MCP_NAME_SOURCE, method) ? MCP_NAME_SOURCE[method] : undefined;
+    const nameHeaderRaw = header("mcp-name");
+    if (nameField) {
+      if (nameHeaderRaw === undefined) {
+        return { code: MCP_ERR_HEADER_MISMATCH, message: `Header mismatch: Mcp-Name header is required for ${method}` };
+      }
+      const decoded = KosmosAgentServer.decodeHeaderSentinel(nameHeaderRaw);
+      if (decoded === null) {
+        return { code: MCP_ERR_HEADER_MISMATCH, message: "Header mismatch: Mcp-Name header value is not valid Base64 sentinel encoding" };
+      }
+      const bodyValue = parsed?.params?.[nameField];
+      if (typeof bodyValue !== "string" || decoded !== bodyValue) {
+        return {
+          code: MCP_ERR_HEADER_MISMATCH,
+          message: `Header mismatch: Mcp-Name header value '${decoded}' does not match body value '${String(bodyValue)}'`,
+        };
+      }
+    } else if (nameHeaderRaw !== undefined) {
+      return {
+        code: MCP_ERR_HEADER_MISMATCH,
+        message: `Header mismatch: Mcp-Name header must not be sent for ${String(method)}`,
+      };
+    }
+    // No tool parameter carries an x-mcp-header annotation, so this server
+    // designates no Mcp-Param-* header and must not expect one. An unrecognised
+    // Mcp-Param-* header is forwarded and ignored, as RFC 9110 requires.
+    const capabilities = meta?.[MCP_META_CLIENT_CAPABILITIES];
+    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) {
+      return { code: -32602, message: `Invalid params: params._meta["${MCP_META_CLIENT_CAPABILITIES}"] is required and must be an object` };
+    }
+    const info = meta?.[MCP_META_CLIENT_INFO];
+    if (info !== undefined && (!info || typeof info !== "object" || Array.isArray(info) || typeof info.name !== "string" || typeof info.version !== "string")) {
+      return { code: -32602, message: "Invalid params: clientInfo must contain string name and version" };
+    }
+    return null;
   }
 
   constructor(http: any, settings: AgentSettings, provider: AgentDataProvider) {
@@ -1108,19 +1257,16 @@ export class KosmosAgentServer {
     }
   }
 
-  /** Negotiate the MCP protocol version (§15). */
-  negotiateProtocolVersion(requested: unknown): string {
-    if (typeof requested === "string" && SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(requested)) return requested;
-    return LATEST_MCP_PROTOCOL_VERSION;
-  }
+  /** Modern MCP has no negotiation handshake: every request declares its own
+   *  version and the server accepts or rejects that request on its own. The
+   *  check lives in validateRequestMetadata, which returns
+   *  UnsupportedProtocolVersionError (-32022) carrying the supported list. */
 
   async mcpDispatch(
     msg: any,
     ctx?: {
       agent?: string;
       agentId?: string;
-      session?: AgentSession;
-      setSessionId?: (sid: string) => void;
     }
   ): Promise<any | null> {
     const requestId = msg && typeof msg === "object" && !Array.isArray(msg) && msg.id !== undefined ? msg.id : null;
@@ -1132,37 +1278,52 @@ export class KosmosAgentServer {
       return error(-32600, "Invalid Request: expected one JSON-RPC 2.0 request or notification");
     }
     const isNotification = msg.id === undefined;
-    if (!isNotification && !(typeof msg.id === "string" || (typeof msg.id === "number" && Number.isFinite(msg.id)))) {
-      return error(-32600, "Invalid Request: id must be a string or number");
+    if (!isNotification && !(typeof msg.id === "string" || (typeof msg.id === "number" && Number.isInteger(msg.id)))) {
+      return error(-32600, "Invalid Request: id must be a string or integer");
     }
     if (msg.params !== undefined && (!msg.params || typeof msg.params !== "object" || Array.isArray(msg.params))) {
       return isNotification ? null : error(-32602, "Invalid params: expected an object");
     }
     const { id, method, params = {} } = msg;
-    const ok = (result: any) => ({ jsonrpc: "2.0", id, result });
+    const ok = (result: any) => ({ jsonrpc: "2.0", id, result: {
+      ...result,
+      resultType: "complete",
+      _meta: { ...result._meta, [MCP_META_SERVER_INFO]: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION } },
+    } });
 
     if (isNotification) {
-      if (method === "notifications/initialized" && ctx?.session) ctx.session.initialized = true;
-      // Unknown notifications are ignored as required by JSON-RPC.
+      // This revision of the core protocol defines no client-to-server
+      // notification over Streamable HTTP: cancellation is the closed response
+      // stream, not a message. Notifications are still accepted and ignored as
+      // JSON-RPC requires, and the transport answers 202 with no body.
       return null;
     }
 
     try {
-      if (method === "initialize") {
-        if (
-          typeof params.protocolVersion !== "string" ||
-          !params.capabilities || typeof params.capabilities !== "object" || Array.isArray(params.capabilities) ||
-          !params.clientInfo || typeof params.clientInfo !== "object" ||
-          typeof params.clientInfo.name !== "string" || typeof params.clientInfo.version !== "string"
-        ) throw new McpRpcError(-32602, "initialize requires protocolVersion, capabilities, and clientInfo{name,version}");
-        const protocolVersion = this.negotiateProtocolVersion(params.protocolVersion);
-        if (ctx?.setSessionId) ctx.setSessionId(this.registerSession(params.clientInfo.name, protocolVersion));
+      // Required of every modern server. Answers identity, capabilities and
+      // supported versions in one request so a client need not probe
+      // tools/list, prompts/list and resources/list separately. serverInfo is
+      // a self-report and rides in _meta, which is where this revision puts
+      // it -- it is not a verified claim and clients are told not to make
+      // security decisions on it.
+      if (method === "server/discover") {
         return ok({
-          protocolVersion,
+          resultType: "complete",
+          supportedVersions: [...SUPPORTED_MCP_PROTOCOL_VERSIONS],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION },
+          _meta: { [MCP_META_SERVER_INFO]: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION } },
           instructions: `GKOS-Engine v${ENGINE_VERSION} read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.`,
         });
+      }
+      // Legacy handshake. Not implemented, and the error names the supported
+      // versions because a legacy client has no fall-forward mechanism and
+      // this message may be the only diagnostic it can show a user.
+      if (method === "initialize") {
+        return error(
+          -32601,
+          `Method not found: initialize. This server implements modern MCP only; supported protocol versions: ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(", ")}. Carry the version in params._meta["${MCP_META_PROTOCOL_VERSION}"] and the MCP-Protocol-Version header instead of opening a session.`,
+          { supported: [...SUPPORTED_MCP_PROTOCOL_VERSIONS] },
+        );
       }
       if (method === "ping") return ok({});
       if (method === "tools/list") return ok({ tools: this.toolDefs() });
@@ -1240,20 +1401,10 @@ export class KosmosAgentServer {
     }
 
     if (path === "/mcp") {
-      if (req.method === "GET") { res.writeHead(405, { Allow: "POST, DELETE", "Cache-Control": "no-store" }); res.end(); return; }
-      if (req.method === "DELETE") {
-        const sid = String(req.headers["mcp-session-id"] || "");
-        if (!sid) { this.json(res, 400, { error: "missing Mcp-Session-Id" }); return; }
-        const session = this.getSession(sid);
-        if (!session) { this.json(res, 404, { error: "unknown or expired MCP session" }); return; }
-        const protocol = String(req.headers["mcp-protocol-version"] || "");
-        if (!protocol || protocol !== session.protocolVersion) {
-          this.json(res, 400, { error: "missing or mismatched MCP-Protocol-Version" }); return;
-        }
-        this.sessions.delete(sid);
-        res.writeHead(204, { "Cache-Control": "no-store" }); res.end(); return;
-      }
-      if (req.method !== "POST") { res.writeHead(405, { Allow: "GET, POST, DELETE", "Cache-Control": "no-store" }); res.end(); return; }
+      // This revision removed the GET stream and session termination, so the
+      // endpoint accepts POST alone. The spec names 405 for exactly the GET and
+      // DELETE an older client would send.
+      if (req.method !== "POST") { res.writeHead(405, { Allow: "POST", "Cache-Control": "no-store" }); res.end(); return; }
       let body: string;
       try {
         body = await this.readBody(req);
@@ -1273,30 +1424,46 @@ export class KosmosAgentServer {
         return;
       }
 
-      const isInitialize = parsed && typeof parsed === "object" && parsed.method === "initialize";
-      const sid = String(req.headers["mcp-session-id"] || "");
-      let session: AgentSession | undefined;
-      if (isInitialize) {
-        if (sid) { this.json(res, 400, { error: "initialize must not reuse an existing MCP session" }); return; }
-      } else {
-        if (!sid) { this.json(res, 400, { error: "missing Mcp-Session-Id; initialize first" }); return; }
-        session = this.getSession(sid) ?? undefined;
-        if (!session) { this.json(res, 404, { error: "unknown or expired MCP session; initialize again" }); return; }
-        const protocol = String(req.headers["mcp-protocol-version"] || "");
-        if (!protocol || !SUPPORTED_MCP_PROTOCOL_VERSIONS.includes(protocol) || protocol !== session.protocolVersion) {
-          this.json(res, 400, { error: "missing, unsupported, or session-mismatched MCP-Protocol-Version" }); return;
-        }
-        if (!session.initialized && parsed.method !== "notifications/initialized") {
-          this.json(res, 400, { error: "MCP session is not initialized; send notifications/initialized first" }); return;
+      // Validate the envelope before interpreting metadata or registering a
+      // caller. A malformed request is not a metadata/header disagreement.
+      const validId = typeof parsed?.id === "string" || (typeof parsed?.id === "number" && Number.isInteger(parsed.id));
+      if (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
+          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed) {
+        this.json(res, 400, { jsonrpc: "2.0", ...(validId ? { id: parsed.id } : {}), error: { code: -32600, message: "Invalid Request: expected one JSON-RPC 2.0 request or notification with a string or integer id" } });
+        return;
+      }
+
+      // A JSON-RPC notification is a bare POST: this revision defines no
+      // client-to-server notification over Streamable HTTP and states that
+      // header requirements for notification POSTs are undefined, so metadata
+      // is not demanded of one. Accepted notifications answer 202 with no body.
+      const isNotification = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id === undefined;
+
+      if (!isNotification) {
+        const bad = this.validateRequestMetadata(req, parsed);
+        if (bad) {
+          // Keep the required validation error/status. Even a legacy request
+          // with no modern metadata must explain which versions are supported.
+          if (parsed.method === "initialize") {
+            bad.message += `; supported protocol versions: ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(", ")}`;
+          }
+          const rid = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id !== undefined ? parsed.id : null;
+          this.json(res, 400, { jsonrpc: "2.0", id: rid, error: bad });
+          return;
         }
       }
 
-      const agent = session?.name || this.agentLabel(req);
-      let newSid: string | undefined;
-      const ctx = { agent, agentId: session?.visualId, session, setSessionId: (id: string) => { newSid = id; } };
-      const sidHeader = () => (newSid ? { "Mcp-Session-Id": newSid } : undefined);
-      const out = await this.mcpDispatch(parsed, ctx);
-      if (!out) { res.writeHead(202, sidHeader()); res.end(); } else this.json(res, 200, out, sidHeader());
+      // Mcp-Session-Id and Last-Event-ID are deliberately ignored rather than
+      // rejected, as the spec directs: no session is minted or echoed, and
+      // streams are not resumable.
+      const { agent, agentId } = isNotification ? { agent: this.agentLabel(req), agentId: undefined } : this.mcpIdentity(parsed, req);
+      const out = await this.mcpDispatch(parsed, { agent, agentId });
+      if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
+      // An unimplemented method is a 404 carrying the JSON-RPC error, which is
+      // what distinguishes a modern server from a legacy one that simply does
+      // not host this endpoint.
+      const status = out?.error?.code === -32601 ? 404 : [-32600, -32602, -32021].includes(out?.error?.code) ? 400 : 200;
+      this.json(res, status, out);
       return;
     }
 
@@ -1309,7 +1476,7 @@ export class KosmosAgentServer {
           version: KOSMOS_VERSION,
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
-          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: true, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;

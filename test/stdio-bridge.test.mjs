@@ -3,9 +3,16 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { buildGraph } from "../dist/kosmos-core.mjs";
-import { KosmosAgentServer, LATEST_MCP_PROTOCOL_VERSION } from "../dist/kosmos-agent-server.mjs";
+import {
+  KosmosAgentServer,
+  MODERN_MCP_PROTOCOL_VERSION,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+} from "../dist/kosmos-agent-server.mjs";
 
-test("bundled stdio adapter preserves Streamable HTTP session lifecycle", async (t) => {
+test("bundled stdio adapter mirrors modern request metadata into headers", async (t) => {
   const token = "bridge-test-token";
   const graph = buildGraph([{ relativePath: "Hello.md", content: "# Hello" }], []);
   const server = new KosmosAgentServer(http, {
@@ -57,17 +64,58 @@ test("bundled stdio adapter preserves Streamable HTTP session lifecycle", async 
   });
   const send = (message) => child.stdin.write(JSON.stringify(message) + "\n");
 
-  send({
-    jsonrpc: "2.0", id: 1, method: "initialize",
-    params: { protocolVersion: LATEST_MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: "stdio-test", version: "1" } },
-  });
-  const initialized = await next();
-  assert.equal(initialized.result.protocolVersion, LATEST_MCP_PROTOCOL_VERSION);
+  // The stdio client supplies _meta; the adapter mirrors it into the HTTP
+  // headers the server validates. No handshake and no session are involved.
+  const meta = {
+    [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION,
+    [MCP_META_CLIENT_INFO]: { name: "stdio-test", version: "1" },
+    [MCP_META_CLIENT_CAPABILITIES]: {},
+  };
 
-  send({ jsonrpc: "2.0", method: "notifications/initialized" });
-  send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+  send({ jsonrpc: "2.0", id: 1, method: "server/discover", params: { _meta: meta } });
+  const discovered = await next();
+  assert.deepEqual(discovered.result.supportedVersions, [MODERN_MCP_PROTOCOL_VERSION]);
+  assert.equal(discovered.result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
+
+  send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: { _meta: meta } });
   const listed = await next();
   assert.ok(listed.result.tools.some((tool) => tool.name === "get_note"));
+
+  // Mcp-Name is mirrored for tools/call, so a call through the adapter passes
+  // header/body validation without the test supplying any header itself.
+  send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_policy", arguments: {}, _meta: meta } });
+  const called = await next();
+  assert.equal(called.error, undefined);
+  assert.ok(called.result.structuredContent);
+
+  // A client that omits _meta gets the real server diagnostic, not a request
+  // the adapter silently repaired on its behalf.
+  send({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} });
+  const unmetaed = await next();
+  assert.equal(unmetaed.error.code, -32020);
+  assert.match(unmetaed.error.message, /MCP-Protocol-Version header is required/);
+
+  send({ jsonrpc: "2.0", id: 5, method: "initialize", params: {
+    protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "legacy", version: "1" },
+  } });
+  const legacy = await next();
+  assert.equal(legacy.id, 5);
+  assert.equal(legacy.error.code, -32020);
+  assert.match(legacy.error.message, /supported protocol versions: 2026-07-28/);
+
+  send({ jsonrpc: "2.0", id: 6, method: "server/discover", params: { _meta: { ...meta, [MCP_META_PROTOCOL_VERSION]: "1900-01-01" } } });
+  const unsupported = await next();
+  assert.equal(unsupported.error.code, -32022);
+  assert.deepEqual(unsupported.error.data, { supported: [MODERN_MCP_PROTOCOL_VERSION], requested: "1900-01-01" });
+
+  send({ jsonrpc: "2.0", id: 7, method: "subscriptions/listen", params: { _meta: meta } });
+  const unknown = await next();
+  assert.equal(unknown.error.code, -32601);
+
+  send({ jsonrpc: "2.0", id: 8, method: "ping", params: { _meta: meta } });
+  const ping = await next();
+  assert.equal(ping.result.resultType, "complete");
+  assert.equal(ping.result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
 
   child.stdin.end();
   const exitCode = await new Promise((resolve) => child.on("exit", resolve));

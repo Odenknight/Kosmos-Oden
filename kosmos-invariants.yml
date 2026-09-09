@@ -41,7 +41,9 @@ security:
   # Host/Origin validation must be present.
   host_validation: required
   origin_validation: required
-  mcp_latest_protocol: 2025-11-25
+  # Modern-era MCP only (owner direction 2026-09-09). Legacy revisions are not
+  # served: no initialize handshake, no protocol session, no GET stream.
+  mcp_latest_protocol: 2026-07-28
 
 build:
   lockfile_required: package-lock.json

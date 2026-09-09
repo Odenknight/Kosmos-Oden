@@ -1,20 +1,34 @@
-# MCP protocol: shipped baseline and next build
+# MCP protocol: implemented era and remaining work
 
-Reviewed 2026-09-09. The next Kosmos-Oden build targets modern MCP only for
-the Agent API server and the Engine retrieval client. Legacy fallback and
-dual-era implementation are outside this build scope.
+Reviewed 2026-09-09. Kosmos-Oden implements modern MCP only for the Agent API
+server. Legacy fallback and dual-era implementation are outside build scope.
 
 ## Current implementation
 
-The v0.8.2 Agent API uses MCP revisions through 2025-11-25. It initializes a
-session, returns a session identifier and checks it on subsequent requests.
-A client that speaks only the modern contract cannot use that implementation.
-These are baseline facts, not requirements for the next build.
+The Agent API server implements revision 2026-07-28 and advertises no other.
+It requires per-request metadata, implements `server/discover`, validates the
+mirrored headers against the body, and answers `405` to the removed GET and
+DELETE mechanisms. `SUPPORTED_MCP_PROTOCOL_VERSIONS` is `["2026-07-28"]`, and
+the shipped stdio adapter mirrors body fields into headers rather than holding
+a session.
 
-This documentation revision does not implement modern transport. The server's
-supported-version list must remain truthful until implementation and tests
-change it. A bundled Engine 2.2.0 library does not establish that a separate
-Engine service speaks modern MCP or serves the same corpus.
+The compliance follow-up validates required `clientCapabilities`, includes
+`resultType: "complete"` on all successful responses, preserves protocol
+errors through stdio, and includes supported-version guidance even when an
+`initialize` request fails header validation. Optional client identity is not
+required. See `docs/reviews/2026-09-09-mcp-compliance.md` for verification scope.
+
+Verified against the published specification at implementation time, not from
+a summary: the three normative pages are linked below. A bundled Engine 2.2.0
+library still does not establish that a separate Engine service speaks modern
+MCP or serves the same corpus.
+
+**Not implemented.** The Engine retrieval client is unchanged and remains
+outside this work. The server always answers `application/json`; it opens no
+SSE response stream, which is conforming because the choice is the server's,
+but it means `notifications/progress` and `subscriptions/listen` are not
+offered. `x-mcp-header` is not used by any tool schema, so no
+`Mcp-Param-*` header is designated.
 
 ## Modern implementation contract
 
@@ -47,7 +61,8 @@ Service-reported identity remains a self-report until backed by build evidence.
 ## Sources
 
 - [Modern Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http)
-- [Specification versioning](https://modelcontextprotocol.io/specification/versioning)
+- [Versioning and compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning)
+- [server/discover](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)
 - [Historical 2025-11-25 transport](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
 The historical specification explains the installed baseline. It is not the

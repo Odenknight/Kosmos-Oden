@@ -8,7 +8,8 @@
  * a full rebuild.
  */
 import type { App, TFile } from "obsidian";
-import { GkxIndex } from "gkos-engine";
+import type { GkxIndex } from "gkos-engine";
+import { createGkosEngineAdapter, type GkosEngineAdapter } from "gkos-engine/adapter";
 import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
@@ -71,6 +72,7 @@ export class VaultDataProvider implements AgentDataProvider {
   private app: App;
   private settings: AgentSettings;
   private index: GkxIndex;
+  private adapter: Readonly<GkosEngineAdapter>;
   /** The defaultSensitivity the live index was projected with. When the setting
    *  diverges from this the index is recreated (projectionOptions are readonly
    *  on the engine's GkxIndex) and a full rebuild is forced. */
@@ -86,7 +88,8 @@ export class VaultDataProvider implements AgentDataProvider {
     this.app = app;
     this.settings = settings;
     this.projectedSensitivity = settings.defaultSensitivity;
-    this.index = new GkxIndex({ defaultSensitivity: settings.defaultSensitivity });
+    this.adapter = createGkosEngineAdapter({ projection: { defaultSensitivity: settings.defaultSensitivity } });
+    this.index = this.adapter.createIndex();
   }
 
   /* ---- change notifications (wired to vault events by the plugin) ---- */
@@ -113,7 +116,8 @@ export class VaultDataProvider implements AgentDataProvider {
   reprojectForSensitivity(): void {
     if (this.settings.defaultSensitivity === this.projectedSensitivity) return;
     this.projectedSensitivity = this.settings.defaultSensitivity;
-    this.index = new GkxIndex({ defaultSensitivity: this.settings.defaultSensitivity });
+    this.adapter = createGkosEngineAdapter({ projection: { defaultSensitivity: this.settings.defaultSensitivity } });
+    this.index = this.adapter.createIndex();
     this.markFullDirty();
   }
 
