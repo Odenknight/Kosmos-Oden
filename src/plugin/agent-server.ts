@@ -25,6 +25,7 @@ import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile 
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
 import { ENGINE_VERSION, GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
+import { engineIdentity, retrievalCapabilities } from "../retrieval/version-metadata";
 import type { GkxGraph, GkxNode, GkxSensitivity } from "gkos-engine";
 import {
   DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
@@ -658,6 +659,15 @@ export class KosmosAgentServer {
       // Navigation/profile contract generation, which is versioned separately
       // from the gkos-engine library release.
       gkxProfile: "GKX v2.3 Validating Projection Profile (GKOS-Engine 2.1; no governed writer)",
+      // R3: library, service and contract generation reported separately and
+      // never derived from one another. No Engine service is configured in this
+      // build, so `engine.service.status` is "not_configured" rather than a
+      // guess borrowed from the bundled library version.
+      engine: engineIdentity(ENGINE_VERSION, null),
+      retrieval: retrievalCapabilities({
+        maxSearchResults: MAX_SEARCH_RESULTS,
+        maxNoteCharacters: MAX_NOTE_CONTENT_CHARS,
+      }),
       navigation: getKosmosNavigationManifest(this.settings.navigationEnabled),
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       notes: ns.length,

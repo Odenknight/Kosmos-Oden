@@ -101,12 +101,15 @@ async function buildNodeBundles() {
   // adaptive render-quality policy is DOM-free and unit-testable
   const rendererQuality = await bundle("src/renderer/quality.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-renderer-quality.mjs"), rendererQuality);
+  // separately sourced Engine version metadata (R3) is dependency-free and unit-testable
+  const versionMetadata = await bundle("src/retrieval/version-metadata.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-version-metadata.mjs"), versionMetadata);
   const nextcloudSync = await bundle("src/plugin/nextcloud-sync-test-entry.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-nextcloud-sync.mjs"), nextcloudSync);
   // standalone live Agent-API feed glue is DOM-free and unit-testable
   const apiFeed = await bundle("src/standalone/api-feed.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-api-feed.mjs"), apiFeed);
-  console.log("built dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
+  console.log("built dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-version-metadata.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
 }
 
 const RENDERER_PROVENANCE = JSON.parse(readFileSync(resolve(root, "renderer-provenance.json"), "utf8"));
