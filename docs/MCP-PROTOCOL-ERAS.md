@@ -12,7 +12,7 @@ implementation that does not exist yet.
 | Current published MCP revision | **`2026-07-28`** |
 | Highest revision Kosmos-Oden's server speaks | **`2025-11-25`** |
 | Are they compatible? | **No.** `2026-07-28` is a backwards-incompatible revision |
-| Consequence | A client that speaks only `2026-07-28` **cannot use the Kosmos Agent API at all** |
+| Consequence | A client that speaks *only* `2026-07-28` cannot use the Kosmos Agent API at all. In practice most will not: the Tier 1 SDKs fall back automatically — see [How bad is this in practice](#how-bad-is-this-in-practice-less-than-the-matrix-suggests) |
 
 MCP version identifiers are `YYYY-MM-DD` and change only when a
 backwards-incompatible change lands, so the date moving from `2025-11-25` to
@@ -41,10 +41,14 @@ The specification names them, and the names are worth using precisely because
 | Legacy | Dual-era | Works |
 | Legacy | Legacy | Works |
 
-Kosmos-Oden's Agent API is a **legacy server**. Row 2 is the exposure: as
-harnesses adopt `2026-07-28`, they stop being able to connect. Row 5 is the
-mirror-image exposure for the planned Engine bridge, where Kosmos would be the
-client.
+Kosmos-Oden's Agent API is a **legacy server**, so row 2 is the exposure and
+row 5 is its mirror image for the planned Engine bridge, where Kosmos would be
+the client.
+
+Read those two rows carefully, though: "Modern" here means a client that speaks
+*only* the modern era. A client that can still fall back is "Dual-era", row 4,
+which works — and that is what the Tier 1 SDKs actually ship. The next section
+sizes the real exposure.
 
 Note that the era is a property of the *server*, not of a request. A dual-era
 client is expected to detect the era once and cache it for the lifetime of the
