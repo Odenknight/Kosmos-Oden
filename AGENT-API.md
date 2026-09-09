@@ -1,4 +1,4 @@
-# Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
+# Kosmos-Oden — universal Agent API guide (v0.8.3 candidate)
 
 **Read-only · localhost by default · token-protected · MCP 2026-07-28 (modern era)**
 

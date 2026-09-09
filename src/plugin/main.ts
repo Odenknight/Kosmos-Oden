@@ -23,6 +23,7 @@ import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 import { isKosmosOperationalPath } from "../operational-paths";
+import { readBatches } from "./read-batches";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -165,13 +166,12 @@ class KosmosView extends ItemView {
   async sendFull(): Promise<void> {
     if (!this.frame || !this.frame.contentWindow) return;
     const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
-    const files: { relativePath: string; content: string }[] = [];
     this.hashes.clear();
-    for (const f of md) {
+    const files = await readBatches(md, async (f) => {
       const c = await this.app.vault.cachedRead(f);
-      files.push({ relativePath: f.path, content: c });
       this.hashes.set(f.path, hashContent(c));
-    }
+      return { relativePath: f.path, content: c };
+    });
     this.fileCount = md.length;
     this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault", navigationEnabled: this.navigationEnabled() }));
     this.ready = true;

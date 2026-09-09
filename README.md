@@ -1,4 +1,4 @@
-# Kosmos-Oden — v0.8.2
+# Kosmos-Oden — v0.8.3 candidate
 
 Turn a folder of Markdown notes into a universe you can explore.
 
@@ -10,11 +10,12 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
-> **Version 0.8.2:** uses the TypeScript GKOS-Engine 2.2.0 development candidate
+> **Version 0.8.3 candidate:** adds modern MCP 2026-07-28 and preserves Engine
+> adapter sensitivity policy. Uses the TypeScript GKOS-Engine 2.2.0 development candidate
 > at exact commit `650eab4a6752227cae336d7556a57826c22a0d5a`. This update preserves the
 > existing plugin and standalone workflows, repairs overlapping vault updates,
 > and hardens local service connections. It includes no Rust build.
-> Automatic MOC writes remain unavailable. See [review and testing](docs/REVIEW-0.8.2.md).
+> Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
 
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
@@ -401,10 +402,8 @@ original graphics are CC BY 4.0 where declared. Inherited and third-party
 assets retain their own licenses. [LICENSE](LICENSE) contains the controlling
 licensing structure.
 
-## Next MCP build target
+## MCP qualification scope
 
-The next Agent API and Engine retrieval client target modern MCP only
-(revision `2026-07-28` at this review). Legacy fallback is outside the build
-scope. Descriptions of sessions above document the shipped v0.8.2 baseline;
-this documentation update does not implement the transport upgrade. The exact
-Engine service must be qualified independently of the bundled library version.
+The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
+connect. The separate Engine retrieval client is not upgraded by this candidate;
+its service must be qualified independently of the bundled library version.

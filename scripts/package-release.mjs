@@ -21,7 +21,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = resolve(root, "release");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
-const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs"];
+const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md", "LICENSE", "THIRD-PARTY-NOTICES.md"];
 
 function git(cmd, fallback = "") {
   try { return execSync(`git ${cmd}`, { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }
@@ -36,6 +36,7 @@ rmSync(rel, { recursive: true, force: true });
 mkdirSync(rel, { recursive: true });
 
 for (const f of ARTIFACTS) {
+  mkdirSync(dirname(resolve(rel, f)), { recursive: true });
   try { copyFileSync(resolve(root, f), resolve(rel, f)); }
   catch (e) { console.error(`package-release: missing artifact ${f} — run npm run build first`); process.exit(1); }
 }
