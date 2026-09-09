@@ -185,7 +185,11 @@ POST /mcp     → read body (byte-capped) → JSON.parse → mcpDispatch()
 | `resources/list`, `prompts/list` | `{ resources: [] }` / `{ prompts: [] }` |
 | unknown | JSON-RPC error `-32601` |
 
-**Protocol version negotiation.** Keep an explicit supported list, newest first:
+**Shipped baseline (not the next-build implementation contract).** The current
+server keeps an explicit supported list, newest first.
+Every revision below is from the session-based ("legacy") MCP era; the current
+published revision `2026-07-28` is a different, stateless model and is not in
+this list:
 
 ```ts
 const SUPPORTED = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -196,8 +200,21 @@ negotiate(requested) { return SUPPORTED.includes(requested) ? requested : SUPPOR
 The server issues `Mcp-Session-Id` during initialization. Every subsequent POST
 and DELETE must send that id plus the negotiated `MCP-Protocol-Version`.
 Missing/mismatched protocol headers return 400; unknown/expired sessions return
-404 so clients can reinitialize. This follows the current Streamable HTTP
-lifecycle instead of treating a stateful identity session as stateless.
+404 so clients can reinitialize. This follows the Streamable HTTP lifecycle as
+defined through MCP revision `2025-11-25`, instead of treating a stateful
+identity session as stateless.
+
+**Next-build target: modern MCP only.** MCP `2026-07-28` deliberately makes the transport
+stateless: no `initialize`, no `Mcp-Session-Id`, no GET stream, no
+`Last-Event-ID` resumability. Version and client identity move into each
+request's `_meta` (mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and
+`Mcp-Name` headers, which the server must validate against the body), and
+`server/discover` becomes a mandatory RPC. Implement the modern contract for
+both the Agent API and the Engine retrieval client; legacy fallback is outside
+this build scope. Clients must accept JSON and SSE responses. Qualify the exact
+Engine service against that contract instead of assuming a library version
+proves transport support. The current connector remains legacy-only until the
+implementation and its tests land.
 
 ---
 

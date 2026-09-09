@@ -1,6 +1,6 @@
 # Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
 
-**Read-only · localhost by default · token-protected · MCP 2025-11-25**
+**Read-only · localhost by default · token-protected · MCP 2025-11-25 (legacy era)**
 
 > This is the generic guide. In Obsidian, run **Write Agent API guide** to
 > create a vault-local copy with the actual address, token, and stdio-adapter
@@ -89,12 +89,22 @@ Node.js 18 or newer is required for the adapter.
 
 - URL: `http://127.0.0.1:4816/mcp`
 - Header: `Authorization: Bearer <TOKEN>`
-- Transport: MCP Streamable HTTP
-- Latest supported revision: `2025-11-25`
+- Transport: MCP Streamable HTTP, session-based ("legacy") era
+- Highest revision this server supports: `2025-11-25`
+- Current published MCP revision: `2026-07-28` — **not supported here**
 
 After `initialize`, return both `Mcp-Session-Id` and
 `MCP-Protocol-Version` on later requests. Send one JSON-RPC message per POST;
-batches are not part of the current transport contract.
+batches are not part of this transport contract.
+
+> **Client compatibility.** MCP revision `2026-07-28` removed the `initialize`
+> handshake, protocol-level sessions and the GET stream; a client built only
+> against it will fail against this endpoint, because it never sends the
+> handshake this server requires. Use a client that can still speak
+> `2025-11-25` (the specification calls a client that can do both "dual-era").
+> This describes the shipped baseline only. The next build targets modern MCP
+> only, with no legacy fallback requirement. The transport upgrade is pending;
+> this documentation change does not implement it.
 
 ## Read tools
 
@@ -123,8 +133,9 @@ separate authorized decision exists.
 
 Graphiti pages default to 20 episodes and cap at 100. Follow `nextCursor`.
 Earlier episodes never receive later `superseded_by`, `head`, or `invalid_at`
-state. A valid GKX UUID becomes the Graphiti episode UUID, making re-ingestion
-idempotent; legacy notes receive a deterministic fallback UUID.
+state. A valid GKX UUID becomes the Graphiti episode UUID; notes without one
+receive a deterministic fallback UUID. Stable identifiers do not guarantee
+upstream deduplication. Verify ingestion behavior and searchability upstream.
 
 ## REST and troubleshooting
 
