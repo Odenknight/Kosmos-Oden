@@ -599,6 +599,42 @@ test("onTraversal: paths are CAPPED per tool so broad results never flood the ha
   assert.ok(byTool.graph_at_time.length <= 6, `at-time cap: ${byTool.graph_at_time.length}`);
 });
 
+test("vault_overview separates Engine library, service and contract generation (R3)", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  const overview = await server.qOverview();
+
+  // Library version comes from the bundled package and is authoritative here.
+  assert.match(overview.engine.library.version, /^\d+\.\d+\.\d+/);
+  assert.equal(overview.engine.library.source, "bundled-package");
+
+  // No Engine service is configured in this build. It must say so rather than
+  // borrow the library's number — the defect that had agents reporting a stale
+  // engine version as fact.
+  assert.equal(overview.engine.service.status, "not_configured");
+  assert.equal(overview.engine.service.version, null);
+  assert.equal(overview.engine.service.selfReported, false);
+  const serviceValues = Object.values(overview.engine.service)
+    .flatMap((v) => (Array.isArray(v) ? v : [v]));
+  assert.ok(
+    !serviceValues.includes(overview.engine.library.version),
+    "library version leaked into the service block",
+  );
+
+  // Deployment coordinates stay out of the general overview (R3).
+  assert.ok(!JSON.stringify(overview.engine.service).includes("http"));
+
+  // The contract generation is its own axis and must not be rewritten to match
+  // whichever library happens to be pinned.
+  assert.equal(overview.engine.profile.engineContractGeneration, "GKOS-Engine 2.1");
+
+  // Capabilities are reported honestly: no body search until a bridge exists.
+  assert.deepEqual(overview.retrieval.searchModes, ["metadata"]);
+  assert.equal(overview.retrieval.bodyCoverage, "none");
+  assert.deepEqual(overview.retrieval.timeAxes, ["valid_at"]);
+  assert.equal(overview.retrieval.limits.maxSearchResults, 200);
+  assert.equal(overview.retrieval.limits.maxNoteCharacters, 200000);
+});
+
 test("onTraversal: whole-vault queries (overview/episodes/diagnostics) do NOT report a trail", async () => {
   const server = new KosmosAgentServer(http, settings(), fixtureProvider());
   let fired = false;

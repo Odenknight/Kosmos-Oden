@@ -126,6 +126,47 @@ Earlier episodes never receive later `superseded_by`, `head`, or `invalid_at`
 state. A valid GKX UUID becomes the Graphiti episode UUID, making re-ingestion
 idempotent; legacy notes receive a deterministic fallback UUID.
 
+### Knowing which Engine you are talking to
+
+`vault_overview` reports three Engine coordinates **separately**, because they
+move independently and conflating them has produced real misreports:
+
+```json
+"engine": {
+  "library": { "version": "2.2.0", "source": "bundled-package" },
+  "service": { "status": "not_configured", "version": null, "selfReported": false, ... },
+  "profile": { "gkx": "2.3", "engineContractGeneration": "GKOS-Engine 2.1" }
+}
+```
+
+- **`library`** is the `gkos-engine` package compiled into this plugin. It is
+  authoritative for anything this endpoint computes locally.
+- **`service`** is a remote Engine service. No such service is configured in
+  this build, so `status` is `not_configured` and every field is `null`. It is
+  **never** filled in from the library version. When one is configured,
+  `status` distinguishes `not_connected` from `connected`, and `selfReported`
+  tells you the values came from an actual negotiated response — which is
+  evidence of what the peer said, not proof of which binary is running.
+- **`profile.engineContractGeneration`** names the GKX/Navigation contract
+  generation. It tracks neither of the other two.
+
+`retrieval` reports what this deployment can actually serve, so you can plan
+instead of probing:
+
+```json
+"retrieval": {
+  "searchModes": ["metadata"], "matchModes": ["substring"], "bodyCoverage": "none",
+  "maxPathDepth": 1, "timeAxes": ["valid_at"],
+  "limits": { "maxSearchResults": 200, "maxNoteCharacters": 200000 }
+}
+```
+
+`bodyCoverage: "none"` means note bodies are **not** searched. An empty
+`search_notes` result therefore means "no metadata match", not "the text does
+not appear in the vault" — use `get_note` to read a body. Likewise
+`timeAxes: ["valid_at"]` means `graph_at_time` answers what was *valid* at a
+time, never what was *known* at that time.
+
 ## REST and troubleshooting
 
 Read-only REST mirrors are available at `/overview`, `/diagnostics`, `/graph`,
