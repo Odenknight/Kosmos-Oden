@@ -142,7 +142,8 @@ move independently and conflating them has produced real misreports:
 - **`library`** is the `gkos-engine` package compiled into this plugin. It is
   authoritative for anything this endpoint computes locally.
 - **`service`** is a remote Engine service. No such service is configured in
-  this build, so `status` is `not_configured` and every field is `null`. It is
+  this build, so `status` is `not_configured`, identity fields are `null`,
+  `extensions` is empty and `selfReported` is `false`. It is
   **never** filled in from the library version. When one is configured,
   `status` distinguishes `not_connected` from `connected`, and `selfReported`
   tells you the values came from an actual negotiated response — which is

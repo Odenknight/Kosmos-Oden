@@ -97,9 +97,9 @@ export function engineIdentity(
 ): EngineIdentity {
   let service: EngineServiceReport;
   if (negotiation === null) {
-    service = { status: "not_configured", ...NO_SERVICE };
+    service = { status: "not_configured", ...NO_SERVICE, extensions: [] };
   } else if ("configured" in negotiation) {
-    service = { status: "not_connected", ...NO_SERVICE };
+    service = { status: "not_connected", ...NO_SERVICE, extensions: [] };
   } else {
     service = {
       status: "connected",

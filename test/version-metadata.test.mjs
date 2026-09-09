@@ -3,6 +3,16 @@ import test from "node:test";
 
 import { engineIdentity, retrievalCapabilities } from "../dist/kosmos-version-metadata.mjs";
 
+test("unconfigured and disconnected service reports do not share mutable extensions", () => {
+  const first = engineIdentity("2.2.0");
+  first.service.extensions.push("synthetic-unadvertised-extension");
+  assert.deepEqual(engineIdentity("2.2.0").service.extensions, []);
+  const disconnected = engineIdentity("2.2.0", { configured: true });
+  assert.deepEqual(disconnected.service.extensions, []);
+  disconnected.service.extensions.push("another-synthetic-extension");
+  assert.deepEqual(engineIdentity("2.2.0", { configured: true }).service.extensions, []);
+});
+
 /* The whole point of R3 is that these are separate axes. The defect class this
    guards against is a consumer reading one number and believing it describes
    another component. */
