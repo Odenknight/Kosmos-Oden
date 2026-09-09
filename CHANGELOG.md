@@ -18,6 +18,30 @@ changes, called out under **Compatibility**).
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored the view-dependent pixel-ratio ceiling in the renderer. 0.8.0 removed
+  the `closeDetail`/`viewCeiling` logic, so an idle overview climbed to the
+  product maximum of 2.0 and stayed there whenever the frame rate held above 58.
+  Fragment cost scales with the square of the ratio, so overview was shading
+  about 1.8x the pixels of 0.7.x on desktop and about 2.6x on mobile for surface
+  detail that is not resolvable at that distance. Overview is capped at 1.5 on
+  desktop and 1.25 on mobile again; selecting, hovering, flying the camera or
+  moving in close still earns the full ratio.
+- A pixel ratio pinned by a capture preset is no longer overridden. The same
+  0.8.0 edit deleted the `CAPTURE.dpr` early return, so the pin held at startup
+  and then drifted about 1.2 seconds in, which made capture output
+  irreproducible.
+
+### Changed
+
+- Extracted the adaptive-quality decision into `src/renderer/quality.ts`, free
+  of DOM and Three.js imports, so the policy is unit tested rather than only
+  exercised through a browser run. `adaptQuality` now measures and applies only.
+  Ten cases in `test/renderer-quality.test.mjs` cover the ceilings, the
+  step-down on leaving close detail, single-slow-window tolerance, the capture
+  pin, level-of-detail ordering, and a band invariant.
+
 ### Changed
 
 - Restored **Kosmos-Oden** as the product name across the plugin manifest,

@@ -26,6 +26,7 @@ import { KOSMOS_VERSION } from "../kosmos-version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";
+import { nextQuality } from "./quality";
 import { TrafficHeatmap, type MonotonicClock } from "../standalone/observability";
 
 /** Renderer descriptor exposed for browser tests / diagnostics (§7.4). */
@@ -1865,14 +1866,24 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     fpsAccum += dt; fpsFrames++;
     if (now - lastAdjust < 1.2) return;
     const fps = fpsFrames / fpsAccum; fpsAccum = 0; fpsFrames = 0; lastAdjust = now;
-    const floor = LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0);
-    slowWindows = fps < 42 ? slowWindows + 1 : 0;
-    // Do not permanently blur the first seconds of a mobile session because
-    // shader compilation/layout made one sample slow. Require sustained load.
-    if (slowWindows >= 2 && dpr > floor) { dpr = Math.max(floor, dpr - 0.25); renderer.setPixelRatio(dpr); slowWindows = 0; }
-    else if (fps > 58 && dpr < MAXDPR && lodScale <= 1) { dpr = Math.min(MAXDPR, dpr + 0.25); renderer.setPixelRatio(dpr); }
-    if (fps < 30 && dpr <= floor + 0.001) lodScale = Math.min(2.4, lodScale + 0.3);
-    else if (fps > 58 && lodScale > 1) lodScale = Math.max(1, lodScale - 0.3);
+    // Overview is cheaper than close inspection on purpose: surface detail
+    // is not resolvable while bodies are small on screen. The policy lives in
+    // ./quality so it can be unit tested; this function only measures and
+    // applies. See test/renderer-quality.test.mjs.
+    const decision = nextQuality({
+      fps,
+      dpr,
+      floor: LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0),
+      maxDpr: MAXDPR,
+      closeDetail: !!selectedId || !!hoveredId || !!cam.flight || cam.radius < overviewRadius * 0.62,
+      mobile: MOBILE,
+      slowWindows,
+      lodScale,
+      pinnedDpr: CAPTURE.dpr,
+    });
+    slowWindows = decision.slowWindows;
+    lodScale = decision.lodScale;
+    if (decision.dpr !== dpr) { dpr = decision.dpr; renderer.setPixelRatio(dpr); }
   }
 
   const clock = new THREE.Clock();
