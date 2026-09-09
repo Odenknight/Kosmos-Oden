@@ -185,7 +185,10 @@ POST /mcp     → read body (byte-capped) → JSON.parse → mcpDispatch()
 | `resources/list`, `prompts/list` | `{ resources: [] }` / `{ prompts: [] }` |
 | unknown | JSON-RPC error `-32601` |
 
-**Protocol version negotiation.** Keep an explicit supported list, newest first:
+**Protocol version negotiation.** Keep an explicit supported list, newest first.
+Every revision below is from the session-based ("legacy") MCP era; the current
+published revision `2026-07-28` is a different, stateless model and is not in
+this list:
 
 ```ts
 const SUPPORTED = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -196,8 +199,19 @@ negotiate(requested) { return SUPPORTED.includes(requested) ? requested : SUPPOR
 The server issues `Mcp-Session-Id` during initialization. Every subsequent POST
 and DELETE must send that id plus the negotiated `MCP-Protocol-Version`.
 Missing/mismatched protocol headers return 400; unknown/expired sessions return
-404 so clients can reinitialize. This follows the current Streamable HTTP
-lifecycle instead of treating a stateful identity session as stateless.
+404 so clients can reinitialize. This follows the Streamable HTTP lifecycle as
+defined through MCP revision `2025-11-25`, instead of treating a stateful
+identity session as stateless.
+
+**Forward compatibility.** MCP `2026-07-28` deliberately makes the transport
+stateless: no `initialize`, no `Mcp-Session-Id`, no GET stream, no
+`Last-Event-ID` resumability. Version and client identity move into each
+request's `_meta` (mirrored into the `MCP-Protocol-Version`, `Mcp-Method` and
+`Mcp-Name` headers, which the server must validate against the body), and
+`server/discover` becomes a mandatory RPC. Serving both eras from one endpoint
+is explicitly allowed: a request carrying modern `_meta` is served statelessly,
+while an `initialize` request selects the legacy path. Until that is
+implemented here, this connector is legacy-only.
 
 ---
 

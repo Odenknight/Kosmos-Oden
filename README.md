@@ -241,7 +241,10 @@ lineage, related-note, temporal, diagnostics, assessment, policy, evidence,
 relationship, and paginated Graphiti query surfaces.
 
 The MCP endpoint uses Streamable HTTP with session and protocol-version
-validation. `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
+validation, in the session-based ("legacy") shape defined by MCP revision
+`2025-11-25` and earlier. The current published revision, `2026-07-28`, is not
+backwards compatible and is not yet supported, so a client that speaks only
+that revision cannot connect. `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
 response, rate, concurrency, and episode-page limits bound resource use.
 Sensitivity filtering applies before serialization; invalid explicit labels
 fail closed.
@@ -370,6 +373,8 @@ exact command, commit, platform, failures, and documented skips.
 - [Architecture](docs/ARCHITECTURE.md)—the established module map
 - [Renderer protocol](docs/RENDERER-PROTOCOL.md)—the Obsidian host/viewer
   message contract
+- [MCP protocol eras](docs/MCP-PROTOCOL-ERAS.md)—which MCP revisions the Agent
+  API speaks, and why a `2026-07-28`-only client cannot connect
 - [Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md)—the pinned
   dependency and read-only Navigation boundary
 - [GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)—validating projection behavior

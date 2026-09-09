@@ -1,6 +1,6 @@
 # Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
 
-**Read-only · localhost by default · token-protected · MCP 2025-11-25**
+**Read-only · localhost by default · token-protected · MCP 2025-11-25 (legacy era)**
 
 > This is the generic guide. In Obsidian, run **Write Agent API guide** to
 > create a vault-local copy with the actual address, token, and stdio-adapter
@@ -89,12 +89,20 @@ Node.js 18 or newer is required for the adapter.
 
 - URL: `http://127.0.0.1:4816/mcp`
 - Header: `Authorization: Bearer <TOKEN>`
-- Transport: MCP Streamable HTTP
-- Latest supported revision: `2025-11-25`
+- Transport: MCP Streamable HTTP, session-based ("legacy") era
+- Highest revision this server supports: `2025-11-25`
+- Current published MCP revision: `2026-07-28` — **not supported here**
 
 After `initialize`, return both `Mcp-Session-Id` and
 `MCP-Protocol-Version` on later requests. Send one JSON-RPC message per POST;
-batches are not part of the current transport contract.
+batches are not part of this transport contract.
+
+> **Client compatibility.** MCP revision `2026-07-28` removed the `initialize`
+> handshake, protocol-level sessions and the GET stream; a client built only
+> against it will fail against this endpoint, because it never sends the
+> handshake this server requires. Use a client that can still speak
+> `2025-11-25` (the specification calls a client that can do both "dual-era").
+> Dual-era support on the Kosmos side is not implemented yet.
 
 ## Read tools
 

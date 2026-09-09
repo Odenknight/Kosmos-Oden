@@ -35,8 +35,17 @@ import type {
   NavigationEffectsSettingsMigration,
 } from "../navigation-effects/types";
 
-// Newest first. 2025-11-25 is the current published MCP revision. Older
+// Newest first. These are the "legacy"-era MCP revisions: the ones that open
+// with an `initialize` handshake and carry a server-issued session. Older
 // revisions remain negotiable for clients that still request them explicitly.
+//
+// The current published MCP revision is 2026-07-28, which is NOT in this list
+// and is not backwards compatible: it removes the initialize handshake,
+// protocol-level sessions and the GET stream, and instead carries the version
+// per request in `_meta`/`MCP-Protocol-Version` with a mandatory
+// `server/discover` RPC. A client speaking only 2026-07-28 therefore CANNOT
+// talk to this server. Adding dual-era support is tracked as its own piece of
+// work; do not describe this list as "current" until that lands.
 export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 export const LATEST_MCP_PROTOCOL_VERSION = SUPPORTED_MCP_PROTOCOL_VERSIONS[0];
 
