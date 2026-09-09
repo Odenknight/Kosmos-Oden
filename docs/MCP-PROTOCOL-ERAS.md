@@ -12,6 +12,12 @@ DELETE mechanisms. `SUPPORTED_MCP_PROTOCOL_VERSIONS` is `["2026-07-28"]`, and
 the shipped stdio adapter mirrors body fields into headers rather than holding
 a session.
 
+The compliance follow-up validates required `clientCapabilities`, includes
+`resultType: "complete"` on all successful responses, preserves protocol
+errors through stdio, and includes supported-version guidance even when an
+`initialize` request fails header validation. Optional client identity is not
+required. See `docs/reviews/2026-09-09-mcp-compliance.md` for verification scope.
+
 Verified against the published specification at implementation time, not from
 a summary: the three normative pages are linked below. A bundled Engine 2.2.0
 library still does not establish that a separate Engine service speaks modern

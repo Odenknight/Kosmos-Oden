@@ -92,7 +92,30 @@ test("bundled stdio adapter mirrors modern request metadata into headers", async
   // the adapter silently repaired on its behalf.
   send({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} });
   const unmetaed = await next();
-  assert.match(String(unmetaed.error.data), /MCP-Protocol-Version header is required/);
+  assert.equal(unmetaed.error.code, -32020);
+  assert.match(unmetaed.error.message, /MCP-Protocol-Version header is required/);
+
+  send({ jsonrpc: "2.0", id: 5, method: "initialize", params: {
+    protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "legacy", version: "1" },
+  } });
+  const legacy = await next();
+  assert.equal(legacy.id, 5);
+  assert.equal(legacy.error.code, -32020);
+  assert.match(legacy.error.message, /supported protocol versions: 2026-07-28/);
+
+  send({ jsonrpc: "2.0", id: 6, method: "server/discover", params: { _meta: { ...meta, [MCP_META_PROTOCOL_VERSION]: "1900-01-01" } } });
+  const unsupported = await next();
+  assert.equal(unsupported.error.code, -32022);
+  assert.deepEqual(unsupported.error.data, { supported: [MODERN_MCP_PROTOCOL_VERSION], requested: "1900-01-01" });
+
+  send({ jsonrpc: "2.0", id: 7, method: "subscriptions/listen", params: { _meta: meta } });
+  const unknown = await next();
+  assert.equal(unknown.error.code, -32601);
+
+  send({ jsonrpc: "2.0", id: 8, method: "ping", params: { _meta: meta } });
+  const ping = await next();
+  assert.equal(ping.result.resultType, "complete");
+  assert.equal(ping.result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
 
   child.stdin.end();
   const exitCode = await new Promise((resolve) => child.on("exit", resolve));

@@ -184,18 +184,16 @@ Stable agent identities keep stable, distinct colors across trails, dust,
 rocket markers, and labels. The viewer never draws a line segment between two
 different agents.
 
-For MCP traffic, the Agent API host mints a random visual identifier for each
-session and keeps it separate from the human-readable agent label. The
-renderer receives that opaque visual identifier across live, buffered, and
-replay paths, so two sessions with the same label remain visually distinct and
-a renamed label does not create a new identity. The visual identifier is not
-client supplied, is not returned to the client, and is not the
-a transport credential; no such credential enters renderer state. Modern MCP
-carries no session, so the identity is keyed by the caller's self-reported
-`clientInfo.name` and is stable across that caller's requests. Two callers
-reporting the same name are therefore one identity — a consequence of a
-stateless transport, not a defect. REST traffic uses label-only grouping
-because it reports no client identity at all.
+For MCP traffic with optional `clientInfo.name`, the Agent API host mints a
+random visual identifier keyed by the cleaned caller name. The renderer
+receives this opaque identifier across live, buffered, and replay paths;
+it is neither client supplied nor returned to the client. Repeated names keep
+their identifier while the bounded identity record remains available. Two
+callers whose names clean to the same value share an identifier; a changed
+name may receive a different identifier. This is this implementation's display
+grouping policy, not a protocol guarantee of caller identity. Modern MCP has
+no protocol session or session credential. REST traffic and MCP requests
+without client identity use label-only grouping.
 
 This is display continuity only. A stable color, trail, label, or marker does
 not authenticate an agent and grants no GKOS authority, capability, approval,

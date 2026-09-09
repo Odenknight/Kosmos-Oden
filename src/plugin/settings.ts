@@ -99,7 +99,7 @@ Restart the client after saving. Node.js 18+ is required for the adapter.
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
 Add a remote/HTTP MCP server with URL \`${URLB}/mcp\` and header \`Authorization: Bearer ${token}\`.
 
-The endpoint negotiates MCP \`${LATEST_MCP_PROTOCOL_VERSION}\` and compatible earlier revisions. After initialization, clients must return \`Mcp-Session-Id\` and \`MCP-Protocol-Version\` on subsequent requests.
+The endpoint supports MCP \`${LATEST_MCP_PROTOCOL_VERSION}\` only. There is no initialization handshake or protocol session. Each request must include \`params._meta["io.modelcontextprotocol/protocolVersion"]\` and a \`params._meta["io.modelcontextprotocol/clientCapabilities"]\` object (\`{}\` if no optional capabilities). Client identity in \`io.modelcontextprotocol/clientInfo\` is optional. Mirror the version into \`MCP-Protocol-Version\`, the method into \`Mcp-Method\`, and the tool/prompt name or resource URI into \`Mcp-Name\` for \`tools/call\`, \`prompts/get\`, or \`resources/read\`. Call \`server/discover\` for supported versions and capabilities. Clients using legacy initialization cannot connect; the stdio adapter also requires modern requests.
 
 ### No MCP? Plain HTTP works too
 \`\`\`bash

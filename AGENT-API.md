@@ -92,9 +92,11 @@ Node.js 18 or newer is required for the adapter.
 - Transport: MCP Streamable HTTP, stateless per-request ("modern") era
 - Only revision this server supports: `2026-07-28`
 
-There is no handshake and no session. Every POST carries its own protocol
-version and client identity in `params._meta`, mirrored into headers the
-server validates against the body:
+There is no handshake and no session. Every request carries its protocol
+version and `io.modelcontextprotocol/clientCapabilities` object in
+`params._meta`. Client identity (`io.modelcontextprotocol/clientInfo`, with
+string `name` and `version`) is optional. Selected body fields are mirrored
+into headers the server validates:
 
 | Header | Mirrors | Required for |
 | --- | --- | --- |
@@ -113,6 +115,7 @@ Error responses, all distinct:
 | Condition | HTTP | JSON-RPC |
 | --- | --- | --- |
 | header missing, malformed, or disagreeing with the body | 400 | `-32020` `HeaderMismatch` |
+| required body metadata missing or invalid | 400 | `-32602` Invalid params |
 | protocol version not supported | 400 | `-32022`, `data.supported` lists ours |
 | method not implemented | 404 | `-32601` |
 
@@ -121,8 +124,15 @@ Error responses, all distinct:
 > answers `405` to GET and DELETE. A legacy client built against `2025-11-25`
 > or earlier cannot connect and has no fall-forward mechanism, so the error
 > returned to `initialize` names the versions this server does support.
+> A legacy request without modern headers receives `400`/`-32020`, including
+> that version guidance; `initialize` with valid modern metadata reaches
+> dispatch and receives `404`/`-32601`. No validation is bypassed.
 > `Mcp-Session-Id` and `Last-Event-ID` on a request are ignored rather than
 > rejected.
+
+Successful responses include `resultType: "complete"` and server identity in
+`result._meta`. The stdio adapter preserves upstream JSON-RPC errors, including
+their codes and structured data on HTTP 400/404 responses.
 
 ## Read tools
 
@@ -205,8 +215,9 @@ the `/gkx/` routes listed by the server root. Note selectors accept `uid`,
 `path`, or `title`. Validate/assess routes compute in memory and remain GET-only.
 
 - `401`: token missing or stale.
-- `400` after initialization: session or protocol-version header missing.
-- `404` on MCP: session expired or was terminated; initialize again.
+- `400` on MCP: inspect the JSON-RPC error for malformed metadata, header
+  disagreement, or an unsupported protocol version.
+- `404` on MCP: the RPC method is not implemented; no initialization is needed.
 - `403`: disallowed Host/Origin.
 - `429`: back off; fairness/rate limit reached.
 - No confidential note found: raise the sensitivity ceiling only if policy permits.

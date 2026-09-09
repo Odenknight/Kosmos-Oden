@@ -241,7 +241,7 @@ test("agent api", async (t) => {
     assert.equal(err.data.requested, "2025-11-25");
   });
 
-  await t.test("legacy initialize -> 404 with -32601 naming the supported versions", async () => {
+  await t.test("initialize with modern metadata -> 404 with -32601 naming supported versions", async () => {
     // A legacy client has no fall-forward mechanism, so this error message is
     // the only diagnostic it can surface. The spec asks a modern-only server
     // to name its versions here.
@@ -251,6 +251,63 @@ test("agent api", async (t) => {
     assert.equal(err.code, -32601);
     assert.match(err.message, /2026-07-28/);
     assert.deepEqual(err.data.supported, ["2026-07-28"]);
+  });
+
+  await t.test("real legacy initialize preserves header validation and names supported versions", async () => {
+    const r = await mcp({ jsonrpc: "2.0", id: "legacy", method: "initialize", params: {
+      protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "legacy", version: "1" },
+    } }, { raw: true });
+    assert.equal(r.status, 400);
+    assert.equal(r.json().id, "legacy");
+    assert.equal(r.json().error.code, -32020);
+    assert.match(r.json().error.message, /MCP-Protocol-Version header is required/);
+    assert.match(r.json().error.message, /supported protocol versions: 2026-07-28/);
+    assert.equal(r.headers["mcp-session-id"], undefined);
+  });
+
+  await t.test("every implemented result includes complete and server identity", async () => {
+    for (const method of ["ping", "server/discover", "tools/list", "resources/list", "prompts/list", "tools/call"]) {
+      const r = await mcp({ jsonrpc: "2.0", id: method, method, params: method === "tools/call" ? { name: "get_policy" } : {} });
+      assert.equal(r.status, 200, method);
+      assert.equal(r.json().result.resultType, "complete", method);
+      assert.equal(r.json().result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden", method);
+    }
+  });
+
+  await t.test("required request metadata is validated without demanding optional identity", async () => {
+    const headers = { "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "ping" };
+    for (const capabilities of [undefined, null, [], "invalid"]) {
+      const r = await mcp({ jsonrpc: "2.0", id: "caps", method: "ping", params: { _meta: {
+        [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES]: capabilities,
+      } } }, { raw: true, headers });
+      assert.equal(r.status, 400);
+      assert.equal(r.json().error.code, -32602);
+    }
+    const noVersion = await mcp({ jsonrpc: "2.0", id: "version", method: "ping", params: { _meta: {
+      [MCP_META_CLIENT_CAPABILITIES]: {},
+    } } }, { raw: true, headers });
+    assert.equal(noVersion.status, 400);
+    assert.equal(noVersion.json().error.code, -32602);
+    const anonymous = await mcp({ jsonrpc: "2.0", id: "anonymous", method: "ping", params: { _meta: {
+      [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES]: {},
+    } } }, { raw: true, headers });
+    assert.equal(anonymous.status, 200);
+    assert.equal(anonymous.json().result.resultType, "complete");
+  });
+
+  await t.test("invalid envelopes are rejected before metadata or identity processing", async () => {
+    for (const msg of [null, 5, {}, { jsonrpc: "1.0", id: 1, method: "ping" },
+      ...[null, true, {}, 1.5].map((id) => ({ jsonrpc: "2.0", id, method: "ping" })),
+      { jsonrpc: "2.0", id: 1, result: {} }]) {
+      const r = await mcp(msg, { raw: true });
+      assert.equal(r.status, 400);
+      assert.equal(r.json().error.code, -32600);
+    }
+  });
+
+  await t.test("HTTP discovery truthfully advertises no protocol sessions", async () => {
+    const r = await request(port, { headers: auth });
+    assert.equal(r.json().mcp.sessions, false);
   });
 
   await t.test("a notification (no id) -> 202 accepted silently, no metadata demanded", async () => {
@@ -322,7 +379,7 @@ test("agent api", async (t) => {
       { headers: { "Mcp-Session-Id": "left-over-from-a-legacy-client", "Last-Event-ID": "42" } },
     );
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json().result, {});
+    assert.equal(r.json().result.resultType, "complete");
     assert.equal(r.headers["mcp-session-id"], undefined);
   });
 
@@ -459,6 +516,9 @@ test("agent api", async (t) => {
     const r = await mcp({ jsonrpc: "2.0", id: 21, method: "subscriptions/listen" });
     assert.equal(r.status, 404);
     assert.equal(r.json().error.code, -32601);
+    const inherited = await mcp({ jsonrpc: "2.0", id: 22, method: "constructor" });
+    assert.equal(inherited.status, 404);
+    assert.equal(inherited.json().error.code, -32601);
   });
 });
 
