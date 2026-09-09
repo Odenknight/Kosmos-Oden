@@ -190,9 +190,12 @@ renderer receives that opaque visual identifier across live, buffered, and
 replay paths, so two sessions with the same label remain visually distinct and
 a renamed label does not create a new identity. The visual identifier is not
 client supplied, is not returned to the client, and is not the
-`Mcp-Session-Id`; session credentials never enter renderer state. REST traffic
-continues to use label-only grouping because it has no equivalent session
-identity.
+a transport credential; no such credential enters renderer state. Modern MCP
+carries no session, so the identity is keyed by the caller's self-reported
+`clientInfo.name` and is stable across that caller's requests. Two callers
+reporting the same name are therefore one identity — a consequence of a
+stateless transport, not a defect. REST traffic uses label-only grouping
+because it reports no client identity at all.
 
 This is display continuity only. A stable color, trail, label, or marker does
 not authenticate an agent and grants no GKOS authority, capability, approval,
@@ -240,11 +243,12 @@ same Engine-backed index as the viewer. The API includes graph, search, note,
 lineage, related-note, temporal, diagnostics, assessment, policy, evidence,
 relationship, and paginated Graphiti query surfaces.
 
-The MCP endpoint uses Streamable HTTP with session and protocol-version
-validation, in the session-based ("legacy") shape defined by MCP revision
-`2025-11-25` and earlier. The current published revision, `2026-07-28`, is not
-backwards compatible and is not yet supported, so a client that speaks only
-that revision cannot connect. `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
+The MCP endpoint uses Streamable HTTP in the stateless per-request ("modern")
+shape defined by MCP revision `2026-07-28`: no handshake, no session, no GET
+stream, with the protocol version and client identity carried per request in
+`_meta` and validated against the mirrored HTTP headers. Legacy revisions
+(`2025-11-25` and earlier) are not served, so a client that speaks only those
+cannot connect. `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
 response, rate, concurrency, and episode-page limits bound resource use.
 Sensitivity filtering applies before serialization; invalid explicit labels
 fail closed.

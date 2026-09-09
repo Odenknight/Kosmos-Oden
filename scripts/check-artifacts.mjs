@@ -39,8 +39,14 @@ const stdioAdapter = resolve(root, "kosmos-mcp-stdio.mjs");
 must(existsSync(stdioAdapter), "kosmos-mcp-stdio.mjs is missing");
 if (existsSync(stdioAdapter)) {
   const source = readFileSync(stdioAdapter, "utf8");
-  must(source.includes("MCP-Protocol-Version"), "stdio adapter does not preserve the negotiated MCP protocol header");
-  must(source.includes("Mcp-Session-Id"), "stdio adapter does not preserve the MCP session header");
+  // Modern MCP (2026-07-28): the adapter mirrors body fields into headers and
+  // holds no session. The session assertion these replaced was true only of the
+  // legacy era; the negative check below now guards against reintroducing it.
+  must(source.includes("MCP-Protocol-Version"), "stdio adapter does not mirror the MCP protocol-version header");
+  must(source.includes("Mcp-Method"), "stdio adapter does not mirror the Mcp-Method header");
+  must(source.includes("Mcp-Name"), "stdio adapter does not mirror the Mcp-Name header");
+  must(!source.includes("Mcp-Session-Id"), "stdio adapter reintroduced the removed MCP session header");
+  must(!/method:s*"DELETE"/.test(source), "stdio adapter reintroduced session termination, removed in this revision");
 }
 
 // version agreement between built artifacts and manifest/package

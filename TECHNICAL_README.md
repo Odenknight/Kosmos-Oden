@@ -325,13 +325,16 @@ lineage, related notes, point-in-time graph, Graphiti episodes, validating
 projection, assessments, diagnostics, effective labels, evidence,
 relationships, policy, and a bounded vault assessment.
 
-The Streamable HTTP lifecycle validates supported protocol versions,
-server-issued sessions, initialization order, request envelopes, and DELETE
-termination. This is the session-based lifecycle of MCP revisions `2025-11-25`
-and earlier. MCP `2026-07-28` replaced it with a stateless, per-request model
-and is not supported; see the protocol-era note in `AGENT-API.md`. `kosmos-mcp-stdio.mjs` translates line-oriented stdio for clients
-that cannot send HTTP headers while preserving the upstream session and
-protocol headers.
+The Streamable HTTP lifecycle is stateless, per MCP `2026-07-28`: it validates
+the request envelope, the supported protocol version, and agreement between
+the mirrored request-metadata headers and the body. There is no handshake, no
+server-issued session and no DELETE termination — GET and DELETE answer `405`,
+and `Mcp-Session-Id` and `Last-Event-ID` are ignored. Header/body
+disagreement, an unsupported version and an unimplemented method are distinct
+errors (`-32020`, `-32022`, `-32601`); see `AGENT-API.md`.
+`kosmos-mcp-stdio.mjs` translates line-oriented stdio for clients that cannot
+send HTTP headers, mirroring the body fields into those headers. It
+deliberately does not synthesize `_meta` a client omitted.
 
 Security controls include:
 

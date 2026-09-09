@@ -15,7 +15,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { buildGraph, stripFrontmatter } from "../dist/kosmos-core.mjs";
-import { KosmosAgentServer, LATEST_MCP_PROTOCOL_VERSION } from "../dist/kosmos-agent-server.mjs";
+import {
+  KosmosAgentServer,
+  MODERN_MCP_PROTOCOL_VERSION,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_NAME_SOURCE,
+} from "../dist/kosmos-agent-server.mjs";
 
 const UID = "01a08553-1d97-79a2-aee1-190f94acdad7";
 const FILES = [
@@ -77,42 +84,42 @@ test("tools/call argument validation agrees with the advertised inputSchema", as
   const { server, port } = await startServer();
   t.after(() => server.stop());
 
-  let session = "";
-  let protocol = "";
-  const mcp = async (msg) => {
-    const sessionHeaders = msg?.method === "initialize" || !session
-      ? {}
-      : { "Mcp-Session-Id": session, "MCP-Protocol-Version": protocol };
-    const r = await request(port, {
-      method: "POST",
-      path: "/mcp",
-      headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json", ...sessionHeaders },
-      body: JSON.stringify(msg),
-    });
-    if (r.headers["mcp-session-id"]) session = r.headers["mcp-session-id"];
-    try { if (r.json()?.result?.protocolVersion) protocol = r.json().result.protocolVersion; } catch {}
-    return r;
+  // Modern MCP: no handshake, no session. Every request declares its own
+  // protocol version and client identity in params._meta, and the transport
+  // mirrors selected body fields into headers the server validates against the
+  // body. This helper implements that client behaviour, so the test can never
+  // pass by omitting a header the server requires.
+  let nextId = 1;
+  const mcp = async (method, params = {}, overrides = {}) => {
+    const body = {
+      jsonrpc: "2.0",
+      id: nextId++,
+      method,
+      params: {
+        ...params,
+        _meta: {
+          [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION,
+          [MCP_META_CLIENT_INFO]: { name: "selector-schema-test", version: "1.0.0" },
+          [MCP_META_CLIENT_CAPABILITIES]: {},
+        },
+      },
+    };
+    const headers = {
+      Authorization: `Bearer ${TOKEN}`,
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION,
+      "Mcp-Method": method,
+    };
+    const nameField = MCP_NAME_SOURCE[method];
+    if (nameField && typeof params[nameField] === "string") headers["Mcp-Name"] = params[nameField];
+    return request(port, { method: "POST", path: "/mcp", headers: { ...headers, ...overrides }, body: JSON.stringify(body) });
   };
 
-  await mcp({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: LATEST_MCP_PROTOCOL_VERSION,
-      capabilities: {},
-      clientInfo: { name: "selector-schema-test", version: "1.0.0" },
-    },
-  });
-
-  await mcp({ jsonrpc: "2.0", method: "notifications/initialized" });
-
-  const tools = (await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list" })).json().result.tools;
+  const tools = (await mcp("tools/list")).json().result.tools;
   assert.ok(tools.length > 0, "tools/list returned no tools");
 
-  let id = 100;
-  const call = async (name, args) =>
-    (await mcp({ jsonrpc: "2.0", id: id++, method: "tools/call", params: { name, arguments: args } })).json();
+  const call = async (name, args) => (await mcp("tools/call", { name, arguments: args })).json();
 
   /** Minimum arguments that satisfy a tool's `required` and `anyOf` clauses. */
   const baseArgs = (tool) => {
