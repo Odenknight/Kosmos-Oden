@@ -64,6 +64,28 @@ export const MCP_META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 export const MCP_ERR_HEADER_MISMATCH = -32020;
 export const MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
+/** Cache directives the 2026-07-28 wire REQUIRES on every cacheable result.
+ *  The values are the spec's own defaults, chosen deliberately for a
+ *  sensitivity-filtered read-only vault: `cacheScope: "private"` forbids a
+ *  shared cache (gateway, proxy) serving this response across authorization
+ *  contexts -- never "public" here -- and `ttlMs: 0` marks the response
+ *  immediately stale so a client re-fetches rather than serving a governance
+ *  projection from cache. Both fields are required on the wire; omitting them
+ *  makes a spec-strict client reject the result outright. */
+export const MCP_CACHE_SCOPE_DEFAULT = "private";
+export const MCP_CACHE_TTL_MS_DEFAULT = 0;
+
+/** Methods whose result is a cacheable result on this revision and therefore
+ *  MUST carry `cacheScope` + `ttlMs`. Every other implemented method (`ping`,
+ *  `tools/call`) returns a non-cacheable result that MUST NOT carry them. */
+export const MCP_CACHEABLE_RESULT_METHODS: ReadonlySet<string> = new Set([
+  "server/discover",
+  "tools/list",
+  "resources/list",
+  "resources/templates/list",
+  "prompts/list",
+]);
+
 /** Methods whose `Mcp-Name` header mirrors a body field, and which field it
  *  mirrors. Other methods must not carry `Mcp-Name`. */
 export const MCP_NAME_SOURCE: Record<string, "name" | "uri"> = {
@@ -1285,8 +1307,17 @@ export class KosmosAgentServer {
       return isNotification ? null : error(-32602, "Invalid params: expected an object");
     }
     const { id, method, params = {} } = msg;
+    // The 2026-07-28 wire REQUIRES cacheScope + ttlMs on every cacheable
+    // result (server/discover and the list methods); non-cacheable results
+    // (ping, tools/call) must not claim cache directives. Values are the
+    // spec defaults -- see MCP_CACHE_SCOPE_DEFAULT. A spec-strict client
+    // rejects a cacheable result missing either field.
+    const cacheDirective = MCP_CACHEABLE_RESULT_METHODS.has(method)
+      ? { cacheScope: MCP_CACHE_SCOPE_DEFAULT, ttlMs: MCP_CACHE_TTL_MS_DEFAULT }
+      : {};
     const ok = (result: any) => ({ jsonrpc: "2.0", id, result: {
       ...result,
+      ...cacheDirective,
       resultType: "complete",
       _meta: { ...result._meta, [MCP_META_SERVER_INFO]: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION } },
     } });
