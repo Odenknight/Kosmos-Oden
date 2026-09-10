@@ -484,11 +484,9 @@ export default class KosmosOdenPlugin extends Plugin {
     void probeVaultConnectivity();
     this.registerInterval(window.setInterval(() => void probeVaultConnectivity(), 10_000));
 
-    this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
-      this.provider.markChanged(file.path);
-      if (!this.eventsLive) return;
-      for (const v of views()) v.noteChanged(file.path);
-    }));
+    // The engine projects source bytes, not Obsidian's metadata cache. Cache
+    // refreshes can fire during cachedRead without a source edit; invalidating
+    // here would repeatedly discard a cold build during host indexing.
     this.registerEvent(this.app.vault.on("create", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 150);
@@ -498,6 +496,8 @@ export default class KosmosOdenPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("modify", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 900);
+      if (!this.eventsLive || file.extension !== "md") return;
+      for (const v of views()) v.noteChanged(file.path);
     }));
     this.registerEvent(this.app.vault.on("delete", (file: any) => {
       this.provider.markRemoved(file.path);

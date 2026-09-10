@@ -1,10 +1,12 @@
-# L0 implementation freeze v1
+# L0 implementation freeze v2
 
 Owner instruction: complete release-critical fixes before the test package. Codex implements and integrates the coordinated boundary in the isolated `codex/release-reliability` worktree. This receipt freezes semantics for implementation; test qualification and final Hermes acceptance remain separate gates.
 
 Independent reviewer: existing Luna subagent. Its review required shared physical accounting across provider/viewer/reload, sibling-settlement ownership, duplicate-read refusal, candidate-index publication, monotonic stage checks, old-epoch finalization, guarded raw writes and traversal, and viewer-generation fencing. These requirements are accepted here and must have adversarial evidence before candidate freeze. Reviewer conditions are not a claim of code approval.
 
 Runtime target verified on 2026-09-10: running Kosmos 0.8.3, source `b0c7ee2845f24c53586c5bc6feaa9ae28fbff50b`, main.js SHA-256 `dcb5190389ecd2104ebce368c6e43062310be6e44d4ed019f73fb7f1fe267488`. Loaded server `handle` and provider `rebuild` source strings match that artifact. Direct modern discovery/list returns the expected 18 unprefixed tools. Endpoint and process details remain in local evidence. The supplied connection config is the current probe target; the separate Hermes SDK/patch identity is still required for the final client receipt.
+
+Revision 2 additionally defines source generation: actual vault create/modify/delete/rename events invalidate source projections; metadata-cache refreshes alone do not. This prevents starvation during host indexing while retaining the original 10/20/25-second deadlines.
 
 ## Frozen decisions
 

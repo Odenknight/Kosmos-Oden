@@ -12,9 +12,13 @@ Updated 2026-09-10. Owner direction: complete release-critical fixes before pack
 
 The shared index is rebuilt from cached source records before publication. Incremental disk reads remain incremental, but all retained records may be reparsed on a committed update. Large-vault latency needs the target-runtime check.
 
+## Live cold-build correction
+
+The first frozen candidate, e0709ab, failed its target cold-search gate cleanly at the 20-second deadline. An extended diagnostic reached no indexing at all: repeated metadata-cache notifications invalidated every read pass. A one-second sample observed 115 metadata events with zero vault modifications. The correction invalidates the source-derived graph and viewer from actual vault create/modify/delete/rename events, not metadata-cache refreshes. The superseded test ZIP remains historical evidence and is not the delivered candidate.
+
 ## Evidence and qualification
 
-Baseline reproductions fail before the change for provider failure classification, operational rename revision, disconnect admission, restart accounting, and the MCP oracle. Local verification passes 363 tests and all build/type/version/lock/artifact/invariant/provenance checks. Desktop/mobile Chromium checks pass 28 cases; marker screenshots were inspected after the boot overlay disappeared. This includes viewer close/reopen recovery, listener-error finalization and synchronous indexing-overrun regressions.
+Baseline reproductions fail before the change for provider failure classification, operational rename revision, disconnect admission, restart accounting, and the MCP oracle. Local verification passes 364 tests including the source-event regression and all build/type/version/lock/artifact/invariant/provenance checks. Desktop/mobile Chromium checks pass 28 cases; marker screenshots were inspected after the boot overlay disappeared. This includes viewer close/reopen recovery, listener-error finalization and synchronous indexing-overrun regressions.
 
 R0 identified the existing loaded 0.8.3 artifact against its source and SHA-256 (see LIFECYCLE-FREEZE.md). The owner's endpoint is accessible using its configured credential, retained only locally. Final Hermes client/SDK/patch identity and native-client acceptance are still open. Direct Node HTTP tests are not Hermes evidence. No main-branch merge or release-qualified claim is made by providing this test candidate.
 
