@@ -1,6 +1,6 @@
 # Future Kosmos-Oden and GKOS-Engine tracks
 
-These tracks preserve the useful parts of retrieval rev4 and the governed Notes workspace proposal. Contract research and synthetic fixtures can proceed alongside release repair. Their implementation and promotion gates are separate; none is evidence that the current release blocker has passed.
+These tracks preserve the useful parts of retrieval rev4 and the governed Notes workspace proposal. Contract research and synthetic fixtures can proceed alongside release repair. Product implementation and promotion follow R3 and release sign-off. Until then, Notes/governance and Graphiti work is limited to interface design, research and isolated fixtures; it must not alter the provider or the release candidate. Sequence larger work as native governed retrieval → authoritative temporal history → optional Graphiti qualification/promotion. None is evidence that the current release blocker has passed.
 
 ## Native retrieval first
 
@@ -12,7 +12,7 @@ Separate **N1 contract design**, **N2 synthetic scope/pagination fixtures**, and
 
 The existing local governed-workspace proposal remains the design input: Notes as the intended default workspace, opt-in Kosmos visualization, canonical host editing, safe rendered Markdown, explicit origin separation and shared human/agent query semantics. Agree on the final contract before changing the default UI. Renderer projection must not become a second authority or independently infer approval. Prevent stale asynchronous responses from replacing the active selection.
 
-Claim **W1 host/renderer contract**, **W2 fixture revision**, **W3 host query/transport implementation**, and **W4 Notes UI implementation** separately. W1 and W2 can proceed now. W3/W4 start after the accepted interface and fixture matrix, with separate files and one integration owner. Renderer packages must preserve existing Kosmos behavior and provenance constraints and run applicable browser/visual checks.
+Claim **W1 host/renderer contract**, **W2 fixture revision**, **W3 host query/transport implementation**, and **W4 Notes UI implementation** separately. W1 and W2 can proceed now. W3/W4 start after R3/release sign-off and the accepted interface and fixture matrix, with separate files and one integration owner. Renderer packages must preserve existing Kosmos behavior and provenance constraints and run applicable browser/visual checks.
 
 Use Jeffrey's immutable tag-fixtures-v2 and the existing Codex audits as inputs, not an unqualified acceptance oracle. The v2 bundle explicitly separates currently executable behavior, future behavior and Obsidian cases requiring qualification. A v3 bundle should reconcile contradictory expectations and extend coverage for unlabeled/invalid sensitivity, hidden-count exclusion, origin collisions, missing provenance and proposed versus effective relationships. Do not turn proposals into failing product tests until their contract is approved.
 
@@ -20,7 +20,7 @@ Keep navigation tags distinct from assessment/effective labels. Inline-tag parsi
 
 ## Authoritative temporal history before retrospective claims
 
-Claim **T1 observation/history contract**, **T2 retention and authorization fixtures**, then **T3 persistence implementation**. T1/T2 can run in parallel; T3 waits for their accepted contract and explicit retention controls.
+Claim **T1 observation/history contract**, **T2 retention and authorization fixtures**, then **T3 persistence implementation**. T1/T2 can run in parallel; T3 waits for R3/release sign-off, the native retrieval boundary, their accepted contract and explicit retention controls.
 
 Keep `valid_at` (source validity) distinct from `known_at` (durably retained observation). File modification times, sync timestamps and Graphiti ingestion times cannot recreate missing observation history. Record source versions, authority and projection publication separately. Revocation must affect retrieval immediately, before asynchronous derived-data purge. Define retention, deletion, replay and migration semantics before enabling storage, with no automatic history retention merely because exports exist.
 
@@ -33,7 +33,7 @@ Claim **G2 API/backend compatibility**, **G3 isolation/readiness fixtures**, and
 - Pin Python package, model configuration and backend version. Review routing/migration changes, supported providers and the exact public ingestion APIs. Do not assume public `episode_metadata` support or combined bulk extraction from an internal utility name.
 - Keep explicit `native_only`, `query_only`, `managed` and unavailable states. Prove query-only behavior has no lazy writes using read-only database access and instrumentation. Keep managed candidate/working projections distinct from accepted/governed standing and from origin.
 - Maintain a durable ingestion ledger keyed by corpus, source identity/revision, event, origin and adapter version. Reconcile ambiguous commits and retries. Prove idempotency, deletion, delayed visibility, recovery and authorized read-after-ingest evidence before publishing searchability.
-- Apply authorization before retrieval/ranking over an eligible source set. Post-filtering a privileged global query is insufficient. If the backend cannot enforce the required scope, retain native retrieval. Test revocation, cross-corpus isolation and inference/provenance boundaries.
+- Authorize the eligible corpus first → query/rank only that authorized projection → verify provenance/citations afterward. Enforce the boundary for graph traversal, communities, reranking and inferred relationships as well as returned records. Post-filtering cannot undo unauthorized influence on those operations. If the backend cannot enforce the requested scope, Graphiti must not participate in that request; use GKOS native retrieval within the same authorization. Test revocation, cross-corpus isolation and inference/provenance boundaries.
 - Use immutable source versions or a generation publication boundary so partial updates cannot masquerade as an atomic authorized snapshot. Preserve source watermark separately from derived publication time and retain the extraction outputs needed to explain a published projection.
 - Define quality, latency and cost metrics on a representative authorized synthetic dataset before evaluating the existing proposed 10% quality/25% overhead promotion targets. An undefined denominator cannot yield a promotion pass.
 

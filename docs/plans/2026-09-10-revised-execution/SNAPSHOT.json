@@ -1,8 +1,10 @@
 {
   "reviewed_at_utc": "2026-09-10T18:37:56.681Z",
+  "plan_revision": 2,
+  "revision_basis": "Owner-supplied execution review; final MCP schema rechecked. Mailbox and PR fields retain the prior review snapshot, not a fresh audit.",
   "repository": "https://github.com/Odenknight/Kosmos-Oden",
   "source_baseline": "b0c7ee2845f24c53586c5bc6feaa9ae28fbff50b",
-  "publication_parent": "3146fb53377b3a5f079b77c7b31e705bf2cfe262",
+  "publication_parent": "076789205f3c6d5d83827cc75dd2fa160cf652d8",
   "engine_dependency": "650eab4a6752227cae336d7556a57826c22a0d5a",
   "mailbox_counts": {
     "files": 283,

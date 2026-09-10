@@ -2,19 +2,27 @@
 
 All packages are initially **unclaimed in this revised plan**. Historical seam reservations still require the handoff described in [README](README.md). Any agent with the required access can claim work; suggested experience is not exclusive ownership. Estimates are rough focused effort ranges after access and inputs are available, not commitments or release deadlines.
 
-## R0 — Reconcile runtime and client identity
+## R0 — Lock runtime and client identity
 
-**Priority:** release prerequisite. **Effort:** 30–90 minutes plus host availability. **Parallel:** independent of source fixes. **Access:** existing authorized operator/client access. **Changes:** evidence only, no restart as part of diagnosis.
+**Priority:** release prerequisite. **Effort:** 30–90 minutes plus host availability. **Parallel:** reproductions/instrumentation may proceed; behavioral merges are blocked until this identity lock closes. **Access:** existing authorized operator/client access. **Changes:** evidence only, no restart as part of diagnosis.
 
 Capture the active Kosmos endpoint's server identity, protocol, 18-tool inventory, process/loaded plugin identity, installed source/build/artifact receipts and client SDK/patch identity. Reconcile Claude seq 16's disk receipt with the actual active plugin directory. Map Jeffrey seq 16's `gkos_*` surface to its real service and build using the same evidence fields. Compare the two sessions explicitly; do not assume a proxy or different endpoint without evidence.
 
-Deliver a sanitized identity matrix and per-call results with timestamps, latency and outcome classification. Retain private endpoint/token/config details locally. Prove that the subsequent R3 run uses the intended runtime. If loaded-module proof is unavailable, record that limit and have the operator supply it during controlled candidate activation. Reconcile the Hermes auto-update patch before testing, rather than disabling unrelated automation.
+Deliver a sanitized identity matrix and per-call results with timestamps, latency and outcome classification. Retain private endpoint/token/config details locally. Prove that the subsequent R3 run uses the intended runtime. Record the actual process/lifetime and loaded-module proof. If either is unavailable, R0 remains open and behavioral merges wait for the operator evidence. Candidate activation later creates a linked receipt for the replacement package. Reconcile the Hermes auto-update patch before testing, rather than disabling unrelated automation.
 
-**Done when:** both surfaces are identified or the precise missing identity evidence is assigned; the Kosmos release gate cannot pass while its runtime identity is unresolved.
+**Done when:** the exact Kosmos target is identified with process/lifetime, endpoint, loaded source/build, plugin artifact hashes, client/SDK and patch receipt; the other tool surface is distinguished explicitly. Missing evidence is a blocker, not a completed investigation. Revalidate the lock when any identity component changes.
+
+## L0 — Freeze the shared operation-lifecycle contract
+
+**Priority:** prerequisite to R1/R2 behavioral implementation. **Effort:** 1–3 hours after reproductions identify host constraints. **Paths:** [OPERATION-LIFECYCLE.md](OPERATION-LIFECYCLE.md) and a versioned acceptance receipt. **Owner:** one claiming agent; R1 and R2 implementers both review, with Codex resolving integration conflicts. **Parallel:** drafting may overlap R0/reproductions.
+
+Fill and freeze concrete deadline/budget values, cancellability evidence, request/server epoch and build-generation rules, physical and logical finalization owners, late-result/restart behavior, and typed REST/MCP errors. Use the linked contract as the required semantics; do not invent numeric values without host evidence.
+
+**Acceptance:** a versioned contract receipt names both seam reviewers and every concrete configuration/error decision. R1/R2 then depend on L0, not on each other. R0 remains the separate hard gate before merging behavioral changes.
 
 ## R1 — Bound provider reads and recover graph builds
 
-**Priority:** release blocker. **Effort:** 1–2 focused days including adversarial tests. **Paths:** `src/plugin/vault-provider.ts`, `src/plugin/read-batches.ts`, package-specific new provider tests; coordinate shared consumers in `src/plugin/main.ts`. **Historical reservation:** Codex provider seam. **Depends on:** deadline/error contract agreed with R2. Reproduction and design can start immediately.
+**Priority:** release blocker. **Effort:** 1–2 focused days including adversarial tests. **Paths:** `src/plugin/vault-provider.ts`, `src/plugin/read-batches.ts`, package-specific new provider tests; coordinate shared consumers in `src/plugin/main.ts`. **Historical reservation:** Codex provider seam. **Depends on:** frozen L0 before behavioral implementation and completed R0 before behavioral merge. Reproduction/instrumentation/design can start immediately.
 
 Instrument elapsed stages and counts without logging note content: enumerate, read, parse/index, publish. Reproduce one never-settling read, rejection, delayed resolution and edit/settings changes during build. Define per-read and whole-build deadlines, bounded underlying work, a typed failure result and safe retry policy. Establish an explicit contract for direct note-read failures so unavailable data is not reported as an ordinary missing note.
 
@@ -26,7 +34,7 @@ Fix operational-to-operational `markRenamed` before its revision bump, including
 
 ## R2 — Close HTTP lifecycle and accounting gaps
 
-**Priority:** release blocker. **Effort:** 0.5–1.5 focused days. **Paths:** `src/plugin/agent-server.ts`, new lifecycle test file; coordinate existing server tests with Q1. **Historical reservation:** Claude dispatch seam. **Depends on:** R1 contract for data-path errors; can reproduce and design in parallel.
+**Priority:** release blocker. **Effort:** 0.5–1.5 focused days. **Paths:** `src/plugin/agent-server.ts`, new lifecycle test file; coordinate existing server tests with Q1. **Historical reservation:** Claude dispatch seam. **Depends on:** frozen L0 before behavioral implementation and completed R0 before behavioral merge; can reproduce and instrument in parallel. Integrate with R1 as one reliability boundary.
 
 Define an application deadline, response/error mapping, disconnect handling and one finalization path for global/per-agent admission. Distinguish an idle socket timeout from a whole-operation deadline. Ensure admission is released exactly once on normal completion, exception, disconnect and deadline. Handle late completion without writing to a closed response or decrementing another request's slot. Define restart/stop behavior so a previous server generation cannot corrupt new counters.
 
@@ -38,11 +46,11 @@ Map provider unavailability to a documented structured error/status, with retry 
 
 **Priority:** release gate. **Effort:** 0.5–1 focused day. **Paths:** new independent conformance fixtures/test file; any changes to `agent-server.ts` are handed to its current single writer. **Parallel:** schema lookup and fixtures independent of R1/R2; shared source integration sequential.
 
-Pin the official revision/schema references and record their identities. Derive expected methods, cache fields and error cases from those sources, not the production constants. Correct the cacheable-result membership and modern `ping` behavior. Keep `server/discover` supported. Do not add unsupported resource methods just because their result type is cacheable. Check actual schema extra-property rules before describing over-stamping as a strict validation failure.
+Pin the official revision/schema references and record their identities. Derive expected methods, cache fields and error cases from those sources, not the production constants. Freeze the corrected six-method expectation first: `server/discover`, `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`, `resources/read`. Retain discovery cache fields; the baseline is correct to include discovery. Add the missing `resources/read` expectation and reject a valid modern `ping` with `-32601`. Do not add unsupported resource methods just because their result type is cacheable. Check actual schema extra-property rules before describing over-stamping as a strict validation failure.
 
 Build a matrix covering protocol/version signaling, required metadata, method support, cache directives, transport/envelope errors and independent client validation. Preserve existing validation-first error assertions. Replace `ping` metadata-carrier tests with a suitable implemented method rather than deleting coverage.
 
-**Acceptance:** demonstrate the relevant failure on the baseline, pass the corrected candidate, record full narrow outputs and strict SDK validation, and obtain peer review of normative expectations. Carl's delivered lookup is an input; the complete independent harness is the remaining deliverable.
+**Acceptance:** demonstrate the relevant failure on the baseline, pass the corrected candidate, record full narrow outputs and strict SDK validation, and obtain peer review of normative expectations. Carl's lookup is historical input with a corrected discovery error; pin the final schema and do not reuse that exclusion. The complete independent harness remains to be delivered. Run Q1/Q2 to completion on the integrated reliability candidate before release freeze.
 
 ## Q2 — Correct the narrow lockfile audit evidence
 
@@ -56,11 +64,11 @@ Restore original bytes in `finally`, verify original hashes and the checker pass
 
 ## R3 — Integrated candidate and real Hermes gate
 
-**Priority:** release exit. **Effort:** 1–3 hours after a verified candidate and operator access. **Depends on:** R0, integrated R1/R2/Q1 and Q2 evidence. **Paths:** sanitized release receipt; generated release artifacts only through the established build pipeline. **Roles:** integrator, host operator and independent client tester; one person can perform multiple roles, but record which.
+**Priority:** release exit. **Effort:** 1–3 hours after a verified candidate and operator access. **Depends on:** R0 identity lock, frozen L0, integrated R1/R2, completed Q1/Q2, and a single frozen candidate. **Paths:** sanitized release receipt; generated release artifacts only through the established build pipeline. **Roles:** integrator, host operator and independent client tester; one person can perform multiple roles, but record which.
 
-Run `npm run verify` using the supported runtime and dependency lock; run applicable browser/renderer checks when shared viewer code changes. Build/package once and record source SHA, environment, artifact hashes, candidate install and rollback receipt. Have the operator activate the exact package in the existing plugin location and prove the loaded runtime. No unrelated vault/config changes.
+Run `npm run verify` using the supported runtime and dependency lock; run applicable browser/renderer checks when shared viewer code changes. After adversarial and conformance qualification, build/package one release candidate and record source SHA, lock/dependency identities, environment, artifact hashes, candidate install, client/SDK/patch identity and rollback receipt. Bind synthetic verification to those bytes; qualify the packaged candidate before activating it. Any source/artifact or load-bearing client change creates a new candidate receipt and requires affected checks again. Do not modify code between qualification and Hermes testing under the same receipt. Have the operator activate the exact package in the existing plugin location and prove the loaded runtime. No unrelated vault/config changes.
 
-Run the real Hermes client against that same runtime: discovery/list, search, permitted UID read, restricted read denial and a tool that emits an observed traversal. Capture results individually and ensure denied paths/counts/neighbors are not leaked. Include cold-start, warm-read and normal host-indexing observations. Run injected stall/late-resolution recovery against a safe synthetic host fixture, not by damaging the live vault. Confirm a recovered runtime can still serve both metadata and data paths.
+Run the real Hermes client against that same runtime: discovery/list, search, permitted UID read, restricted read denial and a tool that emits an observed traversal. Capture results individually and ensure denied paths/counts/neighbors are not leaked. Include cold-start, warm-read and normal host-indexing observations. Run injected stall/late-resolution recovery against a safe synthetic host fixture using the same candidate bytes, not by damaging the live vault. Confirm a recovered runtime can still serve both metadata and data paths.
 
 **Acceptance:** every required call executes and passes; no advertised-only capability counted as tested, no cross-service results substituted, no unexplained socket loss. A timeout, missing traversal proof, scope leak or unidentified loaded build keeps the gate open.
 
@@ -74,7 +82,7 @@ Trace `GKOS_P6_AUTHORIZED_VIEW_CONFLICT` in the exact deployed Engine source. Co
 
 ## G1 — Correct generated Graphiti readiness claims
 
-**Priority:** small correctness follow-up, outside the vault-timeout dependency chain. **Effort:** 0.5–1 day. **Paths:** generator/sample and focused tests located by source search; if Engine owns the generator, claim it in that repository and deliver a reviewed dependency update separately. **Parallel:** independent of server/provider edits.
+**Priority:** correctness follow-up after R3; research and isolated test preparation may proceed earlier, with product integration deferred. **Effort:** 0.5–1 day. **Paths:** generator/sample and focused tests located by source search; if Engine owns the generator, claim it in that repository and deliver a reviewed dependency update separately. **Parallel:** independent of server/provider edits.
 
 The source-checked assessment found a generated Python sample that emits searchable/`accepted_is_searchable=True` after awaited ingestion without a verifying query. Change the receipt to report only what is proven. Searchability requires an explicit authorized readback and retained evidence, or remains unverified. Trace generated output and its owning source before editing.
 
