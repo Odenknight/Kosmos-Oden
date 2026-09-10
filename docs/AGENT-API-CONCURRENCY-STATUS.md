@@ -1,4 +1,7 @@
-# Agent API Concurrency Mitigations — status log (v0.5.5)
+# Agent API Concurrency Mitigations — updated for 0.8.3
+
+The historical audit below records the original mitigation work. The current
+modern-MCP admission and fairness policy is specified in Mitigation 4.
 
 Response to `instructions-4-coders/AGENT-API-CONCURRENCY-MITIGATIONS-v0.5.5.md`.
 Records the disposition of all four mitigations, as the doc's Definition of
@@ -10,7 +13,7 @@ not left implicit). Verified against the shipped source, not assumed.
 | 1 | Build the graph index once, not per-request | **Present (confirmed)** | `src/plugin/vault-provider.ts` |
 | 2 | Eliminate synchronous filesystem calls | **Audited — clean** | grep below |
 | 3 | Offload heavy computation to a worker thread | **Scoped OUT** (not needed) | `src/core/temporal.ts` |
-| 4 | Per-token concurrency limits for fairness | **Scoped IN — implemented** | `src/plugin/agent-server.ts` |
+| 4 | Per-client execution limits for fairness | **Scoped IN — implemented** | `src/plugin/agent-server.ts`, multi-client HTTP tests |
 
 ---
 
@@ -75,18 +78,30 @@ throughput bounds, not fairness between agents, and loopback was exempt (the
 local multi-agent case the doc actually cares about: CARSON's bulk
 `export_graphiti_episodes` vs another agent's interactive query).
 
-Added a **per-agent in-flight cap** (`MAX_CONCURRENT_PER_AGENT = 12`) in
-`KosmosAgentServer.handle`, applied to **all** clients (including loopback),
-keyed on the agent identity now derived per request (MCP `clientInfo.name` via
-the `Mcp-Session-Id` minted at `initialize`, else `User-Agent`). A single agent
-holding 12 concurrent requests is throttled with `429 + Retry-After`, leaving
-headroom under the global cap for other agents' interactive queries. Generous
-by design — interactive use never reaches it; only bulk/background floods do.
-Covered by `test/agent-api.test.mjs` ("Mitigation 4: a single agent's
-concurrent requests are capped for fairness").
+Current policy uses two separate bounds:
 
-The same agent-identity signal also drives the per-agent colour + rocket label
-on the live traversal trail.
+- **Admission:** at most 24 in-flight HTTP requests, including body reads,
+  across LAN and loopback. Loopback is exempt only from the LAN sliding-window
+  request-rate limit. This bounds incomplete requests and clients rotating names.
+- **Execution:** at most 12 requests per cleaned MCP `clientInfo.name`, claimed
+  after authentication and envelope/metadata validation. Different named clients
+  sharing a User-Agent have separate buckets. REST, notifications and unnamed
+  MCP clients use the cleaned User-Agent fallback, in a separate namespace.
+
+The modern protocol has no initialization session. `Mcp-Session-Id` is ignored.
+Same cleaned names intentionally share a bucket; cleaning uses the leading
+product token, safe characters and a 40-character bound. These self-reported
+labels provide cooperative fairness, not authenticated principals or authority.
+The global cap remains necessary: multiple names can fill it, and no strict
+scheduling or reserved interactive priority is promised. Saturation returns
+HTTP 429 with Retry-After. Slots are released when dispatch completes or throws.
+
+This repairs the modern-transport regression where all clients of the bundled
+SDK/stdio adapter shared one User-Agent bucket. HTTP tests cover a saturated
+named client, a second name sharing its User-Agent, unnamed fallback, global
+saturation on loopback, slot release and invalid-request admission. The existing
+REST fairness test remains. Trail identity uses the same cleaned name, but its
+visual-record lifetime does not determine execution-slot lifetime.
 
 ---
 

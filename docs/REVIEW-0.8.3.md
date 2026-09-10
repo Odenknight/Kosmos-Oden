@@ -1,6 +1,30 @@
 # 0.8.3 release candidate qualification
 
-Includes PR #49, merged to main as `172443abe4d6bc8b1ee27b017da011b9d3890ff1`, modern MCP 2026-07-28, and bounded concurrent vault reads. Locally installable; **Hermes native MCP compatibility remains blocked.**
+The consolidated candidate includes merged PR #49 and #51, candidate #50's
+bounded vault reads, candidate #52's corrected DELETE guard, and modern-client
+fairness fixes. **Final real-Hermes qualification of this combined build remains
+pending.** Do not interpret the historical qualification below as evidence for
+every later change.
+
+## Consolidated R0 validation on 2026-09-10
+
+- `npm run verify`: 342 tests passed with all verification checks.
+- Browser suite: 23 passed, one mobile viewport-resize operation exceeded the
+  30-second test timeout. That exact test passed independently with one worker
+  (4.8-second run). No renderer source changed; retain the first failure in the
+  evidence instead of reporting an uninterrupted all-green run.
+- Named MCP callers sharing a User-Agent now have independent execution buckets
+  after authentication/metadata validation; all requests, including loopback,
+  remain globally bounded. HTTP tests verify saturation, independent progress,
+  anonymous fallback, name rotation, slot release and invalid requests.
+- Era-signal decision: preserve envelope validation before method dispatch.
+  Missing headers yield HeaderMismatch; missing body metadata yields Invalid
+  params; `initialize` with valid modern metadata reaches Method not found.
+  These are distinct request shapes, not contradictory results. The unused
+  status-map code cleanup remains a coordinated server-lane follow-up.
+- PR #52 was reviewed locally and its four targeted tests pass. GitHub requires
+  an independent approval: the current account cannot approve its own PR.
+  No branch-protection override was used.
 
 ## Validation on 2026-09-09
 
@@ -13,11 +37,17 @@ Includes PR #49, merged to main as `172443abe4d6bc8b1ee27b017da011b9d3890ff1`, m
 
 Credentials, private selectors, note bodies, settings and vault screenshots are excluded from the release.
 
-## Hermes blocker
+## Hermes qualification status
 
-Installed Hermes WebUI v0.21.1 reaches the server but its native connection test fails with missing `params._meta["io.modelcontextprotocol/protocolVersion"]`. Native discovery and note retrieval have not passed. Static headers alone cannot fix missing body metadata or legacy initialization.
+The earlier installed Hermes WebUI test failed with missing modern body
+metadata. Since then the client maintainer reports successful modern negotiation
+and synthetic strict-client tool listing/retrieval with the cache-field fix.
+That report supersedes the earlier diagnosis as a current client-status claim,
+but does not qualify this combined installed candidate.
 
-The client needs modern per-request metadata, matching headers, `server/discover`, and complete-result handling. Keep the server modern-only. Remote client-code access or a verified compatible Hermes build is needed, followed by allowed-note and denied-note tests from Hermes itself. Direct HTTP tests do not qualify Hermes.
+Run discovery, listing, allowed-note and denied-note tests through the actual
+Hermes client against the final artifact, recording exact client/source versions.
+Keep the server modern-only. Direct HTTP tests do not qualify Hermes.
 
 ## Installation and rollback
 

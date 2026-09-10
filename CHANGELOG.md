@@ -8,6 +8,9 @@
 - Preserve configured sensitivity when constructing and rebuilding the Engine adapter.
 - Retain UID selectors, read-only tools, authentication, and fail-closed visibility.
 - Read full vault snapshots in bounded batches to reduce cold-start timeouts.
+- Include cache directives on cacheable MCP results and repair the DELETE guard.
+- Restore separate execution limits for named MCP clients sharing a User-Agent;
+  bound all HTTP admission, including loopback, to 24 concurrent requests.
 - Correct connection guides and ship a locally installable candidate with checksums.
 - Real Obsidian/Hermes qualification is tracked in `docs/REVIEW-0.8.3.md`;
   a candidate build is not a claim that those checks passed.
