@@ -16,6 +16,9 @@ import {
   MCP_META_CLIENT_CAPABILITIES,
   MCP_META_SERVER_INFO,
   MCP_NAME_SOURCE,
+  MCP_CACHE_SCOPE_DEFAULT,
+  MCP_CACHE_TTL_MS_DEFAULT,
+  MCP_CACHEABLE_RESULT_METHODS,
   AGENT_SETTINGS_SCHEMA,
   DEFAULT_AGENT_SETTINGS,
   migrateAgentSettings,
@@ -271,6 +274,39 @@ test("agent api", async (t) => {
       assert.equal(r.status, 200, method);
       assert.equal(r.json().result.resultType, "complete", method);
       assert.equal(r.json().result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden", method);
+    }
+  });
+
+  // 2026-07-28 wire conformance: cacheScope + ttlMs are REQUIRED on every
+  // cacheable result and forbidden on non-cacheable ones. This is a contract
+  // against the published revision, not against this implementation -- a
+  // spec-strict client (e.g. the Python mcp SDK's generated wire models)
+  // rejects a cacheable result missing either field. Guards the class of bug
+  // the self-consistency suite cannot see (claude seq 13, jeffrey seq 10).
+  await t.test("cacheable results carry required cacheScope + ttlMs at spec defaults", async () => {
+    for (const method of ["server/discover", "tools/list", "resources/list", "prompts/list"]) {
+      const r = await mcp({ jsonrpc: "2.0", id: method, method, params: {} });
+      assert.equal(r.status, 200, method);
+      const result = r.json().result;
+      assert.equal(result.cacheScope, MCP_CACHE_SCOPE_DEFAULT, `${method} cacheScope`);
+      assert.equal(result.ttlMs, MCP_CACHE_TTL_MS_DEFAULT, `${method} ttlMs`);
+      assert.deepEqual(MCP_CACHEABLE_RESULT_METHODS.has(method), true, `${method} is cacheable`);
+    }
+  });
+
+  await t.test("cache directives are private/0 -- a sensitivity-filtered vault is never publicly cacheable", () => {
+    assert.equal(MCP_CACHE_SCOPE_DEFAULT, "private");
+    assert.equal(MCP_CACHE_TTL_MS_DEFAULT, 0);
+  });
+
+  await t.test("non-cacheable results do NOT carry cache directives", async () => {
+    for (const [method, params] of [["ping", {}], ["tools/call", { name: "get_policy" }]]) {
+      const r = await mcp({ jsonrpc: "2.0", id: method, method, params });
+      assert.equal(r.status, 200, method);
+      const result = r.json().result;
+      assert.equal(MCP_CACHEABLE_RESULT_METHODS.has(method), false, `${method} is non-cacheable`);
+      assert.equal(result.cacheScope, undefined, `${method} must not claim cacheScope`);
+      assert.equal(result.ttlMs, undefined, `${method} must not claim ttlMs`);
     }
   });
 
