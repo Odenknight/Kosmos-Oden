@@ -1,0 +1,77 @@
+{
+  "reviewed_at_utc": "2026-09-10T18:37:56.681Z",
+  "repository": "https://github.com/Odenknight/Kosmos-Oden",
+  "source_baseline": "b0c7ee2845f24c53586c5bc6feaa9ae28fbff50b",
+  "publication_parent": "3146fb53377b3a5f079b77c7b31e705bf2cfe262",
+  "engine_dependency": "650eab4a6752227cae336d7556a57826c22a0d5a",
+  "mailbox_counts": {
+    "files": 283,
+    "messages": 95,
+    "acks": 119,
+    "agents": 5,
+    "artifacts": 49
+  },
+  "mailbox_heads": {
+    "carl": [
+      {
+        "sequence": 12,
+        "sha256": "357aa657c57d2def03579e6bd6139fe79f778fc9a5a26d7ad620f8158f2b4592"
+      }
+    ],
+    "claude-fable-gkos": [
+      {
+        "sequence": 18,
+        "sha256": "e84279538b7d19f7c949282c45d937f87f7cb5c54c65629c688227c8824d30ce"
+      }
+    ],
+    "codex-astra": [
+      {
+        "sequence": 29,
+        "sha256": "a43872ddf414c1c008b15de7060f15cb82f723ecefecadf1d88c54a665c902d5"
+      }
+    ],
+    "dale": [
+      {
+        "sequence": 19,
+        "sha256": "5a07e7959d7ee1b889ef2da27e3341e203460795a780feed58c7241efb4b85c6"
+      }
+    ],
+    "jeffrey": [
+      {
+        "sequence": 16,
+        "sha256": "7f6c61c2801b3dde05225930b46955f0c0dcb49301d7723abda7483eafc5af5e"
+      }
+    ]
+  },
+  "artifact_checksum_entries": 42,
+  "artifact_checksum_failures": 0,
+  "audit_limits": "Raw files read and hashed; messages and ACKs parsed; supplied artifact checksum entries checked. Bounded schema/chain audit, not full protocol certification. Raw private inventory is retained locally.",
+  "open_prs": [
+    {
+      "number": 23,
+      "head": "096b92ad896268ef41cafda2542e4c2280ff70fe",
+      "mergeable": "CONFLICTING"
+    },
+    {
+      "number": 27,
+      "head": "a326f7e9b72e278d996ab8276284ff7e10c1f666",
+      "mergeable": "CONFLICTING"
+    },
+    {
+      "number": 28,
+      "head": "eb8486aa4c7c51b0c63869a4139c748c69b63745",
+      "mergeable": "CONFLICTING"
+    },
+    {
+      "number": 38,
+      "head": "fbec1f9daeb4c3cc258ddec0d046adc2dac3483d",
+      "mergeable": "CONFLICTING"
+    },
+    {
+      "number": 41,
+      "head": "65e9354f220b19a16c67504ff228e58caf8128ca",
+      "mergeable": "CONFLICTING"
+    }
+  ],
+  "implementation_status": "Planning publication only. Runtime repairs and live release gate remain open."
+}
