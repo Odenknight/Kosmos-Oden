@@ -256,7 +256,7 @@ export const MAX_EPISODES = 50_000;
 export const DEFAULT_EPISODE_PAGE = 20;
 export const MAX_EPISODE_PAGE = 100;
 
-/** Rate + concurrency limits per client (Doc2 §5.4). Enforced in LAN mode; loopback is exempt. */
+/** LAN request-rate limit; the global concurrency bound includes loopback. */
 export const RATE_WINDOW_MS = 10_000;
 export const RATE_MAX_REQUESTS = 240;      // ~24 req/s sustained per client
 export const MAX_CONCURRENT_REQUESTS = 24;
@@ -425,9 +425,8 @@ export class KosmosAgentServer {
    *  session, so an MCP caller is identified from `_meta` clientInfo.name by
    *  mcpIdentity(); this remains the fallback for the REST surface and for a
    *  request whose metadata carried no usable name. `Mcp-Session-Id` is
-   *  deliberately not consulted: this revision removed protocol sessions, and
-   *  trusting a client-supplied session header for identity would let a caller
-   *  choose another caller's fairness key. */
+   *  deliberately not consulted: this revision removed protocol sessions.
+   *  Both names and User-Agent labels are self-reported, never authority. */
   agentLabel(req: any): string {
     return this.cleanAgentName(req?.headers?.["user-agent"]);
   }
@@ -611,12 +610,12 @@ export class KosmosAgentServer {
     return diff === 0;
   }
 
-  /** Sliding-window rate limit + concurrency cap, applied to non-loopback clients. */
+  /** Global admission bound, then a LAN-only sliding-window rate limit. */
   private rateLimited(req: any): { limited: boolean; reason?: string } {
+    if (this.inFlight >= MAX_CONCURRENT_REQUESTS) return { limited: true, reason: "too many concurrent requests" };
     const remote = String(req.socket?.remoteAddress || "");
     const isLoopback = remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1" || remote === "";
     if (isLoopback) return { limited: false }; // local agents are trusted for throughput
-    if (this.inFlight >= MAX_CONCURRENT_REQUESTS) return { limited: true, reason: "too many concurrent requests" };
     const now = performance.now();
     // Bounded housekeeping: periodically drop client keys whose timestamps are all stale so the
     // map can't grow one permanent entry per distinct LAN client IP over a long-running server.
@@ -1393,26 +1392,33 @@ export class KosmosAgentServer {
       res.end(JSON.stringify({ error: "too many requests", hint: rl.reason }));
       return;
     }
-    // Mitigation 4: per-agent in-flight fairness cap (applies to all clients).
-    const akey = this.agentLabel(req);
-    const cur = this.perAgentInFlight.get(akey) || 0;
-    if (cur >= MAX_CONCURRENT_PER_AGENT) {
-      res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "1" });
-      res.end(JSON.stringify({ error: "too many requests", hint: `agent '${akey}' has too many concurrent requests (max ${MAX_CONCURRENT_PER_AGENT}); background work is throttled so other agents stay responsive` }));
-      return;
-    }
-    this.perAgentInFlight.set(akey, cur + 1);
+    // Bound body reads globally before parsing. MCP execution gets its own
+    // client bucket only after authentication and metadata validation.
+    let akey: string | undefined;
+    const claimAgent = (key: string): boolean => {
+      const cur = this.perAgentInFlight.get(key) || 0;
+      if (cur >= MAX_CONCURRENT_PER_AGENT) {
+        res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "1" });
+        res.end(JSON.stringify({ error: "too many requests", hint: `client has too many concurrent requests (max ${MAX_CONCURRENT_PER_AGENT}); background work is throttled so other clients stay responsive` }));
+        return false;
+      }
+      akey = key;
+      this.perAgentInFlight.set(key, cur + 1);
+      return true;
+    };
     this.inFlight++;
     try {
-      await this.dispatch(req, res);
+      await this.dispatch(req, res, claimAgent);
     } finally {
       this.inFlight = Math.max(0, this.inFlight - 1);
-      const c = (this.perAgentInFlight.get(akey) || 1) - 1;
-      if (c <= 0) this.perAgentInFlight.delete(akey); else this.perAgentInFlight.set(akey, c);
+      if (akey !== undefined) {
+        const c = (this.perAgentInFlight.get(akey) || 1) - 1;
+        if (c <= 0) this.perAgentInFlight.delete(akey); else this.perAgentInFlight.set(akey, c);
+      }
     }
   }
 
-  private async dispatch(req: any, res: any): Promise<void> {
+  private async dispatch(req: any, res: any, claimAgent: (key: string) => boolean): Promise<void> {
     // Host validation first (DNS-rebinding defence).
     if (!this.hostAllowed(req.headers["host"])) {
       this.json(res, 403, { error: "forbidden host", hint: "the Host header does not match an allowed address for this bind mode" });
@@ -1488,6 +1494,9 @@ export class KosmosAgentServer {
       // rejected, as the spec directs: no session is minted or echoed, and
       // streams are not resumable.
       const { agent, agentId } = isNotification ? { agent: this.agentLabel(req), agentId: undefined } : this.mcpIdentity(parsed, req);
+      // Named modern clients sharing a User-Agent must not share one bucket.
+      // Names remain self-reported; rotation cannot evade global admission.
+      if (!claimAgent(`${agentId ? "mcp" : "ua"}:${agent}`)) return;
       const out = await this.mcpDispatch(parsed, { agent, agentId });
       if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
@@ -1498,6 +1507,7 @@ export class KosmosAgentServer {
       return;
     }
 
+    if (!claimAgent(`ua:${this.agentLabel(req)}`)) return;
     if (req.method !== "GET") { this.json(res, 405, { error: "GET only (read-only API)" }); return; }
     const q = (k: string) => u.searchParams.get(k) || undefined;
     switch (path) {

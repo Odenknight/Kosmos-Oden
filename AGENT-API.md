@@ -1,4 +1,4 @@
-# Kosmos-Oden — universal Agent API guide (v0.6.5-alpha.8)
+# Kosmos-Oden — universal Agent API guide (v0.8.3 candidate)
 
 **Read-only · localhost by default · token-protected · MCP 2026-07-28 (modern era)**
 
@@ -220,6 +220,14 @@ the `/gkx/` routes listed by the server root. Note selectors accept `uid`,
 - `404` on MCP: the RPC method is not implemented; no initialization is needed.
 - `403`: disallowed Host/Origin.
 - `429`: back off; fairness/rate limit reached.
+
+Concurrency is bounded at 24 in-flight HTTP requests, including loopback and
+requests whose bodies are still arriving. After validation, named modern MCP
+clients have separate 12-request execution buckets even when they share a
+User-Agent. Names are cleaned self-reported labels, not authenticated identities;
+identical cleaned names share a bucket. REST and unnamed clients fall back to
+User-Agent. Only the LAN request-rate limit exempts loopback. See
+`docs/AGENT-API-CONCURRENCY-STATUS.md` for the exact policy and its limits.
 - No confidential note found: raise the sensitivity ceiling only if policy permits.
 
 Request bodies are byte-capped at 4 MiB, note/episode content is capped, every

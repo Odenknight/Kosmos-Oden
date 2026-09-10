@@ -14,6 +14,7 @@ import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
 import { isKosmosOperationalPath } from "../operational-paths";
+import { readBatches } from "./read-batches";
 
 declare const require: any;
 
@@ -156,8 +157,7 @@ export class VaultDataProvider implements AgentDataProvider {
     const folders = folderListFrom(md);
     const attachments = attachmentListFrom(this.app.vault.getFiles());
     if (this.fullDirty || !this.index.graph) {
-      const files: SourceFile[] = [];
-      for (const f of md) files.push(await this.toSourceFile(f));
+      const files = await readBatches(md, (f) => this.toSourceFile(f));
       const update = this.index.setFiles(files, folders, attachments);
       // cachedRead yields: edits, deletes or settings changes during the scan
       // must force a fresh snapshot instead of disappearing with this batch.

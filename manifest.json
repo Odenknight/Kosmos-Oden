@@ -1,7 +1,7 @@
 {
   "id": "kosmos-oden",
   "name": "Kosmos-Oden",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "minAppVersion": "1.11.4",
   "description": "Kosmos-Oden: a 3D knowledge view with GKOS-Engine 2.2, opt-in source-content-read-only Navigation, read-only MCP, Graphiti, and Nextcloud WebDAV sync.",
   "author": "OdenKnight",

@@ -46,7 +46,7 @@ if (existsSync(stdioAdapter)) {
   must(source.includes("Mcp-Method"), "stdio adapter does not mirror the Mcp-Method header");
   must(source.includes("Mcp-Name"), "stdio adapter does not mirror the Mcp-Name header");
   must(!source.includes("Mcp-Session-Id"), "stdio adapter reintroduced the removed MCP session header");
-  must(!/method:s*"DELETE"/.test(source), "stdio adapter reintroduced session termination, removed in this revision");
+  must(!/method:\s*"DELETE"/.test(source), "stdio adapter reintroduced session termination, removed in this revision");
 }
 
 // version agreement between built artifacts and manifest/package

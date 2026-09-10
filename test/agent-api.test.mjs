@@ -8,6 +8,7 @@ import {
   LATEST_MCP_PROTOCOL_VERSION,
   MAX_BODY_BYTES,
   MAX_CONCURRENT_PER_AGENT,
+  MAX_CONCURRENT_REQUESTS,
   MAX_NOTE_CONTENT_CHARS,
   SUPPORTED_MCP_PROTOCOL_VERSIONS,
   MODERN_MCP_PROTOCOL_VERSION,
@@ -579,6 +580,59 @@ test("Mitigation 4: a single agent's concurrent requests are capped for fairness
   assert.match(throttled[0].json().hint, /concurrent/);
   assert.equal(results.filter((r) => r.status === 200).length, N);
   server.stop();
+});
+
+test("modern clients sharing User-Agent have independent bounded execution slots", { timeout: 10000 }, async (t) => {
+  let release, reached;
+  const gate = new Promise(r => { release = r; });
+  let arrivals = 0;
+  let target = MAX_CONCURRENT_PER_AGENT;
+  let ready = new Promise(r => { reached = r; });
+  const provider = { ...fixtureProvider(), getGraph: async () => {
+    if (++arrivals === target) reached();
+    await gate;
+    return buildProductGraph(FILES, ["Ideas"]);
+  } };
+  const server = new KosmosAgentServer(http, settings(), provider);
+  await new Promise(r => { server.start(); server.server.on("listening", r); });
+  const port = server.server.address().port;
+  t.after(() => { release(); server.stop(); });
+  let id = 0;
+  const call = (client, method = "tools/call") => request(port, {
+    method: "POST", path: "/mcp", headers: { ...auth, "User-Agent": "shared-sdk/1", "Content-Type": "application/json",
+      "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": method, ...(method === "tools/call" ? { "Mcp-Name": "vault_overview" } : {}) },
+    body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, params: {
+      ...(method === "tools/call" ? { name: "vault_overview", arguments: {} } : {}),
+      _meta: { [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES]: {},
+        ...(client ? { [MCP_META_CLIENT_INFO]: { name: client, version: "1" } } : {}) },
+    } }),
+  });
+  const bulk = Array.from({ length: MAX_CONCURRENT_PER_AGENT }, () => call("bulk"));
+  await ready;
+  assert.equal((await call("bulk", "ping")).status, 429, "same client is throttled");
+  assert.equal((await call("interactive", "ping")).status, 200, "another name sharing the SDK remains responsive");
+  assert.equal((await call(undefined, "ping")).status, 200, "anonymous fallback is a separate bucket");
+  target = MAX_CONCURRENT_REQUESTS;
+  ready = new Promise(r => { reached = r; });
+  const other = Array.from({ length: MAX_CONCURRENT_REQUESTS - MAX_CONCURRENT_PER_AGENT }, () => call("second"));
+  await ready;
+  assert.equal((await call("rotated-name", "ping")).status, 429, "name rotation cannot exceed global cap, even on loopback");
+  release();
+  assert.ok((await Promise.all([...bulk, ...other])).every(r => r.status === 200));
+  assert.equal(server.inFlight, 0);
+  assert.equal(server.perAgentInFlight.size, 0);
+  assert.equal((await call("bulk", "ping")).status, 200, "slots released after completion");
+});
+
+test("invalid modern metadata and authentication do not claim execution slots", async () => {
+  const { server, port } = await startServer();
+  try {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
+    assert.equal((await request(port, { method: "POST", path: "/mcp", headers: auth, body })).status, 400);
+    assert.equal((await request(port, { method: "POST", path: "/mcp", body })).status, 401);
+    assert.equal(server.inFlight, 0);
+    assert.equal(server.perAgentInFlight.size, 0);
+  } finally { server.stop(); }
 });
 
 test("rate-limit map does not leak: stale client keys are swept, fresh ones kept", () => {
