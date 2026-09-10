@@ -2,6 +2,9 @@
 
 ## 0.8.3 candidate — 2026-09-09
 
+Consolidated in PR #53 on 2026-09-10; #50/#52 closed as superseded.
+Actual Hermes qualification remains pending; this is not a stable-release claim.
+
 - Implement MCP 2026-07-28: stateless requests, discovery, mirrored headers,
   complete results, and protocol errors preserved through the stdio bridge.
 - Breaking compatibility: legacy initialize/session clients are no longer served.
