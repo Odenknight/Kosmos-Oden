@@ -1,6 +1,6 @@
 # Revised Kosmos-Oden and GKOS execution plan
 
-Revision 3: 2026-09-10. Release-critical implementation and agent identity markers are on `codex/release-reliability`. See [implementation status and remaining gates](IMPLEMENTATION-STATUS.md). A test candidate is being prepared; final Hermes qualification remains open.
+Revision 3: 2026-09-10. Release-critical implementation and agent identity markers are on `codex/release-reliability`. See [implementation status and remaining gates](IMPLEMENTATION-STATUS.md). The corrected test candidate is built, installed and checked: [package and qualification](TEST-PACKAGE.md). Final native Hermes qualification remains open.
 
 The immediate goal is to restore bounded, recoverable Kosmos vault reads and prove them through the real Hermes client. Successful discovery and a healthy HTTP endpoint do not qualify the data path. Later results from a different, `gkos_*` tool surface do not close that blocker until the actual server, client and loaded build are reconciled.
 

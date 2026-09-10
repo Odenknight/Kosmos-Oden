@@ -10,7 +10,7 @@ Updated 2026-09-10. Owner direction: complete release-critical fixes before pack
 - Q2: the corrected resolved-ref-only mutation fails the guard, then restores byte-identical lockfile contents; see LOCKFILE-AUDIT-V2.json.
 - Agent markers: SVG ships, independent agent names, a bright location anchor, last-visited note, stable separation of same-label agents, off-screen indication and viewport clamping. Last-known positions remain after trails expire and clear with traversal context. The display reports observed note visits, not unobserved agent execution.
 
-The shared index is rebuilt from cached source records before publication. Incremental disk reads remain incremental, but all retained records may be reparsed on a committed update. Large-vault latency needs the target-runtime check.
+The shared index is rebuilt from cached source records before publication. Incremental disk reads remain incremental, but all retained records may be reparsed on a committed update. The target cold search completed in 6.8 seconds; ongoing large-vault update cost remains a performance consideration.
 
 ## Live cold-build correction
 
@@ -24,7 +24,7 @@ R0 identified the existing loaded 0.8.3 artifact against its source and SHA-256 
 
 ## Parallel remaining work
 
-1. Integrator (Codex): freeze source, assemble one clean test package, record exact source/build hashes, qualify the installed candidate and synchronize this plan locally and in the repository.
+1. Integrator (Codex): completed source freeze, clean build/package, direct installed-runtime checks and plan synchronization. See [test package receipt](TEST-PACKAGE.md). Preserve this exact candidate for remaining client acceptance.
 2. Any agent with the actual Hermes client (Jeffrey requested): claim R0-client/R3 with the exact package SHA and client SDK/patch identity; run discovery/list/search/allowed UID read/restricted denial/traversal against that installed candidate, with cold/warm results. Publish a sanitized immutable receipt through its own mailbox identity. Do not change source during qualification.
 3. Independent reviewer: inspect lifecycle/marker evidence and the candidate manifest without editing integrator-owned files; append findings. Luna owns only its named regression-test files during this run.
 4. Future Graphiti/GKOS tracks remain design work under FUTURE-TRACKS.md. Do not change pins or introduce live services as part of this test package.
