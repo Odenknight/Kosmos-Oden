@@ -2,9 +2,9 @@
 
 ## Scope and status vocabulary
 
-Kosmos-Oden 0.8.2 consumes the TypeScript Engine 2.2.0 development candidate
+Kosmos-Oden 0.8.3 candidate consumes the TypeScript Engine 2.2.0 development candidate
 at exact commit `650eab4a6752227cae336d7556a57826c22a0d5a`. Navigation Effects remain
-experimental and default-disabled. See [review evidence](docs/REVIEW-0.8.2.md).
+experimental and default-disabled. See [candidate evidence](docs/REVIEW-0.8.3.md).
 
 Use these states independently:
 
@@ -68,7 +68,7 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.8.2**; minimum Obsidian: **1.11.4**.
+Product version: **0.8.3 candidate**; minimum Obsidian: **1.11.4**.
 
 Engine is pinned in package.json and package-lock.json to
 `github:Odenknight/GKOS-Engine#650eab4a6752227cae336d7556a57826c22a0d5a` (2.2.0 candidate).
@@ -572,10 +572,8 @@ materials remain under their original licenses and notices. See
 [LICENSE](LICENSE), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and
 [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md).
 
-## Next MCP build target
+## MCP qualification scope
 
-The next Agent API and Engine retrieval client target modern MCP only
-(revision `2026-07-28` at this review). Legacy fallback is outside the build
-scope. Descriptions of sessions above document the shipped v0.8.2 baseline;
-this documentation update does not implement the transport upgrade. The exact
-Engine service must be qualified independently of the bundled library version.
+The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
+connect. The separate Engine retrieval client is not upgraded by this candidate;
+its service must be qualified independently of the bundled library version.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.3 candidate — 2026-09-09
+
+- Implement MCP 2026-07-28: stateless requests, discovery, mirrored headers,
+  complete results, and protocol errors preserved through the stdio bridge.
+- Breaking compatibility: legacy initialize/session clients are no longer served.
+- Preserve configured sensitivity when constructing and rebuilding the Engine adapter.
+- Retain UID selectors, read-only tools, authentication, and fail-closed visibility.
+- Read full vault snapshots in bounded batches to reduce cold-start timeouts.
+- Correct connection guides and ship a locally installable candidate with checksums.
+- Real Obsidian/Hermes qualification is tracked in `docs/REVIEW-0.8.3.md`;
+  a candidate build is not a claim that those checks passed.
+
 ## 0.8.2 — 2026-09-08
 
 - Adopt exact TypeScript Engine 2.2.0 candidate commit `650eab4a6752227cae336d7556a57826c22a0d5a`.
