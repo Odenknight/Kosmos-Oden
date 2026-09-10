@@ -1,6 +1,6 @@
 # Revised Kosmos-Oden and GKOS execution plan
 
-Revision 2: 2026-09-10, incorporating the owner-supplied execution review. Status: planning updated; runtime identity and lifecycle gates must close before behavioral fixes merge. Release qualification remains blocked.
+Revision 3: 2026-09-10. Release-critical implementation and agent identity markers are on `codex/release-reliability`. See [implementation status and remaining gates](IMPLEMENTATION-STATUS.md). A test candidate is being prepared; final Hermes qualification remains open.
 
 The immediate goal is to restore bounded, recoverable Kosmos vault reads and prove them through the real Hermes client. Successful discovery and a healthy HTTP endpoint do not qualify the data path. Later results from a different, `gkos_*` tool surface do not close that blocker until the actual server, client and loaded build are reconciled.
 
@@ -54,4 +54,4 @@ Manual mailbox checks occur before claiming, before integration and before deliv
 - R3 completes discovery, list, search, allowed UID read, restricted denial and observed traversal on the same identified Kosmos runtime, including a cold build and recovery after an injected stall in a safe test environment.
 - Synthetic and Hermes results bind to one frozen candidate and client identity; mutations require a new receipt and affected checks again. Release/build provenance and rollback receipts are recorded. No blanket merge or closure of older PRs is part of release sign-off.
 
-This publication changes plans only. It does not restart services, repair live vault identities, deploy Graphiti, change dependency pins, or claim implementation checks have passed.
+The original decision record below remains historical. Implementation status is maintained in IMPLEMENTATION-STATUS.md; dependency pins and deferred Graphiti work remain unchanged.

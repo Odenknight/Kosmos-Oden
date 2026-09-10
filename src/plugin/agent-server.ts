@@ -21,6 +21,7 @@
  *  - Read-only: REST is GET-only; MCP exposes query tools only. No write
  *    endpoints exist (§18).
  */
+import { ProviderError } from "./vault-operations";
 import { projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
@@ -82,6 +83,7 @@ export const MCP_CACHEABLE_RESULT_METHODS: ReadonlySet<string> = new Set([
   "server/discover",
   "tools/list",
   "resources/list",
+  "resources/read",
   "resources/templates/list",
   "prompts/list",
 ]);
@@ -342,6 +344,8 @@ export class KosmosAgentServer {
   server: any = null;
   status = "stopped";
   private inFlight = 0;
+  private epoch = 0;
+  private activeRequests = new Set<(reason?: "timeout" | "provider_unavailable") => void>();
   private hits = new Map<string, number[]>(); // client -> recent request timestamps
   private lastSweep = -Infinity; // last time stale client keys were swept from `hits`
   private perAgentInFlight = new Map<string, number>(); // agent identity -> in-flight count (Mitigation 4)
@@ -543,7 +547,7 @@ export class KosmosAgentServer {
     return null;
   }
 
-  constructor(http: any, settings: AgentSettings, provider: AgentDataProvider) {
+  constructor(http: any, settings: AgentSettings, provider: AgentDataProvider, private operationTimeoutMs = 25_000) {
     this.http = http;
     this.settings = settings;
     this.provider = provider;
@@ -581,15 +585,18 @@ export class KosmosAgentServer {
     // Per-connection socket timeout backstops slow-loris style stalls (Doc2 §5.4).
     if (typeof srv.setTimeout === "function") srv.setTimeout(REQUEST_TIMEOUT_MS);
     srv.on("error", (e: any) => {
+      if (this.server !== srv) return;
+      this.stop();
       this.status = "error: " + (e?.code === "EADDRINUSE" ? `port ${this.settings.agentPort} is busy — pick another port in settings` : (e?.message || e));
       onError?.(this.status);
-      this.server = null;
     });
-    srv.listen(this.settings.agentPort, this.bindHost, () => { this.status = "running"; });
     this.server = srv;
+    srv.listen(this.settings.agentPort, this.bindHost, () => { if (this.server === srv) this.status = "running"; });
   }
 
   stop(): void {
+    for (const finish of [...this.activeRequests]) finish("provider_unavailable");
+    this.epoch++;
     try { this.server && this.server.close(); } catch (_) { /* already closed */ }
     this.server = null;
     this.status = "stopped";
@@ -695,23 +702,17 @@ export class KosmosAgentServer {
    *  response can still reach the client; the connection closes after it. */
   readBody(req: any, limit = MAX_BODY_BYTES): Promise<string> {
     return new Promise((resolve, reject) => {
-      const chunks: any[] = [];
-      let receivedBytes = 0;
-      let done = false;
-      const onData = (c: any) => {
-        receivedBytes += typeof c === "string" ? Buffer.byteLength(c) : c.length;
-        if (receivedBytes > limit) {
-          done = true;
-          req.removeListener("data", onData);
-          req.pause();
-          reject(Object.assign(new Error(`body too large (limit ${limit} bytes)`), { statusCode: 413 }));
-          return;
-        }
-        chunks.push(typeof c === "string" ? Buffer.from(c) : c);
+      const chunks: any[] = []; let receivedBytes = 0, done = false;
+      const cleanup = () => { req.removeListener("data", onData); req.removeListener("end", onEnd); req.removeListener("error", onError); req.removeListener("aborted", onAbort); req.removeListener("kosmos-operation-ended", onAbort); };
+      const onError = (error: any) => { if (!done) { done = true; cleanup(); reject(error); } };
+      const onAbort = () => { req.pause?.(); onError(new ProviderError("provider_unavailable")); req.once?.("error", () => {}); };
+      const onEnd = () => { if (!done) { done = true; cleanup(); resolve(Buffer.concat(chunks).toString("utf8")); } };
+      const onData = (chunk: any) => {
+        receivedBytes += typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
+        if (receivedBytes > limit) { req.pause(); onError(Object.assign(new Error(`body too large (limit ${limit} bytes)`), { statusCode: 413 })); return; }
+        chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
       };
-      req.on("data", onData);
-      req.on("end", () => { if (!done) resolve(Buffer.concat(chunks).toString("utf8")); });
-      req.on("error", (e: any) => { if (!done) reject(e); });
+      req.on("data", onData); req.on("end", onEnd); req.on("error", onError); req.on("aborted", onAbort); req.on("kosmos-operation-ended", onAbort);
     });
   }
 
@@ -1252,9 +1253,9 @@ export class KosmosAgentServer {
     return a;
   }
 
-  async callTool(name: string, args: any, agent?: string, agentId?: string): Promise<any> {
+  async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true): Promise<any> {
     args = this.validateToolArgs(name, args || {});
-    const done = (r: any) => { this.emitTraversal(name, r, agent, agentId); return r; };
+    const done = (r: any) => { if (isActive()) this.emitTraversal(name, r, agent, agentId); return r; };
     switch (name) {
       case "vault_overview": return this.qOverview();
       case "search_notes": return done(await this.qSearch(args.query, args));
@@ -1288,6 +1289,7 @@ export class KosmosAgentServer {
     ctx?: {
       agent?: string;
       agentId?: string;
+      isActive?: () => boolean;
     }
   ): Promise<any | null> {
     const requestId = msg && typeof msg === "object" && !Array.isArray(msg) && msg.id !== undefined ? msg.id : null;
@@ -1355,13 +1357,12 @@ export class KosmosAgentServer {
           { supported: [...SUPPORTED_MCP_PROTOCOL_VERSIONS] },
         );
       }
-      if (method === "ping") return ok({});
       if (method === "tools/list") return ok({ tools: this.toolDefs() });
       if (method === "tools/call") {
         if (typeof params.name !== "string") throw new McpRpcError(-32602, "tools/call requires string name");
         const args = this.validateToolArgs(params.name, params.arguments ?? {});
         try {
-          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId);
+          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId, ctx?.isActive);
           const structuredContent = Array.isArray(result) ? { items: result } : result;
           return ok({
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -1370,6 +1371,7 @@ export class KosmosAgentServer {
           });
         } catch (e: any) {
           if (e instanceof McpRpcError) throw e;
+          if (e instanceof ProviderError) return ok({ content: [{ type: "text", text: e.message }], structuredContent: { error: e.reason, retryable: false }, isError: true });
           return ok({ content: [{ type: "text", text: "Error: " + (e?.message || String(e)) }], isError: true });
         }
       }
@@ -1392,10 +1394,50 @@ export class KosmosAgentServer {
       res.end(JSON.stringify({ error: "too many requests", hint: rl.reason }));
       return;
     }
-    // Bound body reads globally before parsing. MCP execution gets its own
-    // client bucket only after authentication and metadata validation.
-    let akey: string | undefined;
+    const epoch = this.epoch, provider = this.provider, settings = this.settings;
+    const ceiling = settings.agentSensitivityCeiling, defaultSensitivity = settings.defaultSensitivity;
+    const token = settings.agentToken, requireToken = settings.agentRequireToken;
+    const until = performance.now() + this.operationTimeoutMs;
+    let akey: string | undefined, finished = false;
+    let releaseWait!: () => void;
+    const ended = new Promise<void>(resolve => { releaseWait = resolve; });
+    const isActive = () => !finished && epoch === this.epoch && this.provider === provider && this.settings === settings &&
+      settings.agentSensitivityCeiling === ceiling && settings.defaultSensitivity === defaultSensitivity &&
+      settings.agentToken === token && settings.agentRequireToken === requireToken && performance.now() < until;
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (reason?: "timeout" | "provider_unavailable") => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      req.removeListener?.("aborted", disconnected);
+      res.removeListener?.("close", disconnected);
+      this.activeRequests.delete(finish);
+      if (epoch === this.epoch) {
+        this.inFlight--;
+        if (akey !== undefined) {
+          const count = (this.perAgentInFlight.get(akey) || 1) - 1;
+          if (count <= 0) this.perAgentInFlight.delete(akey); else this.perAgentInFlight.set(akey, count);
+        }
+      }
+      if (reason && !res.destroyed && !res.writableEnded) {
+        try {
+          if (res.headersSent) res.destroy?.();
+          else {
+            const status = reason === "timeout" ? 504 : 503;
+            const body = (req.url || "").split("?")[0] === "/mcp"
+              ? { jsonrpc: "2.0", id: req.kosmosRequestId ?? null, error: { code: -33001, message: reason === "timeout" ? "Operation timed out" : "Provider unavailable", data: { reason, retryable: false } } }
+              : { error: reason, retryable: false };
+            res.once?.("finish", () => req.destroy?.());
+            this.json(res, status, body, { Connection: "close" });
+          }
+        } catch (_) { /* disconnected while finalizing */ }
+      }
+      req.emit?.("kosmos-operation-ended");
+      releaseWait();
+    };
+    const disconnected = () => finish();
     const claimAgent = (key: string): boolean => {
+      if (!isActive()) return false;
       const cur = this.perAgentInFlight.get(key) || 0;
       if (cur >= MAX_CONCURRENT_PER_AGENT) {
         res.writeHead(429, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "1" });
@@ -1407,18 +1449,32 @@ export class KosmosAgentServer {
       return true;
     };
     this.inFlight++;
-    try {
-      await this.dispatch(req, res, claimAgent);
-    } finally {
-      this.inFlight = Math.max(0, this.inFlight - 1);
-      if (akey !== undefined) {
-        const c = (this.perAgentInFlight.get(akey) || 1) - 1;
-        if (c <= 0) this.perAgentInFlight.delete(akey); else this.perAgentInFlight.set(akey, c);
+    this.activeRequests.add(finish);
+    timer = setTimeout(() => finish("timeout"), this.operationTimeoutMs);
+    req.once?.("aborted", disconnected);
+    res.once?.("close", disconnected);
+    // Capture the old provider/settings context. A restarted server cannot
+    // redirect an old suspended dispatch into a replacement provider.
+    const context = Object.create(this) as KosmosAgentServer;
+    context.provider = provider; context.settings = settings;
+    const guarded = new Proxy(res, { get(target, key) {
+      const value = Reflect.get(target, key, target);
+      if (typeof value !== "function") return value;
+      if (["writeHead", "write", "end", "setHeader", "removeHeader", "flushHeaders"].includes(String(key))) {
+        return (...args: any[]) => isActive() ? value.apply(target, args) : undefined;
       }
-    }
+      return value.bind(target);
+    } });
+    const dispatch = context.dispatch(req, guarded, claimAgent, isActive).catch((e: any) => {
+      if (isActive()) {
+        if (e instanceof ProviderError) this.json(guarded, e.reason === "timeout" ? 504 : 503, { error: e.reason, retryable: false });
+        else this.json(guarded, 500, { error: "internal error" });
+      }
+    }).finally(() => finish(!isActive() && !finished ? (performance.now() >= until ? "timeout" : "provider_unavailable") : undefined));
+    await Promise.race([dispatch, ended]);
   }
 
-  private async dispatch(req: any, res: any, claimAgent: (key: string) => boolean): Promise<void> {
+  private async dispatch(req: any, res: any, claimAgent: (key: string) => boolean, isActive: () => boolean = () => true): Promise<void> {
     // Host validation first (DNS-rebinding defence).
     if (!this.hostAllowed(req.headers["host"])) {
       this.json(res, 403, { error: "forbidden host", hint: "the Host header does not match an allowed address for this bind mode" });
@@ -1453,6 +1509,7 @@ export class KosmosAgentServer {
         });
         return;
       }
+      if (!isActive()) return;
       let parsed: any;
       try { parsed = JSON.parse(body || "null"); }
       catch (_) { this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); return; }
@@ -1474,6 +1531,7 @@ export class KosmosAgentServer {
       // client-to-server notification over Streamable HTTP and states that
       // header requirements for notification POSTs are undefined, so metadata
       // is not demanded of one. Accepted notifications answer 202 with no body.
+      req.kosmosRequestId = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed.id : null;
       const isNotification = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id === undefined;
 
       if (!isNotification) {
@@ -1497,7 +1555,7 @@ export class KosmosAgentServer {
       // Named modern clients sharing a User-Agent must not share one bucket.
       // Names remain self-reported; rotation cannot evade global admission.
       if (!claimAgent(`${agentId ? "mcp" : "ua"}:${agent}`)) return;
-      const out = await this.mcpDispatch(parsed, { agent, agentId });
+      const out = await this.mcpDispatch(parsed, { agent, agentId, isActive });
       if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
       // what distinguishes a modern server from a legacy one that simply does
@@ -1525,11 +1583,11 @@ export class KosmosAgentServer {
       case "/overview": this.json(res, 200, await this.qOverview()); return;
       case "/diagnostics": this.json(res, 200, await this.qDiagnostics()); return;
       case "/graph": this.json(res, 200, await this.qGraph()); return;
-      case "/notes": { const a = this.agentLabel(req); const r = await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : undefined }); this.emitTraversal("search_notes", r, a); this.json(res, 200, r); return; }
-      case "/note": { const a = this.agentLabel(req); const r = await this.qNote({ path: q("path"), title: q("title") }); this.emitTraversal("get_note", r, a); this.json(res, 200, r); return; }
-      case "/lineage": { const a = this.agentLabel(req); const r = await this.qLineage({ path: q("path"), title: q("title") }); this.emitTraversal("get_lineage", r, a); this.json(res, 200, r); return; }
-      case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
-      case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
+      case "/notes": { const a = this.agentLabel(req); const r = await this.qSearch(q("q") || "", { tag: q("tag"), area: q("area"), limit: q("limit") ? Number(q("limit")) : undefined }); if (isActive()) this.emitTraversal("search_notes", r, a); this.json(res, 200, r); return; }
+      case "/note": { const a = this.agentLabel(req); const r = await this.qNote({ path: q("path"), title: q("title") }); if (isActive()) this.emitTraversal("get_note", r, a); this.json(res, 200, r); return; }
+      case "/lineage": { const a = this.agentLabel(req); const r = await this.qLineage({ path: q("path"), title: q("title") }); if (isActive()) this.emitTraversal("get_lineage", r, a); this.json(res, 200, r); return; }
+      case "/related": { const a = this.agentLabel(req); const r = await this.qRelated({ path: q("path"), title: q("title") }); if (isActive()) this.emitTraversal("get_related", r, a); this.json(res, 200, r); return; }
+      case "/at": { const a = this.agentLabel(req); const r = await this.qAtTime(q("time") || "", q("limit") ? Number(q("limit")) : 50); if (isActive()) this.emitTraversal("graph_at_time", r, a); this.json(res, 200, r); return; }
       case "/episodes": this.json(res, 200, await this.qEpisodePage(q("cursor") ? Number(q("cursor")) : 0, q("limit") ? Number(q("limit")) : DEFAULT_EPISODE_PAGE)); return;
       case "/gkx/note": this.json(res, 200, await this.qGkxNote({ uid: q("uid"), path: q("path"), title: q("title") })); return;
       case "/gkx/assessment": this.json(res, 200, await this.qAssessment({ uid: q("uid"), path: q("path"), title: q("title") })); return;

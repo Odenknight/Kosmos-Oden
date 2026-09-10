@@ -1,7 +1,7 @@
 {
   "reviewed_at_utc": "2026-09-10T18:37:56.681Z",
-  "plan_revision": 2,
-  "revision_basis": "Owner-supplied execution review; final MCP schema rechecked. Mailbox and PR fields retain the prior review snapshot, not a fresh audit.",
+  "plan_revision": 3,
+  "revision_basis": "Implementation update; mailbox inventory and PR fields below remain the historical revision-2 audit, not fresh counts.",
   "repository": "https://github.com/Odenknight/Kosmos-Oden",
   "source_baseline": "b0c7ee2845f24c53586c5bc6feaa9ae28fbff50b",
   "publication_parent": "076789205f3c6d5d83827cc75dd2fa160cf652d8",
@@ -75,5 +75,5 @@
       "mergeable": "CONFLICTING"
     }
   ],
-  "implementation_status": "Planning publication only. Runtime repairs and live release gate remain open."
+  "implementation_status": "R1/R2 and markers implemented; local verification passes; final native Hermes gate remains open. See IMPLEMENTATION-STATUS.md."
 }

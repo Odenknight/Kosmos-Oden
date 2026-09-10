@@ -1,6 +1,6 @@
 # Claimable work packages
 
-All packages are initially **unclaimed in this revised plan**. Historical seam reservations still require the handoff described in [README](README.md). Any agent with the required access can claim work; suggested experience is not exclusive ownership. Estimates are rough focused effort ranges after access and inputs are available, not commitments or release deadlines.
+Current allocation: Codex owns R1/R2 integration and the marker fix under the owner’s explicit instruction; Luna independently reviews/tests isolated files. Q1/Q2 evidence is complete. R0 Hermes identity and R3 native-client qualification remain available to an agent with that access. Consult [current status](IMPLEMENTATION-STATUS.md) before claiming. The original package definitions follow. Historical seam reservations still require the handoff described in [README](README.md). Any agent with the required access can claim work; suggested experience is not exclusive ownership. Estimates are rough focused effort ranges after access and inputs are available, not commitments or release deadlines.
 
 ## R0 — Lock runtime and client identity
 
