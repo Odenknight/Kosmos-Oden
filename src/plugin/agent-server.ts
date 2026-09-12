@@ -420,9 +420,8 @@ export class KosmosAgentServer {
   private cleanAgentName(s: unknown): string {
     const raw = String(s ?? "").trim();
     if (!raw) return "agent";
-    // keep the leading product token (before a version slash/space), bounded
-    const first = raw.split(/[\s/]+/)[0] || raw;
-    return first.replace(/[^\w.-]/g, "").slice(0, 40) || "agent";
+    // Preserve designated multi-word names; labels are rendered with textContent.
+    return raw.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").slice(0, 80) || "agent";
   }
 
   /** Best-effort identity of the agent behind a request. Modern MCP carries no
@@ -1197,7 +1196,7 @@ export class KosmosAgentServer {
     const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
     const outputSchema = { type: "object", additionalProperties: true };
     const tool = (name: string, title: string, description: string, inputSchema: any) => ({
-      name, title, description, inputSchema, outputSchema, annotations,
+      name, title, description, inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, agent_name: { type: "string", description: "Your designated ship name, e.g. Codex Game Research. Send the same name on each call; display only, not authority.", minLength: 1, maxLength: 80 } } }, outputSchema, annotations,
     });
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
@@ -1236,6 +1235,7 @@ export class KosmosAgentServer {
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
     }
+    if ("agent_name" in a && (typeof a.agent_name !== "string" || !a.agent_name.trim() || a.agent_name.length > 80)) throw new McpRpcError(-32602, "agent_name must be a nonempty string of at most 80 characters");
     const requireSelector = () => {
       if (!(typeof a.path === "string" && a.path.trim()) && !(typeof a.title === "string" && a.title.trim()) && !(typeof a.uid === "string" && a.uid.trim())) {
         throw new McpRpcError(-32602, `${name} requires path, title, or uid`);
@@ -1255,7 +1255,19 @@ export class KosmosAgentServer {
 
   async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true): Promise<any> {
     args = this.validateToolArgs(name, args || {});
-    const done = (r: any) => { if (isActive()) this.emitTraversal(name, r, agent, agentId); return r; };
+    if (args.agent_name) {
+      const key = this.registerSession(args.agent_name, MODERN_MCP_PROTOCOL_VERSION);
+      const session = this.getSession(key);
+      agent = session!.name; agentId = session!.visualId;
+    }
+    const done = (r: any) => {
+      if (isActive()) {
+        this.emitTraversal(name, r, agent, agentId);
+        // Any successful tool activity keeps an existing ship present.
+        if (!r?.error && !this.traversalPaths(name, r).length) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* best effort */ } }
+      }
+      return r;
+    };
     switch (name) {
       case "vault_overview": return this.qOverview();
       case "search_notes": return done(await this.qSearch(args.query, args));
@@ -1556,6 +1568,7 @@ export class KosmosAgentServer {
       // Names remain self-reported; rotation cannot evade global admission.
       if (!claimAgent(`${agentId ? "mcp" : "ua"}:${agent}`)) return;
       const out = await this.mcpDispatch(parsed, { agent, agentId, isActive });
+      if (parsed.method === "ping" && !out?.error) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* presence never breaks requests */ } }
       if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
       // what distinguishes a modern server from a legacy one that simply does

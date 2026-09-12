@@ -419,3 +419,25 @@ licensing structure.
 The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
 connect. The separate Engine retrieval client is not upgraded by this candidate;
 its service must be qualified independently of the bundled library version.
+
+
+### Agent names and presence
+
+Set `params._meta["io.modelcontextprotocol/clientInfo"]` to
+`{"name":"Codex Game Research","version":"1.0"}` on every MCP request to
+display a designated name. Names retain spaces, are limited to 80 characters,
+and are self-reported labels, not authorization. Use distinct names for distinct
+agents.
+
+Every tool also accepts an optional `agent_name` argument, so an agent can name
+its ship even when its host controls client metadata. For example:
+`get_note({"path":"Game_Dev/Research Game Styles.md","agent_name":"Codex Game Research"})`.
+Send the same name on each call. It overrides the transport label for that call.
+
+Traversal segments remain at full brightness for 30 seconds, then fade over five
+seconds, independently of subsequent searches.
+History is bounded to 4,096 segments; at that limit new segments are omitted
+until older ones expire. Markers begin a 30-second fade after two minutes
+without traversal activity or a named MCP `ping`. Stateless MCP cannot detect
+a disconnected client directly: idle clients can send `ping` every 60 seconds
+with the same metadata to retain their last visited marker.

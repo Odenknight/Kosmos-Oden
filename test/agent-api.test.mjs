@@ -427,16 +427,36 @@ test("agent api", async (t) => {
     for (const [id, name] of [[9, "get_lineage"], [91, "get_note"]]) {
       last = await mcp(
         { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { title: "Engine v2" } } },
-        { client: "Hermes" },
+        { client: "Hermes Research Agent" },
       );
       assert.equal(last.status, 200);
     }
     server.onTraversal = undefined;
     assert.equal(seen.length, 2);
-    assert.ok(seen.every(({ agent }) => agent === "Hermes"), "clientInfo.name identifies the caller");
+    assert.ok(seen.every(({ agent }) => agent === "Hermes Research Agent"), "clientInfo.name identifies the caller");
     assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
     assert.equal(seen[1].agentId, seen[0].agentId, "same name keeps one trail identity across requests");
     assert.equal(last.body.includes(seen[0].agentId), false, "visual identity must remain server-side");
+  });
+
+  await t.test("tool agent_name overrides generic client labels and validates input", async () => {
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => seen.push({ paths, tool, agent, agentId });
+    for (const name of ["Codex Game Research", "Hermes Physics", "Codex Game Research"]) {
+      const result = await mcp({ jsonrpc: "2.0", id: 86, method: "tools/call",
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name: name } } }, { client: "mcp" });
+      assert.equal(result.status, 200);
+      assert.equal(result.json().result.isError, false);
+    }
+    assert.deepEqual(seen.map(s => s.agent), ["Codex Game Research", "Hermes Physics", "Codex Game Research"]);
+    assert.equal(seen[0].agentId, seen[2].agentId);
+    assert.notEqual(seen[0].agentId, seen[1].agentId);
+    for (const agent_name of [42, "", "x".repeat(81)]) {
+      const result = await mcp({ jsonrpc: "2.0", id: 87, method: "tools/call",
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name } } });
+      assert.equal(result.json().error.code, -32602);
+    }
+    server.onTraversal = undefined;
   });
 
   await t.test("distinct client names get distinct traversal identities", async () => {

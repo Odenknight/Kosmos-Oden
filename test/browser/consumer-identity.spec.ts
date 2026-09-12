@@ -58,3 +58,32 @@ test('stable identity survives the versioned embed request-to-render adapter', a
   expect(diagnostics.agentTraversalHops).toBe(2);
   expect(diagnostics.agentTraversalAgents).toBe(2);
 });
+
+test('busy trails retain segments for 30 seconds and idle agents fade with heartbeat recovery', async ({ page }) => {
+  await page.goto('/dist/kosmos-embed.html?capture=1&seed=1907&time=0&animation=off');
+  await page.evaluate(() => window.postMessage({
+    protocol: 'kosmos-oden', version: 1, type: 'vault-snapshot',
+    payload: { files: [{ relativePath: 'A/one.md', content: '# one' }, { relativePath: 'A/two.md', content: '# two' }], folders: ['A'], attachments: [], label: 'Timing' }
+  }, '*'));
+  await page.waitForFunction(() => (window as any).__kosmos?.ok);
+  await page.evaluate(() => {
+    const w = window as any, original = performance.now.bind(performance);
+    w.agentTimeOffset = 0;
+    performance.now = () => original() + w.agentTimeOffset;
+    w.__kosmos.clearTraversalObservability();
+    for (let i = 0; i < 40; i++)
+      w.__kosmos.notifyAgentTraversal([i % 2 ? 'A/one.md' : 'A/two.md'], 'get_note', 'Codex Game Research');
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(39);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 29000; });
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(39);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 36000; });
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(0);
+  await expect(page.locator('.agent-name').filter({ hasText: 'Codex Game Research' })).toHaveCount(1);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 135000; });
+  await expect.poll(() => page.locator('.agent-marker[aria-hidden="false"]').evaluate(el => Number((el as HTMLElement).style.opacity))).toBeLessThan(0.6);
+  await page.evaluate(() => (window as any).__kosmos.notifyAgentTraversal([], 'ping', 'Codex Game Research'));
+  await expect.poll(() => page.locator('.agent-marker[aria-hidden="false"]').evaluate(el => Number((el as HTMLElement).style.opacity))).toBe(1);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 286000; });
+  await expect(page.locator('.agent-marker[aria-hidden="false"]')).toHaveCount(0);
+});
