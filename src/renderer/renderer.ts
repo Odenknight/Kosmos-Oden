@@ -408,7 +408,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     updateStats();
     buildFilterUI();
     applyFilters();
-    if (G.__cosmos) { applyConnVisibility(); if (showAllObjects) setAllObjectsGlow(true); }
+    applyConnVisibility();
+    if (G.__cosmos && showAllObjects) setAllObjectsGlow(true);
     updateTrafficHeat(true);
     fitCamera();
   }
@@ -457,7 +458,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     geo.setAttribute("color", new THREE.BufferAttribute(acol, 3).setUsage(THREE.DynamicDrawUsage));
     geo.setDrawRange(0, 0);
     const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }));
-    const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; world.add(mesh); ambientLines = { geo, apos, acol, cap: acap };
+    const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; world.add(mesh); ambientLines = { mesh, geo, apos, acol, cap: acap };
     applyAmbientVisibility();
 
     const cap = 4096, fpos = new Float32Array(cap * 6), fcol = new Float32Array(cap * 6);
@@ -467,7 +468,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     fgeo.setDrawRange(0, 0);
     const fmat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
     const fmesh = new THREE.LineSegments(fgeo, fmat); fmesh.frustumCulled = false; fmesh.renderOrder = 1; world.add(fmesh);
-    focusLines = { geo: fgeo, fpos, fcol, cap };
+    focusLines = { mesh: fmesh, geo: fgeo, fpos, fcol, cap };
   }
 
   /* ---- cosmos links: bright solar-system chains + thin membership lines ---- */
@@ -508,7 +509,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     fgeo.setDrawRange(0, 0);
     const fmat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
     const fmesh = new THREE.LineSegments(fgeo, fmat); fmesh.frustumCulled = false; fmesh.renderOrder = 2; world.add(fmesh);
-    focusLines = { geo: fgeo, fpos, fcol, cap };
+    focusLines = { mesh: fmesh, geo: fgeo, fpos, fcol, cap };
     ambientLines = null; ambientSegs = [];
   }
 
@@ -1139,7 +1140,15 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   document.getElementById("labelsBtn") && document.getElementById("labelsBtn").addEventListener("click", toggleLabels);
 
   function setAllObjectsGlow(on: boolean) { for (const m of matsWithTime) { if (m && m.uniforms && m.uniforms.uGlowAll) m.uniforms.uGlowAll.value = on ? 1.0 : 0.0; } }
-  function applyConnVisibility() { if (thinLines) thinLines.mat.opacity = showAllConnections ? 0.5 : 0.05; if (chainLines) chainLines.mat.opacity = showAllConnections ? 0.6 : 0.42; }
+  function applyConnVisibility() {
+    // All connection layers follow the toggle, including selection/agent highlights.
+    // Orbital animation is independent of line visibility.
+    for (const lines of [thinLines, chainLines, ambientLines, focusLines]) {
+      if (lines) lines.mesh.visible = showAllConnections;
+    }
+    if (thinLines) thinLines.mat.opacity = 0.5;
+    if (chainLines) chainLines.mat.opacity = 0.6;
+  }
   function toggleAllConnections() { showAllConnections = !showAllConnections; const b = document.getElementById("allLinksBtn"); if (b) b.classList.toggle("on", showAllConnections); applyConnVisibility(); }
   function toggleAllObjects() { showAllObjects = !showAllObjects; const b = document.getElementById("allObjBtn"); if (b) b.classList.toggle("on", showAllObjects); setAllObjectsGlow(showAllObjects); applyFilters(); }
   document.getElementById("allLinksBtn") && document.getElementById("allLinksBtn").addEventListener("click", toggleAllConnections);
