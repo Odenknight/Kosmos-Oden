@@ -63,6 +63,54 @@ test("Graphiti export uses snapshot bodies and refuses a policy change during fa
   await assert.rejects(() => changing.qEpisodes(), /Vault provider unavailable/);
 });
 
+test("search exposes the same projection UID accepted by note selectors", async () => {
+  const provider = fixtureProvider();
+  const graph = await provider.getGraph();
+  const note = graph.nodes.find(n => n.path === "Ideas/Engine v2.md");
+  const uid = "11111111-2222-4333-8444-555555555555";
+  note.gkx.uid = undefined;
+  note.gkx.projection.authored.uid = uid;
+  const server = new KosmosAgentServer(http, settings(), provider);
+  const result = await server.qSearch("Engine v2");
+  assert.equal(result.results.find(n => n.path === note.path).uid, uid);
+  const selected = await server.callTool("get_note", { uid });
+  assert.equal(selected.path, note.path);
+  assert.equal(selected.uid, uid);
+  assert.equal(selected.gkx.uid, uid);
+});
+
+test("missing projection is actionable only for readable notes", async () => {
+  const provider = fixtureProvider();
+  const graph = await provider.getGraph();
+  const note = graph.nodes.find(n => n.path === "Ideas/Engine v2.md");
+  note.gkx.projection = undefined;
+  note.gkx.sensitivity = "internal";
+  const server = new KosmosAgentServer(http, settings(), provider);
+  for (const tool of ["assess_note", "get_assessment", "get_diagnostics", "validate_note"]) {
+    const result = await server.callTool(tool, { path: note.path });
+    assert.equal(result.code, "GKX_PROJECTION_UNAVAILABLE");
+    assert.equal(result.path, note.path);
+    assert.match(result.error, /get_note/);
+    note.gkx.sensitivity = "secret";
+    assert.deepEqual(await server.callTool(tool, { path: note.path }),
+      await server.callTool(tool, { path: "Absent.md" }), "hidden and missing notes must remain indistinguishable");
+    note.gkx.sensitivity = "internal";
+  }
+});
+
+test("temporal queries explain time arguments and expose bounded readable scope", async () => {
+  const server = new KosmosAgentServer(http, settings(), fixtureProvider());
+  await assert.rejects(server.callTool("graph_at_time", { at: "2026-09-01" }), /expects time, not at/);
+  await assert.rejects(server.callTool("graph_at_time", { time: "2026-09-01", area: "Ideas" }), /Unexpected argument: area/);
+  const result = await server.callTool("graph_at_time", { time: "2026-09-01", limit: 1 });
+  assert.equal(result.scope, "all-readable-notes");
+  assert.equal(result.truncated, result.counts.valid > 1 || result.counts.superseded > 1);
+  assert.ok(result.valid.length <= 1 && result.superseded.length <= 1);
+  const full = await server.callTool("graph_at_time", { time: "2026-09-01", limit: 200 });
+  assert.equal(full.truncated, false);
+  assert.deepEqual(full.counts, result.counts);
+});
+
 test("opt-in body search uses only readable snapshot bodies and reports bounded coverage", async () => {
   const files = [
     { relativePath: "Visible.md", content: "---\ntype: semantic\nsensitivity: internal\n---\nA DOI appears only in the body." },

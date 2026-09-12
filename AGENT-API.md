@@ -175,6 +175,21 @@ authorization. Proposed values never enter the effective projection until a
 separate authorized decision exists.
 
 Graphiti pages default to 20 episodes and cap at 100. Follow `nextCursor`.
+An accepted upstream ingestion job is not evidence of searchability: poll it to
+completion or failure, then verify persistence and authorized search readback.
+Kosmos's export-ready state does not establish those later milestones.
+
+`graph_at_time` takes `time`, not `at`, as an ISO 8601 string. Its scope is all
+currently readable notes; there is no area/path selector or pagination. Counts
+cover that readable scope, while `valid` and `superseded` are capped separately
+by `limit`. Check `truncated` before treating either list as complete.
+
+Assessment and diagnostic tools accept `path`, `title`, or `uid` and read the
+current in-memory GKX validating projection. They do not create missing metadata;
+`assess_vault` does not repair an absent projection. Readable notes lacking a
+projection return `GKX_PROJECTION_UNAVAILABLE` with a source-inspection hint.
+Search and note results expose the projection's authored UID when available;
+otherwise use the exact path rather than inventing a UID.
 Earlier episodes never receive later `superseded_by`, `head`, or `invalid_at`
 state. A valid GKX UUID becomes the Graphiti episode UUID; notes without one
 receive a deterministic fallback UUID. Stable identifiers do not guarantee

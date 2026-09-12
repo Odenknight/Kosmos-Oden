@@ -6,6 +6,10 @@
   external runner; preserve export snapshots across policy changes.
 - Add explicit per-process ship identity to the stdio adapter so generic client
   labels and designated names do not alternate when configured consistently.
+- Align search and note-detail UIDs with the validating projection used by UID
+  selectors. Explain missing projections without revealing inaccessible notes.
+- Document temporal query scope and return explicit truncation; guide callers
+  using the unsupported `at` argument to `time`.
 
 - Add opt-in bounded cached body search with explicit partial coverage.
 - Export the displayed standalone graph, gate content exports, fence stale folder
