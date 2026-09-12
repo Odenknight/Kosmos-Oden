@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.3 candidate bugfixes — 2026-09-12
+
+- Prevent startup-discovered notes from triggering timestamp writes; suppress
+  timestamp reentry for the full duration of slow host writes.
+- Hide membership, note-chain and focused connection lines until All links is
+  enabled; preserve orbital motion and independent agent traversal effects.
+- Include the reliability baseline: bounded logical deadlines and physical reads,
+  stale-work publication fences, metadata-refresh isolation and persistent agent markers.
+- Record successful forced full reindex and direct HTTP MCP checks against the
+  startup fix, with all 2,265 Markdown files unchanged. Native Hermes remains pending.
+- See [the bugfix report](docs/reviews/2026-09-12-startup-and-links-bugfix.md)
+  for exact tested builds, evidence boundaries and rollback guidance.
+
 ## 0.8.3 candidate — 2026-09-09
 
 Consolidated in PR #53 on 2026-09-10; #50/#52 closed as superseded.

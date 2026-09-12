@@ -17,6 +17,13 @@ read-only, and the standalone viewer works without Obsidian or the internet.
 > and hardens local service connections. It includes no Rust build.
 > Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
 
+The September 12 bugfix update prevents timestamp writes from being scheduled
+for startup-discovered notes and prevents slow timestamp writes from retriggering
+themselves. A forced Obsidian index rebuild completed with Kosmos enabled and no
+Markdown content changes. Connection lines now stay hidden until **All links**
+is enabled, while orbital motion continues. See the
+[bugfix report and validation limits](docs/reviews/2026-09-12-startup-and-links-bugfix.md).
+
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
 ## Pick a launchpad
@@ -95,6 +102,11 @@ zero-overlap arrangement.
 - **Grow** reveals the cluster in creation order.
 - **Trailer** takes a cinematic tour through the largest galaxies.
 - **Labels, links, objects, minimap, and legend** can be toggled independently.
+
+**All links** (keyboard **C**) shows connection lines. With it off, membership,
+note-chain, and selected/hovered-note connection lines are hidden, including
+connection highlights for agent-visited notes. Bodies keep orbiting in either
+state. Agent identity markers and traversal effects remain separate.
 
 Right-click or long-press a note to open it in Obsidian. A galaxy backed only
 by a folder offers **Expand Folder** instead; it never creates a fake note just

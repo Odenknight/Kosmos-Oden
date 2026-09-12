@@ -7,6 +7,37 @@ import { test, expect } from "@playwright/test";
  */
 const CAPTURE = "/kosmos-oden-stand-alone.html?capture=1&seed=1907&time=0&dpr=1&quality=high&camera=overview&animation=off";
 
+test("All links gates connection drawing without stopping animation", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).__lineDraws = 0;
+    for (const method of ["drawArrays", "drawElements"] as const) {
+      const original = WebGL2RenderingContext.prototype[method];
+      (WebGL2RenderingContext.prototype as any)[method] = function (...args: any[]) {
+        if (args[0] === this.LINES) (window as any).__lineDraws++;
+        return (original as any).apply(this, args);
+      };
+    }
+  });
+  await page.goto("/kosmos-oden-stand-alone.html");
+  await page.getByRole("button", { name: /Load Demo/ }).click();
+  await page.waitForFunction(() => document.getElementById("boot")?.classList.contains("gone"));
+  const sample = () => page.evaluate(async () => {
+    const before = (window as any).__kosmosRenderStats.frames;
+    (window as any).__lineDraws = 0;
+    for (let i = 0; i < 8; i++) await new Promise(requestAnimationFrame);
+    return { lines: (window as any).__lineDraws, frames: (window as any).__kosmosRenderStats.frames - before };
+  });
+  const hidden = await sample();
+  expect(hidden.lines).toBe(0);
+  expect(hidden.frames).toBeGreaterThan(0);
+  await page.locator("#allLinksBtn").click();
+  expect((await sample()).lines).toBeGreaterThan(0);
+  await page.locator("#allLinksBtn").click();
+  const hiddenAgain = await sample();
+  expect(hiddenAgain.lines).toBe(0);
+  expect(hiddenAgain.frames).toBeGreaterThan(0);
+});
+
 test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
