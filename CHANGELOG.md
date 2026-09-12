@@ -10,10 +10,6 @@
   selectors. Explain missing projections without revealing inaccessible notes.
 - Document temporal query scope and return explicit truncation; guide callers
   using the unsupported `at` argument to `time`.
-- Pin the Engine Graphiti 0.30.2 adapter and reuse its persistence-checked
-  external runner; preserve export snapshots across policy changes.
-- Add explicit per-process ship identity to the stdio adapter so generic client
-  labels and designated names do not alternate when configured consistently.
 
 - Add opt-in bounded cached body search with explicit partial coverage.
 - Export the displayed standalone graph, gate content exports, fence stale folder
