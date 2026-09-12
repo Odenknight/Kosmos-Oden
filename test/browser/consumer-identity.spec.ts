@@ -75,15 +75,20 @@ test('busy trails retain segments for 30 seconds and idle agents fade with heart
       w.__kosmos.notifyAgentTraversal([i % 2 ? 'A/one.md' : 'A/two.md'], 'get_note', 'Codex Game Research');
   });
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(39);
+  await page.evaluate(() => {
+    (window as any).agentTimeOffset = 20000;
+    (window as any).__kosmos.notifyAgentTraversal([], 'ping', 'Codex Game Research');
+  });
   await page.evaluate(() => { (window as any).agentTimeOffset = 29000; });
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(39);
   await page.evaluate(() => { (window as any).agentTimeOffset = 36000; });
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops)).toBe(0);
   await expect(page.locator('.agent-name').filter({ hasText: 'Codex Game Research' })).toHaveCount(1);
-  await page.evaluate(() => { (window as any).agentTimeOffset = 135000; });
+  await page.evaluate(() => { (window as any).agentTimeOffset = 155000; });
   await expect.poll(() => page.locator('.agent-marker[aria-hidden="false"]').evaluate(el => Number((el as HTMLElement).style.opacity))).toBeLessThan(0.6);
   await page.evaluate(() => (window as any).__kosmos.notifyAgentTraversal([], 'ping', 'Codex Game Research'));
   await expect.poll(() => page.locator('.agent-marker[aria-hidden="false"]').evaluate(el => Number((el as HTMLElement).style.opacity))).toBe(1);
-  await page.evaluate(() => { (window as any).agentTimeOffset = 286000; });
+  await page.evaluate(() => { (window as any).agentTimeOffset = 306000; });
   await expect(page.locator('.agent-marker[aria-hidden="false"]')).toHaveCount(0);
 });

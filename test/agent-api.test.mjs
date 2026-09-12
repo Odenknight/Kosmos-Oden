@@ -967,3 +967,17 @@ test("non-traversal tool calls refresh the designated ship without adding hops",
   assert.equal(seen.length, 1);
   assert.deepEqual(seen[0].slice(0, 3), [[], "ping", "JEFFREY"]);
 });
+
+test("duplicate names and aliases reject ambiguity while exact paths still work", async () => {
+  const graph = buildProductGraph([
+    { relativePath: "A/Shared.md", content: "---\ntype: semantic\nsensitivity: internal\naliases: [common]\n---\nA" },
+    { relativePath: "B/Shared.md", content: "---\ntype: semantic\nsensitivity: internal\naliases: [common]\n---\nB" },
+  ], ["A", "B"]);
+  const server = new KosmosAgentServer({}, settings(), {
+    getGraph: async () => graph, getNoteContent: async p => p,
+    vaultName: () => "DuplicateNames", lanAddresses: () => [],
+  });
+  for (const title of ["Shared", "common"])
+    await assert.rejects(server.qNote({ title }), /Ambiguous note name/);
+  assert.equal((await server.qNote({ path: "B/Shared.md" })).path, "B/Shared.md");
+});
