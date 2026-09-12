@@ -958,3 +958,12 @@ test("duplicate readable UIDs require an exact path across note queries", async 
   assert.equal((await server.qNote({ path: "A.md" })).path, "A.md");
 });
 
+
+test("non-traversal tool calls refresh the designated ship without adding hops", async () => {
+  const server = new KosmosAgentServer({}, settings(), fixtureProvider());
+  const seen = [];
+  server.onTraversal = (...event) => seen.push(event);
+  await server.callTool("vault_overview", { agent_name: "JEFFREY" });
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].slice(0, 3), [[], "ping", "JEFFREY"]);
+});

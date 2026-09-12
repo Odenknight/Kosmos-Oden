@@ -1269,29 +1269,29 @@ export class KosmosAgentServer {
       if (isActive()) {
         this.emitTraversal(name, r, agent, agentId);
         // Any successful tool activity keeps an existing ship present.
-        if (!r?.error && !this.traversalPaths(name, r).length) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* best effort */ } }
+        if (agent && !r?.error && !this.traversalPaths(name, r).length) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* best effort */ } }
       }
       return r;
     };
     switch (name) {
-      case "vault_overview": return this.qOverview();
+      case "vault_overview": return done(await this.qOverview());
       case "search_notes": return done(await this.qSearch(args.query, args));
       case "get_note": return done(await this.qNote(args));
       case "get_lineage": return done(await this.qLineage(args));
       case "get_related": return done(await this.qRelated(args));
       case "graph_at_time": return done(await this.qAtTime(args.time, args.limit));
-      case "export_graphiti_episodes": return this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE);
+      case "export_graphiti_episodes": return done(await this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE));
       case "get_gkx_note": return done(await this.qGkxNote(args));
       case "get_assessment": return done(await this.qAssessment(args));
       case "get_diagnostics": return done(await this.qGkxDiagnostics(args));
       case "get_effective_labels": return done(await this.qEffectiveLabels(args));
       case "get_evidence": return done(await this.qEvidence(args));
       case "get_relationships": return done(await this.qRelationships(args));
-      case "get_policy": return this.qPolicy();
+      case "get_policy": return done(await this.qPolicy());
       case "validate_note": return done(await this.qValidate(args));
       case "assess_note": return done(await this.qAssessment(args));
-      case "assess_vault": return this.qAssessVault(args.limit ?? 100);
-      case "graphiti_ingestion_status": return this.qGraphitiIngestionStatus();
+      case "assess_vault": return done(await this.qAssessVault(args.limit ?? 100));
+      case "graphiti_ingestion_status": return done(await this.qGraphitiIngestionStatus());
       default: throw new McpRpcError(-32602, "Unknown tool: " + name);
     }
   }
@@ -1621,3 +1621,4 @@ export class KosmosAgentServer {
     }
   }
 }
+
