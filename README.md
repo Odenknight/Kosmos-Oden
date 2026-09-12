@@ -437,6 +437,16 @@ The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
 connect. The separate Engine retrieval client is not upgraded by this candidate;
 its service must be qualified independently of the bundled library version.
 
+Kosmos-Oden's read-only viewing behavior does not by itself qualify the GKOS
+Viewer/Projection Profile; a profile claim still needs its manifest, report,
+and exact evidence. The Standard's
+[September 12 clarification](https://github.com/Odenknight/gkos-standard/blob/main/docs/decisions/2026-09-12-implementation-independence.md)
+also makes different ownership desirable rather than mandatory for a second
+implementation. Different functioning products still need demonstrated
+implementation independence; using the Engine through another UI is not that
+demonstration by itself. This clarification does not change the plugin's
+qualification requirements.
+
 
 ### Agent names and presence
 
