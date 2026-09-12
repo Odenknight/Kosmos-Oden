@@ -48,3 +48,21 @@ A regression verifies both rejection and exact-path selection. This does not
 claim to repair the separate service's NAV_STABLE_ID_AMBIGUOUS findings or rewrite
 source UIDs. Missing-UID notes remain selectable by path. Metadata/body-search
 and unidentified gkos_search limitations remain as recorded above.
+
+## Follow-up: name ambiguity and heartbeat history
+
+Duplicate titles, aliases, and GKX titles previously selected the first match.
+The shared selector now rejects multiple readable matches within each lookup
+priority, while exact paths still select the intended note. Name ambiguity is
+reported without exposing matching paths or restricted-note existence.
+
+Ship presence and visit history previously shared the same mutable head object.
+Refreshing a heartbeat changed the visit timestamp, extending old breadcrumbs
+and potentially restarting visit effects. The marker now retains its own copy;
+heartbeats refresh presence without making the last note visit look newer.
+
+Validation: npm run verify passed 369 tests and all repository checks. Six
+Chromium desktop/mobile identity and timing cases passed, including a heartbeat
+at 20 seconds followed by expired visit history after 30 seconds. The ship's
+presence timer still refreshes and expires independently. No new JEFFREY message
+beyond sequence 18 was present when this work began.

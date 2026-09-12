@@ -790,12 +790,15 @@ export class KosmosAgentServer {
     }
     const q = (sel.title ?? sel.path ?? "").trim().toLowerCase();
     if (!q) return null;
-    return (
-      files.find((n) => n.label.toLowerCase() === q) ??
-      files.find((n) => n.aliases.some((a) => a.toLowerCase() === q)) ??
-      files.find((n) => (n.gkx?.title || "").toLowerCase() === q) ??
-      null
-    );
+    for (const matches of [
+      files.filter(n => n.label.toLowerCase() === q),
+      files.filter(n => n.aliases.some(a => a.toLowerCase() === q)),
+      files.filter(n => (n.gkx?.title || "").toLowerCase() === q),
+    ]) {
+      if (matches.length > 1) throw new McpRpcError(-32602, "Ambiguous note name: use the exact vault-relative path");
+      if (matches.length === 1) return matches[0];
+    }
+    return null;
   }
 
   private projectables(graph: GkxGraph): ProjectableNote[] {

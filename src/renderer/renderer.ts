@@ -1632,7 +1632,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
   }
   function rememberAgentHead(head: { id: string; t: number; agent: string; label: string }): void {
-    agentHeads.delete(head.agent); agentHeads.set(head.agent, head);
+    agentHeads.delete(head.agent); agentHeads.set(head.agent, { ...head });
     if (agentHeads.size > MAX_AGENTS_SHOWN) agentHeads.delete(agentHeads.keys().next().value!);
   }
   /** Notes visited in the last 8 s pulse live (emerald halos via agentIds); diffed to skip redundant uploads. */
