@@ -731,13 +731,15 @@ async def main(path: str) -> None:
                 saga=saga.get("id"),
             )
             completed += 1
-            print("completed and searchable through the direct core API:", e["name"])
+            print("ingestion returned; searchability not verified:", e["name"])
     finally:
         await g.close()
     report = {
         "graphiti_core": "${GRAPHITI_CORE_VERSION}",
         "readiness_boundary": "await Graphiti.add_episode returned",
-        "accepted_is_searchable": True,
+        "accepted_is_searchable": False,
+        "searchability": "unverified",
+        "readback_performed": False,
         "episodes_completed": completed,
         "ingestion_duration_ms": round((time.perf_counter() - started) * 1000, 2),
         "combined_extraction_requested": bool(profile.get("combinedExtraction")),

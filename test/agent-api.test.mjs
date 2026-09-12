@@ -47,6 +47,30 @@ function fixtureProvider() {
 
 const TOKEN = "test-token-1234567890";
 
+test("opt-in body search uses only readable snapshot bodies and reports bounded coverage", async () => {
+  const files = [
+    { relativePath: "Visible.md", content: "---\ntype: semantic\nsensitivity: internal\n---\nA DOI appears only in the body." },
+    { relativePath: "Hidden.md", content: "---\ntype: semantic\nsensitivity: secret\n---\nPrivate DOI." },
+    { relativePath: "Long.md", content: "---\ntype: semantic\nsensitivity: internal\n---\n" + "x".repeat(64000) + "DOI" },
+  ];
+  const graph = buildProductGraph(files, []), reads = [];
+  const server = new KosmosAgentServer(http, settings(), {
+    ...fixtureProvider(), getGraph: async () => graph,
+    getNoteContent: async () => { throw new Error("Search must not read the vault"); },
+    getIndexedBody: (path, snapshot) => { assert.equal(snapshot, graph); reads.push(path); return stripFrontmatter(files.find(f => f.relativePath === path).content); },
+  });
+  assert.equal((await server.qSearch("DOI")).total, 0);
+  const result = await server.qSearch("DOI", { body: true });
+  assert.deepEqual(result.results.map(n => n.path), ["Visible.md"]);
+  assert.ok(!reads.includes("Hidden.md"));
+  assert.equal(result.bodySearch.truncated, true);
+  assert.equal(result.bodySearch.coverage, "partial");
+  assert.ok(result.bodySearch.charactersScanned <= 8_000_000);
+  await assert.rejects(server.callTool("search_notes", { query: "DOI", body: "true" }), /boolean/);
+  const metadataOnly = new KosmosAgentServer(http, settings(), fixtureProvider());
+  await assert.rejects(metadataOnly.qSearch("DOI", { body: true }), /unavailable/);
+});
+
 function settings(overrides = {}) {
   return {
     schemaVersion: 3,

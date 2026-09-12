@@ -321,6 +321,8 @@ export interface AgentDataProvider {
   getGraph(): Promise<GkxGraph>;
   /** Note body with frontmatter stripped, or null when unknown. */
   getNoteContent(path: string): Promise<string | null>;
+  /** Body from the committed graph's source snapshot; never performs vault I/O. */
+  getIndexedBody?(path: string, graph: GkxGraph): string | null;
   vaultName(): string;
   /** Opaque stable-ish identity used to disambiguate Graphiti namespaces. */
   vaultIdentity?(): string;
@@ -845,7 +847,7 @@ export class KosmosAgentServer {
       retrieval: retrievalCapabilities({
         maxSearchResults: MAX_SEARCH_RESULTS,
         maxNoteCharacters: MAX_NOTE_CONTENT_CHARS,
-      }),
+      }, Boolean(this.provider.getIndexedBody)),
       navigation: getKosmosNavigationManifest(this.settings.navigationEnabled),
       sensitivityCeiling: this.settings.agentSensitivityCeiling,
       notes: ns.length,
@@ -887,11 +889,13 @@ export class KosmosAgentServer {
     };
   }
 
-  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number } = {}): Promise<any> {
+  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number; body?: boolean } = {}): Promise<any> {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
     const scored: Array<[number, GkxNode]> = [];
+    if (opts.body && !this.provider.getIndexedBody) throw new McpRpcError(-32602, "Body search is unavailable from this provider");
+    let bodyCharacters = 0, bodyNotes = 0, bodyLimited = false;
     for (const n of this.fileNodes(graph)) {
       if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
       if (opts.area && n.area.toLowerCase() !== String(opts.area).toLowerCase()) continue;
@@ -901,12 +905,22 @@ export class KosmosAgentServer {
       else if (n.label.toLowerCase().includes(q)) s = 2;
       else if (n.aliases.some((a) => a.toLowerCase().includes(q)) || n.tags.some((t) => t.toLowerCase().includes(q))) s = 1.5;
       else if (n.path.toLowerCase().includes(q)) s = 1;
+      if (s < 0 && opts.body) {
+        const body = this.provider.getIndexedBody!(n.path, graph);
+        const remaining = Math.max(0, 8_000_000 - bodyCharacters);
+        const text = (body ?? "").slice(0, Math.min(64_000, remaining));
+        if (body === null || text.length < body.length) bodyLimited = true;
+        bodyCharacters += text.length;
+        if (text.length) bodyNotes++;
+        if (text.toLowerCase().includes(q)) s = 0.5;
+      }
       if (s >= 0) scored.push([s, n]);
     }
     scored.sort((a, b) => (b[0] - a[0]) || ((Date.parse(b[1].validAt || "") || 0) - (Date.parse(a[1].validAt || "") || 0)));
     return {
       query,
-      method: "lexical (title/alias/tag/path substring; no embeddings)",
+      method: opts.body ? "lexical (title/alias/tag/path and bounded body substring; no embeddings)" : "lexical (title/alias/tag/path substring; no embeddings)",
+      ...(opts.body ? { bodySearch: { coverage: "partial", notesScanned: bodyNotes, charactersScanned: bodyCharacters, truncated: bodyLimited, maxCharactersPerNote: 64_000, maxCharactersPerQuery: 8_000_000 } } : {}),
       total: scored.length,
       results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph)),
     };
@@ -1209,7 +1223,7 @@ export class KosmosAgentServer {
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
       tool("vault_overview", "Vault overview", `Sensitivity-filtered GKOS-Engine v${ENGINE_VERSION} GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.`, { type: "object", properties: {}, additionalProperties: false }),
-      tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, source Markdown tags, and paths (no embeddings).", { type: "object", properties: { query: { type: "string" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
+      tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, tags and paths. Optional body search checks cached prefixes (64,000 characters/note, 8 million/query); reports partial coverage. No embeddings or extra vault reads.", { type: "object", properties: { query: { type: "string" }, body: { type: "boolean" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
       tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
@@ -1250,6 +1264,7 @@ export class KosmosAgentServer {
       }
     };
     if (name === "search_notes" && typeof a.query !== "string") throw new McpRpcError(-32602, "search_notes requires string query");
+    if (name === "search_notes" && "body" in a && typeof a.body !== "boolean") throw new McpRpcError(-32602, "body must be a boolean");
     if (["get_note", "get_lineage", "get_related", "get_gkx_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
     if (name === "graph_at_time" && typeof a.time !== "string") throw new McpRpcError(-32602, "graph_at_time requires string time");
     const integer = (key: string, min: number, max: number) => {

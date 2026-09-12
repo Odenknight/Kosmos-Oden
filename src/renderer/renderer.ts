@@ -58,7 +58,7 @@ export interface KosmosAppOptions {
 export interface KosmosApp {
   ok: boolean;
   renderGraph(graph: any, label?: string): void;
-  showDemo(): void;
+  showDemo(): any;
   setConn(label: string, live: boolean): void;
   /** Live vault-connectivity signal: green dot + "connected" tooltip when the
    *  host can read the vault, red + "unreachable" when it cannot. */
@@ -2157,7 +2157,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     ok: true,
     renderGraph,
     showDemo() {
-      try { buildDemo(); ensureFrame(); } catch (e) { console.error("Kosmos-Oden: demo failed", e); showFatal("The demo could not be built."); }
+      try { buildDemo(); ensureFrame(); return G; } catch (e) { console.error("Kosmos-Oden: demo failed", e); showFatal("The demo could not be built."); return null; }
     },
     setConn,
     setVaultStatus,

@@ -9,11 +9,20 @@ import {
   KOSMOS_NAVIGATION_EFFECTS_INTEGRATION,
   getKosmosNavigationEffectsEngineSnapshot,
   navigationEffectsRuntimeFactsFromEngine,
+  planManagedMocBatch,
+  ManagedMocCoordinator,
+  buildDeterministicMocAssistance,
+  buildMocAssistance,
 } from "../dist/kosmos-navigation-effects.mjs";
 import { getNavigationCapabilities, NAVIGATION_CONTRACT_VERSION } from "gkos-engine/navigation";
 
 const ROOT = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const ENGINE_COMMIT = "650eab4a6752227cae336d7556a57826c22a0d5a";
+
+test("browser adapter exposes Engine managed-MOC seams without enabling writes", () => {
+  for (const entry of [planManagedMocBatch, ManagedMocCoordinator, buildDeterministicMocAssistance, buildMocAssistance]) assert.equal(typeof entry, "function");
+  assert.equal(getKosmosNavigationEffectsEngineSnapshot().currentEffectAuthorized, false);
+});
 
 test("adapter exposes the exact experimental contract standing", () => {
   assert.deepEqual(KOSMOS_NAVIGATION_EFFECTS_INTEGRATION, {

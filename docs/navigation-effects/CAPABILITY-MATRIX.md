@@ -1,7 +1,28 @@
 # Navigation and Navigation Effects capability matrix
 
-Status: **draft integration guidance only**
-Date: 2026-08-27
+Status: **draft integration guidance; current inventory below**
+Updated: 2026-09-12
+
+## Current source inventory
+
+The older matrix below describes the August baseline and must not be read as
+the current implementation inventory. At main `222c1da`, Kosmos pins Engine
+2.2.0 development commit `650eab4a6752227cae336d7556a57826c22a0d5a`.
+
+| Seam | Present implementation | Runtime limit |
+| --- | --- | --- |
+| Engine Effects adapter | `engine-adapter.ts` calls Engine capability reporting | Configured facts do not enable execution |
+| Authority and policy | `authority-provider.ts`, `policy.ts` and tests | No live credential-bound writer is registered in plugin lifecycle |
+| Host adapters | Obsidian/native capability adapters and contract tests | Obsidian flush, atomic replace, junction containment and recovery remain unproven/unavailable |
+| Adoption | Hash-bound plan, registry, in-memory store, review modal and browser fixtures | No durable production ownership store; modal is not wired into plugin lifecycle |
+| Settings/status | Independent disabled-by-default settings and status gates | No automatic MOC writer or durable reconciliation runtime |
+| MCP agent writes | Existing read-only tools | No agent-note create/update/append/archive tools or per-agent write grants |
+
+This corrects the stale “absent” claims without treating testable modules as
+reachable or qualified production behavior. K0 integration inventory is complete;
+K1–K4 execution still needs durable host primitives, runtime wiring and tests.
+
+## Historical August matrix
 
 This matrix records the capability semantics to preserve while reconciling the
 separately versioned Navigation Effects plane into Kosmos-Oden. It does not

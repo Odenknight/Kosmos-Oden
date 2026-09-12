@@ -125,7 +125,7 @@ export interface RetrievalCapabilities {
   searchModes: ("metadata" | "body")[];
   /** How search matches terms. Legacy default is whole-string substring. */
   matchModes: ("substring" | "terms")[];
-  /** Whether note *bodies* are searchable. False until an Engine bridge lands. */
+  /** Whether note bodies are searchable, including bounded snapshot prefixes. */
   bodyCoverage: "none" | "partial" | "full";
   /** Maximum hops `get_related` will traverse. */
   maxPathDepth: number;
@@ -136,8 +136,8 @@ export interface RetrievalCapabilities {
 }
 
 /**
- * Report only what this build can serve. `bodyCoverage` stays "none" and
- * `searchModes` stays metadata-only until an Engine retrieval bridge exists;
+ * Report only what the active provider can serve. Optional cached body search
+ * reports partial coverage; providers without it remain metadata-only.
  * claiming otherwise would tell an agent that a body answer was searched for
  * and absent, when in fact it was never searched at all.
  */

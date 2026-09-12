@@ -139,7 +139,7 @@ their codes and structured data on HTTP 400/404 responses.
 | Tool | Result |
 |---|---|
 | `vault_overview` | Sensitivity-filtered GKX projection statistics |
-| `search_notes` | Lexical title/alias/tag/path search |
+| `search_notes` | Lexical title/alias/tag/path search; optional `body: true` searches bounded cached body prefixes |
 | `get_note` | Readable source body, legacy metadata, v2.3 projection, lineage, and links |
 | `get_lineage` | Supersession chain, oldest to newest |
 | `get_related` | Explicit `related_to`, legacy Related, outgoing, and backlink neighbors |
@@ -201,7 +201,13 @@ instead of probing:
 }
 ```
 
-`bodyCoverage: "none"` means note bodies are **not** searched. An empty
+The Obsidian provider also advertises `body` with `bodyCoverage: "partial"`.
+Set `body: true` on `search_notes` to include readable cached body prefixes
+(64,000 characters per note; 8 million per query). The `bodySearch` response
+reports scan counts and truncation. Area/tag filters narrow the work. The
+default stays metadata-only; no additional vault reads or embeddings are used.
+
+`bodyCoverage: "none"` means the provider cannot search note bodies. An empty
 `search_notes` result therefore means "no metadata match", not "the text does
 not appear in the vault" — use `get_note` to read a body. Likewise
 `timeAxes: ["valid_at"]` means `graph_at_time` answers what was *valid* at a

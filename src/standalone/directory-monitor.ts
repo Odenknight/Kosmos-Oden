@@ -29,6 +29,7 @@ export class DirectoryMonitor {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private scanning = false;
   private stopped = false;
+  private generation = 0;
   paused = false;
   lastSnapshot: DirectorySnapshot | null = null;
   lastScanAt = 0;
@@ -60,13 +61,14 @@ export class DirectoryMonitor {
   }
 
   stop(): void {
+    this.generation++;
     this.stopped = true;
     this.clearTimer();
     window.removeEventListener("focus", this.onFocus);
     document.removeEventListener("visibilitychange", this.onVisibility);
   }
 
-  pause(): void { this.paused = true; }
+  pause(): void { this.paused = true; this.generation++; }
   resume(): void { this.paused = false; void this.scanNow("resume"); }
 
   private clearTimer(): void {
@@ -88,10 +90,12 @@ export class DirectoryMonitor {
 
   /** Scan + diff once. Returns the diff, or null when scanning was skipped. */
   async scanNow(_reason: string): Promise<SnapshotDiff | null> {
-    if (this.scanning || this.paused || !this.source.canRescan) return null;
+    if (this.stopped || this.scanning || this.paused || !this.source.canRescan) return null;
+    const generation = this.generation;
     this.scanning = true;
     try {
       const next = await this.source.scan();
+      if (this.stopped || this.paused || generation !== this.generation) return null;
       this.lastScanAt = next.scannedAt;
       this.cb.onScan?.(next);
       for (const e of next.errors) this.cb.onError(e);
@@ -102,10 +106,11 @@ export class DirectoryMonitor {
       if (!diff.isEmpty) this.cb.onDiff(diff, next);
       return diff;
     } catch (e: any) {
+      if (this.stopped || this.paused || generation !== this.generation) return null;
       // Permission lost / device detached: report but keep the page alive (§19.3)
       this.cb.onError(
         e?.name === "NotAllowedError"
-          ? "Folder permission lost — click Rescan to re-authorize"
+          ? "Folder permission lost — open the folder again to re-authorize"
           : `Rescan failed: ${e?.message || e}`
       );
       return null;
