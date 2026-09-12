@@ -35,6 +35,10 @@ Maintainers can audit a mailbox without changing its files:
 `node scripts/audit-mailbox.mjs <mailbox-root> <recipient-id>`.
 The audit reports hash/chain/ACK defects; an ACK never proves task completion.
 
+The desktop enrichment review saves immutable proposals and explicit human
+decisions separately. Confidence helps filter candidates; it never approves
+changes. See [review behavior and host limits](docs/reviews/2026-09-12-proposal-review-upgrade.md).
+
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
 ## Pick a launchpad
