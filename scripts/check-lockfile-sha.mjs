@@ -63,10 +63,10 @@ for (const group of ["dependencies", "devDependencies"]) {
 const engine = packages["node_modules/gkos-engine"];
 if (
   engine?.version !== "2.2.0"
-  || !String(engine.resolved ?? "").endsWith("#650eab4a6752227cae336d7556a57826c22a0d5a")
+  || !String(engine.resolved ?? "").endsWith("#f39cccbacd5d2469b5e17dc0c1ef81d8d59cd9c4")
 ) {
-  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to development-only Effects commit 650eab4a6752");
+  console.error("check-lockfile-sha: FAIL — gkos-engine is not bound to Graphiti adapter commit aac61430f74a");
   process.exit(1);
 }
 
-console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; development-only gkos-engine 2.2.0 @ 650eab4a6752.`);
+console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; gkos-engine 2.2.0 @ aac61430f74a.`);

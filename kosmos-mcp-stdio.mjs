@@ -19,6 +19,12 @@ import readline from "node:readline";
 
 const endpoint = process.env.KOSMOS_MCP_URL || "http://127.0.0.1:4816/mcp";
 const token = process.env.KOSMOS_MCP_TOKEN || "";
+// Explicit per-process identity, never inferred from a shared token or address.
+const agentName = process.env.KOSMOS_AGENT_NAME;
+if (agentName !== undefined && (!agentName.trim() || agentName.length > 80 || /[\u0000-\u001f\u007f]/.test(agentName))) {
+  process.stderr.write("Kosmos-Oden stdio adapter: KOSMOS_AGENT_NAME must contain 1–80 printable characters\n");
+  process.exit(2);
+}
 
 const META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
 /** Methods whose `Mcp-Name` header mirrors a body field, and which field. */
@@ -54,6 +60,19 @@ function requestError(message, detail) {
 }
 
 async function forward(message) {
+  const meta = message?.params?._meta;
+  if (agentName !== undefined && meta && typeof meta === "object" && !Array.isArray(meta)) {
+    const info = meta["io.modelcontextprotocol/clientInfo"];
+    // Preserve malformed metadata so the server still diagnoses it. Required
+    // protocol/capability metadata is never manufactured by this adapter.
+    if (info === undefined || (info && typeof info === "object" && !Array.isArray(info) && typeof info.name === "string" && typeof info.version === "string")) {
+      meta["io.modelcontextprotocol/clientInfo"] = { ...info, name: agentName.trim(), version: info?.version ?? "kosmos-stdio" };
+      const args = message?.params?.arguments;
+      if (message.method === "tools/call" && args && typeof args.agent_name === "string" && args.agent_name.trim() && args.agent_name.length <= 80) {
+        args.agent_name = agentName.trim();
+      }
+    }
+  }
   const headers = {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",

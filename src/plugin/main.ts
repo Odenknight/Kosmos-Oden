@@ -13,7 +13,7 @@
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
-import { GRAPHITI_CORE_VERSION, graphitiIngestionProfile } from "gkos-engine";
+import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
@@ -664,95 +664,13 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   /** Export readable source assertions as a non-authoritative Graphiti projection.
-   * Stable episode UUIDs make re-ingestion idempotent; later supersession state
+   * Canonical episode UUIDs identify sources; ingestion receipts map derived IDs. Later supersession state
    * is not back-propagated into earlier episodes. */
   async exportGraphitiEpisodes(): Promise<void> {
     const episodes = await this.agentApi.qEpisodes();
     await this.app.vault.adapter.write("graphiti-episodes.json", JSON.stringify(episodes, null, 2));
     await this.app.vault.adapter.write("graphiti-ingestion-profile.json", JSON.stringify(graphitiIngestionProfile({ combinedExtraction: this.agentSettings.graphitiCombinedExtraction }), null, 2));
-    await this.app.vault.adapter.write("graphiti-ingest-sample.py", SAMPLE_INGEST_PY);
+    await this.app.vault.adapter.write("graphiti-ingest-sample.py", GRAPHITI_INGEST_SCRIPT);
     new Notice(`Kosmos-Oden: exported ${episodes.length} KGCP/Graphiti episodes, ingestion profile, and pinned sample script`);
   }
 }
-
-/** Sample Graphiti ingestion script written next to the export. */
-const SAMPLE_INGEST_PY = `#!/usr/bin/env python3
-# Ingest an Obsidian vault (exported by Kosmos-Oden v${KOSMOS_VERSION}, GKX) into Graphiti.
-# Graphiti: https://github.com/getzep/graphiti
-#
-#   pip install "graphiti-core[falkordb]==${GRAPHITI_CORE_VERSION}"   # tested pin; security floor is >=0.28.2
-#   docker run -p 6379:6379 -p 3000:3000 --rm falkordb/falkordb:latest
-#   export OPENAI_API_KEY=...          # or configure another LLM per the Graphiti docs
-#   export NEO4J_URI=bolt://localhost:7687 NEO4J_USER=neo4j NEO4J_PASSWORD=password
-#   python graphiti-ingest-sample.py graphiti-episodes.json
-import asyncio, json, os, sys, time
-from datetime import datetime
-from graphiti_core import Graphiti
-from graphiti_core.nodes import EpisodeType
-
-async def main(path: str) -> None:
-    episodes = json.load(open(path, encoding="utf-8"))
-    profile_path = os.path.join(os.path.dirname(path) or ".", "graphiti-ingestion-profile.json")
-    profile = json.load(open(profile_path, encoding="utf-8")) if os.path.exists(profile_path) else {}
-    if profile.get("combinedExtraction"):
-        print("NOTICE: combined extraction was requested, but Graphiti ${GRAPHITI_CORE_VERSION} exposes it only through extract_nodes_and_edges_bulk().")
-        print("The stable add_episode API below will remain standard extraction; benchmark results must not claim combined extraction was applied.")
-    backend = os.environ.get("GRAPHITI_DB", "falkordb").lower()
-    if backend == "falkordb":
-        from graphiti_core.driver.falkordb_driver import FalkorDriver
-        driver = FalkorDriver(host=os.environ.get("FALKORDB_HOST", "localhost"),
-                              port=int(os.environ.get("FALKORDB_PORT", "6379")),
-                              username=os.environ.get("FALKORDB_USER"),
-                              password=os.environ.get("FALKORDB_PASSWORD"),
-                              database=os.environ.get("FALKORDB_DATABASE", "kosmos_oden"))
-    elif backend == "neo4j":
-        from graphiti_core.driver.neo4j_driver import Neo4jDriver
-        driver = Neo4jDriver(uri=os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
-                             user=os.environ.get("NEO4J_USER", "neo4j"),
-                             password=os.environ.get("NEO4J_PASSWORD", "password"))
-    else:
-        raise SystemExit("GRAPHITI_DB must be falkordb or neo4j; Kuzu is intentionally unsupported")
-    g = Graphiti(graph_driver=driver)
-    await g.build_indices_and_constraints()
-    started = time.perf_counter()
-    completed = 0
-    try:
-        for e in episodes:  # chronological order preserves GKX knowledge chains
-            body = json.loads(e["episode_body"])
-            saga = body.get("saga") or {}
-            await g.add_episode(
-                uuid=e["uuid"],
-                name=e["name"],
-                episode_body=e["episode_body"],
-                source=EpisodeType.from_str(e.get("source", "json")),
-                source_description=e["source_description"],
-                reference_time=datetime.fromisoformat(e["reference_time"].replace("Z", "+00:00")),
-                group_id=e.get("group_id"),
-                saga=saga.get("id"),
-            )
-            completed += 1
-            print("ingestion returned; searchability not verified:", e["name"])
-    finally:
-        await g.close()
-    report = {
-        "graphiti_core": "${GRAPHITI_CORE_VERSION}",
-        "readiness_boundary": "await Graphiti.add_episode returned",
-        "accepted_is_searchable": False,
-        "searchability": "unverified",
-        "readback_performed": False,
-        "episodes_completed": completed,
-        "ingestion_duration_ms": round((time.perf_counter() - started) * 1000, 2),
-        "combined_extraction_requested": bool(profile.get("combinedExtraction")),
-        "combined_extraction_applied": False,
-        "token_cost": None,
-        "entity_recall": None,
-        "edge_accuracy": None,
-        "measurement_notes": "Token telemetry and labeled evaluation fixtures are required for the null quality/cost metrics. Do not invent them."
-    }
-    report_path = os.path.join(os.path.dirname(path) or ".", "graphiti-ingestion-report.json")
-    json.dump(report, open(report_path, "w", encoding="utf-8"), indent=2)
-    print("wrote:", report_path)
-
-if __name__ == "__main__":
-    asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "graphiti-episodes.json"))
-`;

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { buildGraph } from "../dist/kosmos-core.mjs";
 import {
   KosmosAgentServer,
@@ -120,4 +121,46 @@ test("bundled stdio adapter mirrors modern request metadata into headers", async
   child.stdin.end();
   const exitCode = await new Promise((resolve) => child.on("exit", resolve));
   assert.equal(exitCode, 0);
+});
+
+test("configured ship identity survives generic and omitted client names without repairing invalid metadata", async (t) => {
+  const received = [];
+  const upstream = http.createServer(async (req, res) => {
+    let text = "";
+    for await (const part of req) text += part;
+    const message = JSON.parse(text);
+    received.push(message);
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: {} }));
+  });
+  upstream.listen(0, "127.0.0.1");
+  await once(upstream, "listening");
+  t.after(() => upstream.close());
+  const child = spawn(process.execPath, ["kosmos-mcp-stdio.mjs"], {
+    env: { ...process.env, KOSMOS_MCP_URL: `http://127.0.0.1:${upstream.address().port}/mcp`, KOSMOS_MCP_TOKEN: "", KOSMOS_AGENT_NAME: "JEFFREY" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  t.after(() => child.kill());
+  child.stdout.resume(); child.stderr.resume();
+  const metas = [
+    { [MCP_META_CLIENT_INFO]: { name: "mcp", version: "1" } },
+    {},
+    { [MCP_META_CLIENT_INFO]: { name: "jeffrey", version: "2" } },
+    { [MCP_META_CLIENT_INFO]: 42 },
+    undefined,
+  ];
+  child.stdin.end(metas.map((_meta, id) => JSON.stringify({ jsonrpc: "2.0", id,
+    method: id === 1 ? "ping" : id === 2 ? "tools/call" : "tools/list",
+    params: { _meta, ...(id === 2 ? { name: "get_policy", arguments: { agent_name: "jeffrey" } } : {}) },
+  })).join("\n") + "\n");
+  const [code] = await once(child, "exit");
+  assert.equal(code, 0);
+  assert.equal(received.length, 5);
+  assert.deepEqual(received.slice(0, 3).map(m => m.params._meta[MCP_META_CLIENT_INFO].name), ["JEFFREY", "JEFFREY", "JEFFREY"]);
+  assert.equal(received[0].params._meta[MCP_META_CLIENT_INFO].version, "1");
+  assert.equal(received[2].params.arguments.agent_name, "JEFFREY");
+  assert.equal(received[3].params._meta[MCP_META_CLIENT_INFO], 42);
+  assert.equal(received[4].params._meta, undefined);
+  assert.equal(received[1].params._meta[MCP_META_PROTOCOL_VERSION], undefined);
+  assert.equal(received[1].params._meta[MCP_META_CLIENT_CAPABILITIES], undefined);
 });

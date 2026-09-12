@@ -2,6 +2,10 @@
 
 ## 0.8.3 candidate bugfixes — 2026-09-12
 
+- Pin the Engine Graphiti 0.30.2 adapter and reuse its persistence-checked
+  external runner; preserve export snapshots across policy changes.
+- Add explicit per-process ship identity to the stdio adapter so generic client
+  labels and designated names do not alternate when configured consistently.
 - Align search and note-detail UIDs with the validating projection used by UID
   selectors. Explain missing projections without revealing inaccessible notes.
 - Document temporal query scope and return explicit truncation; guide callers

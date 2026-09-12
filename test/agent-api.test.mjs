@@ -47,6 +47,22 @@ function fixtureProvider() {
 
 const TOKEN = "test-token-1234567890";
 
+test("Graphiti export uses snapshot bodies and refuses a policy change during fallback reads", async () => {
+  const provider = fixtureProvider();
+  const graph = await provider.getGraph();
+  const server = new KosmosAgentServer(http, settings(), {
+    ...provider,
+    getIndexedBody: (path, snapshot) => { assert.equal(snapshot, graph); return "snapshot body"; },
+    getNoteContent: async () => { throw new Error("must not reread live files"); },
+  });
+  const episodes = await server.qEpisodes();
+  assert.ok(episodes.filter(e => e.source === "json").every(e => JSON.parse(e.episode_body).content === "snapshot body"));
+  const changing = new KosmosAgentServer(http, settings(), {
+    ...provider, getNoteContent: async () => { changing.settings.agentSensitivityCeiling = "public"; return "now restricted"; },
+  });
+  await assert.rejects(() => changing.qEpisodes(), /Vault provider unavailable/);
+});
+
 test("search exposes the same projection UID accepted by note selectors", async () => {
   const provider = fixtureProvider();
   const graph = await provider.getGraph();
@@ -528,6 +544,26 @@ test("agent api", async (t) => {
         params: { name: "get_note", arguments: { title: "Engine v2", agent_name } } });
       assert.equal(result.json().error.code, -32602);
     }
+    server.onTraversal = undefined;
+  });
+
+  await t.test("explicit HTTP ship name stays stable across tool activity without aliasing other callers", async () => {
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => seen.push({ agent, agentId });
+    const headers = { "X-Kosmos-Agent-Name": "JEFFREY" };
+    for (const client of ["mcp", "jeffrey"]) {
+      const r = await mcp({ jsonrpc: "2.0", id: 881, method: "tools/call",
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name: client } } }, { client, headers });
+      assert.equal(r.json().result.isError, false);
+    }
+    await mcp({ jsonrpc: "2.0", id: 882, method: "tools/call", params: { name: "vault_overview", arguments: {} } }, { client: "mcp", headers });
+    assert.equal(seen.length, 3);
+    assert.ok(seen.every(e => e.agent === "JEFFREY" && e.agentId === seen[0].agentId));
+    await mcp({ jsonrpc: "2.0", id: 883, method: "tools/call", params: { name: "vault_overview", arguments: {} } }, { client: "mcp" });
+    assert.equal(seen[3].agent, "mcp");
+    assert.notEqual(seen[3].agentId, seen[0].agentId);
+    const invalid = await mcp({ jsonrpc: "2.0", id: 884, method: "server/discover" }, { headers: { "X-Kosmos-Agent-Name": "x".repeat(81) } });
+    assert.equal(invalid.json().error.code, -32602);
     server.onTraversal = undefined;
   });
 
