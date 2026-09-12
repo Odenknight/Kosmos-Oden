@@ -47,6 +47,22 @@ function fixtureProvider() {
 
 const TOKEN = "test-token-1234567890";
 
+test("Graphiti export uses snapshot bodies and refuses a policy change during fallback reads", async () => {
+  const provider = fixtureProvider();
+  const graph = await provider.getGraph();
+  const server = new KosmosAgentServer(http, settings(), {
+    ...provider,
+    getIndexedBody: (path, snapshot) => { assert.equal(snapshot, graph); return "snapshot body"; },
+    getNoteContent: async () => { throw new Error("must not reread live files"); },
+  });
+  const episodes = await server.qEpisodes();
+  assert.ok(episodes.filter(e => e.source === "json").every(e => JSON.parse(e.episode_body).content === "snapshot body"));
+  const changing = new KosmosAgentServer(http, settings(), {
+    ...provider, getNoteContent: async () => { changing.settings.agentSensitivityCeiling = "public"; return "now restricted"; },
+  });
+  await assert.rejects(() => changing.qEpisodes(), /Vault provider unavailable/);
+});
+
 test("search exposes the same projection UID accepted by note selectors", async () => {
   const provider = fixtureProvider();
   const graph = await provider.getGraph();
