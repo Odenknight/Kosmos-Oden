@@ -40,11 +40,37 @@ host confinement was not changed.
 
 ## Remaining boundary and rollback
 
-This is **storage staging**, not a running semantic retrieval broker. Extraction,
-embedding, search, revocation, recovery and corpus benchmarks were not run on
-this new instance. The model endpoint remains to be selected. The plugin keeps
-native retrieval and reports export-ready/searchable=false. Prior fixture search
-receipts from the adapter review do not qualify this new instance.
+### Model selection and fixture qualification — 23:00 UTC follow-up
+
+The owner selected the local text-model endpoint for extraction. It serves `util4`
+and passed chat/structured JSON checks, but `/v1/embeddings` returns HTTP 501.
+The owner authorized selection of an existing infrastructure embedding service.
+We reused the KnightsAI hive's configured Nomic service at
+the existing local embedding endpoint, model
+`nomic-embed-text-v1.5` (Q8_0), with 768 dimensions.
+Both endpoints were reachable from Observatory; neither model server was changed.
+
+The existing Engine synthetic qualification was adapted only for this instance's
+model factory and Unix-socket connection/cleanup. Graphiti 0.30.2 extracted three
+nodes and two edges in 12,646.64 ms. Exact episode content/group readback passed;
+five scoped searches returned the expected fact with source-episode provenance
+in 18.84–19.44 ms. A different empty group returned no results. Exact temporary
+database cleanup passed. The fixture uses the same deterministic rank-preserving
+reranker as the hive; it does not claim model-based reranking.
+
+[Raw receipt](evidence/observatory-model-qualification/receipt.json),
+[model factory](evidence/observatory-model-qualification/observatory_graphiti.py),
+and [fixture](evidence/observatory-model-qualification/qualify-observatory-graphiti.py)
+are retained with [SHA-256 hashes](evidence/observatory-model-qualification/SHA256SUMS).
+Connection details and the installed factory location remain in the private operating record.
+Endpoint aliases and model names are observed identities, not frozen model-file
+digests; changing either model requires another qualification run.
+
+This qualifies the **bounded synthetic ingestion/search path**, not a running
+semantic retrieval broker or a comparative performance benchmark. Full
+authorization/revocation, recovery, real-vault ingestion and corpus benchmarks
+remain unqualified. The plugin keeps native retrieval and correctly reports
+export-ready/searchable=false because no semantic broker is wired into it.
 
 Stop staging with `sudo systemctl disable --now kosmos-graphiti-db.service`.
 Preserve the runtime, synthetic data and receipts for review; no deletion or
