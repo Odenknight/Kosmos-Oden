@@ -46,6 +46,16 @@ test("metadata-only events do not invalidate the source index; vault modify upda
   plugin.agentSettings.noteTimestampsEnabled = false;
   const providerCalls = [];
   plugin.provider = { markChanged: (path) => providerCalls.push(["changed", path]), markFullDirty: () => providerCalls.push(["full"]), markRemoved() {}, markRenamed() {} };
+  plugin.agentSettings.noteTimestampsEnabled = true;
+  try {
+    const created = handlers.vault.find((entry) => entry.event === "create").callback;
+    created({ path: "existing-at-startup.md", extension: "md" });
+    assert.equal(plugin.timestampTimers.size, 0, "startup discovery must not schedule source writes");
+  } finally {
+    for (const timer of plugin.timestampTimers.values()) clearTimeout(timer);
+    plugin.timestampTimers.clear();
+    plugin.agentSettings.noteTimestampsEnabled = false;
+  }
   for (const callback of layoutReady) callback();
   providerCalls.length = 0;
 
@@ -58,4 +68,30 @@ test("metadata-only events do not invalidate the source index; vault modify upda
   modified({ path: "note.md", extension: "md" });
   assert.deepEqual(providerCalls, [["changed", "note.md"]]);
   assert.deepEqual(viewCalls, ["note.md"]);
+});
+
+test("slow timestamp writes do not schedule themselves again when their modify event arrives", async () => {
+  let complete;
+  const pending = new Promise(resolve => { complete = resolve; });
+  const plugin = new KosmosOdenPlugin({ fileManager: { processFrontMatter: () => pending } });
+  plugin.eventsLive = true;
+  plugin.agentSettings.noteTimestampsEnabled = true;
+  const note = { path: "slow.md", extension: "md", stat: { ctime: 1, mtime: 1 } };
+  const write = plugin.stampNote(note);
+  const realNow = Date.now;
+  try {
+    const later = realNow() + 3000;
+    Date.now = () => later;
+    plugin.scheduleTimestamp(note, 10000);
+    assert.equal(plugin.timestampTimers.size, 0, "an outstanding write must suppress its own modify event beyond 2.5 seconds");
+  } finally {
+    Date.now = realNow;
+    complete(); await write;
+    for (const timer of plugin.timestampTimers.values()) clearTimeout(timer);
+    plugin.timestampTimers.clear();
+  }
+  plugin.timestampWriteUntil.clear();
+  plugin.scheduleTimestamp(note, 10000);
+  assert.equal(plugin.timestampTimers.size, 1, "later real edits still schedule timestamps");
+  for (const timer of plugin.timestampTimers.values()) clearTimeout(timer);
 });

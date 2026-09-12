@@ -337,9 +337,13 @@ export default class KosmosOdenPlugin extends Plugin {
   private nextcloudSyncRunning = false;
   private timestampTimers = new Map<string, number>();
   private timestampWriteUntil = new Map<string, number>();
+  private timestampWrites = new Set<object>();
   private startupSyncTimer: number | null = null;
 
   scheduleTimestamp(file: any, delay = 350): void {
+    // Obsidian emits create events for existing notes during startup discovery.
+    // Those are not user edits and must not start frontmatter writes.
+    if (!this.eventsLive || this.timestampWrites.has(file)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
@@ -352,7 +356,9 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   async stampNote(file: any): Promise<void> {
+    if (!this.eventsLive || this.timestampWrites.has(file)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    this.timestampWrites.add(file);
     try {
       const created = Number(file.stat?.ctime) || Date.now();
       const modified = Number(file.stat?.mtime) || Date.now();
@@ -366,6 +372,11 @@ export default class KosmosOdenPlugin extends Plugin {
       });
     } catch (error) {
       console.warn("Kosmos-Oden: could not stamp note timestamps", file?.path, error);
+    } finally {
+      // A host write can outlast the debounce window while indexing. Keep
+      // suppressing its own modify event until completion, including renames.
+      this.timestampWriteUntil.set(file.path, Date.now() + 2500);
+      this.timestampWrites.delete(file);
     }
   }
 
@@ -643,6 +654,7 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.eventsLive = false;
     this.agentApi?.stop();
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);
