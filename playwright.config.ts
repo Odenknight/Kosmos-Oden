@@ -18,7 +18,8 @@ import { defineConfig, devices } from "@playwright/test";
  * headless Linux is not dependable, which is why firefox/webkit run in the
  * advisory `Browser (full matrix)` workflow rather than the per-push gate.
  */
-const PORT = 8330;
+const PORT = Number(process.env.KOSMOS_TEST_PORT || 8330);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error("Invalid KOSMOS_TEST_PORT");
 
 const CHROMIUM_SOFTWARE_GL = [
   "--use-gl=angle",
@@ -45,7 +46,7 @@ export default defineConfig({
   webServer: {
     command: "node scripts/serve-static.mjs " + PORT,
     port: PORT,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 30_000,
   },
   use: {

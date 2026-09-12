@@ -196,6 +196,12 @@ export class VaultDataProvider implements AgentDataProvider {
     }
   }
 
+  getIndexedBody(path: string, graph: GkxGraph): string | null {
+    if (graph !== this.index.graph || isKosmosOperationalPath(path)) return null;
+    const source = this.sourceFiles.get(path);
+    return source ? stripFrontmatter(source.content ?? "") : null;
+  }
+
   async getNoteContent(path: string): Promise<string | null> {
     if (isKosmosOperationalPath(path)) return null;
     const f = this.app.vault.getAbstractFileByPath(path);

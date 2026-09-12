@@ -14,6 +14,15 @@ import {
 
 import type { NavigationEffectsRuntimeFacts } from "./types";
 
+// Reuse the pinned Engine's browser-safe planners and injected coordinator.
+// Exporting them supplies no host, credential, lease, or write authority.
+export {
+  planManagedMocBatch,
+  ManagedMocCoordinator,
+  buildDeterministicMocAssistance,
+  buildMocAssistance,
+} from "gkos-engine/navigation-effects";
+
 export const KOSMOS_NAVIGATION_EFFECTS_INTEGRATION = Object.freeze({
   suite: "ENGINE-NAV-EFFECTS-CONTRACT-1.0.0",
   contractVersion: NAVIGATION_EFFECTS_CONTRACT_VERSION,

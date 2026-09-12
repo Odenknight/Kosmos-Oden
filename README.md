@@ -24,6 +24,17 @@ Markdown content changes. Connection lines now stay hidden until **All links**
 is enabled, while orbital motion continues. See the
 [bugfix report and validation limits](docs/reviews/2026-09-12-startup-and-links-bugfix.md).
 
+Agents can opt into note-body discovery with `search_notes` using `body: true`.
+It searches the already indexed, readable note snapshot without extra vault reads.
+Metadata search remains the default. Body coverage is explicitly partial: at most
+64,000 characters per note and 8 million per query; use area/tag filters to narrow
+the search. Restricted notes are excluded before their bodies are examined.
+The response reports scanned characters and whether those bounds truncated work.
+
+Maintainers can audit a mailbox without changing its files:
+`node scripts/audit-mailbox.mjs <mailbox-root> <recipient-id>`.
+The audit reports hash/chain/ACK defects; an ACK never proves task completion.
+
 ![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
 ## Pick a launchpad
@@ -36,6 +47,8 @@ is enabled, while orbital motion continues. See the
 
 All three use the same pinned Engine semantics rather than inventing separate
 parsers for each surface.
+
+Moving from Lite? Follow the [migration checklist](docs/LITE-MIGRATION.md).
 
 ## Open the standalone sky
 
