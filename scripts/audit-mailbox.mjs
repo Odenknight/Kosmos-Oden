@@ -25,7 +25,7 @@ export function auditMailbox(root, recipient) {
     const chain = [];
     for (const entry of read(`messages/${dir.name}`)) {
       const m = entry.data;
-      if (m.sender !== dir.name || !Number.isSafeInteger(m.sender_seq) || m.sender_seq < 1 || typeof m.message_id !== "string" || !Array.isArray(m.recipients)) { report(entry.file, "message-schema"); continue; }
+      if (!m || typeof m !== "object" || Array.isArray(m) || m.sender !== dir.name || !Number.isSafeInteger(m.sender_seq) || m.sender_seq < 1 || typeof m.message_id !== "string" || !Array.isArray(m.recipients) || m.recipients.some(r => typeof r !== "string")) { report(entry.file, "message-schema"); continue; }
       const prior = ids.get(m.message_id);
       if (prior?.sha256 === entry.sha256) { duplicates.push(entry.file); continue; }
       if (prior) report(entry.file, "message-id-conflict");
@@ -42,7 +42,9 @@ export function auditMailbox(root, recipient) {
   }
   const ordinals = new Set();
   for (const entry of read(`acks/${recipient}`)) {
-    const a = entry.data, target = ids.get(a.message_id);
+    const a = entry.data;
+    if (!a || typeof a !== "object" || Array.isArray(a) || typeof a.message_id !== "string") { report(entry.file, "ack-schema"); continue; }
+    const target = ids.get(a.message_id);
     const ordinal = basename(entry.file).match(/-(\d{6})-ack-/)?.[1];
     if (!ordinal || basename(entry.file) !== `${recipient}-${ordinal}-ack-${a.message_id}.json`) report(entry.file, "ack-filename");
     if (ordinal && ordinals.has(ordinal)) report(entry.file, "ack-ordinal-reused");

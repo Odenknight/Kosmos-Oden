@@ -34,5 +34,10 @@ test("mailbox audit selects recipient and exposes forks, inverted roles and bad 
   assert.ok(broken.findings.some(f => f.code === "sequence-fork"));
   assert.ok(broken.findings.some(f => f.code === "parent-hash-mismatch"));
   assert.equal(readFileSync(first.path, "utf8"), first.raw);
+  put("messages/alice", "invalid.json", null);
+  put("acks/bob", "invalid.json", null);
+  const malformed = auditMailbox(root, "bob").findings.map(f => f.code);
+  assert.ok(malformed.includes("message-schema"));
+  assert.ok(malformed.includes("ack-schema"));
   assert.throws(() => auditMailbox(root, "../carol"), /Invalid recipient/);
 });

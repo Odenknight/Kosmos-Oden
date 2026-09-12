@@ -2,6 +2,12 @@
 
 ## 0.8.3 candidate bugfixes — 2026-09-12
 
+- Add opt-in bounded cached body search with explicit partial coverage.
+- Export the displayed standalone graph, gate content exports, fence stale folder
+  scans and keep short-screen controls and error messages reachable.
+- Correct generated Graphiti sample searchability claims; add recipient-specific
+  read-only mailbox auditing, Lite migration guidance and current Effects inventory.
+
 - Prevent startup-discovered notes from triggering timestamp writes; suppress
   timestamp reentry for the full duration of slow host writes.
 - Hide membership, note-chain and focused connection lines until All links is
