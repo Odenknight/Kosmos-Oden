@@ -15,26 +15,23 @@ GKOS governance or GKX exchange contracts.
   workflows for writes and authoritative dispositions.
 - Publish engine-version compatibility and reproducible release evidence.
 
-### Stable visual-identity successor
+### Current visual identity and qualification
 
-The bounded successor on `codex/complete-identity-protocol-20260901` has
-implementation evidence at `caac0248529bcea94d7d37d582a9e45b3cc6df94`;
-later documentation commits require their own exact-SHA checks. It separates
-the renderer's stable agent identity from its display label across live,
-buffered, replay, and embedded paths. The Agent API server mints a distinct
-random visual identifier for each MCP session and does not expose the
-`Mcp-Session-Id` to the renderer.
-Clients cannot choose or retrieve the visual identifier; REST remains
-label-only. This changes visualization fidelity only and grants no authority.
+The modern MCP endpoint is stateless. Server-issued visual identifiers are keyed
+by the cleaned client/display name; `agent_name` can supply the designated label.
+They are separate from authentication and write authority. Old per-session
+`Mcp-Session-Id` descriptions are historical and must not guide new clients.
 
-Local unit and Chromium evidence makes this a reviewable candidate, not a
-release or qualification claim. Promotion remains gated on:
+Startup/indexing, link visibility, trail timing, idle fade and galaxy spacing
+fixes are on main. Proposal and human-decision sidecars require explicit review;
+automatic MOC writes remain disabled. Bounded cached body search, a mailbox audit
+and a Lite migration guide are available. Consumer coordinator fixtures cover
+rename/overflow, denied recovery, concurrent intent and corrupt intent rejection.
 
-1. hosted Chromium and mobile browser execution at the exact accepted SHA;
-2. the applicable Firefox/WebKit and cross-GPU renderer lanes;
-3. a live, authenticated Engine-to-Kosmos request-to-render chain rather than
-   synthetic traversal input; and
-4. repository-owned review, compatibility evidence, and release checks.
+Local Windows Obsidian and direct MCP evidence exists. Browser tests cover
+Chromium, mobile Chromium, Firefox and WebKit. Native Hermes acceptance,
+independent hardware GPU evidence and complete profile qualification remain
+separate gates. See [branch and data dispositions](docs/reviews/2026-09-12-branch-disposition.md).
 
 ## Next
 
