@@ -46,9 +46,10 @@ Observed checks:
   are included in the published report.
 - Baseline: 400 Kosmos tests and all verification checks passed.
 - Candidate: all 403 tests and all verification checks passed against the final
-  Engine dependency pin. Forty desktop/mobile Chromium tests passed on the
-  earlier candidate; final-pin browser verification is recorded below when complete.
-  An occupied default browser port required an isolated test port.
+  Engine dependency pin. All 40 final-pin desktop/mobile Chromium tests passed
+  in 57.7 seconds with two workers and an isolated test port. An eight-worker
+  run produced nine timeout/cancelled-download failures; no assertions or test
+  timeouts were relaxed for the successful rerun.
 - Engine: nine Graphiti tests and seven generated-runner regression tests pass.
 - The first full Engine run reported 1,105 passed, four failed and one skipped.
   One failure required explicitly declaring the two additive Graphiti APIs
@@ -68,6 +69,25 @@ Raw receipts, package/container identities and rollback instructions are in the
 The shared hive already used 0.30.2; it was neither upgraded nor restarted.
 
 ## Readiness and rollback
+
+Native Windows Obsidian was reloaded with clean candidate
+`7ad5142c1d5bc7953af18fd458a53503364bdfb2` (still version 0.8.3), built
+`2026-09-12T22:05:29.433Z`. Installed main.js SHA-256:
+`2916df8215177d7b285846f6613b95dd9cd5170498f764164e93fd027635e9c9`.
+All 11 package files were copied after checking the package hashes. Previous
+artifacts were backed up; the settings file hash was unchanged.
+
+Seven native MCP calls passed: two overviews, Graphiti status, search, note,
+lineage and related notes. Alternating `mcp`/`Codex` client metadata with the
+configured HTTP label `Codex` produced seven activity events with one label
+and one visual agent ID. Temporary callback instrumentation was restored.
+The internal activity event called `ping` is not a protocol ping RPC; the
+current MCP protocol oracle still rejects that removed method.
+Live status reports core 0.30.2, export-ready and searchable=false.
+This verifies the native plugin, not JEFFREY's Hermes client configuration.
+That client must configure `X-Kosmos-Agent-Name: JEFFREY` or the stdio
+environment variable `KOSMOS_AGENT_NAME=JEFFREY`; no arbitrary generic
+client is silently reassigned to JEFFREY.
 
 This qualifies the corrected optional path within those fixtures. It does not
 qualify a production semantic broker, automatic recovery, complete derived-data
