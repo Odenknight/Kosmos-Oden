@@ -1,5 +1,7 @@
 # Kosmos-Oden — v0.8.3 candidate
 
+[Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
+
 Turn a folder of Markdown notes into a universe you can explore.
 
 Kosmos-Oden maps folders to galaxies, connected notes to stars and planetary

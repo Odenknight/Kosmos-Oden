@@ -452,13 +452,14 @@ export class KosmosAgentServer {
   }
 
   /** Identity of a modern MCP caller, from the request body's `_meta`. */
-  mcpIdentity(parsed: any, req: any): { agent: string; agentId?: string } {
+  mcpIdentity(parsed: any, req: any): { agent: string; agentId?: string; agentOverride?: string } {
     const info = parsed?.params?._meta?.[MCP_META_CLIENT_INFO];
-    const name = info && typeof info === "object" && typeof info.name === "string" ? info.name : "";
+    const agentOverride = req?.headers?.["x-kosmos-agent-name"];
+    const name = agentOverride ?? (info && typeof info === "object" && typeof info.name === "string" ? info.name : "");
     if (!name.trim()) return { agent: this.agentLabel(req) };
     const key = this.registerSession(name, MODERN_MCP_PROTOCOL_VERSION);
     const rec = this.getSession(key);
-    return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId };
+    return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId, agentOverride };
   }
 
   /** Validate the mirrored request-metadata headers against the body.
@@ -544,6 +545,10 @@ export class KosmosAgentServer {
     const info = meta?.[MCP_META_CLIENT_INFO];
     if (info !== undefined && (!info || typeof info !== "object" || Array.isArray(info) || typeof info.name !== "string" || typeof info.version !== "string")) {
       return { code: -32602, message: "Invalid params: clientInfo must contain string name and version" };
+    }
+    const designated = req?.headers?.["x-kosmos-agent-name"];
+    if (designated !== undefined && (typeof designated !== "string" || !designated.trim() || designated.length > 80 || /[\u0000-\u001f\u007f]/.test(designated))) {
+      return { code: -32602, message: "X-Kosmos-Agent-Name must contain 1–80 printable characters" };
     }
     return null;
   }
@@ -1129,6 +1134,7 @@ export class KosmosAgentServer {
 
   async qEpisodes(limit?: number, offset = 0): Promise<any[]> {
     const graph = await this.provider.getGraph();
+    const ceiling = this.settings.agentSensitivityCeiling;
     const visibleGraph = this.graphForVisibleNodes(graph);
     const all = buildGraphitiEpisodes(visibleGraph, {
       vault: this.provider.vaultName(),
@@ -1149,8 +1155,13 @@ export class KosmosAgentServer {
       let path = "";
       try { path = String(JSON.parse(episode.episode_body).path || ""); } catch (_) { /* generated JSON */ }
       if (!path) continue;
-      const c = await this.provider.getNoteContent(path);
+      const c = this.provider.getIndexedBody
+        ? this.provider.getIndexedBody(path, graph)
+        : await this.provider.getNoteContent(path);
       if (c != null) contents.set(path, c);
+    }
+    if (await this.provider.getGraph() !== graph || this.settings.agentSensitivityCeiling !== ceiling) {
+      throw new ProviderError("provider_unavailable");
     }
     return attachGraphitiContent(episodes, contents);
   }
@@ -1185,11 +1196,11 @@ export class KosmosAgentServer {
     return {
       state: "export-ready",
       searchable: false,
-      reason: "Kosmos-Oden prepares episodes but does not assume a queued Graphiti MCP ingestion is searchable.",
+      reason: "Kosmos-Oden exports episodes; ingestion and semantic search run outside this plugin.",
       sourceIndexedAt: graph.stats.indexedAt,
       profile: graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction }),
       upstreamCheckRequired: true,
-      readyWhen: "Graphiti reports the queued job completed and a read-after-ingest query can retrieve the episode UUID.",
+      readyWhen: "Verify persistence against the runner's mapped projection UUID, then separately verify a scoped search result with expected source-episode provenance.",
       benchmark: this.settings.graphitiCombinedExtraction ? { state: "measurement-required", metrics: ["token_cost","ingestion_duration_ms","entity_recall","edge_accuracy"] } : { state: "disabled" },
     };
   }
@@ -1276,10 +1287,10 @@ export class KosmosAgentServer {
     return a;
   }
 
-  async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true): Promise<any> {
+  async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true, agentOverride?: string): Promise<any> {
     args = this.validateToolArgs(name, args || {});
-    if (args.agent_name) {
-      const key = this.registerSession(args.agent_name, MODERN_MCP_PROTOCOL_VERSION);
+    if (agentOverride || args.agent_name) {
+      const key = this.registerSession(agentOverride || args.agent_name, MODERN_MCP_PROTOCOL_VERSION);
       const session = this.getSession(key);
       agent = session!.name; agentId = session!.visualId;
     }
@@ -1324,6 +1335,7 @@ export class KosmosAgentServer {
     ctx?: {
       agent?: string;
       agentId?: string;
+      agentOverride?: string;
       isActive?: () => boolean;
     }
   ): Promise<any | null> {
@@ -1397,7 +1409,7 @@ export class KosmosAgentServer {
         if (typeof params.name !== "string") throw new McpRpcError(-32602, "tools/call requires string name");
         const args = this.validateToolArgs(params.name, params.arguments ?? {});
         try {
-          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId, ctx?.isActive);
+          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId, ctx?.isActive, ctx?.agentOverride);
           const structuredContent = Array.isArray(result) ? { items: result } : result;
           return ok({
             content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -1586,11 +1598,11 @@ export class KosmosAgentServer {
       // Mcp-Session-Id and Last-Event-ID are deliberately ignored rather than
       // rejected, as the spec directs: no session is minted or echoed, and
       // streams are not resumable.
-      const { agent, agentId } = isNotification ? { agent: this.agentLabel(req), agentId: undefined } : this.mcpIdentity(parsed, req);
+      const { agent, agentId, agentOverride } = isNotification ? { agent: this.agentLabel(req), agentId: undefined, agentOverride: undefined } : this.mcpIdentity(parsed, req);
       // Named modern clients sharing a User-Agent must not share one bucket.
       // Names remain self-reported; rotation cannot evade global admission.
       if (!claimAgent(`${agentId ? "mcp" : "ua"}:${agent}`)) return;
-      const out = await this.mcpDispatch(parsed, { agent, agentId, isActive });
+      const out = await this.mcpDispatch(parsed, { agent, agentId, agentOverride, isActive });
       if (parsed.method === "ping" && !out?.error) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* presence never breaks requests */ } }
       if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
@@ -1639,4 +1651,3 @@ export class KosmosAgentServer {
     }
   }
 }
-

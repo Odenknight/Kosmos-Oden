@@ -85,6 +85,21 @@ the MCP session and protocol headers. It replaces the old downloaded
 
 Node.js 18 or newer is required for the adapter.
 
+For one stable ship label, set `KOSMOS_AGENT_NAME` in that adapter process's
+environment to the designated name (for example, `JEFFREY`). It supplies that
+display name on every valid metadata envelope, including non-traversal tool requests. Required
+protocol metadata is still the client's responsibility. Restart the adapter after
+changing its environment.
+
+Native HTTP MCP clients can configure `X-Kosmos-Agent-Name: JEFFREY` once in their
+HTTP headers. This optional Kosmos display-name extension takes precedence over
+clientInfo and tool-level names; it grants no permissions.
+Without that header, send the same `clientInfo.name` on **every** request.
+If they also send `arguments.agent_name`, use that same name. Alternating `mcp`
+and `jeffrey` creates two displayed identities; sharing an address or token does
+not establish that two callers are the same agent. Names are display labels,
+never authorization. Separate agents should use separate adapter processes.
+
 ### Any Streamable HTTP harness
 
 - URL: `http://127.0.0.1:4816/mcp`
