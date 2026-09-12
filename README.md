@@ -441,3 +441,7 @@ until older ones expire. Markers begin a 30-second fade after two minutes
 without traversal activity or a named MCP `ping`. Stateless MCP cannot detect
 a disconnected client directly: idle clients can send `ping` every 60 seconds
 with the same metadata to retain their last visited marker.
+
+When a UID belongs to multiple readable notes, supply the exact vault-relative
+path. UID-only calls reject ambiguity instead of silently choosing a note.
+Notes without a UID can also be queried using their path.

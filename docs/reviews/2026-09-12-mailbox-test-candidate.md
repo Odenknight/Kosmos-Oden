@@ -37,3 +37,14 @@ rather than copying only main.js under an older build receipt. The invitation
 will bind JEFFREY's test to that exact package and request observed indexer state,
 client identity, transport results, naming, trail timing, and idle expiry.
 Graphiti was not used or qualified.
+
+## Publication follow-up
+
+No newer JEFFREY message than sequence 18 was present at this review. Addressed
+one reproducible ambiguity hazard in the shared note selector: multiple readable
+notes with the same UID previously selected the first match. UID-only calls now
+return an explicit ambiguity error; an exact matching path disambiguates them.
+A regression verifies both rejection and exact-path selection. This does not
+claim to repair the separate service's NAV_STABLE_ID_AMBIGUOUS findings or rewrite
+source UIDs. Missing-UID notes remain selectable by path. Metadata/body-search
+and unidentified gkos_search limitations remain as recorded above.

@@ -943,3 +943,18 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);
 });
+
+test("duplicate readable UIDs require an exact path across note queries", async () => {
+  const graph = buildProductGraph([
+    { relativePath: "A.md", content: "---\nuid: shared-id\ntype: semantic\nsensitivity: internal\n---\nA" },
+    { relativePath: "B.md", content: "---\nuid: shared-id\ntype: semantic\nsensitivity: internal\n---\nB" },
+  ], []);
+  const server = new KosmosAgentServer({}, settings(), {
+    getGraph: async () => graph, getNoteContent: async p => p,
+    vaultName: () => "Duplicates", lanAddresses: () => [],
+  });
+  await assert.rejects(server.qNote({ uid: "shared-id" }), /Ambiguous UID/);
+  assert.equal((await server.qNote({ uid: "shared-id", path: "B.md" })).path, "B.md");
+  assert.equal((await server.qNote({ path: "A.md" })).path, "A.md");
+});
+

@@ -773,8 +773,13 @@ export class KosmosAgentServer {
     const files = this.fileNodes(graph);
     if (sel.uid) {
       const uid = sel.uid.trim();
-      const hit = files.find((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
-      if (hit) return hit;
+      const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
+      if (hits.length > 1) {
+        const exact = sel.path ? hits.filter(n => n.path === sel.path.trim()) : [];
+        if (exact.length === 1) return exact[0];
+        throw new McpRpcError(-32602, "Ambiguous UID: use the exact vault-relative path to select one note");
+      }
+      if (hits.length === 1) return hits[0];
     }
     if (sel.path) {
       const p = sel.path.trim();
