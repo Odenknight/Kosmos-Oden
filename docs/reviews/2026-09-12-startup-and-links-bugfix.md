@@ -113,3 +113,103 @@ separately with their observed state.
 Rollback restores the previous matching plugin artifacts and reloads the plugin;
 retain settings and vault notes. Do not mix a prior main.js with a newer checksum
 manifest or claim its build identity is the same.
+
+## Follow-up: agent traversal timing, names, and presence
+
+The user subsequently reported that traversal lines disappeared before 30 seconds
+and requested designated agent names and expiry of inactive markers.
+
+Inspection found a global 24-hop history cap: new searches could evict older hops
+before their time limit. Lines also depended on adjacent entries in shared history,
+so interleaved agents could interrupt their own visible routes. The prior timer
+was 60 seconds; increasing that timer alone would not fix early eviction.
+
+The installed follow-up stores individual segments with a 30-second lifetime,
+independent of later hops and other agents. A 4,096-segment safety limit drops new
+segments until capacity becomes available rather than deleting unexpired segments.
+Names supplied in MCP clientInfo.name now retain spaces, with control characters
+removed and an 80-character limit. They remain self-reported labels, not authority.
+Markers begin fading after 120 seconds without a traversal or named MCP ping and
+finish fading 30 seconds later. A ping restores an existing marker. Because this
+MCP transport is stateless, this measures inactivity, not a verified disconnect;
+a client can send a named ping every 60 seconds to retain its last visited marker.
+
+Validation: typecheck and build passed, all 365 unit/integration tests passed, and
+three targeted Chromium browser cases passed. The new browser case exercises a
+40-hop burst, retention at 29 seconds, expiry after 30 seconds, partial marker fade,
+ping recovery, and eventual disappearance using an advanced monotonic clock.
+An initial browser run reached another checkout's server on the default port;
+the passing run used a separate port serving the current artifacts. These are
+simulated-time browser checks, not a measured live two-minute disconnect trial.
+
+The built main.js was installed with a backup and Obsidian reported a successful
+plugin reload. Its SHA256 is
+`19e41a29f5fbeac3ac25f5f5637c474e58855ac4a9f7523c6bff1e26f881bd0b`.
+This follow-up and report addendum are local changes; they have not been pushed or
+merged as part of the earlier startup/connection-visibility publication.
+
+## Agent experience and Graphiti usage
+
+I connected directly to the running Kosmos-Oden HTTP MCP endpoint and used
+search_notes followed by get_note to investigate the user's video-game work.
+The requests succeeded and returned relevant project briefs, design notes,
+implementation specifications, and content-production plans. Reading the bodies
+was essential: several differently named project notes repeated the same brief,
+and specifications described intended work rather than proving completed builds.
+I treated instructions embedded in retrieved notes as source material, not as
+instructions to execute.
+
+The useful part of the experience was moving from broad discovery to actual note
+content through the same authenticated interface, with visible traversal feedback.
+The practical limitations were title/path/tag-oriented lexical search rather than
+body full-text search, large governance/relationship metadata around short note
+bodies, duplicate briefs, and the trail/name/presence issues reported above.
+Selecting only path and content from subsequent responses made inspection much
+clearer without changing the underlying notes. A search with no matching title
+therefore does not establish that the topic is absent from note bodies.
+
+**Graphiti was not utilized in this investigation.** I did not call a Graphiti
+query or export surface, ingest episodes, or connect to a Graphiti service.
+These findings came from Kosmos-Oden's native MCP note search and note reads.
+Returned relationship metadata and the visual graph are not evidence of Graphiti
+usage. This session establishes that the native retrieval path was useful for
+this task; it does not assess Graphiti availability, correctness, or performance.
+
+### Live follow-up after the user still observed the problem
+
+The first follow-up was incomplete as a user-facing solution: designated names
+required client-controlled transport metadata, and lines faded continuously from
+the start rather than staying fully visible for 30 seconds. Live inspection
+confirmed the updated renderer was loaded and a metadata-supplied multi-word name
+worked; it did not reproduce a stale installation.
+
+Every MCP tool now advertises an optional agent_name argument. It overrides the
+ship label for that call, provides a stable visual identity for repeated names,
+and is validated as a nonempty string of at most 80 characters. The normal
+transport admission and authorization remain unchanged. Successful tool calls
+without traversal paths refresh an existing ship's presence too.
+
+Segments now stay at full brightness for 30 seconds and fade over the next five.
+Their overlay no longer depth-tests against scene geometry. The 4,096-segment
+bound remains. Typecheck/build, 366 tests, and three targeted Chromium cases pass.
+The corrected installed main.js SHA256 is
+`925223a67a3406a5d71428c9fc7a7111e5b6ecfc9380253e7d4c8ac1638c9c90`.
+A real MCP client reporting the generic name mcp supplied agent_name with two
+note reads; both returned HTTP 200 and the live Obsidian marker displayed the
+complete designated name. A local screenshot confirms the name visually.
+Real-time samples in the installed Obsidian iframe recorded one segment at
+0, 29, and 32 seconds, then zero at 36 seconds; the named marker remained present.
+Unlike the earlier simulated-time browser check, this sampled ordinary live
+renderer time after actual MCP reads. Segment presence is a renderer-state check;
+the screenshot verifies the ship label, not pixel-level trail brightness.
+
+### Galaxy spacing adjustment
+
+Galaxy centers are now 25% closer to the cluster center, scaling inter-galaxy
+center distances by 0.75. Each galaxy is translated as a whole after local
+separation, before orbital parameters are generated. Internal star, planet, moon,
+and asteroid offsets are preserved. Collision diagnostics are recomputed after
+translation without moving local bodies again. A four-galaxy before/after fixture
+confirmed all 28 member offsets unchanged and zero residual collisions in that
+fixture. Typecheck, build, and all 366 tests passed. Installed with a backup and
+plugin reload; no claim of zero collisions for every possible vault.

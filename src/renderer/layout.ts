@@ -150,6 +150,16 @@ export function layoutCosmos(graph: any): GkxGraph {
     separateCosmos(graph, 8); // bounded corrective separation
     residual = countIntersections(graph);
   }
+  // Bring whole galaxies 25% closer after local separation. Translate every
+  // member equally so star/planet/moon/asteroid spacing remains unchanged.
+  for (const g of realGalaxies) {
+    const shift = g.position.map((v: number) => -v * 0.25);
+    for (const n of nodes) {
+      if (n.galaxyId === g.galaxyId && n.position) n.position = add3(n.position, shift);
+    }
+  }
+  if (graph.__clusterRingR) graph.__clusterRingR *= 0.75;
+  residual = countIntersections(graph);
   if (graph.diagnostics) graph.diagnostics.residualCollisions = residual;
   graph.__residualCollisions = residual;
   if (residual > 0 && typeof console !== "undefined") {

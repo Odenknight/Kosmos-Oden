@@ -223,8 +223,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const agentHeads = new Map<string, { id: string; t: number; agent: string; label: string }>();
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
-  const AGENT_MAX = 24;
-  const AGENT_TRAIL_MS = 60000;
+  const AGENT_MAX = 4096; // bounded history for bursts of search results
+  const AGENT_TRAIL_MS = 30000;
+  const AGENT_TRAIL_FADE_MS = 5000;
+  const AGENT_IDLE_MS = 120000;
+  const AGENT_FADE_MS = 30000;
+  let agentSegments: Array<{ from: string; to: string; t: number; agent: string }> = [];
   const AGENT_DUST_CAP = MOBILE ? 192 : 640;
   const AGENT_DUST_HEAD_MS = 90;
   let __agentDustHeadT = 0;
@@ -1488,7 +1492,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const pa = new THREE.BufferAttribute(pos, 3); pa.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("position", pa);
     const ca = new THREE.BufferAttribute(col, 3); ca.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("color", ca);
     geo.setDrawRange(0, 0);
-    const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
     const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3;
     world.add(mesh);
     agentTrail = { geo, pos, col, cap, mesh };
@@ -1538,20 +1542,17 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
   function updateAgentTrail(): void {
-    if (!agentSteps.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
+    if (!agentSteps.length && !agentSegments.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
     const now = performance.now();
     agentSteps = agentSteps.filter((s) => now - s.t < AGENT_TRAIL_MS && idToRender.has(s.id));
     refreshAgentLive(now);
-    if (agentSteps.length < 2) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
+    agentSegments = agentSegments.filter(s => now - s.t < AGENT_TRAIL_MS + AGENT_TRAIL_FADE_MS);
     const T = ensureAgentTrail(); let v = 0;
-    for (let i = 1; i < agentSteps.length && v < T.cap; i++) {
-      // only connect consecutive hops made by the SAME agent, so two agents
-      // never get a spurious line drawn between their notes
-      if (agentSteps[i - 1].agent !== agentSteps[i].agent) continue;
-      const a = idToRender.get(agentSteps[i - 1].id), b = idToRender.get(agentSteps[i].id);
+    for (const segment of agentSegments) {
+      const a = idToRender.get(segment.from), b = idToRender.get(segment.to);
       if (!a || !b) continue;
-      const f = 1 - Math.min(1, (now - agentSteps[i].t) / AGENT_TRAIL_MS) * 0.85, o = v * 6, pa = a.node.position, pb = b.node.position;
-      const [cr, cg, cb] = agentColor(agentSteps[i].agent).rgb;
+      const f = 1 - Math.min(1, Math.max(0, now - segment.t - AGENT_TRAIL_MS) / AGENT_TRAIL_FADE_MS), o = v * 6, pa = a.node.position, pb = b.node.position;
+      const [cr, cg, cb] = agentColor(segment.agent).rgb;
       T.pos[o] = pa[0]; T.pos[o + 1] = pa[1]; T.pos[o + 2] = pa[2]; T.pos[o + 3] = pb[0]; T.pos[o + 4] = pb[1]; T.pos[o + 5] = pb[2];
       T.col[o] = cr * f; T.col[o + 1] = cg * f; T.col[o + 2] = cb * f; T.col[o + 3] = cr * f; T.col[o + 4] = cg * f; T.col[o + 5] = cb * f;
       v++;
@@ -1579,7 +1580,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function updateAgentMarkers(): void {
     ensureAgentMarkers();
     const now = performance.now();
-    for (const [key, head] of agentHeads) if (!idToRender.has(head.id)) agentHeads.delete(key);
+    for (const [key, head] of agentHeads) if (!idToRender.has(head.id) || now - head.t >= AGENT_IDLE_MS + AGENT_FADE_MS) agentHeads.delete(key);
     const heads = [...agentHeads.values()].sort((a, b) => b.t - a.t);
     const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
     const width = Math.min(270, Math.max(160, window.innerWidth - 24)), height = 44;
@@ -1618,10 +1619,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       m.name.style.color = col.css;
       m.el.style.width = width + "px";
       m.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
-      m.el.style.opacity = "1";
+      m.el.style.opacity = String(1 - Math.max(0, now - head.t - AGENT_IDLE_MS) / AGENT_FADE_MS);
       m.anchor.style.background = col.css;
       m.anchor.style.transform = `translate(-50%,-50%) translate(${ax.toFixed(1)}px,${ay.toFixed(1)}px)`;
-      m.anchor.style.opacity = "1";
+      m.anchor.style.opacity = m.el.style.opacity;
     }
     for (; mi < agentMarkers.length; mi++) {
       const m = agentMarkers[mi]; m.el.style.opacity = "0"; m.anchor.style.opacity = "0"; m.agent = null;
@@ -1654,6 +1655,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const who = typeof agentId === "string" && agentId.trim()
       ? JSON.stringify(["id", agentId]) : JSON.stringify(["label", displayLabel]);
     const now = performance.now(); let touched = false;
+    if (!paths.length && tool === "ping") {
+      const head = agentHeads.get(who);
+      if (head) { head.t = now; updateAgentMarkers(); }
+      return;
+    }
     for (const p of paths) {
       const id = "file:" + String(p || "").replace(/\\/g, "/");
       if (!idToRender.has(id)) continue;
@@ -1662,6 +1668,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       // comet segments and never connect to somebody else's traversal.
       let last:any=null; for(let i=agentSteps.length-1;i>=0;i--)if(agentSteps[i].agent===who){last=agentSteps[i];break;}
       if (last && last.id === id && last.agent === who) { last.t = now; last.label = displayLabel; rememberAgentHead(last); touched = true; continue; }
+      if (last && now - last.t < AGENT_TRAIL_MS) {
+        agentSegments = agentSegments.filter(s => now - s.t < AGENT_TRAIL_MS + AGENT_TRAIL_FADE_MS);
+        if (agentSegments.length < AGENT_MAX) agentSegments.push({ from: last.id, to: id, t: now, agent: who });
+      }
       burstAgentDust(last?.id??null,id,who,now);
       const head = { id, t: now, agent: who, label: displayLabel };
       agentSteps.push(head); rememberAgentHead(head); touched = true;
@@ -1675,6 +1685,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   function clearTraversalObservability(): void {
     agentSteps = [];
+    agentSegments = [];
     agentHeads.clear();
     for (const id of __agentLive) { liveIds.delete(id); agentIds.delete(id); }
     __agentLive.clear();
@@ -2157,7 +2168,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setTrafficHeatmapEnabled,
     clearTrafficHeatmap,
     setHostVisible,
-    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentTraversalAgents: new Set(agentSteps.map(s => s.agent)).size, agentColorCacheEntries: __agentColors.size, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
+    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTrailSegments: agentSegments.length, agentTraversalHops: agentSteps.length, agentTraversalAgents: new Set(agentSteps.map(s => s.agent)).size, agentColorCacheEntries: __agentColors.size, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running, drawCalls: renderer.info.render.calls }; },
     showError: showFatal,
     showHint,

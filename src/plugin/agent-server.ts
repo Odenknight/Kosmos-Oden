@@ -420,9 +420,8 @@ export class KosmosAgentServer {
   private cleanAgentName(s: unknown): string {
     const raw = String(s ?? "").trim();
     if (!raw) return "agent";
-    // keep the leading product token (before a version slash/space), bounded
-    const first = raw.split(/[\s/]+/)[0] || raw;
-    return first.replace(/[^\w.-]/g, "").slice(0, 40) || "agent";
+    // Preserve designated multi-word names; labels are rendered with textContent.
+    return raw.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").slice(0, 80) || "agent";
   }
 
   /** Best-effort identity of the agent behind a request. Modern MCP carries no
@@ -774,8 +773,13 @@ export class KosmosAgentServer {
     const files = this.fileNodes(graph);
     if (sel.uid) {
       const uid = sel.uid.trim();
-      const hit = files.find((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
-      if (hit) return hit;
+      const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
+      if (hits.length > 1) {
+        const exact = sel.path ? hits.filter(n => n.path === sel.path.trim()) : [];
+        if (exact.length === 1) return exact[0];
+        throw new McpRpcError(-32602, "Ambiguous UID: use the exact vault-relative path to select one note");
+      }
+      if (hits.length === 1) return hits[0];
     }
     if (sel.path) {
       const p = sel.path.trim();
@@ -1197,7 +1201,7 @@ export class KosmosAgentServer {
     const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
     const outputSchema = { type: "object", additionalProperties: true };
     const tool = (name: string, title: string, description: string, inputSchema: any) => ({
-      name, title, description, inputSchema, outputSchema, annotations,
+      name, title, description, inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, agent_name: { type: "string", description: "Your designated ship name, e.g. Codex Game Research. Send the same name on each call; display only, not authority.", minLength: 1, maxLength: 80 } } }, outputSchema, annotations,
     });
     const selectionSchema = { type: "object", properties: sel, anyOf: [{ required: ["path"] }, { required: ["title"] }, { required: ["uid"] }], additionalProperties: false };
     return [
@@ -1236,6 +1240,7 @@ export class KosmosAgentServer {
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
     }
+    if ("agent_name" in a && (typeof a.agent_name !== "string" || !a.agent_name.trim() || a.agent_name.length > 80)) throw new McpRpcError(-32602, "agent_name must be a nonempty string of at most 80 characters");
     const requireSelector = () => {
       if (!(typeof a.path === "string" && a.path.trim()) && !(typeof a.title === "string" && a.title.trim()) && !(typeof a.uid === "string" && a.uid.trim())) {
         throw new McpRpcError(-32602, `${name} requires path, title, or uid`);
@@ -1255,26 +1260,38 @@ export class KosmosAgentServer {
 
   async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true): Promise<any> {
     args = this.validateToolArgs(name, args || {});
-    const done = (r: any) => { if (isActive()) this.emitTraversal(name, r, agent, agentId); return r; };
+    if (args.agent_name) {
+      const key = this.registerSession(args.agent_name, MODERN_MCP_PROTOCOL_VERSION);
+      const session = this.getSession(key);
+      agent = session!.name; agentId = session!.visualId;
+    }
+    const done = (r: any) => {
+      if (isActive()) {
+        this.emitTraversal(name, r, agent, agentId);
+        // Any successful tool activity keeps an existing ship present.
+        if (agent && !r?.error && !this.traversalPaths(name, r).length) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* best effort */ } }
+      }
+      return r;
+    };
     switch (name) {
-      case "vault_overview": return this.qOverview();
+      case "vault_overview": return done(await this.qOverview());
       case "search_notes": return done(await this.qSearch(args.query, args));
       case "get_note": return done(await this.qNote(args));
       case "get_lineage": return done(await this.qLineage(args));
       case "get_related": return done(await this.qRelated(args));
       case "graph_at_time": return done(await this.qAtTime(args.time, args.limit));
-      case "export_graphiti_episodes": return this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE);
+      case "export_graphiti_episodes": return done(await this.qEpisodePage(args.cursor ?? 0, args.limit ?? DEFAULT_EPISODE_PAGE));
       case "get_gkx_note": return done(await this.qGkxNote(args));
       case "get_assessment": return done(await this.qAssessment(args));
       case "get_diagnostics": return done(await this.qGkxDiagnostics(args));
       case "get_effective_labels": return done(await this.qEffectiveLabels(args));
       case "get_evidence": return done(await this.qEvidence(args));
       case "get_relationships": return done(await this.qRelationships(args));
-      case "get_policy": return this.qPolicy();
+      case "get_policy": return done(await this.qPolicy());
       case "validate_note": return done(await this.qValidate(args));
       case "assess_note": return done(await this.qAssessment(args));
-      case "assess_vault": return this.qAssessVault(args.limit ?? 100);
-      case "graphiti_ingestion_status": return this.qGraphitiIngestionStatus();
+      case "assess_vault": return done(await this.qAssessVault(args.limit ?? 100));
+      case "graphiti_ingestion_status": return done(await this.qGraphitiIngestionStatus());
       default: throw new McpRpcError(-32602, "Unknown tool: " + name);
     }
   }
@@ -1556,6 +1573,7 @@ export class KosmosAgentServer {
       // Names remain self-reported; rotation cannot evade global admission.
       if (!claimAgent(`${agentId ? "mcp" : "ua"}:${agent}`)) return;
       const out = await this.mcpDispatch(parsed, { agent, agentId, isActive });
+      if (parsed.method === "ping" && !out?.error) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* presence never breaks requests */ } }
       if (!out) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
       // An unimplemented method is a 404 carrying the JSON-RPC error, which is
       // what distinguishes a modern server from a legacy one that simply does
@@ -1603,3 +1621,4 @@ export class KosmosAgentServer {
     }
   }
 }
+

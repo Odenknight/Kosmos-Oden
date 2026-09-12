@@ -427,16 +427,36 @@ test("agent api", async (t) => {
     for (const [id, name] of [[9, "get_lineage"], [91, "get_note"]]) {
       last = await mcp(
         { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { title: "Engine v2" } } },
-        { client: "Hermes" },
+        { client: "Hermes Research Agent" },
       );
       assert.equal(last.status, 200);
     }
     server.onTraversal = undefined;
     assert.equal(seen.length, 2);
-    assert.ok(seen.every(({ agent }) => agent === "Hermes"), "clientInfo.name identifies the caller");
+    assert.ok(seen.every(({ agent }) => agent === "Hermes Research Agent"), "clientInfo.name identifies the caller");
     assert.match(seen[0].agentId, /^agent-[A-Za-z0-9_-]{10,}$/);
     assert.equal(seen[1].agentId, seen[0].agentId, "same name keeps one trail identity across requests");
     assert.equal(last.body.includes(seen[0].agentId), false, "visual identity must remain server-side");
+  });
+
+  await t.test("tool agent_name overrides generic client labels and validates input", async () => {
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => seen.push({ paths, tool, agent, agentId });
+    for (const name of ["Codex Game Research", "Hermes Physics", "Codex Game Research"]) {
+      const result = await mcp({ jsonrpc: "2.0", id: 86, method: "tools/call",
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name: name } } }, { client: "mcp" });
+      assert.equal(result.status, 200);
+      assert.equal(result.json().result.isError, false);
+    }
+    assert.deepEqual(seen.map(s => s.agent), ["Codex Game Research", "Hermes Physics", "Codex Game Research"]);
+    assert.equal(seen[0].agentId, seen[2].agentId);
+    assert.notEqual(seen[0].agentId, seen[1].agentId);
+    for (const agent_name of [42, "", "x".repeat(81)]) {
+      const result = await mcp({ jsonrpc: "2.0", id: 87, method: "tools/call",
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name } } });
+      assert.equal(result.json().error.code, -32602);
+    }
+    server.onTraversal = undefined;
   });
 
   await t.test("distinct client names get distinct traversal identities", async () => {
@@ -922,4 +942,28 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   // defaults fill in for a null load
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);
+});
+
+test("duplicate readable UIDs require an exact path across note queries", async () => {
+  const graph = buildProductGraph([
+    { relativePath: "A.md", content: "---\nuid: shared-id\ntype: semantic\nsensitivity: internal\n---\nA" },
+    { relativePath: "B.md", content: "---\nuid: shared-id\ntype: semantic\nsensitivity: internal\n---\nB" },
+  ], []);
+  const server = new KosmosAgentServer({}, settings(), {
+    getGraph: async () => graph, getNoteContent: async p => p,
+    vaultName: () => "Duplicates", lanAddresses: () => [],
+  });
+  await assert.rejects(server.qNote({ uid: "shared-id" }), /Ambiguous UID/);
+  assert.equal((await server.qNote({ uid: "shared-id", path: "B.md" })).path, "B.md");
+  assert.equal((await server.qNote({ path: "A.md" })).path, "A.md");
+});
+
+
+test("non-traversal tool calls refresh the designated ship without adding hops", async () => {
+  const server = new KosmosAgentServer({}, settings(), fixtureProvider());
+  const seen = [];
+  server.onTraversal = (...event) => seen.push(event);
+  await server.callTool("vault_overview", { agent_name: "JEFFREY" });
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0].slice(0, 3), [[], "ping", "JEFFREY"]);
 });

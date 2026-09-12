@@ -74,6 +74,27 @@ must(!/Math\.random\s*\(/.test(serverCode), "no Math.random() may appear in the 
 must(/hostAllowed/.test(server), "Host validation must be present");
 must(/originAllowed/.test(server), "Origin validation must be present");
 must(/timingSafeEqual/.test(server), "token comparison must be constant-time");
+
+/* ---- timeout ordering: the operation deadline must fire before the socket
+ *      timeout, or Node destroys a stalled connection with no status line and
+ *      no body. Both literals are READ FROM SOURCE and compared; hard-coding
+ *      the pair here would rot the moment either constant moved, which is the
+ *      defect class that left the stdio DELETE guard inert. ---- */
+if (sec.operation_deadline_precedes_socket_timeout === true) {
+  const num = (m) => (m ? Number(m[1].replace(/_/g, "")) : NaN);
+  const socketMs = num(/REQUEST_TIMEOUT_MS\s*=\s*([0-9_]+)/.exec(server));
+  const operationMs = num(/operationTimeoutMs\s*=\s*([0-9_]+)/.exec(server));
+  must(Number.isFinite(socketMs), "socket timeout (REQUEST_TIMEOUT_MS) not found in agent-server.ts");
+  must(Number.isFinite(operationMs), "operation deadline (operationTimeoutMs) not found in agent-server.ts");
+  if (Number.isFinite(socketMs) && Number.isFinite(operationMs)) {
+    must(
+      operationMs < socketMs,
+      `operation deadline (${operationMs}ms) must be strictly less than the socket timeout (${socketMs}ms); ` +
+      "otherwise a stalled request is killed by the socket before the deadline can answer, " +
+      "and the client receives no status line and no body",
+    );
+  }
+}
 const gkxParser = read("node_modules/gkos-engine/src/gkx-parser.ts");
 must(sec.invalid_sensitivity_fails_closed_as === "secret" && /return typeof v === "string" && v\.trim\(\) \? "secret"/.test(gkxParser), "invalid explicit sensitivity must fail closed as secret");
 const gkx23 = read("node_modules/gkos-engine/src/gkx23.ts");
