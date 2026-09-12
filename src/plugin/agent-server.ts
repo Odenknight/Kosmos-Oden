@@ -761,7 +761,7 @@ export class KosmosAgentServer {
   private brief(n: GkxNode, graph?: GkxGraph, visible?: Set<string>, byId?: Map<string, GkxNode>): any {
     const temporal = graph ? this.visibleTemporal(n, graph, visible, byId) : { head: !!n.gkx?.head, invalidAt: n.gkx?.invalidAt ?? null };
     return {
-      id: n.id, uid: n.gkx?.uid ?? null,
+      id: n.id, uid: n.gkx?.projection?.authored.uid ?? n.gkx?.uid ?? null,
       title: n.label, path: n.path, type: n.gkx?.type || n.type || "note", area: n.area, tags: n.tags,
       sensitivity: n.gkx?.projection?.effective.sensitivity ?? n.gkx?.sensitivity ?? this.settings.defaultSensitivity,
       timestamp: n.validAt ?? null,
@@ -941,7 +941,7 @@ export class KosmosAgentServer {
       aliases: n.aliases,
       gkx: n.gkx ? {
         gkx_version: n.gkx.gkxVersion,
-        uid: n.gkx.uid,
+        uid: n.gkx.projection?.authored.uid ?? n.gkx.uid ?? null,
         description: n.gkx.description,
         epistemic_state: n.gkx.epistemicState,
         scope: n.gkx.scope,
@@ -994,13 +994,21 @@ export class KosmosAgentServer {
 
   async qAssessment(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
     const found = await this.gkxNode(sel);
-    return found?.node.gkx?.projection?.assessment ?? { error: "assessment not found" };
+    if (!found) return { error: "assessment not found" };
+    return found.node.gkx?.projection?.assessment ?? {
+      error: "Readable note has no GKX validating projection; no assessment is available. Use get_note to inspect its source metadata.",
+      code: "GKX_PROJECTION_UNAVAILABLE", path: found.node.path,
+    };
   }
 
   async qGkxDiagnostics(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
     const found = await this.gkxNode(sel);
     const p = found?.node.gkx?.projection;
-    return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: p.diagnostics } : { error: "diagnostics not found" };
+    if (!found) return { error: "diagnostics not found" };
+    return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: p.diagnostics } : {
+      error: "Readable note has no GKX validating projection; no projection diagnostics are available. Use get_note to inspect its source metadata.",
+      code: "GKX_PROJECTION_UNAVAILABLE", path: found.node.path,
+    };
   }
 
   async qEffectiveLabels(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
@@ -1102,8 +1110,10 @@ export class KosmosAgentServer {
     const cap = Math.max(1, Math.min(MAX_SEARCH_RESULTS, Math.floor(Number.isFinite(limit) ? limit : 50)));
     return {
       at: projection.at,
+      scope: "all-readable-notes",
       semantics: "temporal validity intervals: valid = written by T and not yet superseded; superseded = a newer version already existed at T; notes with valid_at > T did not exist yet",
       counts: { valid: valid.length, superseded: superseded.length, notYetCreated: projection.notYetCreated.length },
+      truncated: valid.length > cap || superseded.length > cap,
       valid: valid.slice(0, cap),
       superseded: superseded.slice(0, cap),
     };
@@ -1227,7 +1237,7 @@ export class KosmosAgentServer {
       tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
-      tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection for readable notes.", { type: "object", properties: { time: { type: "string", description: "ISO 8601" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
+      tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection across all readable notes. Use time, not at. No area/path filter or pagination; valid and superseded lists are bounded samples with full readable counts and a truncation flag.", { type: "object", properties: { time: { type: "string", description: "ISO 8601 temporal-validity instant, e.g. 2026-09-01T00:00:00Z" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
       tool("export_graphiti_episodes", "Export Graphiti episodes", "Paginated, chronological, non-authoritative Graphiti adapter with origin separation. Stable UUIDs identify episodes; upstream deduplication is not guaranteed. Verify searchability after ingestion.", { type: "object", properties: { cursor: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: MAX_EPISODE_PAGE } }, additionalProperties: false }),
       tool("graphiti_ingestion_status", "Graphiti ingestion status", "Reports export readiness and the mandatory upstream read-after-ingest check. Accepted never means searchable.", { type: "object", properties: {}, additionalProperties: false }),
       tool("get_gkx_note", "Get GKX note projection", `Origin-separated authored, derived, proposed, approved, and effective GKX v2.3 projection from GKOS-Engine v${ENGINE_VERSION}.`, selectionSchema),
@@ -1238,7 +1248,7 @@ export class KosmosAgentServer {
       tool("get_relationships", "Get typed relationships", "Authored, derived, proposed, approved, and effective typed relationships.", selectionSchema),
       tool("get_policy", "Get GKX policy", "Built-in deterministic GKX 2.3 assessment policy and trust state.", { type: "object", properties: {}, additionalProperties: false }),
       tool("validate_note", "Validate note", "Validate one note in memory without modifying source bytes.", selectionSchema),
-      tool("assess_note", "Assess note", "Calculate/read one deterministic assessment in memory without modifying source bytes.", selectionSchema),
+      tool("assess_note", "Assess note", "Read one deterministic assessment from the current in-memory GKX validating projection. Accepts path, title, or uid; does not create missing metadata or a projection. Writes no source bytes.", selectionSchema),
       tool("assess_vault", "Assess vault", "Bounded in-memory deterministic assessment summary; writes no notes or sidecars.", { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: 200 } }, additionalProperties: false }),
     ];
   }
@@ -1253,6 +1263,7 @@ export class KosmosAgentServer {
     // rejected the `uid` selector that get_note, get_lineage and get_related
     // advertise, so a schema-following client got -32602 for a documented selector.
     const allowed = new Set(Object.keys((def.inputSchema as { properties?: Record<string, unknown> }).properties ?? {}));
+    if (name === "graph_at_time" && "at" in a) throw new McpRpcError(-32602, "graph_at_time expects time, not at; use an ISO 8601 time string");
     for (const key of Object.keys(a)) if (!allowed.has(key)) throw new McpRpcError(-32602, `Unexpected argument: ${key}`);
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
@@ -1639,4 +1650,3 @@ export class KosmosAgentServer {
     }
   }
 }
-

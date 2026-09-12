@@ -119,7 +119,7 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 | \`get_note\` | Readable source content, legacy metadata, GKX v2.3 validating projection, lineage, and links |
 | \`get_lineage\` | Readable supersession chain oldest → newest |
 | \`get_related\` | Explicit \`related_to\`, legacy Related, wikilink, and backlink neighbors |
-| \`graph_at_time\` | Temporal-validity snapshot: what was valid vs already superseded at time T |
+| \`graph_at_time\` | Use \`time\` (not \`at\`): all-readable-note temporal snapshot, bounded lists and truncation flag; no area/path filter or pagination |
 | \`export_graphiti_episodes\` | Paginated Graphiti JSON episodes with stable UUIDs and no future-state leakage |
 | \`graphiti_ingestion_status\` | Export readiness and the required upstream read-after-ingest check |
 | \`get_gkx_note\` | Origin-separated authored/derived/proposed/approved/effective projection |
@@ -134,10 +134,20 @@ curl -H "Authorization: Bearer ${token}" "${URLB}/at?time=2026-04-01"
 REST mirrors include the legacy routes, \`/graphiti/status\`, and read-only \`/gkx/*\` projection,
 assessment, diagnostics, label, evidence, relationship, validation, and policy routes (see \`${URLB}/\`).
 
+Assessment and diagnostic tools accept path, title or UID but require an existing
+GKX validating projection. They do not add missing metadata. A missing projection
+on a readable note is reported explicitly; \`assess_vault\` does not repair it.
+Search exposes the projection's authored UID when available; a null UID is not
+a substitute for a canonical identity. Use the exact path for notes without one.
+
 ## 4 · Direct vs. indirect Graphiti
 
 - **Direct (KGCP):** agents read a sensitivity-filtered deterministic GKX temporal projection live from GKOS Engine 2.1 — no database, no LLM. Search is lexical, not embeddings.
 - **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative, origin-separated adapter projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
+
+An accepted ingestion job is not searchable evidence. Poll the upstream job to
+completion or failure, then verify persistence and authorized search readback;
+Kosmos export readiness alone does not establish those outcomes.
 
 ## 5 · Safety & troubleshooting
 

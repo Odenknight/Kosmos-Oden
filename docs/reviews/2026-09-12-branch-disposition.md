@@ -8,6 +8,15 @@ remote changes require another check. No branch or private data was deleted.
 
 ## Integration decisions
 
+- Follow-up: PRs [55](https://github.com/Odenknight/Kosmos-Oden/pull/55)
+  and [23](https://github.com/Odenknight/Kosmos-Oden/pull/23) are now closed as
+  superseded, with branches retained. PR 55 was not merged itself, but both
+  changed files were already byte-identical on main through PR 59 (`82f16d70`).
+  Their Git blobs are `b6d73ee5984285eaf8f260a59f90eb736c22ab6a`
+  (`kosmos-invariants.yml`) and `376181dce1fb76674845c509979603c99b2ffda7`
+  (`scripts/check-invariants.mjs`). The historical table below preserves the
+  recommendations at inspection time; it is not the current open-PR list.
+
 - Merge PR 56's Graphiti qualification findings (CI green); append the already
   completed GF-02 disposition instead of rewriting its historical evidence.
 - Preserve the two uncommitted managed-MOC consumer tests on main. They exercise
