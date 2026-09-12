@@ -220,6 +220,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let agentTrail: any = null;
   let agentDust: any = null;
   let agentSteps: Array<{ id: string; t: number; agent: string; label: string }> = [];
+  const agentHeads = new Map<string, { id: string; t: number; agent: string; label: string }>();
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 24;
@@ -261,8 +262,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     __agentColors.set(key, val);
     return val;
   }
-  // Rocket + name markers (DOM overlay, one per active agent), gated by labels.
-  let agentMarkers: Array<{ el: HTMLElement; rocket: HTMLElement; name: HTMLElement; agent: string | null }> = [];
+  // Last-known agent positions stay readable independently of ordinary labels.
+  let agentMarkers: Array<{ el: HTMLElement; rocket: HTMLElement; name: HTMLElement; anchor: HTMLElement; agent: string | null }> = [];
   let lastFocusIds: Set<string> | null = null;
   let showAllConnections = false, showAllObjects = false;
 
@@ -407,7 +408,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     updateStats();
     buildFilterUI();
     applyFilters();
-    if (G.__cosmos) { applyConnVisibility(); if (showAllObjects) setAllObjectsGlow(true); }
+    applyConnVisibility();
+    if (G.__cosmos && showAllObjects) setAllObjectsGlow(true);
     updateTrafficHeat(true);
     fitCamera();
   }
@@ -456,7 +458,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     geo.setAttribute("color", new THREE.BufferAttribute(acol, 3).setUsage(THREE.DynamicDrawUsage));
     geo.setDrawRange(0, 0);
     const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }));
-    const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; world.add(mesh); ambientLines = { geo, apos, acol, cap: acap };
+    const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; world.add(mesh); ambientLines = { mesh, geo, apos, acol, cap: acap };
     applyAmbientVisibility();
 
     const cap = 4096, fpos = new Float32Array(cap * 6), fcol = new Float32Array(cap * 6);
@@ -466,7 +468,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     fgeo.setDrawRange(0, 0);
     const fmat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
     const fmesh = new THREE.LineSegments(fgeo, fmat); fmesh.frustumCulled = false; fmesh.renderOrder = 1; world.add(fmesh);
-    focusLines = { geo: fgeo, fpos, fcol, cap };
+    focusLines = { mesh: fmesh, geo: fgeo, fpos, fcol, cap };
   }
 
   /* ---- cosmos links: bright solar-system chains + thin membership lines ---- */
@@ -507,7 +509,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     fgeo.setDrawRange(0, 0);
     const fmat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
     const fmesh = new THREE.LineSegments(fgeo, fmat); fmesh.frustumCulled = false; fmesh.renderOrder = 2; world.add(fmesh);
-    focusLines = { geo: fgeo, fpos, fcol, cap };
+    focusLines = { mesh: fmesh, geo: fgeo, fpos, fcol, cap };
     ambientLines = null; ambientSegs = [];
   }
 
@@ -736,7 +738,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function updateLabels(t: number) {
     // rockets ride the trail head every frame regardless of the labels toggle
     // (the toggle only governs each rocket's name span, inside this call)
-    if (agentSteps.length) updateAgentMarkers();
+    if (agentHeads.size) updateAgentMarkers();
     if (!labelsEnabled) {
       for (const s of labelPool) { if (s.shown) { s.el.style.opacity = "0"; s.shown = false; } }
       for (const a of areaLabels) { if (a.shown) { a.el.style.opacity = "0"; a.shown = false; } }
@@ -1133,13 +1135,20 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let labelsEnabled = true;
   function toggleLabels() {
     labelsEnabled = !labelsEnabled; const b = document.getElementById("labelsBtn"); if (b) b.classList.toggle("on", labelsEnabled);
-    // apply to agent-rocket name spans immediately (don't wait for a frame tick)
-    for (const m of agentMarkers) m.name.style.display = labelsEnabled ? "" : "none";
+    // Ordinary note labels do not hide agent identity or last-known position.
   }
   document.getElementById("labelsBtn") && document.getElementById("labelsBtn").addEventListener("click", toggleLabels);
 
   function setAllObjectsGlow(on: boolean) { for (const m of matsWithTime) { if (m && m.uniforms && m.uniforms.uGlowAll) m.uniforms.uGlowAll.value = on ? 1.0 : 0.0; } }
-  function applyConnVisibility() { if (thinLines) thinLines.mat.opacity = showAllConnections ? 0.5 : 0.05; if (chainLines) chainLines.mat.opacity = showAllConnections ? 0.6 : 0.42; }
+  function applyConnVisibility() {
+    // All connection layers follow the toggle, including selection/agent highlights.
+    // Orbital animation is independent of line visibility.
+    for (const lines of [thinLines, chainLines, ambientLines, focusLines]) {
+      if (lines) lines.mesh.visible = showAllConnections;
+    }
+    if (thinLines) thinLines.mat.opacity = 0.5;
+    if (chainLines) chainLines.mat.opacity = 0.6;
+  }
   function toggleAllConnections() { showAllConnections = !showAllConnections; const b = document.getElementById("allLinksBtn"); if (b) b.classList.toggle("on", showAllConnections); applyConnVisibility(); }
   function toggleAllObjects() { showAllObjects = !showAllObjects; const b = document.getElementById("allObjBtn"); if (b) b.classList.toggle("on", showAllObjects); setAllObjectsGlow(showAllObjects); applyFilters(); }
   document.getElementById("allLinksBtn") && document.getElementById("allLinksBtn").addEventListener("click", toggleAllConnections);
@@ -1555,39 +1564,75 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (agentMarkers.length || !labelHost) return;
     for (let i = 0; i < MAX_AGENTS_SHOWN; i++) {
       const el = document.createElement("div"); el.className = "agent-marker"; el.style.opacity = "0";
-      const rocket = document.createElement("span"); rocket.className = "agent-rocket"; rocket.textContent = "🚀"; // 🚀
+      const rocket = document.createElement("span"); rocket.className = "agent-rocket";
+      rocket.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1 21 21l-9-5-9 5L12 1Z"/><path fill="#fff" d="m12 6 3 8-3-2-3 2 3-8Z"/><path fill="#f8d573" d="m9 18 3 6 3-6-3 1-3-1Z"/></svg>';
       const name = document.createElement("span"); name.className = "agent-name";
+      name.appendChild(document.createElement("span")); name.appendChild(document.createElement("span"));
+      el.setAttribute("aria-hidden", "true");
       el.appendChild(rocket); el.appendChild(name); labelHost.appendChild(el);
-      agentMarkers.push({ el, rocket, name, agent: null });
+      const anchor = document.createElement("span"); anchor.className = "agent-position"; anchor.style.opacity = "0"; labelHost.appendChild(anchor);
+      agentMarkers.push({ el, rocket, name, anchor, agent: null });
     }
   }
-  /** Place one rocket at the head (most recent hop) of each active agent's
-   *  trail, tinted to the agent's colour; the name span shows only when labels
-   *  are toggled on. */
+  /** Trail history fades, but a bounded set of last-known positions remains.
+   *  Off-screen positions are explicitly labelled and clamped to the viewport. */
   function updateAgentMarkers(): void {
     ensureAgentMarkers();
-    if (!agentMarkers.length) return;
     const now = performance.now();
-    // newest hop per agent over the trail lifetime (rocket rides the head of
-    // each agent's trail and fades with it); newest agents first, capped
-    const headByAgent = new Map<string, { id: string; t: number; agent: string; label: string }>();
-    for (const s of agentSteps) { if (now - s.t > AGENT_TRAIL_MS || !idToRender.has(s.id)) continue; headByAgent.set(s.agent, s); }
-    const heads = Array.from(headByAgent.values()).sort((a, b) => b.t - a.t).slice(0, MAX_AGENTS_SHOWN);
+    for (const [key, head] of agentHeads) if (!idToRender.has(head.id)) agentHeads.delete(key);
+    const heads = [...agentHeads.values()].sort((a, b) => b.t - a.t);
+    const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
+    const width = Math.min(270, Math.max(160, window.innerWidth - 24)), height = 44;
     let mi = 0;
-    for (const s of heads) {
-      const r = idToRender.get(s.id); if (!r) continue;
-      const sp = projectToScreen(r.node.position); if (!sp) continue;
-      const fade = 1 - Math.min(1, (now - s.t) / AGENT_TRAIL_MS) * 0.75;
-      const m = agentMarkers[mi++]; const col = agentColor(s.agent);
-      m.agent = s.agent;
-      m.rocket.style.color = col.css; m.rocket.style.textShadow = `0 0 6px ${col.css}`;
-      if (m.name.textContent !== s.label) m.name.textContent = s.label;
-      m.name.style.color = col.css; m.name.style.borderColor = col.css + "66";
-      m.name.style.display = labelsEnabled ? "" : "none";
-      m.el.style.transform = `translate(-50%,-140%) translate(${sp.x.toFixed(1)}px,${sp.y.toFixed(1)}px)`;
-      m.el.style.opacity = fade.toFixed(2);
+    for (const head of heads) {
+      if (mi >= agentMarkers.length) break;
+      const node = idToRender.get(head.id)?.node; if (!node) continue;
+      const projected = projectToScreen(node.position);
+      // projectToScreen leaves _p in clip coordinates even behind the camera.
+      const raw = projected || { x: window.innerWidth * (.5 - _p.x), y: window.innerHeight * (.5 + _p.y) };
+      const offscreen = !projected || raw.x < 8 || raw.y < 8 || raw.x > window.innerWidth - 8 || raw.y > window.innerHeight - 8;
+      const ax = Math.min(window.innerWidth - 8, Math.max(8, Number.isFinite(raw.x) ? raw.x : window.innerWidth / 2));
+      const ay = Math.min(window.innerHeight - 8, Math.max(8, Number.isFinite(raw.y) ? raw.y : window.innerHeight / 2));
+      const x = Math.max(12, Math.min(window.innerWidth - width - 12, ax + 12));
+      let y = Math.max(12, Math.min(window.innerHeight - height - 12, ay - height - 8));
+      for (let attempt = 0; attempt < MAX_AGENTS_SHOWN; attempt++) {
+        if (!placed.some(p => x < p.x + p.w && x + width > p.x && y < p.y + p.h && y + height > p.y)) break;
+        y = (y + height + 6 <= window.innerHeight - height - 12) ? y + height + 6 : 12 + attempt * (height + 6);
+      }
+      placed.push({ x, y, w: width, h: height });
+      const m = agentMarkers[mi++], col = agentColor(head.agent);
+      const sharedLabel = heads.filter(h => h.label === head.label).length > 1;
+      const suffix = sharedLabel ? " [" + Math.floor(hashUnitLocal(head.agent) * 0xffffff).toString(16).padStart(6, "0") + "]" : "";
+      const label = head.label + suffix;
+      m.agent = head.agent;
+      m.el.dataset.location = node.path || head.id;
+      m.el.dataset.state = now - head.t > 8000 ? "idle" : "active";
+      m.el.dataset.position = offscreen ? "offscreen" : "onscreen";
+      m.el.setAttribute("aria-hidden", "false");
+      m.el.setAttribute("aria-label", label + ": last visited " + (node.path || node.label));
+      m.el.title = label + " — last visited " + (node.path || node.label) + (offscreen ? " (off screen)" : "");
+      m.rocket.style.color = col.css;
+      const location = "Last visited: " + (node.label || node.path || head.id) + (offscreen ? " · off screen" : "");
+      if (m.name.children[0].textContent !== label) m.name.children[0].textContent = label;
+      if (m.name.children[1].textContent !== location) m.name.children[1].textContent = location;
+      m.name.style.color = col.css;
+      m.el.style.width = width + "px";
+      m.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+      m.el.style.opacity = "1";
+      m.anchor.style.background = col.css;
+      m.anchor.style.transform = `translate(-50%,-50%) translate(${ax.toFixed(1)}px,${ay.toFixed(1)}px)`;
+      m.anchor.style.opacity = "1";
     }
-    for (; mi < agentMarkers.length; mi++) { agentMarkers[mi].el.style.opacity = "0"; agentMarkers[mi].agent = null; }
+    for (; mi < agentMarkers.length; mi++) {
+      const m = agentMarkers[mi]; m.el.style.opacity = "0"; m.anchor.style.opacity = "0"; m.agent = null;
+      delete m.el.dataset.location; delete m.el.dataset.state; delete m.el.dataset.position;
+      m.el.setAttribute("aria-hidden", "true"); m.el.removeAttribute("aria-label"); m.el.title = "";
+      for (const child of Array.from(m.name.children)) child.textContent = "";
+    }
+  }
+  function rememberAgentHead(head: { id: string; t: number; agent: string; label: string }): void {
+    agentHeads.delete(head.agent); agentHeads.set(head.agent, head);
+    if (agentHeads.size > MAX_AGENTS_SHOWN) agentHeads.delete(agentHeads.keys().next().value!);
   }
   /** Notes visited in the last 8 s pulse live (emerald halos via agentIds); diffed to skip redundant uploads. */
   function refreshAgentLive(now: number): void {
@@ -1616,9 +1661,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       // Find this agent's own head so interleaved agents retain independent
       // comet segments and never connect to somebody else's traversal.
       let last:any=null; for(let i=agentSteps.length-1;i>=0;i--)if(agentSteps[i].agent===who){last=agentSteps[i];break;}
-      if (last && last.id === id && last.agent === who) { last.t = now; last.label = displayLabel; touched = true; continue; }
+      if (last && last.id === id && last.agent === who) { last.t = now; last.label = displayLabel; rememberAgentHead(last); touched = true; continue; }
       burstAgentDust(last?.id??null,id,who,now);
-      agentSteps.push({ id, t: now, agent: who, label: displayLabel }); touched = true;
+      const head = { id, t: now, agent: who, label: displayLabel };
+      agentSteps.push(head); rememberAgentHead(head); touched = true;
       if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
     }
     if (!touched) return;
@@ -1629,6 +1675,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   function clearTraversalObservability(): void {
     agentSteps = [];
+    agentHeads.clear();
     for (const id of __agentLive) { liveIds.delete(id); agentIds.delete(id); }
     __agentLive.clear();
     if (agentTrail) agentTrail.geo.setDrawRange(0, 0);
@@ -1636,7 +1683,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       agentDust.alpha.fill(0); agentDust.active = 0;
       agentDust.geo.attributes.aAlpha.needsUpdate = true;
     }
-    for (const marker of agentMarkers) { marker.el.style.opacity = "0"; marker.agent = null; }
+    for (const marker of agentMarkers) { marker.el.style.opacity = "0"; marker.anchor.style.opacity = "0"; delete marker.el.dataset.location; delete marker.el.dataset.state; delete marker.el.dataset.position; marker.agent = null; marker.el.setAttribute("aria-hidden", "true"); marker.el.removeAttribute("aria-label"); marker.el.title = ""; for (const child of Array.from(marker.name.children)) child.textContent = ""; }
     if (G) { applyLive(); updateHalos(); }
     clearTrafficHeatmap();
   }

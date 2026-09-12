@@ -112,10 +112,10 @@ test("bundled stdio adapter mirrors modern request metadata into headers", async
   const unknown = await next();
   assert.equal(unknown.error.code, -32601);
 
-  send({ jsonrpc: "2.0", id: 8, method: "ping", params: { _meta: meta } });
-  const ping = await next();
-  assert.equal(ping.result.resultType, "complete");
-  assert.equal(ping.result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
+  send({ jsonrpc: "2.0", id: 8, method: "tools/list", params: { _meta: meta } });
+  const metadataResult = await next();
+  assert.equal(metadataResult.result.resultType, "complete");
+  assert.equal(metadataResult.result._meta[MCP_META_SERVER_INFO].name, "kosmos-oden");
 
   child.stdin.end();
   const exitCode = await new Promise((resolve) => child.on("exit", resolve));

@@ -1,5 +1,14 @@
 # 0.8.3 release candidate qualification
 
+## September 12 startup and renderer update
+
+The [startup and connection-line bugfix report](reviews/2026-09-12-startup-and-links-bugfix.md)
+records the newer reliability baseline, timestamp repair, forced full reindex,
+and All links behavior. The full-reindex evidence belongs to startup candidate
+`d56d0d3`; renderer candidate `f862d45` adds line visibility changes and passed
+its own build/browser checks. Native Hermes acceptance remains pending. The
+September 10 records below describe earlier candidates and are retained as history.
+
 PR #53 merged the consolidated candidate as
 `b9fab6b2b556e94c47064354671d804c2c6b6800`. Its tree exactly matches reviewed
 candidate `0d3342b3655e18e19444b6c9e2e80b2f051b863d`: merged #49/#51,

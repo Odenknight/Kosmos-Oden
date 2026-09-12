@@ -1,0 +1,22 @@
+{
+  "source": "b087ab37f0f7e58e9e64ed79b48c8d2fd9b2b9a1",
+  "target": "packages[\"node_modules/gkos-engine\"].resolved",
+  "originalSha256": "39ca1254d6a9a9a15482f85ec5c63bdba99f3b2bc69a075fa35fe886ab536573",
+  "before": {
+    "exit": 0,
+    "stdout": "check-lockfile-sha: OK — 1 git dependency pinned to 40-hex commit SHAs; development-only gkos-engine 2.2.0 @ 650eab4a6752.\n",
+    "stderr": ""
+  },
+  "planted": {
+    "exit": 1,
+    "stdout": "",
+    "stderr": "check-lockfile-sha: FAIL — git dependencies not pinned to a commit SHA:\n  node_modules/gkos-engine: resolved ref \"main\" is not a 40-hex SHA — git+ssh://git@github.com/Odenknight/GKOS-Engine.git#main\nFix: run `npm install <name>@<declared-spec>` to force re-resolution to a SHA.\n"
+  },
+  "restoredSha256": "39ca1254d6a9a9a15482f85ec5c63bdba99f3b2bc69a075fa35fe886ab536573",
+  "restored": {
+    "exit": 0,
+    "stdout": "check-lockfile-sha: OK — 1 git dependency pinned to 40-hex commit SHAs; development-only gkos-engine 2.2.0 @ 650eab4a6752.\n",
+    "stderr": ""
+  },
+  "pass": true
+}

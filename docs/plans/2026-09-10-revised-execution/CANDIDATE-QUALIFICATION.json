@@ -1,0 +1,84 @@
+{
+  "candidate": "0ed5268f54ee501b3f75bb7a4321c07c9aea0259",
+  "zip": "kosmos-oden-0.8.3-test-0ed5268.zip",
+  "zipSha256": "cc4210734e4331e1a6e2b68db5b94f76f7634027e59abd948c99b5f815fea318",
+  "identity": {
+    "capturedUtc": "2026-09-10T20:10:19.996Z",
+    "source": "0ed5268f54ee501b3f75bb7a4321c07c9aea0259",
+    "mainSha256": "84deffb20ca4b31a60a1eefce2c413f88b92999fbb7527015c03db0cdd26736c",
+    "loadedHandleMatches": true,
+    "loadedRebuildMatches": true,
+    "loadedPluginMatches": true,
+    "vaultObjectPreserved": true,
+    "inFlight": 0,
+    "building": false,
+    "status": "running",
+    "physicalOutstanding": 0
+  },
+  "http": {
+    "capturedUtc": "2026-09-10T20:09:52.784Z",
+    "candidate": "0ed5268f54ee501b3f75bb7a4321c07c9aea0259",
+    "client": "Node v24.18.0 direct HTTP (not Hermes)",
+    "outcome": "PASS",
+    "calls": [
+      {
+        "method": "server/discover",
+        "status": 200,
+        "latencyMs": 34
+      },
+      {
+        "method": "tools/list",
+        "status": 200,
+        "latencyMs": 6
+      },
+      {
+        "method": "ping",
+        "status": 404,
+        "latencyMs": 15,
+        "rpcError": -32601
+      },
+      {
+        "method": "tools/call",
+        "tool": "search_notes",
+        "status": 200,
+        "latencyMs": 181,
+        "toolError": false
+      },
+      {
+        "method": "tools/call",
+        "tool": "get_note",
+        "status": 200,
+        "latencyMs": 12,
+        "toolError": false
+      },
+      {
+        "method": "tools/call",
+        "tool": "search_notes",
+        "status": 200,
+        "latencyMs": 21,
+        "toolError": false
+      },
+      {
+        "method": "tools/call",
+        "tool": "get_note",
+        "status": 200,
+        "latencyMs": 25,
+        "toolError": true,
+        "reason": "note not found"
+      }
+    ]
+  },
+  "traversal": {
+    "coldBeforeProbe": true,
+    "traversalCalls": 4,
+    "identifiedTraversalCalls": 4
+  },
+  "coldSearchMs": 6818,
+  "automatedTests": 364,
+  "browserCases": 28,
+  "nativeHermes": "not run; client access/receipt required",
+  "liveRestrictedSensitivity": "not run; no restricted note fixture exists in the current projection",
+  "operationalNamespaceDenial": "PASS; not a substitute for sensitivity-denial qualification",
+  "syntheticLifecycleAndSensitivity": "PASS in automated tests",
+  "releaseQualified": false
+}

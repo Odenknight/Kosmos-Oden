@@ -24,6 +24,7 @@ import { validateRendererMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
+import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -66,7 +67,20 @@ function hashContent(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-class KosmosView extends ItemView {
+export class KosmosView extends ItemView {
+  private viewEpoch = 0;
+  private revision = 0;
+  private fullWork: Promise<void> | null = null;
+  private flushing = false;
+  private retryTimer = 0;
+
+  private retryDeferred(): void {
+    if (this.retryTimer || !this.frame) return;
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = 0;
+      if (this.frame && this.deferred && this.isVisible()) void this.flush();
+    }, 1500);
+  }
   private frame: HTMLIFrameElement | null = null;
   private ready = false;                       // iframe loaded + initial snapshot sent
   private hashes = new Map<string, string>();  // path -> last-sent content hash
@@ -85,6 +99,7 @@ class KosmosView extends ItemView {
   getIcon(): string { return "orbit"; }
 
   async onOpen(): Promise<void> {
+    this.viewEpoch++;
     const root = this.contentEl;
     root.empty();
     root.addClass("kosmos-oden-root");
@@ -164,14 +179,35 @@ class KosmosView extends ItemView {
 
   /** Read the whole vault once and send a full snapshot (initial load / large structural change). */
   async sendFull(): Promise<void> {
+    if (this.fullWork) return this.fullWork;
+    const epoch = this.viewEpoch;
+    const attempt = { active: true, until: performance.now() + VAULT_BUILD_TIMEOUT_MS };
+    const work = deadline(this.readFull(epoch, attempt), VAULT_BUILD_TIMEOUT_MS, () => { attempt.active = false; }).catch(() => {
+      if (epoch === this.viewEpoch && this.frame) { this.deferred = true; this.post(wrap("vault-status", { connected: false })); this.retryDeferred(); }
+    });
+    this.fullWork = work;
+    try { await work; } finally { attempt.active = false; if (this.fullWork === work) this.fullWork = null; }
+  }
+
+  private async readFull(epoch: number, attempt: { active: boolean; until: number }): Promise<void> {
+    const revision = this.revision;
+    const frame = this.frame;
+    const hashes = new Map<string, string>();
+    const check = () => { if (!attempt.active || performance.now() >= attempt.until) throw new ProviderError("timeout"); };
     if (!this.frame || !this.frame.contentWindow) return;
     const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
-    this.hashes.clear();
+
     const files = await readBatches(md, async (f) => {
-      const c = await this.app.vault.cachedRead(f);
-      this.hashes.set(f.path, hashContent(c));
-      return { relativePath: f.path, content: c };
+      check();
+      if (epoch !== this.viewEpoch || frame !== this.frame) throw new ProviderError("provider_unavailable");
+      const path = f.path;
+      const c = await readVaultText(this.app.vault, f);
+      hashes.set(path, hashContent(c));
+      return { relativePath: path, content: c };
     });
+    check();
+    if (epoch !== this.viewEpoch || frame !== this.frame || revision !== this.revision) throw new ProviderError("provider_unavailable");
+    this.hashes = hashes;
     this.fileCount = md.length;
     this.post(wrap("vault-snapshot", { files, folders: folderListFrom(md), attachments: attachmentListFrom(this.app.vault.getFiles()), label: "Vault", navigationEnabled: this.navigationEnabled() }));
     this.ready = true;
@@ -180,14 +216,15 @@ class KosmosView extends ItemView {
   }
 
   // --- change notifications from the plugin's event handlers ---
-  noteChanged(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.dirty.add(path); this.schedule(); }
-  noteCreated(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.dirty.add(path); this.structural = true; this.fileCount++; this.schedule(); }
-  noteDeleted(path: string): void { if (!this.ready || isKosmosOperationalPath(path)) return; this.removed.add(path); this.dirty.delete(path); this.structural = true; this.fileCount = Math.max(0, this.fileCount - 1); this.schedule(); }
+  noteChanged(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.ready) { this.deferred = true; this.schedule(); return; } this.dirty.add(path); this.schedule(); }
+  noteCreated(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.ready) { this.deferred = true; this.schedule(); return; } this.dirty.add(path); this.structural = true; this.fileCount++; this.schedule(); }
+  noteDeleted(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.ready) { this.deferred = true; this.schedule(); return; } this.removed.add(path); this.dirty.delete(path); this.structural = true; this.fileCount = Math.max(0, this.fileCount - 1); this.schedule(); }
   noteRenamed(path: string, oldPath: string): void {
-    if (!this.ready) return;
     const oldOperational = isKosmosOperationalPath(oldPath);
     const newOperational = isKosmosOperationalPath(path);
     if (oldOperational && newOperational) return;
+    this.revision++;
+    if (!this.ready) { this.deferred = true; this.schedule(); return; }
     if (oldOperational) { this.noteCreated(path); return; }
     if (newOperational) { this.noteDeleted(oldPath); return; }
     this.renames.push({ from: oldPath, to: path }); this.dirty.add(path); this.structural = true; this.schedule();
@@ -215,11 +252,26 @@ class KosmosView extends ItemView {
   flushIfDeferred(): void { if (this.deferred) void this.flush(); }
 
   private async flush(): Promise<void> {
+    if (this.flushing) return;
+    this.flushing = true;
+    const epoch = this.viewEpoch;
+    const attempt = { active: true, until: performance.now() + VAULT_BUILD_TIMEOUT_MS };
+    try { await deadline(this.flushPending(attempt), VAULT_BUILD_TIMEOUT_MS, () => { attempt.active = false; }); } catch (_) {
+      if (epoch === this.viewEpoch && this.frame) { this.deferred = true; this.post(wrap("vault-status", { connected: false })); this.retryDeferred(); }
+    } finally { attempt.active = false; if (epoch === this.viewEpoch) this.flushing = false; }
+  }
+
+  private async flushPending(attempt: { active: boolean; until: number }): Promise<void> {
+    const epoch = this.viewEpoch, revision = this.revision;
+    const frame = this.frame;
+    const hashes = new Map(this.hashes);
+    const check = () => { if (!attempt.active || performance.now() >= attempt.until) throw new ProviderError("timeout"); };
     window.clearTimeout(this.trailing); window.clearTimeout(this.maxwaitId);
     this.trailing = 0; this.maxwaitId = 0;
-    if (!this.ready || !this.frame || !this.frame.contentWindow) return;
+    if (!this.frame || !this.frame.contentWindow) return;
     if (!this.isVisible()) { this.deferred = true; return; }   // do no work while hidden (§27)
     this.deferred = false;
+    if (!this.ready) { await this.sendFull(); return; }
 
     const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     this.fileCount = md.length;
@@ -235,12 +287,17 @@ class KosmosView extends ItemView {
 
     const changed: { relativePath: string; content: string }[] = [];
     for (const p of this.dirty) {
+      check();
       const f = byPath.get(p);
       if (!f) continue;                          // deleted or non-markdown
-      const c = await this.app.vault.cachedRead(f);
+      if (epoch !== this.viewEpoch || frame !== this.frame) throw new ProviderError("provider_unavailable");
+      const c = await readVaultText(this.app.vault, f);
       const h = hashContent(c);
-      if (this.hashes.get(p) !== h) { this.hashes.set(p, h); changed.push({ relativePath: p, content: c }); }
+      if (hashes.get(p) !== h) { hashes.set(p, h); changed.push({ relativePath: p, content: c }); }
     }
+    check();
+    if (epoch !== this.viewEpoch || frame !== this.frame || revision !== this.revision) throw new ProviderError("provider_unavailable");
+    this.hashes = hashes;
     const removed = Array.from(this.removed);
     for (const p of removed) this.hashes.delete(p);
     const renames = this.renames.map((r) => ({ from: r.from, to: r.to }));
@@ -257,6 +314,10 @@ class KosmosView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.viewEpoch++;
+    this.fullWork = null;
+    this.flushing = false;
+    window.clearTimeout(this.retryTimer); this.retryTimer = 0;
     window.clearTimeout(this.trailing); window.clearTimeout(this.maxwaitId);
     if (this.frame) { try { this.frame.srcdoc = "about:blank"; } catch (e) { /* iframe already detached */ } this.frame = null; }
     this.ready = false;
@@ -276,9 +337,13 @@ export default class KosmosOdenPlugin extends Plugin {
   private nextcloudSyncRunning = false;
   private timestampTimers = new Map<string, number>();
   private timestampWriteUntil = new Map<string, number>();
+  private timestampWrites = new Set<object>();
   private startupSyncTimer: number | null = null;
 
   scheduleTimestamp(file: any, delay = 350): void {
+    // Obsidian emits create events for existing notes during startup discovery.
+    // Those are not user edits and must not start frontmatter writes.
+    if (!this.eventsLive || this.timestampWrites.has(file)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
@@ -291,7 +356,9 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   async stampNote(file: any): Promise<void> {
+    if (!this.eventsLive || this.timestampWrites.has(file)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
+    this.timestampWrites.add(file);
     try {
       const created = Number(file.stat?.ctime) || Date.now();
       const modified = Number(file.stat?.mtime) || Date.now();
@@ -305,6 +372,11 @@ export default class KosmosOdenPlugin extends Plugin {
       });
     } catch (error) {
       console.warn("Kosmos-Oden: could not stamp note timestamps", file?.path, error);
+    } finally {
+      // A host write can outlast the debounce window while indexing. Keep
+      // suppressing its own modify event until completion, including renames.
+      this.timestampWriteUntil.set(file.path, Date.now() + 2500);
+      this.timestampWrites.delete(file);
     }
   }
 
@@ -423,11 +495,9 @@ export default class KosmosOdenPlugin extends Plugin {
     void probeVaultConnectivity();
     this.registerInterval(window.setInterval(() => void probeVaultConnectivity(), 10_000));
 
-    this.registerEvent(this.app.metadataCache.on("changed", (file: any) => {
-      this.provider.markChanged(file.path);
-      if (!this.eventsLive) return;
-      for (const v of views()) v.noteChanged(file.path);
-    }));
+    // The engine projects source bytes, not Obsidian's metadata cache. Cache
+    // refreshes can fire during cachedRead without a source edit; invalidating
+    // here would repeatedly discard a cold build during host indexing.
     this.registerEvent(this.app.vault.on("create", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 150);
@@ -437,6 +507,8 @@ export default class KosmosOdenPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("modify", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 900);
+      if (!this.eventsLive || file.extension !== "md") return;
+      for (const v of views()) v.noteChanged(file.path);
     }));
     this.registerEvent(this.app.vault.on("delete", (file: any) => {
       this.provider.markRemoved(file.path);
@@ -582,6 +654,7 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.eventsLive = false;
     this.agentApi?.stop();
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);

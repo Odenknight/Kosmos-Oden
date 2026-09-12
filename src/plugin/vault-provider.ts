@@ -15,6 +15,7 @@ import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
+import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS, VAULT_READ_TIMEOUT_MS } from "./vault-operations";
 
 declare const require: any;
 
@@ -84,8 +85,9 @@ export class VaultDataProvider implements AgentDataProvider {
   private removedPaths = new Set<string>();
   private renamedPaths: Array<{ from: string; to: string }> = [];
   private building: Promise<GkxGraph> | null = null;
+  private sourceFiles = new Map<string, SourceFile>();
 
-  constructor(app: App, settings: AgentSettings) {
+  constructor(app: App, settings: AgentSettings, private limits = { readMs: VAULT_READ_TIMEOUT_MS, buildMs: VAULT_BUILD_TIMEOUT_MS }) {
     this.app = app;
     this.settings = settings;
     this.projectedSensitivity = settings.defaultSensitivity;
@@ -97,11 +99,11 @@ export class VaultDataProvider implements AgentDataProvider {
   markChanged(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.fullDirty) this.changedPaths.add(path); }
   markRemoved(path: string): void { if (isKosmosOperationalPath(path)) return; this.revision++; if (!this.fullDirty) { this.removedPaths.add(path); this.changedPaths.delete(path); } }
   markRenamed(from: string, to: string): void {
-    this.revision++;
-    if (this.fullDirty) return;
     const oldOperational = isKosmosOperationalPath(from);
     const newOperational = isKosmosOperationalPath(to);
     if (oldOperational && newOperational) return;
+    this.revision++;
+    if (this.fullDirty) return;
     if (oldOperational) { this.changedPaths.add(to); return; }
     if (newOperational) { this.removedPaths.add(from); this.changedPaths.delete(from); return; }
     this.renamedPaths.push({ from, to });
@@ -123,17 +125,17 @@ export class VaultDataProvider implements AgentDataProvider {
   }
 
   private async toSourceFile(f: TFile): Promise<SourceFile> {
-    const content = await this.app.vault.cachedRead(f);
-    return {
+    const source = {
       relativePath: f.path,
       name: f.name,
       extension: f.extension,
       size: f.stat.size,
       modifiedTime: f.stat.mtime,
       createdTime: f.stat.ctime,
-      content,
-      kind: "note",
+      kind: "note" as const,
     };
+    const content = await readVaultText(this.app.vault, f, this.limits.readMs);
+    return { ...source, content };
   }
 
   async getGraph(): Promise<GkxGraph> {
@@ -143,56 +145,63 @@ export class VaultDataProvider implements AgentDataProvider {
     if (this.building) return this.building;
     const pending = this.fullDirty || this.changedPaths.size || this.removedPaths.size || this.renamedPaths.length;
     if (this.index.graph && !pending) return this.index.graph;
-    this.building = this.rebuild();
+    const attempt = { active: true, until: performance.now() + this.limits.buildMs };
+    const work = deadline(this.rebuild(attempt), this.limits.buildMs, () => { attempt.active = false; });
+    this.building = work;
     try {
-      return await this.building;
+      return await work;
     } finally {
-      this.building = null;
+      attempt.active = false;
+      if (this.building === work) this.building = null;
     }
   }
 
-  private async rebuild(): Promise<GkxGraph> {
+  private async rebuild(attempt: { active: boolean; until: number }): Promise<GkxGraph> {
+    const check = () => { if (!attempt.active || performance.now() >= attempt.until) throw new ProviderError("timeout"); };
+    while (true) {
+    check();
+    this.reprojectForSensitivity();
     const revision = this.revision;
+    const sensitivity = this.settings.defaultSensitivity;
     const md = this.app.vault.getMarkdownFiles().filter((file) => !isKosmosOperationalPath(file.path));
     const folders = folderListFrom(md);
     const attachments = attachmentListFrom(this.app.vault.getFiles());
+    const files = new Map(this.sourceFiles);
+    const read = async (f: TFile) => { check(); const value = await this.toSourceFile(f); check(); return value; };
     if (this.fullDirty || !this.index.graph) {
-      const files = await readBatches(md, (f) => this.toSourceFile(f));
-      const update = this.index.setFiles(files, folders, attachments);
-      // cachedRead yields: edits, deletes or settings changes during the scan
-      // must force a fresh snapshot instead of disappearing with this batch.
-      this.fullDirty = this.revision !== revision;
-      this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = [];
-      return update.graph;
-    }
+      files.clear();
+      for (const file of await readBatches(md, read)) files.set(file.relativePath, file);
+    } else {
     const byPath = new Map(md.map((f) => [f.path, f]));
-    const changed: SourceFile[] = [];
+    for (const p of this.removedPaths) files.delete(p);
+    for (const rename of this.renamedPaths) files.delete(rename.from);
     for (const p of this.changedPaths) {
       const f = byPath.get(p);
-      if (f) changed.push(await this.toSourceFile(f));
+      if (f) files.set(p, await read(f)); else files.delete(p);
     }
-    const update = this.index.applyChanges({
-      changed,
-      removed: [...this.removedPaths],
-      renames: this.renamedPaths,
-      folders,
-      attachments,
-    });
-    this.fullDirty = this.revision !== revision;
+    }
+    check();
+    if (revision !== this.revision || sensitivity !== this.settings.defaultSensitivity) { this.fullDirty = true; continue; }
+    // Index into an unpublished candidate. Even a synchronous overrun or a
+    // reentrant policy change cannot contaminate the last committed snapshot.
+    const candidate = this.adapter.createIndex();
+    const update = candidate.setFiles([...files.values()], folders, attachments);
+    check();
+    if (revision !== this.revision || sensitivity !== this.settings.defaultSensitivity) { this.fullDirty = true; continue; }
+    this.index = candidate;
+    this.sourceFiles = files;
+    this.fullDirty = false;
     this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = [];
     return update.graph;
+    }
   }
 
   async getNoteContent(path: string): Promise<string | null> {
     if (isKosmosOperationalPath(path)) return null;
     const f = this.app.vault.getAbstractFileByPath(path);
     if (!f || !("stat" in (f as any))) return null;
-    try {
-      const raw = await this.app.vault.cachedRead(f as TFile);
-      return stripFrontmatter(raw);
-    } catch {
-      return null;
-    }
+    const raw = await readVaultText(this.app.vault, f as TFile, this.limits.readMs);
+    return stripFrontmatter(raw);
   }
 
   vaultName(): string {

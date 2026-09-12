@@ -270,7 +270,7 @@ test("agent api", async (t) => {
   });
 
   await t.test("every implemented result includes complete and server identity", async () => {
-    for (const method of ["ping", "server/discover", "tools/list", "resources/list", "prompts/list", "tools/call"]) {
+    for (const method of ["server/discover", "tools/list", "resources/list", "prompts/list", "tools/call"]) {
       const r = await mcp({ jsonrpc: "2.0", id: method, method, params: method === "tools/call" ? { name: "get_policy" } : {} });
       assert.equal(r.status, 200, method);
       assert.equal(r.json().result.resultType, "complete", method);
@@ -301,7 +301,7 @@ test("agent api", async (t) => {
   });
 
   await t.test("non-cacheable results do NOT carry cache directives", async () => {
-    for (const [method, params] of [["ping", {}], ["tools/call", { name: "get_policy" }]]) {
+    for (const [method, params] of [["tools/call", { name: "get_policy" }]]) {
       const r = await mcp({ jsonrpc: "2.0", id: method, method, params });
       assert.equal(r.status, 200, method);
       const result = r.json().result;
@@ -312,20 +312,20 @@ test("agent api", async (t) => {
   });
 
   await t.test("required request metadata is validated without demanding optional identity", async () => {
-    const headers = { "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "ping" };
+    const headers = { "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "tools/list" };
     for (const capabilities of [undefined, null, [], "invalid"]) {
-      const r = await mcp({ jsonrpc: "2.0", id: "caps", method: "ping", params: { _meta: {
+      const r = await mcp({ jsonrpc: "2.0", id: "caps", method: "tools/list", params: { _meta: {
         [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES]: capabilities,
       } } }, { raw: true, headers });
       assert.equal(r.status, 400);
       assert.equal(r.json().error.code, -32602);
     }
-    const noVersion = await mcp({ jsonrpc: "2.0", id: "version", method: "ping", params: { _meta: {
+    const noVersion = await mcp({ jsonrpc: "2.0", id: "version", method: "tools/list", params: { _meta: {
       [MCP_META_CLIENT_CAPABILITIES]: {},
     } } }, { raw: true, headers });
     assert.equal(noVersion.status, 400);
     assert.equal(noVersion.json().error.code, -32602);
-    const anonymous = await mcp({ jsonrpc: "2.0", id: "anonymous", method: "ping", params: { _meta: {
+    const anonymous = await mcp({ jsonrpc: "2.0", id: "anonymous", method: "tools/list", params: { _meta: {
       [MCP_META_PROTOCOL_VERSION]: MODERN_MCP_PROTOCOL_VERSION, [MCP_META_CLIENT_CAPABILITIES]: {},
     } } }, { raw: true, headers });
     assert.equal(anonymous.status, 200);
@@ -333,8 +333,8 @@ test("agent api", async (t) => {
   });
 
   await t.test("invalid envelopes are rejected before metadata or identity processing", async () => {
-    for (const msg of [null, 5, {}, { jsonrpc: "1.0", id: 1, method: "ping" },
-      ...[null, true, {}, 1.5].map((id) => ({ jsonrpc: "2.0", id, method: "ping" })),
+    for (const msg of [null, 5, {}, { jsonrpc: "1.0", id: 1, method: "tools/list" },
+      ...[null, true, {}, 1.5].map((id) => ({ jsonrpc: "2.0", id, method: "tools/list" })),
       { jsonrpc: "2.0", id: 1, result: {} }]) {
       const r = await mcp(msg, { raw: true });
       assert.equal(r.status, 400);
@@ -412,7 +412,7 @@ test("agent api", async (t) => {
     // Mcp-Session-Id or Last-Event-ID is served normally and told nothing
     // about a session, rather than being rejected.
     const r = await mcp(
-      { jsonrpc: "2.0", id: 7, method: "ping" },
+      { jsonrpc: "2.0", id: 7, method: "tools/list" },
       { headers: { "Mcp-Session-Id": "left-over-from-a-legacy-client", "Last-Event-ID": "42" } },
     );
     assert.equal(r.status, 200);
@@ -466,8 +466,8 @@ test("agent api", async (t) => {
     assert.equal(unknown.json().error.code, -32602);
     const batch = await request(port, {
       method: "POST", path: "/mcp",
-      headers: { ...auth, "Content-Type": "application/json", "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "ping" },
-      body: JSON.stringify([{ jsonrpc: "2.0", id: 12, method: "ping" }]),
+      headers: { ...auth, "Content-Type": "application/json", "MCP-Protocol-Version": MODERN_MCP_PROTOCOL_VERSION, "Mcp-Method": "tools/list" },
+      body: JSON.stringify([{ jsonrpc: "2.0", id: 12, method: "tools/list" }]),
     });
     assert.equal(batch.status, 400);
     assert.equal(batch.json().error.code, -32600);
@@ -477,11 +477,11 @@ test("agent api", async (t) => {
     const cases = [
       ["MCP-Protocol-Version missing", { "MCP-Protocol-Version": null }, /MCP-Protocol-Version header is required/],
       ["Mcp-Method missing", { "Mcp-Method": null }, /Mcp-Method header is required/],
-      ["Mcp-Method disagrees with body", { "Mcp-Method": "tools/list" }, /does not match body value 'ping'/],
+      ["Mcp-Method disagrees with body", { "Mcp-Method": "prompts/list" }, /does not match body value 'tools\/list'/],
       ["MCP-Protocol-Version disagrees with _meta", { "MCP-Protocol-Version": "2026-01-01" }, /does not match body value/],
     ];
     for (const [label, headers, expected] of cases) {
-      const r = await mcp({ jsonrpc: "2.0", id: 13, method: "ping" }, { headers });
+      const r = await mcp({ jsonrpc: "2.0", id: 13, method: "tools/list" }, { headers });
       assert.equal(r.status, 400, label);
       assert.equal(r.json().error.code, -32020, label);
       assert.match(r.json().error.message, expected, label);
@@ -509,7 +509,7 @@ test("agent api", async (t) => {
     assert.match(wrong.json().error.message, /'vault_overview' does not match body value 'get_policy'/);
 
     // A method that does not mirror a name must not carry the header.
-    const stray = await mcp({ jsonrpc: "2.0", id: 17, method: "ping" }, { headers: { "Mcp-Name": "ping" } });
+    const stray = await mcp({ jsonrpc: "2.0", id: 17, method: "tools/list" }, { headers: { "Mcp-Name": "tools/list" } });
     assert.equal(stray.status, 400);
     assert.equal(stray.json().error.code, -32020);
   });
@@ -609,25 +609,25 @@ test("modern clients sharing User-Agent have independent bounded execution slots
   });
   const bulk = Array.from({ length: MAX_CONCURRENT_PER_AGENT }, () => call("bulk"));
   await ready;
-  assert.equal((await call("bulk", "ping")).status, 429, "same client is throttled");
-  assert.equal((await call("interactive", "ping")).status, 200, "another name sharing the SDK remains responsive");
-  assert.equal((await call(undefined, "ping")).status, 200, "anonymous fallback is a separate bucket");
+  assert.equal((await call("bulk", "tools/list")).status, 429, "same client is throttled");
+  assert.equal((await call("interactive", "tools/list")).status, 200, "another name sharing the SDK remains responsive");
+  assert.equal((await call(undefined, "tools/list")).status, 200, "anonymous fallback is a separate bucket");
   target = MAX_CONCURRENT_REQUESTS;
   ready = new Promise(r => { reached = r; });
   const other = Array.from({ length: MAX_CONCURRENT_REQUESTS - MAX_CONCURRENT_PER_AGENT }, () => call("second"));
   await ready;
-  assert.equal((await call("rotated-name", "ping")).status, 429, "name rotation cannot exceed global cap, even on loopback");
+  assert.equal((await call("rotated-name", "tools/list")).status, 429, "name rotation cannot exceed global cap, even on loopback");
   release();
   assert.ok((await Promise.all([...bulk, ...other])).every(r => r.status === 200));
   assert.equal(server.inFlight, 0);
   assert.equal(server.perAgentInFlight.size, 0);
-  assert.equal((await call("bulk", "ping")).status, 200, "slots released after completion");
+  assert.equal((await call("bulk", "tools/list")).status, 200, "slots released after completion");
 });
 
 test("invalid modern metadata and authentication do not claim execution slots", async () => {
   const { server, port } = await startServer();
   try {
-    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     assert.equal((await request(port, { method: "POST", path: "/mcp", headers: auth, body })).status, 400);
     assert.equal((await request(port, { method: "POST", path: "/mcp", body })).status, 401);
     assert.equal(server.inFlight, 0);
