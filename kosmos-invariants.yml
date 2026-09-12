@@ -35,6 +35,13 @@ security:
   api_write_routes_allowed: false
   # Request body cap, in bytes.
   max_request_bytes: 4194304
+  # A stalled vault read must return a diagnosable error, never a silently
+  # destroyed socket. The per-operation deadline therefore has to fire BEFORE
+  # the per-connection socket timeout, or Node destroys the socket with no
+  # status line and no body (the failure Jeffrey measured at 30.0s on main).
+  # Both values live in agent-server.ts and are independently editable, so the
+  # ordering is asserted here rather than left to coincidence.
+  operation_deadline_precedes_socket_timeout: true
   # Tokens come from a CSPRNG only; no Math.random fallback.
   token_source: crypto.getRandomValues
   token_bytes: 32
