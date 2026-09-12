@@ -96,6 +96,13 @@ The release includes a first-party stdio adapter (no \`mcp-remote\` package):
 
 Restart the client after saving. Node.js 18+ is required for the adapter.
 
+For a stable ship label, add \`KOSMOS_AGENT_NAME\` to that process's environment
+with your designated name, then restart the adapter. HTTP clients should send
+\`X-Kosmos-Agent-Name: JEFFREY\` (replace with your name) in their connection
+headers, or the same \`clientInfo.name\` on every request. If you use
+\`arguments.agent_name\`, keep it identical. Alternating a generic \`mcp\` label
+and a designated name creates separate ships; names never grant authority.
+
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
 Add a remote/HTTP MCP server with URL \`${URLB}/mcp\` and header \`Authorization: Bearer ${token}\`.
 

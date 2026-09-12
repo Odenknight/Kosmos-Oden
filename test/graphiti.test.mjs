@@ -100,7 +100,7 @@ test("GKX 2.3 adapter exports governance, evidence, hashes, metadata and saga hi
 
 test("combined extraction remains opt-in and metrics require real denominators", () => {
   const profile=graphitiIngestionProfile({combinedExtraction:true});
-  assert.equal(profile.combinedExtractionSurface,"graphiti-0.29-low-level-utility");
+  assert.equal(profile.combinedExtractionSurface,"graphiti-0.30-low-level-utility");
   assert.equal(profile.publicAddEpisodeSupportsCombinedExtraction,false);
   const episodes=buildGraphitiEpisodes(fixtureGraph());
   const metrics=measureGraphitiExtraction(episodes,[
