@@ -116,3 +116,12 @@ A writable backend is needed for ongoing ingestion, not necessarily for querying
 - [ ] Record each finding's disposition with candidate commit and evidence; do not mark this source review as a runtime pass.
 
 Recommended next work: correct readiness reporting, then create executable contracts and fixtures. Further agreement among assessments is less useful than demonstrating identity preservation, restricted-data removal, verified readback and retrieval value.
+
+
+## Current disposition after consolidation
+
+GF-02's sample-reporting defect was fixed in PR #61 (main `35f9eec`): generated
+code now reports accepted/search-unverified and performs no readback. The
+historical source finding above is retained. GF-01 and GF-03 remain qualification
+criteria; no live Graphiti backend was used. PR #56 preserves this source review
+and does not turn those criteria into passed runtime tests.
