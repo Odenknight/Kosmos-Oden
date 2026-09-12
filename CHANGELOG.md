@@ -2,6 +2,11 @@
 
 ## 0.8.3 candidate bugfixes — 2026-09-12
 
+- Align search and note-detail UIDs with the validating projection used by UID
+  selectors. Explain missing projections without revealing inaccessible notes.
+- Document temporal query scope and return explicit truncation; guide callers
+  using the unsupported `at` argument to `time`.
+
 - Add opt-in bounded cached body search with explicit partial coverage.
 - Export the displayed standalone graph, gate content exports, fence stale folder
   scans and keep short-screen controls and error messages reachable.
