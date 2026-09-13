@@ -106,3 +106,11 @@ directories or foreign owners. This bounds the prototype's supported state
 layout; it is not a vault-size limit. Synthetic tests confirm unchanged parent
 and leaf ACLs when a hard-linked child exists, and unchanged ACLs on inspection
 overflow. Foreign-owner and concurrent-replacement qualification remain open.
+
+Leaf ACL reads, writes and readback now use one .NET `FileStream` opened with
+read, permission-change and ownership rights, with only read sharing allowed.
+The handle is disposed in `finally`. Synthetic tests passed for rename/write
+refusal while held, successful rename after release and unchanged payload bytes.
+This binds the leaf operation after opening; it does not close the earlier
+path-to-open race or make directory ACL operations handle-bound. The prototype
+remains excluded from live startup pending those boundaries and host integration.

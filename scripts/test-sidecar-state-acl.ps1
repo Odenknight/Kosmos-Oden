@@ -19,6 +19,22 @@ $principal = [Security.Principal.WindowsIdentity]::GetCurrent().User
 if ($rules.Count -ne 1 -or $rules[0].IdentityReference -ne $principal) { throw 'New file inherited unexpected access' }
 & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $leaf
 $before = (Get-Acl -LiteralPath $leaf).Sddl
+$held = [IO.FileStream]::new($leaf, [IO.FileMode]::Open,
+    [Security.AccessControl.FileSystemRights]'Read, ChangePermissions, TakeOwnership',
+    [IO.FileShare]::Read, 4096, [IO.FileOptions]::None)
+$moved = Join-Path $fixture 'moved.synthetic'
+try {
+    $renameDenied = $false
+    try { [IO.File]::Move($leaf, $moved) } catch [IO.IOException] { $renameDenied = $true }
+    if (-not $renameDenied) { throw 'Held ACL target could be renamed' }
+    $writeDenied = $false
+    try { [IO.File]::WriteAllText($leaf, 'unexpected mutation') } catch [IO.IOException] { $writeDenied = $true }
+    if (-not $writeDenied) { throw 'Held ACL target could be overwritten' }
+    $held.SetAccessControl($held.GetAccessControl())
+} finally { $held.Dispose() }
+[IO.File]::Move($leaf, $moved)
+[IO.File]::Move($moved, $leaf)
+if ([IO.File]::ReadAllText($leaf) -ne 'synthetic-only-no-credential') { throw 'Held target bytes changed' }
 $hardLink = Join-Path $fixture 'hardlink.synthetic'
 $null = New-Item -ItemType HardLink -Path $hardLink -Target $leaf
 $parentBefore = (Get-Acl -LiteralPath $fixture).Sddl

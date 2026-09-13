@@ -33,7 +33,14 @@ while ($null -ne $ancestor) {
     }
     $ancestor = $ancestor.Parent
 }
-$acl = Get-Acl -LiteralPath $item.FullName
+$leafHandle = $null
+try {
+if (-not $item.PSIsContainer) {
+    $rights = [Security.AccessControl.FileSystemRights]'Read, ChangePermissions, TakeOwnership'
+    $leafHandle = [IO.FileStream]::new($item.FullName, [IO.FileMode]::Open, $rights,
+        [IO.FileShare]::Read, 4096, [IO.FileOptions]::None)
+}
+$acl = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { Get-Acl -LiteralPath $item.FullName }
 $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
 if ($owner -ne $principal -and $owner -ne $identity.Owner) {
     throw 'Sidecar state has a foreign owner'
@@ -56,10 +63,10 @@ $acl.AddAccessRule($rule)
 if ($item.PSIsContainer) {
     [IO.Directory]::SetAccessControl($item.FullName, $acl)
 } else {
-    [IO.File]::SetAccessControl($item.FullName, $acl)
+    $leafHandle.SetAccessControl($acl)
 }
 
-$verified = Get-Acl -LiteralPath $item.FullName
+$verified = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { Get-Acl -LiteralPath $item.FullName }
 $rules = @($verified.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
 if (-not $verified.AreAccessRulesProtected -or
     $verified.GetOwner([Security.Principal.SecurityIdentifier]) -ne $principal -or
@@ -68,4 +75,7 @@ if (-not $verified.AreAccessRulesProtected -or
     $rules[0].FileSystemRights -ne [Security.AccessControl.FileSystemRights]::FullControl -or
     $rules[0].InheritanceFlags -ne $inheritance -or $rules[0].IsInherited) {
     throw 'Sidecar state ACL verification failed'
+}
+} finally {
+    if ($null -ne $leafHandle) { $leafHandle.Dispose() }
 }
