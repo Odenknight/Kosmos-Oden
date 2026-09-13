@@ -147,7 +147,7 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     let entries;
     try { entries = readdirSync(resolve(root, directory), { withFileTypes: true }); }
     catch (e) { if (e.code === "ENOENT") return []; throw e; }
-    return entries.filter(e => e.isFile() && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
+    return entries.filter(e => (e.isFile() || e.isSymbolicLink()) && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
       const file = `${directory}/${e.name}`;
       let raw;
       try { raw = readReference(root, file, 65536); }
@@ -162,7 +162,9 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     });
   };
   const ids = new Map(), conflictingIds = new Set();
-  for (const dir of readdirSync(resolve(root, "messages"), { withFileTypes: true }).filter(e => e.isDirectory())) {
+  for (const dir of readdirSync(resolve(root, "messages"), { withFileTypes: true })) {
+    if (dir.isSymbolicLink()) { report(`messages/${dir.name}`, "envelope-reference-path-invalid"); continue; }
+    if (!dir.isDirectory()) continue;
     const chain = [];
     for (const entry of read(`messages/${dir.name}`)) {
       const m = entry.data;

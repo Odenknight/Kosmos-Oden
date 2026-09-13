@@ -89,3 +89,6 @@ multibyte sequences. Delivered files remain byte-identical. A valid literal
 replacement character and an optional leading UTF-8 BOM remain accepted, with
 the BOM included in the raw-byte digest. This closes a decoding defect; full
 M1 qualification and the outstanding reconciliation checks remain open.
+
+Sender directory aliases now produce an explicit confinement finding instead of disappearing from enumeration. Published JSON aliases also reach the existing confined reader and are rejected. A real Windows directory-junction fixture verifies exclusion plus the finding; all 14 focused tests pass. This does not prove protection against every concurrent directory replacement or close M1.
+

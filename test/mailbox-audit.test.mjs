@@ -1,11 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
+
+test("sender directory aliases produce a confinement finding instead of disappearing", () => {
+  const root = mkdtempSync(join(tmpdir(), "mailbox-directory-alias-"));
+  try {
+    mkdirSync(join(root, "messages"));
+    mkdirSync(join(root, "external"));
+    writeFileSync(join(root, "external", "alice-000001-first.json"), JSON.stringify({sender:"alice", recipients:["bob"], sender_seq:1, message_id:"first", prev_message_sha256:null}));
+    symlinkSync(join(root, "external"), join(root, "messages", "alice"), process.platform === "win32" ? "junction" : "dir");
+    const result = auditMailbox(root, "bob");
+    assert.equal(result.messageCount, 0);
+    assert.deepEqual(result.findings, [{file:"messages/alice", code:"envelope-reference-path-invalid"}]);
+  } finally { rmSync(root, {recursive:true, force:true}); }
+});
 
 test("reference, message and ACK reads bound growth and reject changes to the opened file", () => {
   const moduleUrl = new URL("../scripts/audit-mailbox.mjs", import.meta.url).href;
