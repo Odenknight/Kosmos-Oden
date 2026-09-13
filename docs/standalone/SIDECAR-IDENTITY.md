@@ -297,3 +297,12 @@ keeps the count at five and clears running intent. The test passed in 24.75 seco
 The final process was absent afterward, the source manifest restored to null, and
 all-target clippy passed. This supersedes the earlier single-recovery scope;
 discovery, native UI and broader release qualification still remain open.
+
+Production discovery delegates its existing candidate verification worker to a
+private `discover_candidates` function, now shared with explicit qualification.
+The real Engine test supplies invalid bytes first and the verified executable
+second, waits for discovery, asserts the selected path, then completes the five
+recovery/exhaustion sequence. It passed in 26.04 seconds. Ordinary tests passed
+17 with the explicitly run process qualification ignored by default; all-target
+clippy passed after restoring the null manifest. Tauri resource-path construction
+and visible native app behavior are not proven by the supplied-candidate fixture.

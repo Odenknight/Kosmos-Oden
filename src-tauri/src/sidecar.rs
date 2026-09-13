@@ -60,6 +60,10 @@ pub struct RedactedDiagnostics {
 impl Supervisor {
     pub fn discover(app: &AppHandle, state_root: &Path) -> Self {
         let candidates = sidecar_candidates(app, state_root);
+        Self::discover_candidates(candidates)
+    }
+
+    fn discover_candidates(candidates: Vec<PathBuf>) -> Self {
         let supervisor = Self {
             inner: Arc::new(Mutex::new(Inner {
                 closed: false,
@@ -444,7 +448,9 @@ mod tests {
         let notes = root.join("notes");
         fs::create_dir_all(&notes).unwrap();
         fs::write(notes.join("synthetic.md"), "---\ngkx_version: \"2.3\"\nuid: \"019b2d14-4230-7db7-87d4-7d81cfaec932\"\ntitle: Synthetic\ntype: policy\ncreated_at: \"2026-08-20T00:00:00Z\"\nepistemic_state: reported\nsensitivity: public\n---\nSynthetic only.\n").unwrap();
-        let supervisor = Supervisor::with_sidecar(Some(binary));
+        let invalid_candidate = root.join("invalid-engine.exe");
+        fs::write(&invalid_candidate, b"synthetic invalid candidate").unwrap();
+        let supervisor = Supervisor::discover_candidates(vec![invalid_candidate, binary.clone()]);
         struct Cleanup(Supervisor);
         impl Drop for Cleanup {
             fn drop(&mut self) {
@@ -452,6 +458,15 @@ mod tests {
             }
         }
         let _cleanup = Cleanup(supervisor.clone());
+        let discovery_deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while supervisor.sidecar_path().is_none() {
+            assert!(
+                std::time::Instant::now() < discovery_deadline,
+                "verified discovery timed out"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(supervisor.sidecar_path(), Some(binary.as_path()));
         supervisor.start(notes, &root).unwrap();
         let await_serving = |previous: Option<u32>| {
             use std::io::Read;
