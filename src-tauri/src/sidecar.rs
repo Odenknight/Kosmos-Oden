@@ -617,60 +617,91 @@ mod tests {
     #[test]
     fn monitor_refuses_restart_when_release_is_disabled() {
         assert!(crate::sidecar_release::Release::embedded().is_none());
-        let supervisor = Supervisor::with_sidecar(Some(PathBuf::from("unverified.exe")));
-        struct Cleanup(Supervisor);
-        impl Drop for Cleanup {
-            fn drop(&mut self) {
-                self.0.shutdown();
+        for mode in ["disabled", "stopped", "exhausted"] {
+            let supervisor = Supervisor::with_sidecar(Some(PathBuf::from("unverified.exe")));
+            struct Cleanup(Supervisor);
+            impl Drop for Cleanup {
+                fn drop(&mut self) {
+                    self.0.shutdown();
+                }
             }
-        }
-        let _cleanup = Cleanup(supervisor.clone());
-        #[cfg(windows)]
-        let mut child = {
-            use std::os::windows::process::CommandExt;
-            Command::new("ping.exe")
-                .args(["127.0.0.1", "-n", "30"])
-                .creation_flags(0x08000000)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .unwrap()
-        };
-        #[cfg(not(windows))]
-        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
-        child.kill().unwrap();
-        child.wait().unwrap();
-        let root = std::env::temp_dir().join(format!(
-            "kosmos-monitor-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        {
-            let mut inner = supervisor.inner.lock().unwrap();
-            inner.child = Some(child);
-            inner.corpus = Some(root.join("unused-notes"));
-            inner.state_root = Some(root.join("state"));
-            inner.desired_running = true;
-        }
-        supervisor.monitor(0);
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        loop {
-            let status = supervisor.status();
-            if status.last_error.as_deref() == Some("sidecar release identity is unavailable") {
-                assert_eq!(status.restart_count, 1);
-                assert!(!status.running);
-                assert!(!supervisor.inner.lock().unwrap().desired_running);
-                assert!(!root.exists());
-                break;
+            let _cleanup = Cleanup(supervisor.clone());
+            #[cfg(windows)]
+            let mut child = {
+                use std::os::windows::process::CommandExt;
+                Command::new("ping.exe")
+                    .args(["127.0.0.1", "-n", "30"])
+                    .creation_flags(0x08000000)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .unwrap()
+            };
+            #[cfg(not(windows))]
+            let mut child = Command::new("sleep").arg("30").spawn().unwrap();
+            child.kill().unwrap();
+            child.wait().unwrap();
+            let root = std::env::temp_dir().join(format!(
+                "kosmos-monitor-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            {
+                let mut inner = supervisor.inner.lock().unwrap();
+                inner.child = Some(child);
+                inner.corpus = Some(root.join("unused-notes"));
+                inner.state_root = Some(root.join("state"));
+                inner.desired_running = true;
+                inner.restart_count = match mode {
+                    "stopped" => MAX_RESTARTS - 1,
+                    "exhausted" => MAX_RESTARTS,
+                    _ => 0,
+                };
             }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "monitor did not report restart refusal"
-            );
-            thread::sleep(Duration::from_millis(20));
+            supervisor.monitor(0);
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                let status = supervisor.status();
+                if mode == "stopped" && status.restart_count == MAX_RESTARTS {
+                    assert!(
+                        status.last_error.is_none(),
+                        "monitor passed the cancellation window"
+                    );
+                    supervisor.stop().unwrap();
+                    thread::sleep(Duration::from_millis(
+                        RESTART_BACKOFF_MS[usize::from(MAX_RESTARTS - 1)] + 250,
+                    ));
+                    let final_status = supervisor.status();
+                    assert!(final_status.last_error.is_none());
+                    assert!(!final_status.running);
+                    assert!(!supervisor.inner.lock().unwrap().desired_running);
+                    assert!(!root.exists());
+                    break;
+                }
+                let expected_error = if mode == "exhausted" {
+                    "sidecar restart limit reached"
+                } else {
+                    "sidecar release identity is unavailable"
+                };
+                if mode != "stopped" && status.last_error.as_deref() == Some(expected_error) {
+                    assert_eq!(
+                        status.restart_count,
+                        if mode == "exhausted" { MAX_RESTARTS } else { 1 }
+                    );
+                    assert!(!status.running);
+                    assert!(!supervisor.inner.lock().unwrap().desired_running);
+                    assert!(!root.exists());
+                    break;
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "monitor did not report restart refusal"
+                );
+                thread::sleep(Duration::from_millis(20));
+            }
         }
     }
 }

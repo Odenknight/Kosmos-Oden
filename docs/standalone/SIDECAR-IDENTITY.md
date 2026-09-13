@@ -267,3 +267,11 @@ clears running intent and creates no state directory. A cleanup guard closes the
 Supervisor even if the fixture fails. All 17 tests and all-target clippy pass.
 This proves monitor refusal; successful automatic Engine recovery, cancellation
 during backoff and maximum-retry exhaustion remain separate qualification work.
+
+Production monitor fixtures also cover cancellation during the final four-second
+backoff and entry with the retry budget already exhausted. Stop is issued after
+the monitor counts the pending attempt, then observed beyond that backoff: no
+late launch/error or state creation occurs. Exhaustion reports the limit without
+incrementing the count or creating state. All 17 tests and all-target clippy pass.
+These prove cancellation and the exhaustion boundary, not five successful
+respawns followed by a sixth failure or successful automatic Engine recovery.
