@@ -169,3 +169,21 @@ This qualifies that warm selection path, not cold startup, whole-corpus latency,
 paint completion, or physical user interaction. Private receipts and harnesses:
 `_Claude-Code/native-activation-acceptance-20260913.{js,json}` and
 `_Claude-Code/native-selection-events-20260913.{js,json}`.
+
+The pane-layout source `db48c122354f0c72d06c1637e241d4057356c93c` was clean-built,
+packaged, installed and reloaded on 2026-09-13. Its main.js SHA-256 is
+`3f007dac66677f1e686367e48e43205fd928d85f54976f357f60b46ecb6fa30c`, matching
+the separately verified build. All 11 copied artifacts were checked, settings
+were unchanged, and the prior installation was backed up.
+
+Native drawer acceptance remains **unqualified**. The synthetic note and its
+inspector loaded, but the resize probe timed out. The diagnostic at 11:57:27Z
+recorded a 328px client width with `data-narrow=false` while the document was
+hidden. The window therefore did not deliver the observed resize transition
+within the probe deadline. The harness restored the original inline style and
+view state. A subsequent attempt to restore the native window found no process
+main-window handle; it did not rerun the probe. Browser drawer checks remain
+valid at their stated scope, but do not close this native gate. Private evidence:
+`_Claude-Code/native-drawers-diagnostic-20260913.{js,json}` and the earlier
+`native-drawers-acceptance-20260913.js` harness. No successful native drawer
+receipt was produced.
