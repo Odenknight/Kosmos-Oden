@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { auditMailbox } from "../scripts/audit-mailbox.mjs";
+import { auditMailbox, verifyMailboxReference } from "../scripts/audit-mailbox.mjs";
 
 test("mailbox audit selects recipient and exposes forks, inverted roles and bad raw hashes", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-"));
@@ -77,4 +77,20 @@ test("unpublished temporary files are ignored while malformed delivered files re
   const result = auditMailbox(root,"bob");
   assert.deepEqual(result.findings, [{file:"messages/alice/published.json",code:"invalid-json"}]);
   assert.equal(readFileSync(join(root,"messages/alice/.tmp-interrupted.json"),"utf8"),"{partial");
+});
+
+
+test("file references hash raw bytes, confine paths, and distinguish superseded mutable files", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-refs-"));
+  const raw = Buffer.from("\ufeffretained\r\n", "utf8");
+  writeFileSync(join(root,"source.md"),raw);
+  const sha256 = createHash("sha256").update(raw).digest("hex");
+  assert.equal(verifyMailboxReference(root,{path:"source.md",sha256}),null);
+  for (const path of ["../source.md","/source.md","C:/source.md","folder/../source.md","folder\\source.md"])
+    assert.equal(verifyMailboxReference(root,{path,sha256}),"reference-path-invalid");
+  assert.equal(verifyMailboxReference(root,{path:"source.md",sha256:"0".repeat(64)}),"reference-hash-mismatch");
+  assert.equal(verifyMailboxReference(root,{path:"missing.md",sha256}),"reference-missing");
+  writeFileSync(join(root,"COMMUNICATIONS.md"),"new revision");
+  assert.equal(verifyMailboxReference(root,{path:"COMMUNICATIONS.md",sha256}),"reference-superseded");
+  assert.equal(verifyMailboxReference(root,{path:"bundle",sha256sums:"SHA256SUMS"}),"reference-schema");
 });

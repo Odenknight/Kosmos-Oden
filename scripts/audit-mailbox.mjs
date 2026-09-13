@@ -1,10 +1,36 @@
 /** Read-only coordination audit. Payloads are data; ACKs never establish completion. */
-import { readdirSync, readFileSync } from "node:fs";
-import { resolve, basename } from "node:path";
+import { readdirSync, readFileSync, lstatSync, realpathSync } from "node:fs";
+import { resolve, basename, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 
-export function auditMailbox(root, recipient) {
+export function verifyMailboxReference(root, reference) {
+  if (!reference || typeof reference !== "object" || Array.isArray(reference) ||
+      typeof reference.path !== "string" || typeof reference.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(reference.sha256)) return "reference-schema";
+  const parts = reference.path.split("/");
+  if (!parts.length || parts.some(part => !part || part === "." || part === ".." || /[\\:\x00-\x1f]/.test(part))) return "reference-path-invalid";
+  try {
+    const base = realpathSync(root);
+    let target = base;
+    for (const part of parts) {
+      target = resolve(target, part);
+      if (lstatSync(target).isSymbolicLink()) return "reference-path-invalid";
+    }
+    const resolved = realpathSync(target), rel = relative(base, resolved);
+    if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) return "reference-path-invalid";
+    const stat = lstatSync(resolved);
+    if (!stat.isFile()) return "reference-not-file";
+    if (stat.size > 64 * 1024 * 1024) return "reference-over-budget";
+    const digest = createHash("sha256").update(readFileSync(resolved)).digest("hex");
+    if (digest === reference.sha256) return null;
+    const mutable = reference.path === "COMMUNICATIONS.md" || reference.path === ".coordination/v1/PROTOCOL.md" ||
+      /^\.coordination\/v1\/(agents\/[^/]+\.json|status\/[^/]+\.md)$/.test(reference.path);
+    return mutable ? "reference-superseded" : "reference-hash-mismatch";
+  } catch (error) { return error.code === "ENOENT" ? "reference-missing" : "reference-unreadable"; }
+}
+
+export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../..")) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(recipient)) throw new Error("Invalid recipient identity");
   const findings = [], messages = [], acknowledgements = [], duplicates = [];
   const report = (file, code) => findings.push({ file, code });
@@ -31,6 +57,14 @@ export function auditMailbox(root, recipient) {
       if (prior) { conflictingIds.add(m.message_id); report(entry.file, "message-id-conflict"); }
       else ids.set(m.message_id, entry);
       if (basename(entry.file) !== `${m.sender}-${String(m.sender_seq).padStart(6,"0")}-${m.message_id}.json`) report(entry.file, "message-filename");
+      for (const field of ["input_plan_digests", "artifacts"]) {
+        if (m[field] === undefined) continue;
+        if (!Array.isArray(m[field])) { report(entry.file, "reference-list-schema"); continue; }
+        for (const reference of m[field]) {
+          const code = verifyMailboxReference(referenceRoot, reference);
+          if (code) report(entry.file, code);
+        }
+      }
       chain.push(entry); messages.push(entry);
     }
     for (const entry of chain) {
