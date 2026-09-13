@@ -35,3 +35,16 @@ process liveness, whereas the viewer attempts its IPC credential read once.
 Readiness coordination must be implemented and tested before claiming reliable
 native startup; a process existing does not prove its credential or HTTP service
 is ready.
+
+The preparation bridge now shares a bounded readiness helper for Start and
+Reconnect. It waits for native credential retrieval and an authenticated root
+response reporting `serving` before navigation. Stop or corpus selection changes
+invalidate the pending attempt, and stale completion cannot redirect or overwrite
+the current status message. A stalled credential request ends the attempt without
+queueing more reads. Tokens stay in request headers, never navigation URLs.
+
+Four component tests pass: delayed credentials/indexing, cancellation of a late
+serving response, stalled IPC without retry, and refusal of an unauthorized
+serving-shaped response. Preparation generated the current native viewer and
+the script syntax check passed. Visible native interaction remains unqualified;
+these component checks do not certify that full UI flow.
