@@ -1208,10 +1208,13 @@ export class KosmosAgentServer {
   }
 
   /** Native host preparation only. No MCP method exposes this authority closure. */
-  async prepareManagedGraphitiManifest(signal: AbortSignal) {
+  async prepareManagedGraphitiManifest(signal: AbortSignal, projectionTime?: string) {
     const projectionCurrent = this.captureGraphitiProjection(), provider = this.provider;
     if (!provider.getIndexedSourceBytes || !provider.captureGraphCurrent) throw new ProviderError("provider_unavailable");
     const graph = await provider.getGraph(), graphCurrent = provider.captureGraphCurrent(graph);
+    const processingTime = projectionTime ?? graph.stats.indexedAt;
+    if (typeof processingTime !== "string" || !Number.isFinite(Date.parse(processingTime)) ||
+        new Date(processingTime).toISOString() !== processingTime) throw new ProviderError("provider_unavailable");
     let invalidated = false;
     const current = () => {
       if (signal.aborted || !projectionCurrent() || !graphCurrent()) invalidated = true;
@@ -1224,7 +1227,7 @@ export class KosmosAgentServer {
     const total = buildGraphitiEpisodes(visible, {combinedExtraction:this.settings.graphitiCombinedExtraction,
       sagaMapping:this.settings.graphitiSagaMapping}).length;
     if (!total || total > MAX_EPISODES) throw new ProviderError("provider_unavailable");
-    const episodes = await this.qEpisodes();
+    const episodes = await this.qEpisodes(undefined, 0, false, processingTime);
     check();
     if (episodes.length !== total) throw new ProviderError("provider_unavailable");
     const nodes = new Map(visible.nodes.filter(node => node.kind === "file").map(node => [node.path, node]));
@@ -1249,10 +1252,10 @@ export class KosmosAgentServer {
     }
     const manifest = await buildManagedGraphitiManifest(inputs);
     check();
-    return {...manifest, episodes:inputs.map(input => input.episode), current};
+    return {...manifest, projection_time:processingTime, episodes:inputs.map(input => input.episode), current};
   }
 
-  async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false): Promise<any[]> {
+  async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false, nativeProjectionTime?: string): Promise<any[]> {
     const projectionCurrent = this.captureGraphitiProjection();
     const provider = this.provider;
     if (includeSourceEvidence && (!provider.getIndexedSourceBytes || !provider.getIndexedBody)) throw new McpRpcError(-32602, "Source-byte evidence is unavailable from this provider");
@@ -1268,7 +1271,7 @@ export class KosmosAgentServer {
       corpusId: this.settings.agentGraphNamespace || this.provider.vaultIdentity?.(),
       combinedExtraction: this.settings.graphitiCombinedExtraction,
       sagaMapping: this.settings.graphitiSagaMapping,
-      processingTime: graph.stats.indexedAt,
+      processingTime: nativeProjectionTime ?? graph.stats.indexedAt,
     });
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const cap = limit == null || !Number.isFinite(limit) ? MAX_EPISODES : Math.max(1, Math.min(Math.floor(limit), MAX_EPISODES));

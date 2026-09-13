@@ -33,11 +33,19 @@ and refusal of an asynchronous authority callback.
 The native plugin now owns a `NativeSemanticConnection` and passes it to the
 Notes workspace. Startup prepares a connection only when the plugin's trusted
 `data.json` contains a `nativeSemantic` profile. The profile has exactly these
-fields: `vaultIdentity`, `endpoint`, `token`, `authority`, and `publication`.
+fields: `vaultIdentity`, `endpoint`, `token`, `authority`, `publication`, and
+`projectionTime`.
 `authority` contains the configured corpus, scope, policy, and configuration
 digests. `publication` is the host-read published ledger receipt described by
 the Engine. The profile's vault identity must equal the native provider's
 identity. A query-status response is insufficient.
+
+`projectionTime` is the canonical UTC ISO timestamp used to create the
+published native projection. Manifest preparation returns it as
+`projection_time`. Retain it with the publication. Reusing this recipe lets
+unchanged source bytes reproduce the original envelope after an index restart.
+The timestamp remains covered by the episode digest. Do not replace it with
+the current query time or remove it from hashing.
 
 The profile is optional. Missing, invalid, mismatched, or stale configuration
 leaves ordinary readable search available. Existing profile data is preserved

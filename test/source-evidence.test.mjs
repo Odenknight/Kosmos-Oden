@@ -91,6 +91,22 @@ test('native manifest refuses missing identity, cancellation and configuration c
   }
 });
 
+test('native manifest can reproduce the published projection time after provider restart',async()=>{
+  const uid='uid: "019b2d14-4230-7db7-87d4-7d81cfaec932"\r\n';
+  const projectionTime='2026-09-13T00:00:00.000Z';
+  const first=await fixture(uid).server.prepareManagedGraphitiManifest(new AbortController().signal,projectionTime);
+  await new Promise(resolve=>setTimeout(resolve,20));
+  const second=await fixture(uid).server.prepareManagedGraphitiManifest(new AbortController().signal,projectionTime);
+  assert.equal(first.manifest[0].source_digest,second.manifest[0].source_digest);
+  assert.equal(first.source_snapshot_digest,second.source_snapshot_digest);
+  assert.equal(first.projection_time,projectionTime);
+  const changed=await fixture(uid).server.prepareManagedGraphitiManifest(new AbortController().signal,'2026-09-13T00:00:01.000Z');
+  assert.notEqual(first.source_snapshot_digest,changed.source_snapshot_digest);
+  const invalid=fixture(uid);
+  await assert.rejects(invalid.server.prepareManagedGraphitiManifest(new AbortController().signal,'invalid'),e=>e.reason==='provider_unavailable');
+  assert.deepEqual(invalid.reads,[]);
+});
+
 test('native semantic client binds the real provider manifest and rejects stale host or source state',async()=>{
   const f=fixture('uid: "019b2d14-4230-7db7-87d4-7d81cfaec932"\r\n');
   const source=await f.server.prepareManagedGraphitiManifest(new AbortController().signal);
@@ -146,9 +162,9 @@ test('native semantic client binds the real provider manifest and rejects stale 
   assert.equal(await prepareNativeSemanticClient({...options,publication:{searchable:true}},signal),null);
   assert.equal(await prepareNativeSemanticClient({...options,current:async()=>true},signal),null);
   assert.equal(f.reads.length,reads);
-  const profile={endpoint:options.endpoint,token:options.token,authority,publication,vaultIdentity:f.provider.vaultIdentity()};
+  const profile={endpoint:options.endpoint,token:options.token,authority,publication,vaultIdentity:f.provider.vaultIdentity(),projectionTime:source.projection_time};
   assert.deepEqual(readNativeSemanticProfile(profile),profile);
-  for(const invalid of [{...profile,endpoint:'https://name:secret@example.invalid/query'}, {...profile,extra:true}, {...profile,token:'short'}, {...profile,vaultIdentity:''}])
+  for(const invalid of [{...profile,endpoint:'https://name:secret@example.invalid/query'}, {...profile,extra:true}, {...profile,token:'short'}, {...profile,vaultIdentity:''}, {...profile,projectionTime:'yesterday'}])
     assert.equal(readNativeSemanticProfile(invalid),null);
 });
 

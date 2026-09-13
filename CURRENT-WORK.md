@@ -73,7 +73,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 519 tests.
+The latest completed Kosmos verification passed 520 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -93,6 +93,11 @@ Vault identity or Graphiti settings could change during an export.
 The export now rejects those changes before returning results.
 Ten new regression cases failed before the fix and passed afterward.
 See `src/plugin/agent-server.ts` and `test/source-evidence.test.mjs`.
+
+Native profiles now retain the published projection time.
+This fixes a reproduced mismatch after restarting an unchanged source provider.
+The deployed service and native export use different projection envelopes.
+Native acceptance needs its own synthetic publication.
 
 The workspace now has an Open cited source button.
 The host checks the citation against the accepted result.
