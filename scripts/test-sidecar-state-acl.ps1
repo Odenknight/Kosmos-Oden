@@ -18,5 +18,24 @@ $rules = @((Get-Acl -LiteralPath $newLeaf).GetAccessRules($true, $true, [Securit
 $principal = [Security.Principal.WindowsIdentity]::GetCurrent().User
 if ($rules.Count -ne 1 -or $rules[0].IdentityReference -ne $principal) { throw 'New file inherited unexpected access' }
 & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $leaf
-Write-Output 'PASS: protected directory, existing broad-access leaf, new inherited leaf, repeat application, unchanged payload'
+$before = (Get-Acl -LiteralPath $leaf).Sddl
+$hardLink = Join-Path $fixture 'hardlink.synthetic'
+$null = New-Item -ItemType HardLink -Path $hardLink -Target $leaf
+$junction = Join-Path $fixture 'junction.synthetic'
+$target = Join-Path $fixture 'target.synthetic'
+$null = New-Item -ItemType Directory -Path $target
+$targetLeaf = Join-Path $target 'nested.synthetic'
+[IO.File]::WriteAllText($targetLeaf, 'nested synthetic bytes')
+$targetBefore = (Get-Acl -LiteralPath $targetLeaf).Sddl
+$null = New-Item -ItemType Junction -Path $junction -Target $target
+foreach ($alias in @($hardLink, $junction, (Join-Path $junction 'nested.synthetic'))) {
+    $refused = $false
+    try { & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $alias }
+    catch { if ($_.Exception.Message -match 'links are unsupported|points are unsupported') { $refused = $true } else { throw } }
+    if (-not $refused) { throw 'Alias was not refused' }
+}
+if ((Get-Acl -LiteralPath $leaf).Sddl -ne $before -or (Get-Acl -LiteralPath $targetLeaf).Sddl -ne $targetBefore) {
+    throw 'Rejected alias changed target ACL'
+}
+Write-Output 'PASS: directory, existing/new leaves, repeat application, payload preservation, hard-link/final-junction/ancestor-junction refusal without target ACL changes'
 # Retain the small synthetic fixture for inspection; no recursive deletion.

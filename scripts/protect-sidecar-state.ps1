@@ -8,6 +8,15 @@ $item = Get-Item -LiteralPath $LiteralPath -Force
 if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw 'Sidecar state reparse points are unsupported'
 }
+if ($item.LinkType -eq 'HardLink') { throw 'Sidecar state hard links are unsupported' }
+$ancestor = if ($item.PSIsContainer) { $item.Parent } else { $item.Directory }
+while ($null -ne $ancestor) {
+    $checkedAncestor = Get-Item -LiteralPath $ancestor.FullName -Force
+    if (($checkedAncestor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'Sidecar state ancestor reparse points are unsupported'
+    }
+    $ancestor = $ancestor.Parent
+}
 $acl = Get-Acl -LiteralPath $item.FullName
 $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
 if ($owner -ne $principal -and $owner -ne $identity.Owner) {

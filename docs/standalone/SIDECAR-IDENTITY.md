@@ -92,3 +92,10 @@ foreign-owner refusal fixtures, all existing state leaves, bounded subprocess
 execution and final host readback remain required before using it on real state.
 Tests used process-only `RemoteSigned` for local scripts; no configured execution
 policy or live application ACL was changed.
+
+The helper also checks ancestor reparse points and refuses filesystem-provider
+hard-link entries. Expanded synthetic tests passed for a hard link, a final
+junction and a leaf beneath a junction, with target ACLs unchanged after refusal.
+These are static alias checks. The check-to-update race remains open; do not
+wire this path-based prototype into live startup until handle-bound validation
+and ACL application are qualified.
