@@ -288,3 +288,12 @@ After restoring the null manifest, the ordinary suite passed 17 tests with this
 one qualification intentionally ignored; all-target clippy passed. This proves
 one successful automatic recovery. Full repeated retry exhaustion, discovery,
 native UI and broader release gates remain open.
+
+The explicitly selected Supervisor qualification now completes five actual Engine
+recoveries. Each replacement has a different current PID, reaches serving and
+indexes the synthetic document; restart counts advance from one through five.
+After terminating the fifth replacement, the monitor reports the retry limit,
+keeps the count at five and clears running intent. The test passed in 24.75 seconds.
+The final process was absent afterward, the source manifest restored to null, and
+all-target clippy passed. This supersedes the earlier single-recovery scope;
+discovery, native UI and broader release qualification still remain open.

@@ -486,7 +486,22 @@ mod tests {
                 thread::sleep(Duration::from_millis(50));
             }
         };
-        let first_pid = await_serving(None);
+        let mut previous_pid = await_serving(None);
+        for expected_count in 1..=MAX_RESTARTS {
+            supervisor
+                .inner
+                .lock()
+                .unwrap()
+                .child
+                .as_mut()
+                .unwrap()
+                .kill()
+                .unwrap();
+            let recovered_pid = await_serving(Some(previous_pid));
+            assert_ne!(previous_pid, recovered_pid);
+            assert_eq!(supervisor.status().restart_count, expected_count);
+            previous_pid = recovered_pid;
+        }
         supervisor
             .inner
             .lock()
@@ -496,14 +511,21 @@ mod tests {
             .unwrap()
             .kill()
             .unwrap();
-        let recovered_pid = await_serving(Some(first_pid));
-        assert_ne!(first_pid, recovered_pid);
-        assert_eq!(supervisor.status().restart_count, 1);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while supervisor.status().last_error.as_deref() != Some("sidecar restart limit reached") {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "retry exhaustion was not reported"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(supervisor.status().restart_count, MAX_RESTARTS);
+        assert!(!supervisor.inner.lock().unwrap().desired_running);
         supervisor.shutdown();
         assert!(!supervisor.status().running);
         assert!(supervisor.inner.lock().unwrap().child.is_none());
         println!(
-            "PASS: production Supervisor recovered verified Engine and reindexed synthetic document; fixture {}",
+            "PASS: production Supervisor completed five Engine recoveries and refused a sixth restart; fixture {}",
             root.display()
         );
     }
