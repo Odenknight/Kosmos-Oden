@@ -73,7 +73,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 539 tests.
+The latest completed Kosmos verification passed 548 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -125,6 +125,9 @@ It stores source observations in SQLite and preserves retry identity across proc
 It checks current read authority before publishing retained bytes.
 An observed authority failure permanently invalidates that history connection.
 Pending reads also refuse changes to the full committed-record watermark.
+Projection publications now reference exact committed source observations.
+They keep their own observation time and preserve the original source times.
+An actual native publication-witness adapter still needs to be connected.
 Storage remains off in the plugin. Purge, migration, and native integration remain unfinished.
 See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
 

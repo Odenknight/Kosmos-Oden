@@ -19,7 +19,8 @@ The host must prove unique source identity, exact original bytes, and parser rec
 The ledger verifies the source digest through the Engine and validates canonical source paths and authored UIDs.
 These checks do not replace native source capture.
 
-Source versions and source-deletion observations receive a committed sequence and host timestamp.
+Source versions, source-deletion observations, and projection-publication observations share committed sequence order.
+Each receives its own host observation timestamp.
 Authored validity remains separate and may be unknown.
 Equal timestamps use sequence order.
 Regressing commit timestamps are refused.
@@ -31,6 +32,7 @@ The envelope and payload are inserted in one synchronous SQLite transaction.
 The connection uses full synchronization and rollback journaling.
 A record digest covers sequence, operation, observation time, parent, and canonical input.
 Each source's parent sequence and the global sequence are checked when reading metadata.
+Projection events have no source-version parent and do not alter a source's parent chain.
 Payloads and their supported parser/schema interpretation are checked before being published.
 
 A known-by query chooses the last retained source observation at or before its cutoff.
@@ -57,6 +59,35 @@ The database also has a page-count ceiling.
 Capacity exhaustion refuses append without pruning records.
 Expired observations are unavailable to queries.
 
+## Projection publication observations
+
+A version-one `projection_published` input records the projection ID, configuration digest,
+publication receipt digest, authority and policy digests, and exact source-observation references.
+Each reference contains source UID, committed sequence, source digest, and observation receipt digest.
+`sourceReference` supplies those coordinates only for a currently readable retained source version.
+References to deletion observations, missing records, mismatched receipts, duplicate identities,
+future records, or expired versions are refused.
+References are ordered by committed sequence.
+
+The host must supply `projectionCurrent` in addition to ordinary source authority.
+It must attest the exact observed publication, configuration, generation, and referenced sources.
+A caller-provided string or remote readiness claim alone is not a witness.
+The ledger passes the callback a detached copy and checks the witness again before commit.
+Current source read access and retained source bytes are also checked.
+The native Graphiti-to-history witness adapter is not implemented yet.
+
+Projection append uses the same atomic transaction, retry, capacity and clock rules.
+It does not change original source bytes, source observation times, or authored validity.
+A projection record is evidence of host-observed publication, not proof of extraction correctness.
+Projection inputs are limited to 5,000 unique source references and 1 MiB of canonical input.
+Source inputs retain their 16 KiB limit. Both count against the logical-byte retention limit.
+
+The SQLite structure and existing rows are unchanged.
+The new projection input is explicitly versioned.
+The earlier source-only reader at `9a6edd1` refuses this unknown record kind without modifying records.
+The current reader reopens the same database and retains the original source observation.
+This compatibility check is not migration, backup restoration, or rollback qualification.
+
 ## Evidence
 
 `test/source-observation-ledger.test.mjs` uses actual temporary SQLite databases.
@@ -65,7 +96,7 @@ explicit limits, byte accounting, hidden-source isolation, path reuse, final-bou
 missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
 Child processes terminate before commit and after commit without orderly close.
 Reopening proves rollback in the first case and durable retry recovery in the second.
-All 19 component tests pass. Full repository verification passes all 539 tests.
+All 28 component tests pass. Full repository verification passes all 548 tests.
 The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 
@@ -73,7 +104,7 @@ These are Windows component tests, not native Obsidian acceptance.
 
 - Bind the ledger to a qualified private native database capability and actual source-capture receipts.
 - Accept the retention contract and owner controls before production activation.
-- Add separate projection-publication observations and their source-observation references.
+- Bind projection recording to actual native Graphiti publication readback and qualify projection-history queries.
 - Implement explicit purge, retention holds, durable deny receipts, and derived-data cleanup.
 - Add independent deletion-watermark reconciliation so backup restoration cannot resurrect purged records.
 - Complete replay, import provenance, migration, backup and rollback qualification.

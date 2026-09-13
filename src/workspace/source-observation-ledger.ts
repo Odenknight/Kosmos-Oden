@@ -27,6 +27,27 @@ export interface SourceObservation {
   parserVersion: string;
   schemaVersion: string;
 }
+export interface SourceObservationReference {
+  sequence: number;
+  source: string;
+  sourceDigest: string;
+  receiptDigest: string;
+}
+export interface ProjectionObservation {
+  version: 1;
+  operation: string;
+  corpus: string;
+  kind: "projection_published";
+  projectionId: string;
+  configurationDigest: string;
+  publicationDigest: string;
+  authorityDigest: string;
+  policyDigest: string;
+  sources: SourceObservationReference[];
+}
+type Observation = SourceObservation | ProjectionObservation;
+const PROJECTION_KEYS = ["version", "operation", "corpus", "kind", "projectionId", "configurationDigest", "publicationDigest", "authorityDigest", "policyDigest", "sources"].sort();
+const recordLimit = (input: Observation) => input.kind === "projection_published" ? 1024 * 1024 : 16384;
 const INPUT_KEYS = ["operation", "corpus", "source", "path", "kind", "sourceDigest", "validAt", "authorityDigest", "policyDigest", "parserVersion", "schemaVersion"].sort();
 function instant(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
@@ -48,23 +69,23 @@ function assertDatabase(db: DatabaseSync, retention: Readonly<ObservationRetenti
 
 /** Isolated native component. The host owns the private database capability and
  * authenticated retention action. No plugin hook opens or enables this ledger.
- * Purge, projection events, import and migration are deliberately unavailable.
+ * Purge, import and migration are deliberately unavailable.
  */
 export class SourceObservationLedger {
   private closed = false;
   private invalidated = false;
   private busy = false;
   private constructor(private db: DatabaseSync, private retention: Readonly<ObservationRetention>,
-    private host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean }) {}
+    private host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean; projectionCurrent?: (input: ProjectionObservation) => boolean }) {}
 
   static open(retention: ObservationRetention, openDatabase: () => DatabaseSync,
-    host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean }, initialize = false) {
+    host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean; projectionCurrent?: (input: ProjectionObservation) => boolean }, initialize = false) {
     if (retention?.enabled === undefined || retention?.enabled === false) return null;
     retention = JSON.parse(stableJson(retention));
     if (retention.enabled !== true || typeof retention.corpus !== "string" || !retention.corpus || retention.corpus.length > 4096 ||
       !positive(retention.maxAgeMs, 3650 * 86400000) || !positive(retention.maxBytes, 64 * 1024 * 1024) ||
       !positive(retention.maxObservations, 10000) || Object.keys(retention).sort().join() !== "corpus,enabled,maxAgeMs,maxBytes,maxObservations") throw Error("OBSERVATION_RETENTION_INVALID");
-    const capturedHost = { current: host.current, now: host.now, canRead: host.canRead, supports: host.supports };
+    const capturedHost = { current: host.current, now: host.now, canRead: host.canRead, supports: host.supports, projectionCurrent: host.projectionCurrent };
     if (typeof capturedHost.current !== "function" || typeof capturedHost.now !== "function" ||
         typeof capturedHost.canRead !== "function" || typeof capturedHost.supports !== "function" || capturedHost.current() !== true) throw Error("OBSERVATION_HOST_STALE");
     const db = openDatabase();
@@ -102,7 +123,22 @@ export class SourceObservationLedger {
       catch (error) { this.db.exec("ROLLBACK;"); throw error; }
     } finally { this.busy = false; }
   }
-  private validate(input: SourceObservation, payload: Uint8Array | null, checkPayload = true) {
+  private validate(input: Observation, payload: Uint8Array | null, checkPayload = true) {
+    if (input.kind === "projection_published") {
+      if (Object.keys(input).sort().join() !== PROJECTION_KEYS.join() || input.version !== 1 || input.corpus !== this.retention.corpus ||
+          typeof input.operation !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.operation) ||
+          typeof input.projectionId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(input.projectionId) ||
+          ![input.configurationDigest, input.publicationDigest, input.authorityDigest, input.policyDigest].every(v => typeof v === "string" && DIGEST.test(v)) ||
+          !Array.isArray(input.sources) || input.sources.length > 5000 || payload !== null) throw Error("OBSERVATION_PROJECTION_INVALID");
+      const identities = new Set<string>(); let prior = 0;
+      for (const ref of input.sources) {
+        if (!ref || Object.keys(ref).sort().join() !== "receiptDigest,sequence,source,sourceDigest" ||
+            !positive(ref.sequence, 10000) || ref.sequence <= prior || !isValidGkxAuthoredUid(ref.source) || identities.has(ref.source) ||
+            !DIGEST.test(ref.sourceDigest) || !DIGEST.test(ref.receiptDigest)) throw Error("OBSERVATION_REFERENCE_INVALID");
+        identities.add(ref.source); prior = ref.sequence;
+      }
+      return;
+    }
     const path = validateVaultRelativePath(input.path);
     if (Object.keys(input).sort().join() !== INPUT_KEYS.join() || input.corpus !== this.retention.corpus ||
         typeof input.operation !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.operation) ||
@@ -126,32 +162,82 @@ export class SourceObservationLedger {
     const parents = new Map<string, number>(); let lastTime = "";
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (typeof row.input !== "string" || Buffer.byteLength(row.input) > 16384) throw Error("OBSERVATION_STORE_INVALID");
-      let input: SourceObservation;
+      if (typeof row.input !== "string" || Buffer.byteLength(row.input) > 1024 * 1024) throw Error("OBSERVATION_STORE_INVALID");
+      let input: Observation;
       try { input = JSON.parse(row.input); } catch { throw Error("OBSERVATION_STORE_INVALID"); }
+      if (Buffer.byteLength(row.input) > recordLimit(input)) throw Error("OBSERVATION_STORE_INVALID");
       this.validate(input, null, false);
-      if (input.kind === "source_deleted" ? row.payload_length !== null : row.payload_length === null) throw Error("OBSERVATION_PAYLOAD_INVALID");
+      if (input.kind !== "source_version" ? row.payload_length !== null : row.payload_length === null) throw Error("OBSERVATION_PAYLOAD_INVALID");
       if (row.receipt_digest !== retrievalSha256(stableJson({ sequence: row.seq, operation: row.operation, knownAt: row.known_at, parent: row.parent, input }))) throw Error("OBSERVATION_STORE_INVALID");
       if (stableJson(input) !== row.input || row.seq !== i + 1 || row.operation !== input.operation ||
-          !instant(row.known_at) || row.known_at < lastTime || row.parent !== (parents.get(input.source) ?? null)) throw Error("OBSERVATION_STORE_INVALID");
-      parents.set(input.source, row.seq); lastTime = row.known_at;
+          !instant(row.known_at) || row.known_at < lastTime || row.parent !== (input.kind === "projection_published" ? null : parents.get(input.source) ?? null)) throw Error("OBSERVATION_STORE_INVALID");
+      if (input.kind === "projection_published") this.references(input, rows.slice(0, i));
+      else parents.set(input.source, row.seq);
+      lastTime = row.known_at;
       row.parsed = input;
     }
     return { rows, bytes: count.bytes as number, watermark: retrievalSha256(stableJson(rows.map(row => [row.seq, row.receipt_digest]))) };
   }
-  append(value: SourceObservation, bytes: Uint8Array | null) {
+  private references(input: ProjectionObservation, rows: any[]) {
+    for (const ref of input.sources) {
+      const row = rows[ref.sequence - 1];
+      if (!row || row.parsed?.kind !== "source_version" || row.parsed.source !== ref.source ||
+          row.parsed.sourceDigest !== ref.sourceDigest || row.receipt_digest !== ref.receiptDigest) throw Error("OBSERVATION_REFERENCE_INVALID");
+    }
+  }
+  private authorize(input: Observation) {
+    const sources = input.kind === "projection_published" ? input.sources.map(ref => ref.source) : [input.source];
+    if (sources.some(source => this.host.canRead(source) !== true)) throw Error("OBSERVATION_HOST_STALE");
+    if (input.kind === "projection_published" && this.host.projectionCurrent?.(JSON.parse(stableJson(input))) !== true) throw Error("OBSERVATION_PROJECTION_STALE");
+    if (sources.some(source => this.host.canRead(source) !== true)) throw Error("OBSERVATION_HOST_STALE");
+    this.current();
+  }
+
+  private retainedReference(row: any, rows: any[], now = this.host.now()) {
+    if (!instant(now) || rows.length && now < rows.at(-1).known_at) throw Error("OBSERVATION_CLOCK_REGRESSED");
+    if (Date.parse(now) - Date.parse(row.known_at) > this.retention.maxAgeMs) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+  }
+
+  sourceReference(source: string, sequence: number): Readonly<SourceObservationReference> {
+    return this.transaction(() => {
+      if (!isValidGkxAuthoredUid(source) || !positive(sequence, 10000) || this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      const { rows } = this.scan();
+      const row = rows[sequence - 1];
+      if (!row || row.parsed.kind !== "source_version" || row.parsed.source !== source) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      if (this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      this.retainedReference(row, rows);
+      const payload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(sequence) as any)?.payload;
+      this.validate(row.parsed, payload);
+      this.retainedReference(row, rows);
+      if (this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      this.current();
+      return Object.freeze({ sequence, source, sourceDigest: row.parsed.sourceDigest, receiptDigest: row.receipt_digest });
+    });
+  }
+
+  append(value: Observation, bytes: Uint8Array | null) {
     const text = stableJson(value);
-    if (Buffer.byteLength(text) > 16384 || bytes !== null && bytes.byteLength > this.retention.maxBytes) throw Error("OBSERVATION_CAPACITY");
+    if (Buffer.byteLength(text) > recordLimit(value) || bytes !== null && bytes.byteLength > this.retention.maxBytes) throw Error("OBSERVATION_CAPACITY");
     const input = JSON.parse(text), payload = bytes === null ? null : Buffer.from(bytes);
     this.validate(input, payload);
     return this.transaction(() => {
-      if (this.host.canRead(input.source) !== true) throw Error("OBSERVATION_HOST_STALE");
+      this.authorize(input);
       const { rows, bytes: retained } = this.scan();
+      if (input.kind === "projection_published") {
+        this.references(input, rows);
+        for (const ref of input.sources) {
+          if (this.host.canRead(ref.source) !== true) throw Error("OBSERVATION_HOST_STALE");
+          this.retainedReference(rows[ref.sequence - 1], rows);
+          const sourcePayload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(ref.sequence) as any)?.payload;
+          this.validate(rows[ref.sequence - 1].parsed, sourcePayload);
+        }
+      }
       const existing = rows.find(row => row.operation === input.operation);
       if (existing) {
         if (existing.input !== text) throw Error("OBSERVATION_RETRY_CONFLICT");
         const retainedPayload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(existing.seq) as any)?.payload;
         this.validate(existing.parsed, retainedPayload);
+        this.authorize(input);
         return Object.freeze({ sequence: existing.seq as number, knownAt: existing.known_at as string });
       }
       // Logical record bytes include input, payload, duplicated operation, two integers, timestamp and digest.
@@ -159,9 +245,10 @@ export class SourceObservationLedger {
       if (rows.length >= this.retention.maxObservations || retained + recordBytes > this.retention.maxBytes) throw Error("OBSERVATION_CAPACITY");
       const now = this.host.now();
       if (!instant(now) || rows.length && now < rows.at(-1).known_at) throw Error("OBSERVATION_CLOCK_REGRESSED");
-      const parent = rows.slice().reverse().find(row => row.parsed.source === input.source)?.seq ?? null;
+      if (input.kind === "projection_published") for (const ref of input.sources) this.retainedReference(rows[ref.sequence - 1], rows, now);
+      const parent = input.kind === "projection_published" ? null : rows.slice().reverse().find(row => row.parsed.source === input.source)?.seq ?? null;
       this.current();
-      if (this.host.canRead(input.source) !== true) throw Error("OBSERVATION_HOST_STALE");
+      this.authorize(input);
       this.current();
       const digest = retrievalSha256(stableJson({ sequence: rows.length + 1, operation: input.operation, knownAt: now, parent, input }));
       this.db.prepare("INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?)").run(rows.length + 1, input.operation, now, parent, text, payload, digest);
