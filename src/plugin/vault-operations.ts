@@ -42,12 +42,20 @@ export function deadline<T>(work: Promise<T>, ms: number, expire?: () => void): 
 }
 
 export function readVaultText(vault: { cachedRead(file: any): Promise<string> }, file: { path: string }, timeoutMs = VAULT_READ_TIMEOUT_MS): Promise<string> {
+  return readVault(vault, file, () => vault.cachedRead(file), timeoutMs);
+}
+
+export function readVaultBytes(vault: { readBinary(file: any): Promise<ArrayBuffer> }, file: { path: string }, timeoutMs = VAULT_READ_TIMEOUT_MS): Promise<ArrayBuffer> {
+  return readVault(vault, file, () => vault.readBinary(file), timeoutMs);
+}
+
+function readVault<T>(vault: object, file: { path: string }, read: () => Promise<T>, timeoutMs: number): Promise<T> {
   const state = registry(vault);
   const path = file.path;
   // A timed-out physical read is never reused as fresh content. Refuse a
   // duplicate until it settles, including after a plugin/provider replacement.
   if (state.reads.has(path) || state.reads.size >= MAX_PHYSICAL_VAULT_READS) return Promise.reject(new ProviderError("provider_unavailable"));
-  const work = Promise.resolve().then(() => vault.cachedRead(file));
+  const work = Promise.resolve().then(read);
   const operation: Operation = { started: performance.now(), promise: work };
   state.reads.set(path, operation);
   const release = () => { if (state.reads.get(path) === operation) state.reads.delete(path); };

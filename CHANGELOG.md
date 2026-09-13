@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 candidate follow-up — 2026-09-13
+
+- Add opt-in `include_source_evidence` to MCP episode export. SHA-256 covers
+  exact source bytes only after full indexed-revision matching, with a 4 MiB
+  page budget, shared read admission and final graph/policy checks.
+- Reconcile the Graphiti roadmap with published hive/Observatory experiment
+  receipts; correct current Engine pin and Graphiti settings descriptions.
+
 ## 0.8.3 candidate bugfixes — 2026-09-12
 
 - Pin the Engine Graphiti 0.30.2 adapter and reuse its persistence-checked

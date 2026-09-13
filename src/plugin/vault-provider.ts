@@ -15,7 +15,7 @@ import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
-import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS, VAULT_READ_TIMEOUT_MS } from "./vault-operations";
+import { deadline, ProviderError, readVaultText, readVaultBytes, VAULT_BUILD_TIMEOUT_MS, VAULT_READ_TIMEOUT_MS } from "./vault-operations";
 
 declare const require: any;
 
@@ -208,6 +208,30 @@ export class VaultDataProvider implements AgentDataProvider {
     if (!f || !("stat" in (f as any))) return null;
     const raw = await readVaultText(this.app.vault, f as TFile, this.limits.readMs);
     return stripFrontmatter(raw);
+  }
+
+  /** Read exact bytes only on explicit evidence export, never during indexing.
+   * Matching the complete indexed text binds frontmatter and untruncated content.
+   * A racing edit or host normalization is refused rather than mislabelled. */
+  async getIndexedSourceBytes(path: string, graph: GkxGraph, maxBytes: number): Promise<Uint8Array | null> {
+    if (graph !== this.index.graph || isKosmosOperationalPath(path)) return null;
+    const source = this.sourceFiles.get(path);
+    const file = this.app.vault.getAbstractFileByPath(path) as TFile | null;
+    if (!source || typeof source.content !== "string" || !file?.stat) return null;
+    const revision = this.revision, sensitivity = this.settings.defaultSensitivity;
+    const size = file.stat.size, mtime = file.stat.mtime;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || !Number.isSafeInteger(size) || size < 0 || size > maxBytes) throw new ProviderError("provider_unavailable");
+    const buffer = await readVaultBytes(this.app.vault, file, this.limits.readMs);
+    if (buffer.byteLength > maxBytes || buffer.byteLength !== size || file.path !== path ||
+        file.stat.size !== size || file.stat.mtime !== mtime || revision !== this.revision ||
+        sensitivity !== this.settings.defaultSensitivity || graph !== this.index.graph ||
+        this.app.vault.getAbstractFileByPath(path) !== file) throw new ProviderError("provider_unavailable");
+    const bytes = new Uint8Array(buffer);
+    let text: string;
+    try { text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); }
+    catch { throw new ProviderError("provider_unavailable"); }
+    if (text !== source.content) throw new ProviderError("provider_unavailable");
+    return bytes;
   }
 
   vaultName(): string {

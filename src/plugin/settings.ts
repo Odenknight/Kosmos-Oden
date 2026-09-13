@@ -384,7 +384,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     agentEl.createEl("h3", { text: "Kosmos Governed Context Projection (KGCP)" });
     agentEl.createEl("p", { text: `KGCP is the deterministic, sensitivity-filtered agent-facing graph produced by GKOS-Engine v${ENGINE_VERSION}. The GKX v2.3 Graphiti adapter is an optional non-authoritative semantic-memory projection; inferred facts return as proposals or derived sidecars, never authored governance.` });
     new Setting(agentEl).setName("Graphiti combined extraction")
-      .setDesc("Experimental and off by default. Graphiti 0.29 exposes this only through a low-level bulk utility, not add_episode. The adapter records the request and required benchmark fields without pretending the standard ingestion path enabled it.")
+      .setDesc("Experimental and off by default. Combined extraction is a low-level utility outside the standard Graphiti 0.30.2 runner. The adapter records the request and required benchmark fields without claiming the standard ingestion path enabled it.")
       .addToggle((t) => t.setValue(s.graphitiCombinedExtraction).onChange(async (v) => { s.graphitiCombinedExtraction = v; await this.plugin.saveAgentSettings(); }));
     new Setting(agentEl).setName("Graphiti saga mapping")
       .setDesc("Off by default. Adds deterministic saga hints for lineage, project history, recurring meetings, research threads, and versioned specifications.")
