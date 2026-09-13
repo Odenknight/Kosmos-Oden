@@ -88,6 +88,11 @@ window.addEventListener("message", (ev: MessageEvent) => {
       const v = validateHostMessage(raw);
       if (!v.ok) { if (v.reason) console.warn("Kosmos-Oden: rejected host message —", v.reason); return; }
       const msg = v.message!;
+      if (msg.type === "select-readable-note") {
+        if (msg.payload.generation !== projectionGeneration) return;
+        if (!app.focusNode(msg.payload.id)) app.showHint("This note is unavailable in the current view.");
+        return;
+      }
       if (msg.type === "readable-graph") {
         if (msg.payload.generation <= projectionGeneration) return;
         const graph = readableSpatialGraph(msg.payload.graph);

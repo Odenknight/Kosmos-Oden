@@ -26,6 +26,13 @@ visibility messages remain operational. Build/typecheck and four sandbox browser
 checks pass. The native host sender and generation-bound selection remain open;
 normal installed operation does not yet enter this projection mode.
 
+`select-readable-note` now resolves a bounded canonical ID only when its
+generation equals the displayed projection. The renderer refuses missing or
+hidden file nodes and preserves selection on refusal. Four sandbox checks
+observe the actual inspector after current, stale and missing selections;
+16 protocol checks, build and typecheck pass. Native host issuance, selection
+reauthorization and projection invalidation are still required.
+
 The current Notes host captures `qGraph()` with committed corpus, graph object,
 default sensitivity and visibility ceiling checks. That query returns readable
 note summaries and links whose two endpoints are readable. It does not return

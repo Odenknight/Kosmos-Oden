@@ -56,6 +56,7 @@ export interface VaultStatusPayload {
 }
 
 export type HostToRenderer =
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "select-readable-note"; payload: { generation: number; id: string } }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-graph"; payload: { generation: number; graph: any } }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-snapshot"; payload: FilesPayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload }
@@ -97,6 +98,10 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this renderer speaks v${KOSMOS_PROTOCOL_VERSION})` };
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "select-readable-note") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !isStr(p.id) || !p.id.length || p.id.length > 4096) return { ok: false, reason: "invalid readable selection" };
+    return { ok: true, message: m as unknown as HostToRenderer };
+  }
   if (m.type === "readable-graph") {
     if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !validReadableGraph(p.graph)) return { ok: false, reason: "invalid readable graph or generation" };
     return { ok: true, message: m as unknown as HostToRenderer };

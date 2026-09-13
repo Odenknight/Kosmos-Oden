@@ -10,6 +10,11 @@ import {
   wrap,
 } from "../dist/kosmos-protocol.mjs";
 
+test('readable selection requires a valid generation and bounded ID',()=>{
+  assert.equal(validateHostMessage(wrap('select-readable-note',{generation:2,id:'file:Note.md'})).ok,true);
+  for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)}]) assert.equal(validateHostMessage(wrap('select-readable-note',payload)).ok,false);
+});
+
 test('readable graph validates scope payload bounds, paths, endpoints and generation', () => {
   const graph={builtAt:'2026-09-13',nodes:[{id:'file:A.md',path:'A.md',title:'A',area:'Vault',type:'note',tags:[],timestamp:null}],links:[]};
   const valid=()=>wrap('readable-graph',{generation:1,graph:structuredClone(graph)});
