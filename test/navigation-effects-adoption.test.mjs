@@ -340,3 +340,32 @@ test('native adoption survives process exit immediately before and after transac
     } finally {store?.close();f.cleanup();}
   }
 });
+
+
+test('native adoption refuses empty and unrelated databases without changing their bytes', async () => {
+  const {writeFileSync,readFileSync}=await import('node:fs');const {join}=await import('node:path');
+  const {DatabaseSync}=await import('node:sqlite');
+  for(const kind of ['empty','unrelated']) {
+    const f=await nativeStoreFixture();
+    try {
+      const path=join(f.directory,'adoption.sqlite');
+      if(kind==='empty')writeFileSync(path,'');
+      else {const db=new DatabaseSync(path);db.exec("CREATE TABLE unrelated(value TEXT); INSERT INTO unrelated VALUES ('preserve');");db.close();}
+      const before=readFileSync(path);
+      await assert.rejects(f.SqliteAdoptionStore.open(f.directory),kind==='empty'?/DATABASE_UNSAFE/:/DATABASE_IDENTITY_INVALID/);
+      await assert.rejects(f.SqliteAdoptionStore.open(f.directory,await api.createEmptyAdoptionRegistry()));
+      assert.deepEqual(readFileSync(path),before);
+    } finally {f.cleanup();}
+  }
+});
+
+test('native adoption bounds a proposed record before any transaction changes the registry', async () => {
+  const f=await nativeStoreFixture();let store;
+  try {
+    const registry=await api.createEmptyAdoptionRegistry();store=await f.SqliteAdoptionStore.open(f.directory,registry);
+    const plan=await preview({registry}),confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'x'.repeat(1024*1024)}),/ADOPTION_RECORD_BUDGET/);
+    assert.deepEqual(await store.load(),registry);
+    assert.equal(await store.receipt(confirmed.receipt.receiptId),undefined);
+  } finally {store?.close();f.cleanup();}
+});
