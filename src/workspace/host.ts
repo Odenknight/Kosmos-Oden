@@ -67,6 +67,10 @@ export class NotesWorkspaceHost {
     return page(0);
   }
 
+  /** Readable graph for native spatial consumers; publication retains the same
+   * corpus, graph object and projection policy checks as Notes. */
+  graph() { return this.capture(() => this.api.qGraph()); }
+
   read(path: string, page: { page_size?: number; offset?: number; revision?: string } = {}) {
     const checked = validateVaultRelativePath(path);
     if (!checked.valid || checked.normalized !== path) throw new Error("WORKSPACE_PATH_INVALID");

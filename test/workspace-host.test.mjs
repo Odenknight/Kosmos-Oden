@@ -25,6 +25,23 @@ test('workspace search shares MCP visibility and excludes hidden paths and total
   assert.equal(snapshot.value.total,1); assert.equal(JSON.stringify(snapshot.value).includes('Hidden.md'),false);
 });
 
+test('spatial graph shares readable query semantics and rejects stale publication', async () => {
+  for (const change of [f=>f.changeGraph(),f=>f.changeCorpus(),f=>{f.api.settings.agentSensitivityCeiling='internal';}]) {
+    const f=fixture([{relativePath:'Linked.md',content:'---\ngkx_version: "2.2"\nuid: linked-fixture\ntype: semantic\nsensitivity: public\n---\n[[Public]] [[Hidden]]'}]);
+    const snapshot=await f.host.graph();
+    assert.deepEqual(snapshot.value,await f.api.qGraph());
+    assert.equal(JSON.stringify(snapshot.value).includes('Hidden.md'),false);
+    const ids=new Set(snapshot.value.nodes.map(n=>n.id));
+    assert.ok(snapshot.value.links.length > 0);
+    assert.ok(snapshot.value.links.every(link=>ids.has(link.source)&&ids.has(link.target)));
+    let count=0;
+    assert.equal(await snapshot.publish(()=>count++,()=>true),true);
+    change(f);
+    assert.equal(await snapshot.publish(()=>count++,()=>true),false);
+    assert.equal(count,1);
+  }
+});
+
 test('workspace reads preserve Engine origins and committed continuation',async()=>{
   const {host}=fixture(); const snapshot=await host.read('Public.md',{page_size:4});
   assert.equal(snapshot.value.note.content,'Publ'); assert.equal(snapshot.value.note.continuation.complete,false);
@@ -134,3 +151,4 @@ test('assessment and diagnostics retain the shared Engine-backed API semantics',
   const missing=(await f.host.read('Public.md')).value;
   assert.equal(missing.assessment,null);assert.equal(missing.diagnostics,null);
 });
+
