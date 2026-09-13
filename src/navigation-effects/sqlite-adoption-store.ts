@@ -77,19 +77,25 @@ export class SqliteAdoptionStore {
   async load() { return (await this.replay()).state.load(); }
   async receipt(id: string) { return (await this.replay()).state.receipt(id); }
 
-  async commit(expectedDigest: string, next: AdoptionRegistryGeneration, receipt: MocAdoptionReceipt) {
+  async commit(expectedDigest: string, next: AdoptionRegistryGeneration, receipt: MocAdoptionReceipt, stillCurrent: () => boolean) {
     // Clone before awaits so caller mutation cannot change the committed bytes.
     const nextText = canonicalJson(next), receiptText = canonicalJson(receipt);
     next = this.parse(nextText); receipt = this.parse(receiptText);
     const { state, count } = await this.replay();
     const existing = state.receipt(receipt.receiptId);
     await state.commit(expectedDigest, next, receipt);
-    if (existing) return;
+    if (existing) {
+      if (typeof stillCurrent !== "function" || stillCurrent() !== true) throw Error("ADOPTION_HOST_STATE_STALE");
+      return;
+    }
     if (count >= MAX_COMMITS) throw Error("ADOPTION_STORE_FULL");
     this.db.exec("BEGIN IMMEDIATE;");
     try {
       const current = this.db.prepare("SELECT count(*) AS n FROM commits").get() as any;
       if (current.n !== count) throw Error("REGISTRY_GENERATION_STALE");
+      // The trusted host must check source bytes and authority synchronously.
+      // No await may separate this check from the transactional append.
+      if (typeof stillCurrent !== "function" || stillCurrent() !== true) throw Error("ADOPTION_HOST_STATE_STALE");
       this.db.prepare("INSERT INTO commits VALUES (?, ?, ?, ?, ?, ?)").run(count + 1, receipt.operationId, receipt.receiptId, expectedDigest, nextText, receiptText);
       this.db.exec("COMMIT;");
     } catch (error) { this.db.exec("ROLLBACK;"); throw error; }

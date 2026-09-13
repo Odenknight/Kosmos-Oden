@@ -21,6 +21,16 @@ checks. After asynchronous validation, an immediate write transaction rechecks
 the captured sequence count before append. Idempotent replay cannot substitute
 different receipt bytes. Input bytes are cloned before asynchronous work.
 
+`commit` also requires a trusted synchronous `stillCurrent` callback. It must
+return exactly true after checking current source bytes and authority. The store
+invokes it inside the write transaction immediately before append, after all
+asynchronous digest validation. Missing callbacks, Promise-returning callbacks
+and late revocation refuse the commit; replay also requires the current host
+check. This callback is a host capability, not a renderer-supplied approval
+boolean. Wiring an actual source/authority check remains required before UI use.
+The callback itself is not a filesystem lock: the host must provide appropriate
+fencing for external writers where atomic source-state guarantees are required.
+
 SQLite uses a rollback journal and FULL synchronous commits. Each serialized
 record is limited to 1 MiB, the log to 1,000 commits, and the database has a
 16,384-page ceiling; opens also refuse files exceeding 64 MiB. Journals require

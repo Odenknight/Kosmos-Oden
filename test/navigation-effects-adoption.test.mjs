@@ -286,12 +286,12 @@ test('native adoption store atomically reopens registry and receipt and refuses 
     await assert.rejects(f.SqliteAdoptionStore.open(f.directory));
     store=await f.SqliteAdoptionStore.open(f.directory,registry);
     const plan=await preview({registry});const confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
-    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
+    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>true);
     store.close();store=await f.SqliteAdoptionStore.open(f.directory);
     assert.deepEqual(await store.load(),confirmed.registry);
     assert.deepEqual(await store.receipt(confirmed.receipt.receiptId),confirmed.receipt);
-    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
-    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'different'}));
+    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>true);
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'different'},()=>true));
     assert.deepEqual(await store.load(),confirmed.registry);
     await assert.rejects(f.SqliteAdoptionStore.open(f.directory,registry));
   } finally {store?.close();f.cleanup();}
@@ -303,7 +303,7 @@ test('native adoption store serializes competing generation commits and detects 
     const registry=await api.createEmptyAdoptionRegistry();first=await f.SqliteAdoptionStore.open(f.directory,registry);second=await f.SqliteAdoptionStore.open(f.directory);
     const a=await preview({registry,operationId:'op-a'}),b=await preview({registry,operationId:'op-b'});
     const ca=await api.confirmMocAdoption(confirmationInput(a,registry)),cb=await api.confirmMocAdoption(confirmationInput(b,registry));
-    const results=await Promise.allSettled([first.commit(registry.registryDigest,ca.registry,ca.receipt),second.commit(registry.registryDigest,cb.registry,cb.receipt)]);
+    const results=await Promise.allSettled([first.commit(registry.registryDigest,ca.registry,ca.receipt,()=>true),second.commit(registry.registryDigest,cb.registry,cb.receipt,()=>true)]);
     assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
     assert.equal((await first.load()).generation,1);
     first.db.exec("UPDATE commits SET receipt='{}'");
@@ -328,14 +328,14 @@ test('native adoption survives process exit immediately before and after transac
         const store=await SqliteAdoptionStore.open(process.argv[1]);
         const exec=store.db.exec.bind(store.db);let commits=0;
         store.db.exec=sql=>{if(sql==='COMMIT;' && ++commits===2){if(process.argv[3]==='before')process.exit(86);exec(sql);process.exit(87);}return exec(sql);};
-        await store.commit(fixture.registry.registryDigest,fixture.confirmed.registry,fixture.confirmed.receipt);
+        await store.commit(fixture.registry.registryDigest,fixture.confirmed.registry,fixture.confirmed.receipt,()=>true);
         process.exit(99);`;
       const child=spawnSync(process.execPath,['--input-type=module','-e',code,f.directory,payload,phase],{encoding:'utf8',timeout:10000,windowsHide:true});
       assert.equal(child.status,phase==='before'?86:87,child.stderr);
       store=await f.SqliteAdoptionStore.open(f.directory);
       assert.equal((await store.load()).generation,phase==='before'?0:1);
       assert.deepEqual(await store.receipt(confirmed.receipt.receiptId),phase==='before'?undefined:confirmed.receipt);
-      await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
+      await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>true);
       assert.deepEqual(await store.load(),confirmed.registry);
     } finally {store?.close();f.cleanup();}
   }
@@ -364,8 +364,25 @@ test('native adoption bounds a proposed record before any transaction changes th
   try {
     const registry=await api.createEmptyAdoptionRegistry();store=await f.SqliteAdoptionStore.open(f.directory,registry);
     const plan=await preview({registry}),confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
-    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'x'.repeat(1024*1024)}),/ADOPTION_RECORD_BUDGET/);
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'x'.repeat(1024*1024)},()=>true),/ADOPTION_RECORD_BUDGET/);
     assert.deepEqual(await store.load(),registry);
     assert.equal(await store.receipt(confirmed.receipt.receiptId),undefined);
+  } finally {store?.close();f.cleanup();}
+});
+
+
+test('native adoption requires a synchronous final host check and refuses late revocation', async () => {
+  const f=await nativeStoreFixture();let store;
+  try {
+    const registry=await api.createEmptyAdoptionRegistry();store=await f.SqliteAdoptionStore.open(f.directory,registry);
+    const plan=await preview({registry}),confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt),/HOST_STATE_STALE/);
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,async()=>true),/HOST_STATE_STALE/);
+    let current=true;const pending=store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>current);current=false;
+    await assert.rejects(pending,/HOST_STATE_STALE/);
+    assert.deepEqual(await store.load(),registry);
+    assert.equal(await store.receipt(confirmed.receipt.receiptId),undefined);
+    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>true);
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt,()=>false),/HOST_STATE_STALE/);
   } finally {store?.close();f.cleanup();}
 });
