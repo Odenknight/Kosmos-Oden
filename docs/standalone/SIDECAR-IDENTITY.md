@@ -211,3 +211,17 @@ Native debug sweep: `cargo clippy --locked --offline --all-targets -- -D warning
 passes after simplifying the nested discovery guard without changing its lock or
 closed-state semantics. No lint suppressions were added. This is Windows static
 analysis of the isolated desktop checkout, not a full release debug certificate.
+
+`qualify_windows_startup` now exercises the verified Engine executable with the
+native state/log helpers, a synthetic folder and an ephemeral loopback port. With
+an explicit temporary qualification manifest, Engine 2.2.0 reached `serving` and
+the native credential reader accepted the generated token without printing it.
+The harness kills/reaps its child on exit and caps observation at 30 seconds.
+The source manifest was restored to null and the child PID was absent afterward.
+All-target clippy with warnings denied passes for the new example.
+
+The initial harness incorrectly expected `ready` and timed out; its retained
+status showed `serving`, and the corrected test passed. This receipt proves
+helper-level process startup only: it does not exercise Supervisor discovery,
+restarts, native UI, or indexed-note retrieval. The synthetic plain Markdown note
+was not an accepted indexed-document fixture. These remain separate gates.
