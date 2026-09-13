@@ -13,6 +13,17 @@ function host(saved = null, recovered = true) {
   } };
 }
 
+test("bundled coordinator refuses exhausted periodic revisions", async () => {
+  const fixture = host({ revision: Number.MAX_SAFE_INTEGER - 1, full: true, paths: [], firstAt: 0, lastAt: 0 });
+  const coordinator = new ManagedMocCoordinator(fixture.api);
+  assert.equal(await coordinator.start(0), true);
+  assert.equal(fixture.state.runs[0].revision, Number.MAX_SAFE_INTEGER);
+  await assert.rejects(coordinator.tick(300000), /COORDINATOR_SEQUENCE_EXHAUSTED/);
+  assert.equal(fixture.state.saved, null);
+  assert.equal(fixture.state.runs.length, 1);
+  await coordinator.stop();
+});
+
 test("Engine consumer preserves rename endpoints, overflow and denied recovery", async () => {
   const fixture = host(), coordinator = new ManagedMocCoordinator(fixture.api, { debounceMs: 750, maxDelayMs: 3000, periodicMs: 300000, maxPaths: 2 });
   assert.equal(await coordinator.start(100), true);

@@ -61,7 +61,7 @@ for (const group of ["dependencies", "devDependencies"]) {
 }
 
 const engine = packages["node_modules/gkos-engine"];
-const engineCommit = "f2bafb78fe647696ac45d382299cb43c5663afb8";
+const engineCommit = "c4940c4efd98e2cab9118b62c25e708737f62bdb";
 if (
   engine?.version !== "2.2.0"
   || !String(engine.resolved ?? "").endsWith(`#${engineCommit}`)
