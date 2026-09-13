@@ -1,5 +1,5 @@
 /** Read-only coordination audit. Payloads are data; ACKs never establish completion. */
-import { readdirSync, readFileSync, lstatSync, realpathSync } from "node:fs";
+import { readdirSync, readFileSync, lstatSync, realpathSync, openSync, readSync, closeSync } from "node:fs";
 import { resolve, basename, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
@@ -40,7 +40,7 @@ export function verifyMailboxReference(root, reference) {
   try {
     const digest = createHash("sha256").update(readReference(root, reference.path)).digest("hex");
     if (digest === reference.sha256) return null;
-    const mutable = reference.path === "COMMUNICATIONS.md" || reference.path === ".coordination/v1/PROTOCOL.md" ||
+    const mutable = reference.path === "COMMUNICATIONS.md" || reference.path === ".coordination/v1/PROTOCOL.md" || reference.path === ".coordination/v1/BOARD.md" ||
       /^\.coordination\/v1\/(agents\/[^/]+\.json|status\/[^/]+\.md)$/.test(reference.path);
     return mutable ? "reference-superseded" : "reference-hash-mismatch";
   } catch (error) { return referenceError(error); }
@@ -120,7 +120,19 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     catch (e) { if (e.code === "ENOENT") return []; throw e; }
     return entries.filter(e => e.isFile() && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
       const file = `${directory}/${e.name}`;
-      const raw = readFileSync(resolve(root, file));
+      // Read one byte beyond the protocol limit to detect oversize without
+      // allocating the entire delivered file, including files growing in place.
+      const buffer = Buffer.alloc(65537);
+      const fd = openSync(resolve(root, file), "r");
+      let length = 0;
+      try {
+        while (length < buffer.length) {
+          const count = readSync(fd, buffer, length, buffer.length - length, null);
+          if (!count) break;
+          length += count;
+        }
+      } finally { closeSync(fd); }
+      const raw = buffer.subarray(0, length);
       if (raw.length > 65536) { report(file, "oversized"); return []; }
       try { return [{ file, data: JSON.parse(raw.toString("utf8").replace(/^\uFEFF/, "")), sha256: createHash("sha256").update(raw).digest("hex") }]; }
       catch { report(file, "invalid-json"); return []; }

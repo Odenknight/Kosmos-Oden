@@ -93,7 +93,25 @@ test("file references hash raw bytes, confine paths, and distinguish superseded 
   assert.equal(verifyMailboxReference(root,{path:"missing.md",sha256}),"reference-missing");
   writeFileSync(join(root,"COMMUNICATIONS.md"),"new revision");
   assert.equal(verifyMailboxReference(root,{path:"COMMUNICATIONS.md",sha256}),"reference-superseded");
+  mkdirSync(join(root,".coordination/v1/artifacts"),{recursive:true});
+  for (const path of [".coordination/v1/BOARD.md", ".coordination/v1/PROTOCOL-1.1.0.md", ".coordination/v1/artifacts/BOARD.md"]) {
+    writeFileSync(join(root,path),"new revision");
+    assert.equal(verifyMailboxReference(root,{path,sha256}),path === ".coordination/v1/BOARD.md" ? "reference-superseded" : "reference-hash-mismatch");
+  }
   assert.equal(verifyMailboxReference(root,{path:"bundle",sha256sums:"SHA256SUMS"}),"reference-schema");
+});
+
+test("mailbox envelope reads enforce the exact 64 KiB boundary", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-size-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  const message=JSON.stringify({sender:"alice",recipients:["bob"],sender_seq:1,message_id:"sized",prev_message_sha256:null,kind:"RESULT"});
+  const path=join(root,"messages/alice/alice-000001-sized.json");
+  writeFileSync(path,message.padEnd(65536," "));
+  assert.equal(auditMailbox(root,"bob").messageCount,1);
+  writeFileSync(path,message.padEnd(65537," "));
+  const report=auditMailbox(root,"bob");
+  assert.equal(report.messageCount,0);
+  assert.deepEqual(report.findings,[{file:"messages/alice/alice-000001-sized.json",code:"oversized"}]);
 });
 
 

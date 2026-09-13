@@ -65,3 +65,10 @@ recognized both historical ACKs for the selected recipient. This is not a clean
 mailbox or full M1 claim. Exhaustive field constraints, manifest binding and
 status/card reconciliation remain open. The historical-exception item above is
 superseded only for the explicitly permitted missing-outputs field.
+
+Envelope reads are now capped at 65,537 bytes before parsing: 64 KiB is admitted,
+and the extra byte establishes an oversize finding without reading the whole
+file. Ten focused tests pass, including both exact boundary cases. The protocol's
+generated `BOARD.md` is classified as mutable; preserved protocol versions and
+similarly named artifact files still require their immutable hashes. These checks
+do not establish protection against hostile concurrent directory replacement.
