@@ -359,6 +359,26 @@ test('evidence declarations preserve origin, zero, missing and invalid values wi
 });
 
 
+test('identical evidence labels preserve distinct source provenance across origins', async ({ page }) => {
+  await page.evaluate(() => { (window as any).projection = {
+    authored: { evidence: { supports: [{target:'Shared label',source_uid:'source:authored'}] } },
+    derived: { evidence: { supports: [{target:'Shared label',source_uid:'source:derived'}] } },
+    proposed: { evidence: { supports: [{target:'Shared label'}] } },
+    effective: { evidence: { supports: [] } },
+  }; });
+  await page.getByRole('button', {name:'Alpha',exact:true}).click();
+  for (const [origin, uid] of [['authored','source:authored'],['derived','source:derived'],['proposed','Not recorded']]) {
+    await page.getByText(origin[0].toUpperCase()+origin.slice(1),{exact:true}).click();
+    const region=page.getByRole('region',{name:`${origin} evidence declarations`,exact:true});
+    await expect(region.getByRole('listitem')).toHaveCount(1);
+    await expect(region).toContainText('Shared label');
+    await expect(region.locator('dt').filter({hasText:/^Source UID$/}).locator('+ dd')).toHaveText(uid);
+    await expect(region.locator('a,button')).toHaveCount(0);
+  }
+  await page.getByText('Effective',{exact:true}).click();
+  await expect(page.getByRole('region',{name:'effective evidence declarations',exact:true})).not.toContainText('Shared label');
+});
+
 test('lineage declaration inspection distinguishes unavailable, empty and scoped unresolved', async ({ page }) => {
   await page.evaluate(() => { (window as any).lineage = { chain: [], inspection: { available: false, declarations: [] } }; });
   await page.getByRole('button', { name: 'Alpha', exact: true }).click();

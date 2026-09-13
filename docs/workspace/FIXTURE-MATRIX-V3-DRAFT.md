@@ -32,9 +32,12 @@ coverage to inspect; only an exact-candidate execution establishes a passing run
    expectations with this matrix before calling it accepted. Preserve the old
    byte-coordinate claims as history. Specify UTF-8 bytes versus JavaScript
    UTF-16 code units explicitly for every span field; do not relabel offsets.
-2. Add cross-origin collision cases where identical labels have distinct source
-   UIDs and missing provenance. Expected display must preserve unavailable
-   provenance and must not infer evidence validity from matching labels.
+2. Cross-origin collision coverage now exists in `test/browser/workspace.spec.ts`:
+   `identical evidence labels preserve distinct source provenance across origins`.
+   Identical labels retain authored/derived source UIDs, missing proposed provenance
+   displays “Not recorded,” and the label does not appear as effective evidence.
+   The focused case and all 28 Chromium workspace cases passed on September 13.
+   This fixture does not establish evidence validity or native host acceptance.
 3. Record actual Obsidian view, edit, return, rename, deletion, scope change and
    layout transitions against final installed bytes. A hidden-window probe or
    browser fixture cannot substitute for visible native acceptance.
