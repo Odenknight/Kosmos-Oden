@@ -17,6 +17,7 @@ test.beforeEach(async ({ page }) => {
       search: async (query: string, options: any) => {
         w.calls.push({ query, options });
         if (query === "slow") await new Promise(resolve => { w.waits.search = resolve; });
+        if (query === "many") return snapshot({ results: Array.from({length:100}, (_,i)=>({title:`Note ${i}`,path:`Note${i}.md`})),total:100 });
         if (query === "paged") return { ...snapshot({ results: [{title:"First",path:"Alpha.md"}],total:2 }), offset:0,
           next:async()=>({...snapshot({results:[{title:"Second",path:"Beta.md"}],total:2}),offset:1,next:null}) };
         return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md", uid: w.searchUid, tags: w.searchTags }, { title: "Beta", path: "Beta.md" }], total: 2 });
@@ -452,4 +453,22 @@ test("search rows show source path and inert navigation tags", async ({ page }) 
   await expect(row.locator("small")).toContainText("<img src=x onerror=alert(1)>");
   await expect(row.locator("img")).toHaveCount(0);
   await expect(row.getByRole("button", { name: "Alpha", exact: true })).toHaveAccessibleDescription(/Alpha.md/);
+});
+
+
+test("virtual rows stay bounded and support keyboard traversal and revocation", async ({ page }) => {
+  await page.getByRole("searchbox").fill("many");
+  await expect(page.getByRole("button", {name:"Note 0",exact:true})).toBeVisible();
+  expect(await page.locator(".kosmos-notes-result").count()).toBeLessThan(15);
+  await page.getByRole("button", {name:"Note 0",exact:true}).focus();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("button", {name:"Note 99",exact:true})).toBeFocused();
+  expect(await page.locator(".kosmos-notes-result").count()).toBeLessThan(15);
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("button", {name:"Note 0",exact:true})).toBeFocused();
+  await page.evaluate(() => {
+    (window as any).authorized=false;
+    document.querySelector(".kosmos-notes-viewport")!.scrollTop=2000;
+  });
+  await expect(page.locator(".kosmos-notes-result")).toHaveCount(0);
 });

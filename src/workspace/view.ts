@@ -4,6 +4,8 @@ import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
 import { localNoteMap } from "./local-map";
 
+import { mountVirtualList } from "./virtual-list";
+
 let inspectorSequence = 0;
 
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
@@ -12,6 +14,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined, selectedUid: string | undefined;
   let locateSelected: (() => void) | undefined;
+  let disposeResults: (() => void) | undefined;
   root.replaceChildren(); root.classList.add("kosmos-notes-workspace");
   const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
     const node = doc.createElement(tag); if (text !== undefined) node.textContent = text; return node;
@@ -299,24 +302,25 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const restoreUid = restoreSelection ? selectedUid : undefined;
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     actions.stateChanged?.();
-    searches.invalidate(); notes.invalidate(); locateSelected = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); locateSelected = undefined; disposeResults?.(); disposeResults = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     const noteVersion = notes.version;
     status.textContent = "Searching…";
     const pending = searches.select(() => next ? next() : host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
       async (snapshot, current) => snapshot.publish(value => {
-        results.replaceChildren();
-        for (const note of value.results) {
+        disposeResults?.(); disposeResults = undefined; results.replaceChildren();
+        disposeResults = mountVirtualList(results, value.results.length, index => {
+          const note = value.results[index];
           const uid = isValidGkxAuthoredUid(note.uid) ? note.uid : undefined;
           const item = button(note.title, () => void show(note.path, uid ? { uid } : {}));
           item.title = note.path;
           const row = element("div"); row.className = "kosmos-notes-result";
           const context = element("small", note.path); context.className = "kosmos-notes-result-context";
-          context.id = `${inspectorId}-result-${results.childElementCount}`;
+          context.id = `${inspectorId}-result-${index}`;
           const tags = Array.isArray(note.tags) ? note.tags.filter((value: unknown): value is string => typeof value === "string") : [];
           if (tags.length) context.append(element("span", `${tags.slice(0, 8).map((value: string) => `#${value}`).join(" ")}${tags.length > 8 ? ` (+${tags.length - 8} more)` : ""}`));
           item.setAttribute("aria-describedby", context.id);
-          row.append(item, context); results.append(row);
-        }
+          row.append(item, context); return row;
+        }, apply => snapshot.publish(apply, current));
         if (snapshot.next) results.append(button("Next results", () => void refresh(snapshot.next!)));
         if (snapshot.offset > 0) results.append(button("Back to first results", () => void refresh()));
         status.textContent = `${snapshot.offset ? `${snapshot.offset + 1}–${snapshot.offset + value.results.length}` : value.results.length} of ${value.total} readable matches${value.bodySearch ? " · Body search covers bounded prefixes" : ""}`;
@@ -332,7 +336,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   }
   function schedule(restoreSelection = false) {
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
-    searches.invalidate(); notes.invalidate(); locateSelected = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); locateSelected = undefined; disposeResults?.(); disposeResults = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = undefined; void refresh(undefined, restoreSelection); }, 180);
@@ -368,6 +372,6 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       if (selectedPath === path || selectedPath?.startsWith(path + "/")) { selectedPath = undefined; selectedUid = undefined; }
       if (!closed) schedule(true);
     },
-    close: () => { closed = true; resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
+    close: () => { closed = true; disposeResults?.(); resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
   };
 }

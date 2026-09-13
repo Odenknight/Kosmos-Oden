@@ -178,3 +178,9 @@
 .kosmos-notes-result > button { width: 100%; }
 .kosmos-notes-result-context, .kosmos-notes-result-context > span { display: block; overflow-wrap: anywhere; }
 .kosmos-notes-result-context { padding: .2rem .4rem; color: var(--text-muted, #aeb7c2); }
+
+.kosmos-notes-viewport { height: min(28rem, 60vh); overflow: auto; position: relative; }
+.kosmos-notes-viewport .kosmos-notes-result { overflow: hidden; }
+.kosmos-notes-viewport .kosmos-notes-result > button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kosmos-notes-viewport .kosmos-notes-result-context { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.kosmos-notes-viewport .kosmos-notes-result-context > span { overflow: hidden; text-overflow: ellipsis; }
