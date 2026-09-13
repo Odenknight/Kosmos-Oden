@@ -153,3 +153,20 @@ Rust tests and all-target clippy passed; the explicit Engine process qualificati
 was ignored in this run. Visible dialogs and full native responsiveness remain
 unqualified. Diagnostic file replacement still requires a separate review: its
 current remove-before-rename sequence does not preserve the original on failure.
+
+## Diagnostic replacement failure preservation
+
+Diagnostic export now exclusively creates a temporary file beside the chosen
+destination, writes and syncs it, then uses filesystem replacement without
+first deleting the old report. Temporary-name collisions are bounded and do
+not truncate existing files. Failed writes or replacement attempt cleanup of
+the temporary file. The chosen parent must already exist.
+
+A Windows regression proved new publication and replacement, then held the
+existing destination without delete sharing: the next export failed and the
+original bytes remained intact. A directory destination was also refused, an
+unrelated historical `.json.tmp` file remained unchanged, and failed attempts
+left no temporary files in the fixture. All 19 ordinary native tests and
+all-target clippy passed; the explicit Engine qualification remained ignored.
+This supersedes the remove-before-rename gap above. Crash durability and hostile
+concurrent directory replacement are not established by this test.

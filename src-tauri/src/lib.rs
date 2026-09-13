@@ -7,6 +7,7 @@ mod windows_state;
 use serde::Serialize;
 use sidecar::{SidecarStatus, Supervisor};
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
@@ -186,17 +187,37 @@ fn canonical_corpus(value: &str) -> Result<PathBuf, String> {
 }
 
 fn atomic_write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
+    static NEXT_EXPORT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
     let parent = path
         .parent()
         .ok_or_else(|| "diagnostic destination has no parent".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, bytes).map_err(|error| error.to_string())?;
-    if path.exists() {
-        fs::remove_file(path).map_err(|error| error.to_string())?;
+    // Create exclusively beside the destination: never truncate a pre-existing
+    // temporary file, and never delete the original before replacement succeeds.
+    for _ in 0..32 {
+        let temporary = parent.join(format!(
+            ".kosmos-export-{}-{}.tmp",
+            std::process::id(),
+            NEXT_EXPORT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut file = match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        };
+        let written = file.write_all(&bytes).and_then(|()| file.sync_all());
+        drop(file);
+        let result = written.and_then(|()| fs::rename(&temporary, path));
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        return result.map_err(|error| error.to_string());
     }
-    fs::rename(&temporary, path).map_err(|error| error.to_string())
+    Err("diagnostic temporary file is unavailable".to_string())
 }
 
 pub fn run() {
@@ -238,6 +259,55 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagnostic_publication_preserves_existing_files_on_failure() {
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-export-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        let destination = root.join("report.json");
+        let unrelated = root.join("report.json.tmp");
+        fs::write(&unrelated, b"unrelated file").unwrap();
+        atomic_write_json(&destination, &serde_json::json!({"revision": 1})).unwrap();
+        atomic_write_json(&destination, &serde_json::json!({"revision": 2})).unwrap();
+        let original = fs::read(&destination).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&original).unwrap()["revision"],
+            2
+        );
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            let guard = fs::OpenOptions::new()
+                .read(true)
+                .share_mode(1)
+                .open(&destination)
+                .unwrap();
+            assert!(atomic_write_json(&destination, &serde_json::json!({"revision": 3})).is_err());
+            assert_eq!(fs::read(&destination).unwrap(), original);
+            drop(guard);
+        }
+        let directory = root.join("directory.json");
+        fs::create_dir(&directory).unwrap();
+        assert!(atomic_write_json(&directory, &serde_json::json!({"revision": 4})).is_err());
+        assert!(directory.is_dir());
+        assert_eq!(fs::read(&unrelated).unwrap(), b"unrelated file");
+        assert_eq!(
+            fs::read_dir(&root).unwrap().count(),
+            3,
+            "failed exports leave no temporary files"
+        );
+        fs::remove_file(destination).unwrap();
+        fs::remove_file(unrelated).unwrap();
+        fs::remove_dir(directory).unwrap();
+        fs::remove_dir(root).unwrap();
+    }
 
     #[test]
     fn sidecar_worker_retains_admission_until_exit_including_panic() {
