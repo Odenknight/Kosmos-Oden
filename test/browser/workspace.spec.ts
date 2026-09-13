@@ -167,3 +167,15 @@ test('saved layout restores controls and rechecks selection without retaining pr
   await expect(page.getByRole('button', { name: 'Alpha', exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).workspace.getState())).toEqual({ query: '', tag: '', body: false, selectedPath: undefined });
 });
+
+test('manual refresh consumes pending debounce without later clearing a new selection', async ({ page }) => {
+  await page.getByRole('button', { name: 'Alpha', exact: true }).waitFor();
+  await page.clock.install();
+  await page.getByRole('searchbox').fill('manual');
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await page.getByRole('button', { name: 'manual', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
+  await page.clock.runFor(250);
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).calls.filter((x: any) => x.query === 'manual').length)).toBe(1);
+});

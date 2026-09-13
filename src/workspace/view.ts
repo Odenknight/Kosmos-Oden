@@ -112,6 +112,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
 
   async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>, restoreSelection = false) {
     if (closed) return;
+    if (timer) { clearTimeout(timer); timer = undefined; }
     const restorePath = restoreSelection ? selectedPath : undefined;
     if (!restoreSelection) selectedPath = undefined;
     actions.stateChanged?.();

@@ -8,6 +8,9 @@
 
 ## Notes workspace implementation candidate - 2026-09-13
 
+- Cancel pending search debounce when refreshing immediately, preventing a
+  delayed duplicate search from clearing a newly selected note.
+
 - Save Notes search, filters and selected path through the Obsidian layout API;
   restore with fresh reads and policy checks, without saving preview content.
 
