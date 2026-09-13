@@ -4,16 +4,17 @@ import { buildGraph, stripFrontmatter } from '../dist/kosmos-core.mjs';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS } from '../dist/kosmos-agent-server.mjs';
 import { NotesWorkspaceHost } from '../dist/kosmos-workspace-host.mjs';
 
-function fixture() {
+function fixture(extra = [], defaults = 'internal') {
   const files=[
     {relativePath:'Public.md',content:'---\ngkx_version: "2.2"\nuid: public-fixture\ntype: semantic\nsensitivity: public\ntags: [visible]\n---\nPublic **body**.'},
     {relativePath:'Hidden.md',content:'---\ntype: semantic\nsensitivity: confidential\ntags: [hidden-canary]\n---\nSecret body.'},
+    ...extra,
   ];
-  let graph=buildGraph(files,[],undefined,{defaultSensitivity:'internal'}), reads=0, corpus='fixture';
+  let graph=buildGraph(files,[],undefined,{defaultSensitivity:defaults}), reads=0, corpus='fixture';
   const bodies=new Map(files.map(f=>[f.relativePath,stripFrontmatter(f.content)]));
   const provider={getGraph:async()=>graph,getIndexedBody:path=>{reads++;return bodies.get(path)??null;},
     getNoteContent:async()=>{throw new Error('unexpected live read');},vaultIdentity:()=>corpus,vaultName:()=>corpus,lanAddresses:()=>[]};
-  const api=new KosmosAgentServer({}, {...DEFAULT_AGENT_SETTINGS,agentSensitivityCeiling:'public',defaultSensitivity:'internal'},provider);
+  const api=new KosmosAgentServer({}, {...DEFAULT_AGENT_SETTINGS,agentSensitivityCeiling:'public',defaultSensitivity:defaults},provider);
   return {api,provider,host:new NotesWorkspaceHost(api),reads:()=>reads,changeGraph:()=>{graph=structuredClone(graph);},changeCorpus:()=>{corpus='other';}};
 }
 
@@ -60,4 +61,25 @@ test('unresolved reads retain both physical slots until they settle',async()=>{
   await assert.rejects(f.host.search(''),/WORKSPACE_BUSY/);
   release(graph);await Promise.all([first,second]);
   assert.equal((await f.host.search('')).value.total,1);
+});
+
+test('unlabeled defaults and invalid sensitivity preserve Engine policy in Notes',async()=>{
+  const extra=[
+    {relativePath:'Unlabeled.md',content:'---\ngkx_version: "2.2"\nuid: unlabeled-fixture\ntype: semantic\n---\nUnlabeled.'},
+    {relativePath:'Invalid.md',content:'---\ngkx_version: "2.2"\nuid: invalid-fixture\ntype: semantic\nsensitivity: unclassified\n---\nInvalid.'},
+  ];
+  for(const defaults of ['internal','public']) {
+    const f=fixture(extra,defaults), result=(await f.host.search('')).value;
+    assert.equal(result.results.some(n=>n.path==='Unlabeled.md'),defaults==='public');
+    assert.equal(result.results.some(n=>n.path==='Invalid.md'),false);
+    assert.deepEqual((await f.host.read('Invalid.md')).value,{note:{error:'note not found'},projection:null});
+  }
+});
+
+test('missing projection remains unavailable instead of fabricating origins',async()=>{
+  const f=fixture();
+  f.api.qGkxNote=async()=>({error:'note has no GKX validating projection',path:'Public.md'});
+  const result=(await f.host.read('Public.md')).value;
+  assert.equal(result.note.content,'Public **body**.');
+  assert.equal(result.projection,null);
 });

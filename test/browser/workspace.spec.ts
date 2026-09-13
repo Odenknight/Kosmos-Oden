@@ -76,3 +76,17 @@ test("revoked scope refuses publication and opening an already displayed source"
   await page.evaluate(() => (window as any).workspace.close());
   await expect(page.locator("#notes")).toBeEmpty();
 });
+
+test("keyboard selection and closing during a pending read leave no late content", async ({ page }) => {
+  const alpha = page.getByRole("button", { name: "Alpha", exact: true });
+  await alpha.focus(); await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Alpha.md" })).toBeVisible();
+  await page.evaluate(() => { (window as any).slowRead = true; });
+  await alpha.focus(); await page.keyboard.press("Enter");
+  await page.waitForFunction(() => !!(window as any).waits.read);
+  await page.evaluate(async () => {
+    const w = window as any; w.workspace.close(); w.waits.read();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
+  await expect(page.locator("#notes")).toBeEmpty();
+});

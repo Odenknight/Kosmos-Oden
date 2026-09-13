@@ -32,7 +32,8 @@ saved Kosmos leaves and existing open-visualization commands.
 
 Markdown qualification must cover raw HTML, scripts/event handlers, unsafe URL
 schemes, external resources, wiki links and transcluded notes. A renderer must
-not load a hidden transclusion and then merely filter its output. The candidate uses exact-pinned markdown-it 15.0.2 with raw HTML disabled,
+not load a hidden transclusion and then merely filter its output.
+The candidate uses exact-pinned markdown-it 15.0.2 with raw HTML disabled,
 images reduced to alt text and links rendered as inert spans. Wiki embeds remain
 text. It does not invoke Obsidian's transclusion loader. Source is capped at
 200,000 characters and output at 2,000,000 characters. These display budgets do
@@ -50,10 +51,10 @@ fixture categories retain their W2/W3/W4 gates.
 
 - Full verification: 439 tests pass, no failures or skips; typecheck, build,
   version, lockfile, artifact, invariant and renderer-provenance checks pass.
-- Browser interactions: 12 checks pass across desktop Chromium, mobile Chromium,
+- Browser interactions: 16 checks pass across desktop Chromium, mobile Chromium,
   Firefox and WebKit. Includes resource-free rendering, separate origin sections,
   paged reads, canonical source actions, late search/read suppression, revoked
-  source opening and close cleanup.
+  source opening, keyboard selection and closing while a read is pending.
 - Host tests use the actual Agent API with synthetic public/confidential notes;
   they verify hidden counts/paths and no denied body access, corpus/provider/
   graph/policy fencing and two outstanding physical operations per host.
@@ -62,3 +63,7 @@ The browser host is a synthetic capability fixture; it does not qualify actual
 Obsidian file opening, native lifecycle, platform performance, or the complete
 revised fixture matrix. Existing saved Kosmos leaves and commands are preserved.
 The installed plugin has not been replaced by this candidate.
+
+Follow-up fixture run: eight host checks pass, including configured unlabeled
+defaults, invalid-sensitivity exclusion and missing-projection preservation.
+The 439-test full run preceded these two additional fixture tests.
