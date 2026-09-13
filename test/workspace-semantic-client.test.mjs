@@ -17,6 +17,16 @@ test('semantic client sends only query fields and accepts an exact bound respons
   assert.deepEqual(await client.search('relay','one',new AbortController().signal),result());
 });
 
+test('synchronous authority work cannot start transport after the client deadline',async t=>{
+  let now=0,calls=0;
+  t.mock.method(performance,'now',()=>now);
+  const client=createSemanticQueryClient({...config,current:()=>{now=5001;return context();},fetcher:async()=>{
+    calls++;return response(result());
+  }});
+  assert.equal(await client.search('relay','one',new AbortController().signal),null);
+  assert.equal(calls,0);
+});
+
 test('semantic client denies revoked scope and changed response binding',async()=>{
   for(const scenario of ['revoked','forged','oversize']) {
     let allowed=true;

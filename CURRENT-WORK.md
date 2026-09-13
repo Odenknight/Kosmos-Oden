@@ -60,18 +60,19 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 503 tests.
+The latest completed Kosmos verification passed 504 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
 
-## The immediate bug being fixed
+## The latest bug fixed
 
 A new test reproduced a client deadline bug.
 Synchronous authority checks can consume the entire time budget.
 The client can then start a network request after its deadline.
-The proposed fix checks elapsed time before starting transport.
-At this handoff, the regression test exists and the fix is pending.
+The fix checks elapsed time before starting transport.
+The regression test now passes.
+All four client tests and full repository verification passed after the fix.
 See `src/workspace/semantic-client.ts` and its matching test file.
 
 ## What still needs work

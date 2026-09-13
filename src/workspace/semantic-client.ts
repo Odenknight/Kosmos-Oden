@@ -29,7 +29,7 @@ export function createSemanticQueryClient(options: {
       active++;
       const operation = (async () => {
         const request = prepareGraphitiQueryRequest(query, limit, requestId, current());
-        if (!request || controller.signal.aborted) return null;
+        if (!request || controller.signal.aborted || performance.now() >= expires) return null;
         const response = await fetcher(endpoint.href, {method:"POST", headers, redirect:"error", cache:"no-store", signal:controller.signal,
           body:JSON.stringify({query:request.query, request_id:request.request_id, limit:request.limit})});
         if (!response.ok || !/^application\/json(?:\s*;|$)/i.test(response.headers.get("Content-Type") ?? "") || !response.body) {
