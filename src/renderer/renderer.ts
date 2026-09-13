@@ -2127,7 +2127,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const n of graph.nodes) {
       nodes.add(n.id);
       visual.set(n.id, (n.area || "") + "" + (n.color || "") + "" + (n.kind || ""));
-      meta.set(n.id, (n.label || "") + "" + (n.status || "") + "" + (n.type || "") + "" + ((n.tags || []).join(",")) + "" + ((n.aliases || []).join(",")) + "" + (n.updatedAt || 0) + "" + (n.validAt || "") + "" + ((n.gkx && n.gkx.invalidAt) || "") + "" + ((n.gkx && n.gkx.head) ? 1 : 0));
+      meta.set(n.id, JSON.stringify([n.label, n.status, n.type, n.tags, n.aliases, n.updatedAt, n.validAt, n.gkx]));
     }
     for (const l of graph.links) links.add(l.source + "" + l.target + "" + (l.kind || ""));
     return { nodes, links, visual, meta };
@@ -2148,13 +2148,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const r of nodeRender) {
       const m: any = byId.get(r.node.id); if (!m) continue;
       r.node.tags = m.tags; r.node.status = m.status; r.node.type = m.type; r.node.label = m.label; r.node.aliases = m.aliases;
-      if (m.updatedAt != null) r.node.updatedAt = m.updatedAt;
-      if (m.validAt != null) { r.node.validAt = m.validAt; r.node.__vt = Date.parse(m.validAt); }
-      if (m.gkx) { r.node.gkx = m.gkx; r.node.__it = m.gkx.invalidAt ? Date.parse(m.gkx.invalidAt) : null; }
+      r.node.updatedAt = m.updatedAt;
+      r.node.validAt = m.validAt; r.node.__vt = m.validAt ? Date.parse(m.validAt) : null;
+      r.node.gkx = m.gkx; r.node.__it = m.gkx?.invalidAt ? Date.parse(m.gkx.invalidAt) : null;
     }
     if (graph.areas) G.areas = graph.areas;
     buildFilterUI();
     applyFilters();
+    if (selectedId) showInspector(selectedId);
     if (chronoT != null) setChronoTint();
   }
   function renderGraph(graph: any, label?: string) {

@@ -32,5 +32,25 @@ test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ p
     return before.notes === after.notes && before.parseCount === after.parseCount;
   });
   expect(rejected, "non-parent messages cannot replace the embedded graph").toBe(true);
+  const metadata = await embed!.evaluate(() => {
+    const api = (window as any).__kosmos;
+    const graph = api.showDemo();
+    const node = graph.nodes.find((n: any) => n.kind === 'file');
+    const updated = { ...graph, nodes: graph.nodes.map((n: any) => n.id === node.id ? {
+      ...n, updatedAt: '2026-01-01', validAt: '2026-01-01',
+      gkx: { ...n.gkx, projection: { effective: { sensitivity: 'public' } } },
+    } : { ...n }) };
+    api.renderGraph(updated);
+    const changed = { ...updated, nodes: updated.nodes.map((n: any) => n.id === node.id ? {
+      ...n, gkx: { ...n.gkx, projection: { effective: { sensitivity: 'confidential' } } },
+    } : { ...n }) };
+    api.renderGraph(changed);
+    const projectionChanged = node.gkx?.projection?.effective?.sensitivity === 'confidential';
+    api.renderGraph({ ...changed, nodes: changed.nodes.map((n: any) => n.id === node.id ? {
+      ...n, gkx: undefined, validAt: undefined, updatedAt: undefined,
+    } : { ...n }) });
+    return { projectionChanged, removed: node.gkx === undefined && node.validAt === undefined && node.updatedAt === undefined && node.__vt === null && node.__it === null };
+  });
+  expect(metadata).toEqual({ projectionChanged: true, removed: true });
   expect(errors).toEqual([]);
 });

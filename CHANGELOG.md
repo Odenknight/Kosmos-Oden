@@ -1,5 +1,10 @@
 # Changelog
 
+## Renderer metadata refresh - 2026-09-13
+
+- Detect projection-only metadata changes, clear removed timestamps and GKX
+  values, and refresh the selected inspector when metadata changes in place.
+
 ## Embedded host message boundary - 2026-09-13
 
 - Accept renderer control messages only from the embedding parent window, for
