@@ -35,6 +35,8 @@ assert.ok(plugin.provider && plugin.agentApi, "packaged initialization did not c
 Object.assign(plugin.agentSettings, { agentEnabled: true, agentPort: 0, agentBindMode: "loopback", agentRequireToken: false });
 const server = plugin.agentApi;
 const outcomes = [];
+const traversals = [];
+server.onTraversal = (paths, tool) => traversals.push({ paths, tool });
 function request(port, path) {
   return new Promise((resolve, reject) => {
     const req = http.get({ host: "127.0.0.1", port, path }, res => {
@@ -49,7 +51,7 @@ function request(port, path) {
 try {
   server.start();
   await once(server.server, "listening");
-  const port = server.server.address().port;
+  let port = server.server.address().port;
   const started = performance.now();
   const fault = await request(port, "/overview");
   assert.equal(fault.status, 504, JSON.stringify(fault.body));
@@ -59,6 +61,15 @@ try {
   const refused = await request(port, "/overview");
   assert.equal(refused.status, 503);
   assert.equal(reads, 1, "retry must not create another physical read");
+  assert.deepEqual(traversals, [], "failed reads must not emit traversal");
+  server.server.closeAllConnections();
+  server.stop();
+  server.start();
+  await once(server.server, "listening");
+  port = server.server.address().port;
+  assert.equal((await request(port, "/health")).status, 200);
+  assert.equal((await request(port, "/overview")).status, 503);
+  assert.equal(reads, 1, "server restart must not forget the outstanding physical read");
   stalled = false; release(source);
   await new Promise(resolve => setImmediate(resolve));
   const recovered = await request(port, "/overview");
@@ -66,11 +77,15 @@ try {
   const search = await request(port, "/notes?q=synthetic");
   assert.equal(search.status, 200);
   assert.ok(JSON.stringify(search.body).includes("synthetic.md"), "recovery search must publish the synthetic source");
+  assert.deepEqual(traversals, [{ paths: ["synthetic.md"], tool: "search_notes" }]);
   assert.equal((await request(port, "/overview")).status, 200);
   assert.equal(reads, 2, "warm request should reuse committed source");
   assert.equal(server.inFlight, 0);
   assert.equal(server.perAgentInFlight.size, 0);
-  outcomes.push({ step: "physical-retry-refusal", status: refused.status }, { step: "recovered-and-warm", status: recovered.status });
+  outcomes.push({ step: "physical-retry-refusal", status: refused.status },
+    { step: "restart-retains-physical-read", status: 503 },
+    { step: "recovered-and-warm", status: recovered.status },
+    { step: "observed-search-traversal", count: traversals.length });
   console.log(JSON.stringify({ sha256: createHash("sha256").update(artifact).digest("hex"), bytes: artifact.length, outcomes,
     scope: "Packaged provider/server with synthetic partial host; no Obsidian UI, Hermes, auth-denial or installed-runtime claim" }, null, 2));
 } finally {

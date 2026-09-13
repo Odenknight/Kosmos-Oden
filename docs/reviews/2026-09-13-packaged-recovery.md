@@ -20,3 +20,15 @@ authenticated restricted denial, installed/loaded identity or full R3 completion
 Initial harness attempts exposed missing synthetic file statistics and assertions
 against the wrong overview/search response shape; the final fixture uses full
 file metadata and the advertised `/notes` route. Product code was unchanged.
+
+## Restart and traversal extension
+
+The same artifact was then checked across HTTP server stop/start while the
+physical read remained unresolved. Metadata remained available and data requests
+still returned 503 without a second underlying read. After settlement the new
+listener served recovered search and warm overview requests. Failed requests
+emitted no traversal; recovered search emitted exactly one `search_notes`
+callback for `synthetic.md`. The production timeout observation was 10,011.37 ms.
+This is server restart with the same provider, not plugin reload or process
+restart; those boundaries remain separate. The fixture records these assertions
+in its receipt and retains the same partial-host qualification limits.
