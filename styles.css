@@ -173,3 +173,8 @@
 
 .kosmos-notes-tabs { display: flex; flex-wrap: wrap; gap: .25rem; margin-block-end: .75rem; }
 .kosmos-notes-tabs [aria-selected="true"] { font-weight: 700; border-block-end: 3px solid currentColor; }
+
+.kosmos-notes-result { min-width: 0; padding-block-end: .4rem; }
+.kosmos-notes-result > button { width: 100%; }
+.kosmos-notes-result-context, .kosmos-notes-result-context > span { display: block; overflow-wrap: anywhere; }
+.kosmos-notes-result-context { padding: .2rem .4rem; color: var(--text-muted, #aeb7c2); }

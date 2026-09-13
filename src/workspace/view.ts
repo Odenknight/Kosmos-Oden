@@ -308,7 +308,14 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         for (const note of value.results) {
           const uid = isValidGkxAuthoredUid(note.uid) ? note.uid : undefined;
           const item = button(note.title, () => void show(note.path, uid ? { uid } : {}));
-          item.title = note.path; results.append(item);
+          item.title = note.path;
+          const row = element("div"); row.className = "kosmos-notes-result";
+          const context = element("small", note.path); context.className = "kosmos-notes-result-context";
+          context.id = `${inspectorId}-result-${results.childElementCount}`;
+          const tags = Array.isArray(note.tags) ? note.tags.filter((value: unknown): value is string => typeof value === "string") : [];
+          if (tags.length) context.append(element("span", `${tags.slice(0, 8).map((value: string) => `#${value}`).join(" ")}${tags.length > 8 ? ` (+${tags.length - 8} more)` : ""}`));
+          item.setAttribute("aria-describedby", context.id);
+          row.append(item, context); results.append(row);
         }
         if (snapshot.next) results.append(button("Next results", () => void refresh(snapshot.next!)));
         if (snapshot.offset > 0) results.append(button("Back to first results", () => void refresh()));

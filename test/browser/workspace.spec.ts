@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
         if (query === "slow") await new Promise(resolve => { w.waits.search = resolve; });
         if (query === "paged") return { ...snapshot({ results: [{title:"First",path:"Alpha.md"}],total:2 }), offset:0,
           next:async()=>({...snapshot({results:[{title:"Second",path:"Beta.md"}],total:2}),offset:1,next:null}) };
-        return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md", uid: w.searchUid }, { title: "Beta", path: "Beta.md" }], total: 2 });
+        return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md", uid: w.searchUid, tags: w.searchTags }, { title: "Beta", path: "Beta.md" }], total: 2 });
       },
       read: async (path: string, options: any) => {
         if (options.uid && w.uidPath) path = w.uidPath;
@@ -439,4 +439,17 @@ test("search selection follows its captured stable identity after path reuse", a
   await page.getByRole("button", { name: "Alpha", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Moved/Alpha.md", exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).calls.at(-1).options.uid)).toBe(uid);
+});
+
+
+test("search rows show source path and inert navigation tags", async ({ page }) => {
+  await page.evaluate(() => {
+    const w = window as any; w.searchTags = ["training", "<img src=x onerror=alert(1)>"]; w.workspace.refresh();
+  });
+  const row = page.locator(".kosmos-notes-result").first();
+  await expect(row.locator("small")).toContainText("Alpha.md");
+  await expect(row.locator("small")).toContainText("#training");
+  await expect(row.locator("small")).toContainText("<img src=x onerror=alert(1)>");
+  await expect(row.locator("img")).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Alpha", exact: true })).toHaveAccessibleDescription(/Alpha.md/);
 });
