@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { SourceObservationHost } from "./source-observation-ledger";
 import { stableJson, retrievalSha256 } from "gkos-engine/retrieval";
 import { isValidGkxAuthoredUid } from "gkos-engine";
 
@@ -146,5 +147,34 @@ export class HistoryDeletionAuthority {
         return denied.has(sourceIdentity(source));
       }});
   }
+  /** Bind an actual independent authority to a native source-history host.
+   * Ordinary native source authorization remains necessary; denial absence is not a grant.
+   */
+  bindHistoryHost(corpus: string, host: SourceObservationHost): Readonly<SourceObservationHost> {
+    if (corpus !== this.options.corpus) throw Error("HISTORY_DELETION_CORPUS_MISMATCH");
+    const native = {current:host.current, now:host.now, canRead:host.canRead, supports:host.supports, projectionCurrent:host.projectionCurrent};
+    if ([native.current, native.now, native.canRead, native.supports].some(value => typeof value !== "function") ||
+        native.projectionCurrent !== undefined && typeof native.projectionCurrent !== "function") throw Error("HISTORY_DELETION_HOST_INVALID");
+    const deletion = this.capture();
+    let valid = true;
+    const current = () => {
+      if (!valid) return false;
+      try {
+        if (native.current() === true && deletion.current() && native.current() === true) return true;
+      } catch { /* A missing or failed authority cannot preserve the old binding. */ }
+      valid = false; return false;
+    };
+    const canRead = (source: string) => {
+      if (!isValidGkxAuthoredUid(source) || !current()) return false;
+      try {
+        const readable = native.canRead(source) === true;
+        if (!current() || !readable) return false;
+        return !deletion.isDenied(source) && current();
+      } catch { valid = false; return false; }
+    };
+    if (!current()) throw Error("HISTORY_DELETION_AUTHORITY_UNAVAILABLE");
+    return Object.freeze({current, canRead, now:native.now, supports:native.supports, projectionCurrent:native.projectionCurrent});
+  }
+
   close() { if (this.busy) throw Error("HISTORY_DELETION_BUSY"); if (!this.closed) {this.closed=true;this.db.close();} }
 }

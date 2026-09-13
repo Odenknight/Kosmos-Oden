@@ -54,13 +54,13 @@ test('restoring only source history cannot restore access denied by the independ
  const f=fixture(t),history=join(f.directory,'history.sqlite'),backup=join(f.directory,'history-before-denial.sqlite');
  const retention={enabled:true,corpus:options.corpus,maxAgeMs:86400000,maxBytes:10000,maxObservations:10};const bytes=Buffer.from('Retained synthetic note.');const hash=v=>'sha256:'+createHash('sha256').update(v).digest('hex');
  const sourceInput={operation:'source-one',corpus:options.corpus,source:uid,path:'Source.md',kind:'source_version',sourceDigest:hash(bytes),validAt:null,authorityDigest:hash('a'),policyDigest:hash('p'),parserVersion:'synthetic',schemaVersion:'gkx-2.3'};
- const historyHost=snapshot=>({current:()=>snapshot.current(),now:()=>f.state.now,canRead:source=>!snapshot.isDenied(source),supports:()=>true});
- let ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost(f.authority.capture()),true);
+ const historyHost=()=>f.authority.bindHistoryHost(options.corpus,{current:()=>true,now:()=>f.state.now,canRead:()=>true,supports:()=>true});
+ let ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost(),true);
  try{
   ledger.append(sourceInput,bytes);ledger.close();copyFileSync(history,backup);
-  ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost(f.authority.capture()));const pending=ledger.knownBy(uid,f.state.now);
+  ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost());const pending=ledger.knownBy(uid,f.state.now);
   f.authority.deny('delete-source',uid,()=>true);assert.throws(()=>pending.publish(()=>assert.fail('revoked data published')),/HOST_STALE/);ledger.close();
-  copyFileSync(backup,history);ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost(f.authority.capture()));let visible='unset';ledger.knownBy(uid,f.state.now).publish(value=>visible=value);assert.equal(visible,null);
+  copyFileSync(backup,history);ledger=SourceObservationLedger.open(retention,()=>new DatabaseSync(history),historyHost());let visible='unset';ledger.knownBy(uid,f.state.now).publish(value=>visible=value);assert.equal(visible,null);
   assert.throws(()=>ledger.append({...sourceInput,operation:'resurrect'},bytes),/HOST_STALE/);
   f.authority.close();assert.throws(()=>ledger.knownBy(uid,f.state.now),/HOST_STALE/);
  }finally{ledger.close();}
@@ -81,4 +81,36 @@ test('interior denial-chain corruption invalidates an existing capability even w
  const f=fixture(t);f.authority.deny('one',uid,()=>true);f.authority.deny('two',other,()=>true);const snapshot=f.authority.capture();
  const db=new DatabaseSync(f.path);const body=JSON.parse(db.prepare('SELECT body FROM denials WHERE seq=1').get().body);body.priorDigest='sha256:'+ '0'.repeat(64);db.prepare('UPDATE denials SET body=? WHERE seq=1').run(JSON.stringify(body));db.close();
  assert.equal(snapshot.current(),false);assert.throws(()=>snapshot.isDenied(other),/AUTHORITY_UNAVAILABLE/);
+});
+
+
+const nativeHost = changes => ({current:()=>true,now:()=> '2026-09-13T00:00:00.000Z',canRead:()=>true,supports:()=>true,...changes});
+test('history binding rejects another corpus and requires an independent live authority',t=>{
+ const f=fixture(t);assert.throws(()=>f.authority.bindHistoryHost('another-corpus',nativeHost()),/CORPUS_MISMATCH/);
+ assert.throws(()=>f.authority.bindHistoryHost(options.corpus,nativeHost({current:()=>false})),/AUTHORITY_UNAVAILABLE/);
+ assert.throws(()=>f.authority.bindHistoryHost(options.corpus,nativeHost({canRead:true})),/HOST_INVALID/);
+ f.authority.close();assert.throws(()=>f.authority.bindHistoryHost(options.corpus,nativeHost()),/AUTHORITY_UNAVAILABLE/);
+});
+test('denial absence never substitutes for a current native read grant',t=>{
+ const f=fixture(t);const bound=f.authority.bindHistoryHost(options.corpus,nativeHost({canRead:source=>source===other}));
+ assert.equal(bound.canRead(uid),false);assert.equal(bound.canRead(other),true);assert.equal(bound.canRead('invalid'),false);assert.equal(bound.current(),true);
+ const asyncGrant=f.authority.bindHistoryHost(options.corpus,nativeHost({canRead:async()=>true}));assert.equal(asyncGrant.canRead(uid),false);
+});
+test('a native epoch change permanently invalidates an existing binding',t=>{
+ const f=fixture(t);let valid=true;const bound=f.authority.bindHistoryHost(options.corpus,nativeHost({current:()=>valid}));
+ valid=false;assert.equal(bound.current(),false);valid=true;assert.equal(bound.current(),false);assert.equal(bound.canRead(uid),false);
+});
+test('native authorization revocation during a read check cannot publish a true grant',t=>{
+ const f=fixture(t);let valid=true;const bound=f.authority.bindHistoryHost(options.corpus,nativeHost({current:()=>valid,canRead:()=>{valid=false;return true;}}));
+ assert.equal(bound.canRead(uid),false);valid=true;assert.equal(bound.current(),false);
+});
+test('a new denial invalidates bound hosts; a fresh host still refuses the denied UID',t=>{
+ const f=fixture(t);const old=f.authority.bindHistoryHost(options.corpus,nativeHost());assert.equal(old.canRead(uid),true);
+ f.authority.deny('one',uid,()=>true);assert.equal(old.current(),false);assert.equal(old.canRead(uid),false);
+ const fresh=f.authority.bindHistoryHost(options.corpus,nativeHost());assert.equal(fresh.canRead(uid.toUpperCase()),false);assert.equal(fresh.canRead(other),true);
+});
+test('binding captures native function identities and preserves parser, clock and publication callbacks',t=>{
+ const f=fixture(t);const host=nativeHost({canRead:()=>false,supports:(p,s)=>p==='parser'&&s==='schema',projectionCurrent:p=>p.version===1});const bound=f.authority.bindHistoryHost(options.corpus,host);
+ host.canRead=()=>true;host.current=()=>false;assert.equal(bound.current(),true);assert.equal(bound.canRead(uid),false);assert.equal(bound.now(),'2026-09-13T00:00:00.000Z');
+ assert.equal(bound.supports('parser','schema'),true);assert.equal(bound.supports('other','schema'),false);assert.equal(bound.projectionCurrent({version:1}),true);assert.equal(Object.isFrozen(bound),true);
 });

@@ -28,13 +28,26 @@ This is denial metadata, not a physical purge receipt.
 
 ## Binding source-history access
 
-`capture()` returns a native-only capability with corpus, watermark, `current` and `isDenied`.
-The complete capability stays in the trusted host.
-The host must require its corpus to equal the source-history corpus before opening that ledger.
-It must combine current source authorization with the deny check.
-For example, `canRead` must require both `nativeCanRead(uid) === true` and `!deletion.isDenied(uid)`.
-The source-history `current` callback must also require the native epoch and deletion capability to remain current.
-The native epoch must cover database identity, authority generation and host lifetime.
+`bindHistoryHost(corpus, nativeHost)` supplies the shared binding used by source history.
+It captures a real authority snapshot and requires its corpus to match exactly.
+It preserves the native clock, parser-support and optional publication-witness callbacks.
+Function identities are captured when binding; replacing fields on the caller's object cannot replace a grant.
+The returned host is frozen.
+
+Its `canRead` requires both the current native source grant and absence of an independent denial.
+A missing denial alone never grants source access.
+The native grant must return literal true; an asynchronous or truthy substitute is refused.
+The binding checks the native epoch before and after consulting deletion state and source authorization.
+Observed epoch failure or a changed deletion revision permanently invalidates that binding.
+A fresh binding after a denial still refuses the denied UID, including UUID case variants.
+
+The native host must use this bound host when opening the source-observation ledger.
+Its native epoch must cover database identity, source authorization generation, retention revision and host lifetime.
+A current private database capability is still required; the binding does not establish filesystem ownership.
+Neither callback composition nor this API enables production storage.
+
+`capture()` remains a native-only capability with corpus, watermark, `current` and `isDenied`.
+The entire capability stays in the trusted host and is never supplied by a renderer.
 
 Each currency check validates the full denial chain.
 A changed chain, corruption, closed authority or observed owner failure invalidates the captured capability.
@@ -45,15 +58,15 @@ That authority needs its own independently verified recovery procedure.
 
 ## Verified component behavior
 
-All nine deletion-authority tests and all 28 source-history tests pass.
-Full repository verification passes all 557 tests.
+All 15 deletion-authority/binding tests and all 28 source-history tests pass.
+Full repository verification passes all 563 tests.
 The tests use actual synthetic SQLite databases.
 They cover default-off behavior, current owner/action checks, bounded capacity, retry conflicts,
 clock regression, UUID case variants, missing authority, corrupt chains and unknown schemas.
 Process termination immediately after the INSERT but before COMMIT leaves no readable denial.
 Termination after commit preserves the denial and its original retry receipt.
 
-The two-database test creates a source-history backup, then commits a separate denial.
+The two-database test uses `bindHistoryHost`, creates a source-history backup, then commits a separate denial.
 The old pending history read is rejected.
 Restoring only the earlier history database still returns no source content under the current deny authority.
 Closing that authority makes history access unavailable.

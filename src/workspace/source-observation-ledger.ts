@@ -45,6 +45,13 @@ export interface ProjectionObservation {
   policyDigest: string;
   sources: SourceObservationReference[];
 }
+export interface SourceObservationHost {
+  current: () => boolean;
+  now: () => string;
+  canRead: (source: string) => boolean;
+  supports: (parser: string, schema: string) => boolean;
+  projectionCurrent?: (input: ProjectionObservation) => boolean;
+}
 type Observation = SourceObservation | ProjectionObservation;
 const PROJECTION_KEYS = ["version", "operation", "corpus", "kind", "projectionId", "configurationDigest", "publicationDigest", "authorityDigest", "policyDigest", "sources"].sort();
 const recordLimit = (input: Observation) => input.kind === "projection_published" ? 1024 * 1024 : 16384;
@@ -76,10 +83,10 @@ export class SourceObservationLedger {
   private invalidated = false;
   private busy = false;
   private constructor(private db: DatabaseSync, private retention: Readonly<ObservationRetention>,
-    private host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean; projectionCurrent?: (input: ProjectionObservation) => boolean }) {}
+    private host: SourceObservationHost) {}
 
   static open(retention: ObservationRetention, openDatabase: () => DatabaseSync,
-    host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean; projectionCurrent?: (input: ProjectionObservation) => boolean }, initialize = false) {
+    host: SourceObservationHost, initialize = false) {
     if (retention?.enabled === undefined || retention?.enabled === false) return null;
     retention = JSON.parse(stableJson(retention));
     if (retention.enabled !== true || typeof retention.corpus !== "string" || !retention.corpus || retention.corpus.length > 4096 ||

@@ -96,13 +96,14 @@ explicit limits, byte accounting, hidden-source isolation, path reuse, final-bou
 missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
 Child processes terminate before commit and after commit without orderly close.
 Reopening proves rollback in the first case and durable retry recovery in the second.
-All 28 component tests pass. Full repository verification passes all 548 tests.
+All 28 component tests pass. Full repository verification passes all 563 tests.
 The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 
 An [independent deletion-authority component](HISTORY-DELETION-AUTHORITY.md) now provides durable deny receipts.
 An isolated two-database test proves that restoring source history alone cannot undo those denials.
-The native binding and physical purge remain unfinished.
+The shared `bindHistoryHost` adapter now checks corpus equality and combines native read authority with independent denial state.
+Actual plugin integration, native private-database qualification and physical purge remain unfinished.
 
 ## Remaining work
 

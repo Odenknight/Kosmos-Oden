@@ -73,7 +73,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 557 tests.
+The latest completed Kosmos verification passed 563 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -130,6 +130,8 @@ They keep their own observation time and preserve the original source times.
 An actual native publication-witness adapter still needs to be connected.
 An independent deny authority now keeps deletion decisions outside history backups.
 A synthetic restore test confirms that an old history backup cannot undo a current denial.
+A shared host binding now checks corpus identity and combines native permission with the deny authority.
+It refuses stale grants and cannot treat the absence of a denial as permission.
 This records a denial; it does not physically purge data.
 Storage remains off in the plugin. Purge, migration, and native integration remain unfinished.
 See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
