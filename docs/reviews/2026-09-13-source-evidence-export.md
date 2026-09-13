@@ -46,8 +46,18 @@ Tests cover default/no-I/O behavior, full-byte digest accuracy with CRLF and
 Unicode beyond truncation, denied-note exclusion, unsupported/malformed options,
 unannounced edits, revision changes, revocation, invalid UTF-8, replacement,
 metadata changes, metadata/actual/page budgets, stale graphs and retained I/O
-ownership after timeout. Final automated/native receipts are recorded in the PR
-description when completed; implementation alone is not a test pass.
+ownership after timeout. All 419 tests and all verification checks passed.
+All 40 desktop/mobile Chromium tests passed with two workers in 40.1 seconds.
+
+The native Windows Obsidian candidate `595834c` passed schema discovery,
+ordinary export without evidence, and explicit evidence export. One source's
+SHA-256 and byte length matched an independent filesystem check; no source
+path, contents or source digest are published. Graphiti remained 0.30.2,
+searchable=false. The [sanitized receipt](evidence/source-byte-export/native.json)
+has a [hash manifest](evidence/source-byte-export/SHA256SUMS).
+The pre-test package was a separate comet-renderer candidate (PR 69), so it
+was backed up and restored after this test pending combined integration.
+Final combined-build and hosted outcomes are recorded in the PR description.
 
 Rollback is the prior plugin package or removal of the optional argument.
 No schema migration, database mutation or source-data rewrite is required.
