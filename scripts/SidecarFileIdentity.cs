@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
 
 public static class SidecarFileIdentity
@@ -38,6 +39,38 @@ public static class SidecarFileIdentity
     private static extern bool GetSecurityDescriptorDacl(IntPtr descriptor, out bool present, out IntPtr dacl, out bool defaulted);
     [DllImport("kernel32.dll")]
     private static extern IntPtr LocalFree(IntPtr memory);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes
+    {
+        public int Length;
+        public IntPtr Descriptor;
+        public int InheritHandle;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateDirectory(string path, ref SecurityAttributes attributes);
+
+    // Caller must supply a host-owned state parent. Existing directories are
+    // refused; this primitive neither migrates nor rewrites existing state.
+    public static SafeFileHandle CreatePrivateDirectory(string path)
+    {
+        path = Path.GetFullPath(path);
+        string parent = Path.GetDirectoryName(path), name = Path.GetFileName(path);
+        if (String.IsNullOrEmpty(parent) || String.IsNullOrEmpty(name) || name.TrimEnd(' ', '.') != name ||
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new IOException("Invalid new state directory");
+        using (var anchor = OpenDirectory(parent)) {
+            string sid = WindowsIdentity.GetCurrent().User.Value;
+            var security = new RawSecurityDescriptor("O:" + sid + "D:P(A;OICI;FA;;;" + sid + ")");
+            var bytes = new byte[security.BinaryLength]; security.GetBinaryForm(bytes, 0);
+            IntPtr descriptor = Marshal.AllocHGlobal(bytes.Length);
+            try {
+                Marshal.Copy(bytes, 0, descriptor, bytes.Length);
+                var attributes = new SecurityAttributes { Length = Marshal.SizeOf(typeof(SecurityAttributes)), Descriptor = descriptor, InheritHandle = 0 };
+                if (!CreateDirectory(path, ref attributes)) throw new Win32Exception();
+            } finally { Marshal.FreeHGlobal(descriptor); }
+            return OpenDirectory(path);
+        }
+    }
 
     public static SafeFileHandle OpenDirectory(string path)
     {

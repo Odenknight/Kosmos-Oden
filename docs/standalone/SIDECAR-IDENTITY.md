@@ -132,3 +132,16 @@ prevent rename; that failed fixture led to the corrected access mask. Synthetic
 tests now confirm rename refusal while held, rename after release, and ACL
 readback through the handle. Parent/child enumeration races and full namespace
 replacement qualification remain open; this is still an isolated prototype.
+
+`CreatePrivateDirectory` now supplies a protected current-user DACL to Windows
+at creation, under an opened host-owned parent. It refuses existing paths rather
+than modifying them. Synthetic tests passed for initial permissions, inherited
+permissions on a new marker file, and unchanged ACL/content after a second
+creation attempt. This is a primitive for new state, not an existing-state
+migration or proof that an arbitrary parent is trustworthy.
+
+The implementation retains supported filesystem security APIs. Microsoft's
+[SetKernelObjectSecurity guidance](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-setkernelobjectsecurity)
+explicitly directs filesystem callers to `SetSecurityInfo` or
+`SetNamedSecurityInfo`; that alternate API was therefore not adopted to avoid
+inheritance behavior. Existing-state enumeration and migration remain open.

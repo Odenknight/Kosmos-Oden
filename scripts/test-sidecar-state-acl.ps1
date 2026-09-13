@@ -10,6 +10,28 @@ $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
 Set-Acl -LiteralPath $leaf -AclObject $acl
 
 & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $fixture
+$createdPrivate = $fixture + '-private'
+$createdHandle = [SidecarFileIdentity]::CreatePrivateDirectory($createdPrivate)
+try {
+    $createdAcl = [SidecarFileIdentity]::ReadDirectoryAcl($createdHandle)
+    $createdRules = @($createdAcl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+    $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+    if (-not $createdAcl.AreAccessRulesProtected -or $createdRules.Count -ne 1 -or
+        $createdRules[0].IdentityReference -ne $currentSid -or
+        $createdRules[0].FileSystemRights -ne [Security.AccessControl.FileSystemRights]::FullControl) {
+        throw 'Private directory was not protected at creation'
+    }
+} finally { $createdHandle.Dispose() }
+$createdLeaf = Join-Path $createdPrivate 'synthetic.marker'
+[IO.File]::WriteAllText($createdLeaf, 'preserved synthetic marker')
+$createdLeafRules = @((Get-Acl -LiteralPath $createdLeaf).GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+if ($createdLeafRules.Count -ne 1 -or $createdLeafRules[0].IdentityReference -ne $currentSid) { throw 'Private creation inheritance failed' }
+$createdBefore = (Get-Acl -LiteralPath $createdPrivate).Sddl
+$existingRefused = $false
+try { $unexpected = [SidecarFileIdentity]::CreatePrivateDirectory($createdPrivate); $unexpected.Dispose() }
+catch { $existingRefused = $true }
+if (-not $existingRefused -or (Get-Acl -LiteralPath $createdPrivate).Sddl -ne $createdBefore -or
+    [IO.File]::ReadAllText($createdLeaf) -ne 'preserved synthetic marker') { throw 'Existing private directory was modified' }
 $directoryHandle = [SidecarFileIdentity]::OpenDirectory($fixture)
 $movedDirectory = $fixture + '-moved'
 try {
