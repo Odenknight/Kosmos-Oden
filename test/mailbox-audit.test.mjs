@@ -212,6 +212,21 @@ test("bundle verification checks members without claiming an unbound manifest au
 });
 
 
+test("bundle manifests reject malformed UTF-8 instead of resolving replacement filenames", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-manifest-utf8-"));
+  mkdirSync(join(root, "bundle"));
+  const content = Buffer.from("retained"), hash = createHash("sha256").update(content).digest("hex");
+  writeFileSync(join(root, "bundle", "�.md"), content);
+  const path = join(root, "bundle", "SHA256SUMS"), ref = {path:"bundle",sha256sums:"SHA256SUMS"};
+  const malformed = Buffer.concat([Buffer.from(`${hash}  `), Buffer.from([0xff]), Buffer.from(".md\n")]);
+  writeFileSync(path, malformed);
+  assert.equal(verifyMailboxBundle(root, ref, createHash("sha256").update(malformed).digest("hex")), "reference-manifest-invalid");
+  assert.deepEqual(readFileSync(path), malformed);
+  const valid = Buffer.from(`${hash}  �.md\n`);
+  writeFileSync(path, valid);
+  assert.equal(verifyMailboxBundle(root, ref, createHash("sha256").update(valid).digest("hex")), null);
+});
+
 test("retained heads detect removed suffixes and rewritten observations without updating state", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-heads-"));
   mkdirSync(join(root,"messages/alice"),{recursive:true});

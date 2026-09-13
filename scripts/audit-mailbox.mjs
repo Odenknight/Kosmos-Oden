@@ -77,7 +77,10 @@ export function verifyMailboxBundle(root, reference, expectedManifestSha256) {
   try {
     const raw = readReference(root, `${reference.path}/${reference.sha256sums}`, 65536);
     if (expectedManifestSha256 !== undefined && createHash("sha256").update(raw).digest("hex") !== expectedManifestSha256) return "reference-manifest-hash-mismatch";
-    const lines = raw.toString("utf8").split(/\r?\n/).filter(line => line.length);
+    let manifestText;
+    try { manifestText = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw); }
+    catch { return "reference-manifest-invalid"; }
+    const lines = manifestText.split(/\r?\n/).filter(line => line.length);
     if (!lines.length || lines.length > 1000) return "reference-manifest-invalid";
     const seen = new Set();
     let remaining = 64 * 1024 * 1024;

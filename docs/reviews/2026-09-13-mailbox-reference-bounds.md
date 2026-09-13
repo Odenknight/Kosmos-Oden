@@ -30,3 +30,12 @@ finding. The regression matrix now exercises growth, rewrite and replacement
 for bundles, messages and ACKs (nine subprocess cases). All 12 mailbox tests
 and full repository verification passed again. The local audit counts remain
 unchanged. No mailbox files were rewritten or quarantined by this read-only tool.
+
+## Manifest decoding
+
+Bundle manifests also use strict UTF-8 decoding. The regression demonstrated
+that malformed bytes could previously decode to a replacement-character filename
+and produce a successful bound-manifest result. Such manifests now report
+`reference-manifest-invalid`; an actual Unicode replacement character remains
+a valid filename. Raw hashes and the existing BOM treatment are preserved.
+All 13 mailbox tests and full repository verification passed after this change.
