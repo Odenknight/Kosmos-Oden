@@ -24,7 +24,7 @@ export class SqliteAdoptionStore {
       closeSync(openSync(path, "wx", 0o600));
     }
     const stat = lstatSync(path);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 64 * 1024 * 1024 || (!initial && stat.size === 0)) throw Error("ADOPTION_DATABASE_UNSAFE");
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > 64 * 1024 * 1024 || (!initial && stat.size === 0)) throw Error("ADOPTION_DATABASE_UNSAFE");
     const db = new DatabaseSync(path);
     try {
       if (!initial) {

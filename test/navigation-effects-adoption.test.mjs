@@ -424,6 +424,25 @@ test('native adoption bounds a proposed record before any transaction changes th
   } finally {store?.close();f.cleanup();}
 });
 
+test('native adoption refuses a hard-linked database before opening SQLite', async () => {
+  const {linkSync,readFileSync,unlinkSync}=await import('node:fs');
+  const {join}=await import('node:path');
+  const f=await nativeStoreFixture();let store;
+  try {
+    const registry=await api.createEmptyAdoptionRegistry();
+    store=await f.SqliteAdoptionStore.open(f.directory,registry);
+    store.close();store=undefined;
+    const path=join(f.directory,'adoption.sqlite'),alias=join(f.directory,'retained-alias.sqlite');
+    const before=readFileSync(path);
+    linkSync(path,alias);
+    await assert.rejects(f.SqliteAdoptionStore.open(f.directory),/ADOPTION_DATABASE_UNSAFE/);
+    assert.deepEqual(readFileSync(alias),before);
+    unlinkSync(alias);
+    store=await f.SqliteAdoptionStore.open(f.directory);
+    assert.deepEqual(await store.load(),registry);
+  } finally {store?.close();f.cleanup();}
+});
+
 
 test('native adoption requires a synchronous final host check and refuses late revocation', async () => {
   const f=await nativeStoreFixture();let store;
