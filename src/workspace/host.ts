@@ -5,6 +5,7 @@ export { readableSpatialGraph } from "./spatial";
 import type { KosmosAgentServer } from "../plugin/agent-server";
 import { ProviderError } from "../plugin/vault-operations";
 import type {createSemanticQueryClient} from "./semantic-client";
+import type {GraphitiQueryCitation, GraphitiQueryResult} from "gkos-engine/graphiti";
 export {createSemanticQueryClient} from "./semantic-client";
 
 /** Native host capability, not serializable wire authority or a renderer grant. */
@@ -34,6 +35,43 @@ export class NotesWorkspaceHost {
       let published = false;
       await captured.publish(value => {
         if (signal.aborted || value && !semantic?.isCurrent(query, requestId, value, limit)) return;
+        apply(value); published = true;
+      }, stillSelected);
+      return published;
+    }};
+  }
+
+  /** Resolve only an accepted citation, using current readable UID authority and
+   * the complete original source bytes. A matching title or path is insufficient. */
+  async resolveSemanticCitation(query: string, requestId: string, result: GraphitiQueryResult,
+    citation: GraphitiQueryCitation, signal: AbortSignal, limit = 10) {
+    const semantic = this.semantic;
+    citation = {...citation};
+    const accepted = () => !signal.aborted && !!semantic?.isCurrent(query, requestId, result, limit) &&
+      result.hits.some(hit => hit.citations.some(item => item.projection_episode_id === citation.projection_episode_id &&
+        item.source_id === citation.source_id && item.source_digest === citation.source_digest));
+    const captured = await this.capture(async () => {
+      if (!accepted() || !isValidGkxAuthoredUid(citation.source_id)) return null;
+      const provider = this.api.provider;
+      if (!provider.getIndexedSourceBytes) return null;
+      const graph = await provider.getGraph();
+      if (!accepted()) return null;
+      if (graph.nodes.filter(node => node.kind === "file" &&
+          (node.gkx?.projection?.authored.uid === citation.source_id || node.gkx?.uid === citation.source_id)).length !== 1) return null;
+      const note = await this.api.qNote({uid: citation.source_id, page_size: 2});
+      if (!accepted() || note.error || note.uid !== citation.source_id) return null;
+      const path = validateVaultRelativePath(note.path);
+      if (!path.valid || path.normalized !== note.path) return null;
+      const raw = await provider.getIndexedSourceBytes(note.path, graph, 64 * 1024 * 1024);
+      if (!accepted() || !raw || raw.byteLength > 64 * 1024 * 1024) return null;
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(raw)));
+      if (`sha256:${Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("")}` !== citation.source_digest || !accepted()) return null;
+      return {path: note.path as string, uid: citation.source_id, title: note.title as string};
+    });
+    return {...captured, publish: async (apply: (value: typeof captured.value) => void, stillSelected: () => boolean) => {
+      let published = false;
+      await captured.publish(value => {
+        if (!accepted()) return;
         apply(value); published = true;
       }, stillSelected);
       return published;

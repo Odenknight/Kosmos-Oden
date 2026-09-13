@@ -39,6 +39,7 @@ test.beforeEach(async ({ page }) => {
           projection: w.projection ?? { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
     };
+    w.host = host;
     w.workspace = w.KosmosNotesWorkspace.mountNotesWorkspace(document.querySelector("#notes"), host,
       { openSource: (path: string) => w.opened.push(path), openKosmos: (path?: string, uid?: string) => { w.kosmos++; w.located.push(path); w.locatedUids.push(uid); } });
   });
@@ -538,4 +539,33 @@ test('semantic outage keeps native matches and changed query discards late facts
   await page.evaluate(()=>(window as any).waits.semantic());
   await expect(page.getByText('STALE_SEMANTIC_FACT')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'new query',exact:true})).toBeVisible();
+});
+
+test('cited source navigation uses host resolution and discards a late changed-query result',async({page})=>{
+  await page.evaluate(()=>{
+    const w=window as any;
+    w.semanticValue={request_id:'citation-query',hits:[{fact:'Related fact',citations:[{source_id:'source-uid'}]}]};
+    w.host.resolveSemanticCitation=async(query:string,id:string,_result:any,citation:any,signal:AbortSignal)=>{
+      w.citationCall={query,id,source: citation.source_id};
+      if(w.deferCitation) await new Promise(resolve=>{w.waits.citation=resolve;});
+      return {publish:async(apply:any,current:any)=>{
+        if(signal.aborted || !current()) return false;
+        apply({path:'Cited.md',uid:'019b2d14-4230-7db7-87d4-7d81cfaec932'});return true;
+      }};
+    };
+  });
+  const query=page.getByRole('searchbox',{name:'Search readable notes'});
+  await query.fill('relay');
+  await expect(page.getByRole('button',{name:'relay',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Search related facts',exact:true}).click();
+  await page.getByRole('button',{name:'Open cited source',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Selected note'})).toHaveAttribute('data-path','Cited.md');
+  expect(await page.evaluate(()=>(window as any).citationCall)).toEqual({query:'relay',id:'citation-query',source:'source-uid'});
+  await page.evaluate(()=>{const w=window as any;w.workspace.select(null);w.deferCitation=true;});
+  await page.getByRole('button',{name:'Open cited source',exact:true}).click();
+  await page.waitForFunction(()=>!!(window as any).waits.citation);
+  await query.fill('other');
+  await page.evaluate(()=>(window as any).waits.citation());
+  await expect(page.getByRole('button',{name:'other',exact:true})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Selected note'})).not.toHaveAttribute('data-path','Cited.md');
 });

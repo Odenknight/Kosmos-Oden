@@ -8,10 +8,11 @@ import { mountVirtualList } from "./virtual-list";
 
 let inspectorSequence = 0;
 
-export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read"> & Partial<Pick<NotesWorkspaceHost, "semanticSearch">>,
+export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read"> & Partial<Pick<NotesWorkspaceHost, "semanticSearch" | "resolveSemanticCitation">>,
   actions: { openSource(path: string): void; openKosmos(path?: string, uid?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   const semantic = new WorkspaceSelection();
+  const citationSelection = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined, selectedUid: string | undefined;
   let locateSelected: (() => void) | undefined;
@@ -47,6 +48,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   async function findFacts() {
     if (closed || !query.value.trim() || !host.semanticSearch) return;
     const text = query.value;
+    citationSelection.invalidate();
     facts.hidden = false; facts.replaceChildren(element("p", "Searching related facts…"));
     const pending = semantic.select(signal => host.semanticSearch!(text, `workspace-${semantic.version}`, signal),
       (snapshot, current) => snapshot.publish(value => {
@@ -55,9 +57,21 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         if (!value.hits.length) facts.append(element("p", "No related facts found."));
         for (const hit of value.hits) {
           const item = element("article"); item.append(element("p", hit.fact));
-          item.append(element("small", "Source references are not resolved here."));
+          item.append(element("small", host.resolveSemanticCitation ? "Open a source to verify its current contents." : "Source references are not resolved here."));
           const references = element("ul");
-          for (const citation of hit.citations) references.append(element("li", citation.source_id));
+          for (const citation of hit.citations) {
+            const reference = element("li", citation.source_id);
+            if (host.resolveSemanticCitation) reference.append(button("Open cited source", () => {
+              void citationSelection.select(signal => host.resolveSemanticCitation!(text, value.request_id, value, citation, signal),
+                (resolved, selected) => resolved.publish(source => {
+                  if (source) void show(source.path, {uid: source.uid});
+                  else reference.append(element("small", " Source unavailable or changed."));
+                }, () => selected() && current()), () => {}).catch(() => {
+                  if (current()) reference.append(element("small", " Source unavailable or changed."));
+                });
+            }));
+            references.append(reference);
+          }
           item.append(references); facts.append(item);
         }
       }, current), () => {});
@@ -324,7 +338,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
 
   async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>, restoreSelection = false) {
     if (closed) return;
-    semantic.invalidate(); facts.replaceChildren(); facts.hidden = true;
+    semantic.invalidate(); citationSelection.invalidate(); facts.replaceChildren(); facts.hidden = true;
     if (timer) { clearTimeout(timer); timer = undefined; }
     const restorePath = restoreSelection ? selectedPath : undefined;
     const restoreUid = restoreSelection ? selectedUid : undefined;
@@ -363,7 +377,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }
   }
   function schedule(restoreSelection = false) {
-    semantic.invalidate(); facts.replaceChildren(); facts.hidden = true;
+    semantic.invalidate(); citationSelection.invalidate(); facts.replaceChildren(); facts.hidden = true;
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     searches.invalidate(); notes.invalidate(); locateSelected = undefined; disposeResults?.(); disposeResults = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
@@ -401,6 +415,6 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       if (selectedPath === path || selectedPath?.startsWith(path + "/")) { selectedPath = undefined; selectedUid = undefined; }
       if (!closed) schedule(true);
     },
-    close: () => { closed = true; semantic.close(); disposeResults?.(); resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
+    close: () => { closed = true; semantic.close(); citationSelection.close(); disposeResults?.(); resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
   };
 }

@@ -60,7 +60,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 514 tests.
+The latest completed Kosmos verification passed 516 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -81,11 +81,19 @@ The export now rejects those changes before returning results.
 Ten new regression cases failed before the fix and passed afterward.
 See `src/plugin/agent-server.ts` and `test/source-evidence.test.mjs`.
 
+The workspace now has an Open cited source button.
+The host checks the citation against the accepted result.
+It requires a unique readable note UID and matching original source bytes.
+Changed or hidden sources remain unavailable.
+Changing the search discards a pending source resolution.
+All 31 Chromium workspace tests passed.
+The native plugin still needs its semantic service connection.
+
 ## What still needs work
 
 - Connect the semantic client to the actual native Notes view.
 - Verify real vault permissions and source changes through that view.
-- Resolve source references and test the visible user experience.
+- Qualify source resolution and the visible user experience in the native plugin.
 - Fix indexing latency and complete the required performance runs and soak.
 - Complete workspace acceptance and durable observation history.
 - Complete adoption authority, prepared operations, and recovery before enabling writes.

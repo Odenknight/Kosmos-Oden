@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import { buildGraph, stripFrontmatter } from '../dist/kosmos-core.mjs';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS } from '../dist/kosmos-agent-server.mjs';
 import { NotesWorkspaceHost, readableSpatialGraph } from '../dist/kosmos-workspace-host.mjs';
@@ -231,4 +232,40 @@ test('semantic workspace publication rechecks remote scope after the final local
   f.provider.getGraph=async()=>{const graph=await getGraph(); allowed=false; return graph;};
   assert.equal(await snapshot.publish(()=>displayed++,()=>true),false);
   assert.equal(displayed,0);
+});
+
+test('semantic citations resolve only exact readable source bytes and refuse stale publication',async()=>{
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  const raw=`---\r\ngkx_version: "2.3"\r\nuid: "${uid}"\r\nsensitivity: public\r\n---\r\nCafé 🌌`;
+  const f=fixture([{relativePath:'Cited.md',content:raw}]);
+  let allowed=true, reads=0;
+  f.provider.getIndexedSourceBytes=async(path,_graph,budget)=>{
+    reads++; assert.equal(path,'Cited.md'); assert.ok(budget>=Buffer.byteLength(raw)); return Buffer.from(raw);
+  };
+  const citation={projection_episode_id:'episode',source_id:uid,source_digest:`sha256:${createHash('sha256').update(raw).digest('hex')}`};
+  const result={hits:[{citations:[citation]}]};
+  const host=new NotesWorkspaceHost(f.api,{isCurrent:()=>allowed});
+  const resolve=(c=citation)=>host.resolveSemanticCitation('query','request',result,c,new AbortController().signal);
+  const snapshot=await resolve();
+  assert.equal(snapshot.value.path,'Cited.md'); assert.equal(snapshot.value.uid,uid);
+  assert.equal(reads,1);
+  allowed=false;
+  assert.equal(await snapshot.publish(()=>assert.fail('revoked source published'),()=>true),false);
+  allowed=true;
+  assert.equal((await resolve({...citation,projection_episode_id:'forged'})).value,null);
+  assert.equal(reads,1);
+  f.provider.getIndexedSourceBytes=async()=>Buffer.from(raw.replace('Café','Other'));
+  assert.equal((await resolve()).value,null);
+});
+
+test('semantic citation resolution does not read hidden or ambiguous source UIDs',async()=>{
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  const citation={projection_episode_id:'episode',source_id:uid,source_digest:`sha256:${'a'.repeat(64)}`};
+  const result={hits:[{citations:[citation]}]};
+  for(const sensitivities of [['confidential'],['public','confidential']]) {
+    const f=fixture(sensitivities.map((s,i)=>({relativePath:`Source${i}.md`,content:`---\ngkx_version: "2.3"\nuid: "${uid}"\nsensitivity: ${s}\n---\nBody`})));
+    f.provider.getIndexedSourceBytes=async()=>assert.fail('unreadable source bytes requested');
+    const host=new NotesWorkspaceHost(f.api,{isCurrent:()=>true});
+    assert.equal((await host.resolveSemanticCitation('query','request',result,citation,new AbortController().signal)).value,null);
+  }
 });
