@@ -33,7 +33,7 @@ These are separate review branches.
 They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
-The Engine implementation is now at `72689af`.
+The Engine implementation is now at `ba2e65d`.
 Kosmos now pins Engine `885b0b3`.
 The Engine now exports its existing pure manifest helpers for native consumers.
 Their package API, compatibility, source inventory, and package checks passed.
@@ -112,6 +112,11 @@ Changed or hidden sources remain unavailable.
 Changing the search discards a pending source resolution.
 All 31 Chromium workspace tests passed.
 The native plugin is wired to the connection owner; its deployed profile still needs qualification.
+
+The latest indexing check still fails the two-second gate.
+Engine now reuses a validated delta digest within each activation check.
+The affected 31 tests pass, but the full edit still takes about 12.38 seconds.
+See the [performance follow-up](docs/reviews/2026-09-13-watcher-performance-follow-up.md).
 
 ## What still needs work
 
