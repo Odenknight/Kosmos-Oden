@@ -13,6 +13,12 @@ preview, separate provenance sections, and canonical Obsidian source editing.
 pass for registration, reading and reopening; final release qualification and
 the default-workspace transition remain pending.
 
+Enable **Notes-first workspace** in settings to make **Open Kosmos-Oden
+workspace** start in Notes. It is off by default; existing saved views and the
+direct Notes/Kosmos commands retain their behavior. Notes includes a local map
+of readable neighbors and **Locate in Kosmos** for a policy-checked spatial view.
+The opt-in entry and local map are candidate features awaiting native qualification.
+
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
 

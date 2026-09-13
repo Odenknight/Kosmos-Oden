@@ -149,3 +149,10 @@ across four targets, including restoration under revoked policy and malformed
 saved values. Full verification passes 446 tests and build checks; the subsequent
 close-state retention hook passes typechecking. Native installed layout restore
 and spatial synchronization are not qualified by these browser checks.
+
+## Opt-in entry
+
+`notesWorkspaceEnabled` defaults to false and migration accepts only boolean
+true. The Open Kosmos-Oden workspace command opens Notes when enabled and the
+existing Kosmos view otherwise. Direct commands and saved view IDs remain
+unchanged. This opt-in does not change the global default or qualify rollout.

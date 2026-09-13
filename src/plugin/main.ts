@@ -433,6 +433,9 @@ export default class KosmosOdenPlugin extends Plugin {
     }));
     this.addRibbonIcon("notebook-pen", "Open Kosmos-Oden Notes", () => void this.activateNotes());
     this.addCommand({ id: "open-kosmos-notes", name: "Open Kosmos-Oden Notes", callback: () => void this.activateNotes() });
+    this.addCommand({ id: "open-kosmos-workspace", name: "Open Kosmos-Oden workspace", callback: () => {
+      void (this.agentSettings.notesWorkspaceEnabled ? this.activateNotes() : this.activate());
+    } });
     this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
     this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
     this.addCommand({

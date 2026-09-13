@@ -1067,6 +1067,9 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   // defaults fill in for a null load
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);
+  assert.equal(fresh.notesWorkspaceEnabled, false);
+  assert.equal(migrateAgentSettings({notesWorkspaceEnabled:true}).notesWorkspaceEnabled,true);
+  for(const value of ['true',1,{},null]) assert.equal(migrateAgentSettings({notesWorkspaceEnabled:value}).notesWorkspaceEnabled,false);
 });
 
 test("duplicate readable UIDs require an exact path across note queries", async () => {

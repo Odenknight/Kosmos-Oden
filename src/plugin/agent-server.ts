@@ -128,6 +128,8 @@ export interface AgentSettings {
   agentAllowQueryToken: boolean;
   /** Opt into GKOS-Engine 2.1 canonical-five Navigation center discovery. */
   navigationEnabled: boolean;
+  /** Notes-first entry for the new workspace; does not migrate saved view IDs. */
+  notesWorkspaceEnabled: boolean;
   /**
    * Separately versioned Navigation Effects settings. These settings describe
    * operator intent only; defaults expose no writer and enable no effect.
@@ -175,6 +177,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
   navigationEnabled: KOSMOS_NAVIGATION_DEFAULT_ENABLED,
+  notesWorkspaceEnabled: false,
   navigationEffects: {
     ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
     policyRef: { ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS.policyRef },
@@ -236,6 +239,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   s.gkxExcludePatterns = Array.isArray(s.gkxExcludePatterns) ? s.gkxExcludePatterns.map(String).slice(0, 200) : [];
   s.gkxDeveloperExclusions = s.gkxDeveloperExclusions === true;
   s.navigationEnabled = s.navigationEnabled === true;
+  s.notesWorkspaceEnabled = s.notesWorkspaceEnabled === true;
   s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
   s.timestampUseLocalTimezone = s.timestampUseLocalTimezone === true;
   s.timestampCreatedKey = typeof s.timestampCreatedKey === "string" && s.timestampCreatedKey.trim() ? s.timestampCreatedKey.trim() : "created_at";
