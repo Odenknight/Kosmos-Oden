@@ -8,9 +8,10 @@ import { mountVirtualList } from "./virtual-list";
 
 let inspectorSequence = 0;
 
-export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
+export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read"> & Partial<Pick<NotesWorkspaceHost, "semanticSearch">>,
   actions: { openSource(path: string): void; openKosmos(path?: string, uid?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
+  const semantic = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined, selectedUid: string | undefined;
   let locateSelected: (() => void) | undefined;
@@ -41,6 +42,32 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   preview.tabIndex = -1;
   const navigation = element("section"); navigation.className = "kosmos-notes-navigation";
   navigation.setAttribute("aria-label", "Note navigation"); navigation.append(query, tag, bodyLabel, results);
+  const facts = element("section"); facts.setAttribute("aria-label", "Related facts"); facts.hidden = true;
+  if (host.semanticSearch) navigation.append(button("Search related facts", () => void findFacts()), facts);
+  async function findFacts() {
+    if (closed || !query.value.trim() || !host.semanticSearch) return;
+    const text = query.value;
+    facts.hidden = false; facts.replaceChildren(element("p", "Searching related facts…"));
+    const pending = semantic.select(signal => host.semanticSearch!(text, `workspace-${semantic.version}`, signal),
+      (snapshot, current) => snapshot.publish(value => {
+        facts.replaceChildren(element("h3", "Related facts · Unverified"));
+        if (!value) {facts.append(element("p", "Related facts are unavailable. Readable note search remains available.")); return;}
+        if (!value.hits.length) facts.append(element("p", "No related facts found."));
+        for (const hit of value.hits) {
+          const item = element("article"); item.append(element("p", hit.fact));
+          item.append(element("small", "Source references are not resolved here."));
+          const references = element("ul");
+          for (const citation of hit.citations) references.append(element("li", citation.source_id));
+          item.append(references); facts.append(item);
+        }
+      }, current), () => {});
+    const version = semantic.version;
+    try {
+      if (!await pending && !closed && semantic.version === version) facts.replaceChildren(element("p", "Scope changed. Search related facts again."));
+    } catch {
+      if (!closed && semantic.version === version) facts.replaceChildren(element("p", "Related facts are unavailable. Readable note search remains available."));
+    }
+  }
   const inspector = element("aside"); inspector.className = "kosmos-notes-inspector";
   inspector.setAttribute("aria-label", "Note inspector"); inspector.tabIndex = -1;
   let narrow = root.clientWidth <= 600, drawer: "navigation" | "inspector" | undefined;
@@ -297,6 +324,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
 
   async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>, restoreSelection = false) {
     if (closed) return;
+    semantic.invalidate(); facts.replaceChildren(); facts.hidden = true;
     if (timer) { clearTimeout(timer); timer = undefined; }
     const restorePath = restoreSelection ? selectedPath : undefined;
     const restoreUid = restoreSelection ? selectedUid : undefined;
@@ -335,6 +363,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }
   }
   function schedule(restoreSelection = false) {
+    semantic.invalidate(); facts.replaceChildren(); facts.hidden = true;
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     searches.invalidate(); notes.invalidate(); locateSelected = undefined; disposeResults?.(); disposeResults = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
@@ -372,6 +401,6 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       if (selectedPath === path || selectedPath?.startsWith(path + "/")) { selectedPath = undefined; selectedUid = undefined; }
       if (!closed) schedule(true);
     },
-    close: () => { closed = true; disposeResults?.(); resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
+    close: () => { closed = true; semantic.close(); disposeResults?.(); resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
   };
 }

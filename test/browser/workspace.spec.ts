@@ -14,6 +14,10 @@ test.beforeEach(async ({ page }) => {
       apply(value); return true;
     } });
     const host = {
+      semanticSearch: async () => {
+        if (w.deferSemantic) await new Promise(resolve => {w.waits.semantic=resolve;});
+        return snapshot(w.semanticValue ?? null);
+      },
       search: async (query: string, options: any) => {
         w.calls.push({ query, options });
         if (query === "slow") await new Promise(resolve => { w.waits.search = resolve; });
@@ -507,4 +511,31 @@ test("virtual rows retain document order and update the mouse-selected tab stop"
   await page.getByRole("button", {name:"Note 41",exact:true}).click();
   await expect(page.getByRole("button", {name:"Note 41",exact:true})).toHaveAttribute("tabindex", "0");
   await expect(viewport.locator('button[tabindex="0"]')).toHaveCount(1);
+});
+
+test('semantic facts remain unverified plain text with unresolved references',async({page})=>{
+  await page.evaluate(()=>{(window as any).semanticValue={hits:[{fact:'<img src=x onerror=alert(1)> Synthetic fact',semantic_support:'unverified',citations:[{source_id:'source:fixture'}]}]};});
+  await page.getByRole('searchbox',{name:'Search readable notes'}).fill('relay');
+  await expect(page.getByRole('button',{name:'relay',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Search related facts',exact:true}).click();
+  const facts=page.getByRole('region',{name:'Related facts'});
+  await expect(facts).toContainText('Related facts · Unverified');
+  await expect(facts).toContainText('<img src=x onerror=alert(1)> Synthetic fact');
+  await expect(facts.locator('img,a')).toHaveCount(0);
+  await expect(facts).toContainText('Source references are not resolved here.');
+  await expect(page.getByRole('button',{name:'relay',exact:true})).toBeVisible();
+});
+
+test('semantic outage keeps native matches and changed query discards late facts',async({page})=>{
+  await page.getByRole('searchbox',{name:'Search readable notes'}).fill('relay');
+  await expect(page.getByRole('button',{name:'relay',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Search related facts',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Related facts'})).toContainText('Readable note search remains available.');
+  await page.evaluate(()=>{const w=window as any;w.deferSemantic=true;w.semanticValue={hits:[{fact:'STALE_SEMANTIC_FACT',citations:[]}]};});
+  await page.getByRole('button',{name:'Search related facts',exact:true}).click();
+  await page.waitForFunction(()=>!!(window as any).waits.semantic);
+  await page.getByRole('searchbox',{name:'Search readable notes'}).fill('new query');
+  await page.evaluate(()=>(window as any).waits.semantic());
+  await expect(page.getByText('STALE_SEMANTIC_FACT')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'new query',exact:true})).toBeVisible();
 });
