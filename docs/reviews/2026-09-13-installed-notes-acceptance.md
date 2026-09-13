@@ -75,3 +75,29 @@ Private receipts: `native-cold-before-20260913.json`,
 `native-cold-after-20260913.json` (unchanged-process attempt),
 `native-verified-cold-after-20260913.json`, and
 `hermes-after-verified-process-restart-20260913.log`.
+
+## Latest inspector and renderer candidate
+
+Clean source `6ae4926ea676b914c28d4cdd08c4ae65ca27cf55` subsequently passed 445
+tests and all verification checks, then was installed with settings unchanged
+and its predecessor backed up. All 11 package files were verified. Its `main.js`
+SHA-256 is `2f5a297b83028946977e2a8fa4cbb3f2c7ce2affd38d3aec54dce99d7f838779`.
+
+At 10:20 UTC, eight warm selections of the existing synthetic fixture completed
+in a vault reporting 2276 readable notes. Maximum synchronous loading feedback
+was 0.9 ms and maximum completed preview was 8.7 ms, below the plan's 100 ms and
+300 ms warm targets. The machine was an Intel i7-11800H, 16 logical CPUs, 32 GiB
+RAM, Windows, Electron 39.8.3 and Node 22.22.1. Navigation tags and all three link
+groups appeared. These are eight repetitions of one fixture under normal desktop
+activity, not cold, corpus-wide, tail-latency, or universal hardware claims.
+
+The installed renderer handler was also exercised with synchronous lookup spies:
+unsafe legacy/current messages were refused before lookup; a missing safe target
+caused one lookup and zero link-resolution calls. The original methods were
+restored in `finally`. This establishes native handler behavior without creating
+or opening a synthetic missing file; it is not a cross-window transport test.
+
+Receipts: `native-latest-install-20260913.json`,
+`native-latest-verify-20260913.log`, `native-notes-latency-20260913.json`, and
+`native-renderer-handler-20260913.json`. The earlier cold-process receipt belongs
+to `c5b7b7f`; it is not relabeled as a cold-start test of this later artifact.
