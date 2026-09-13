@@ -41,3 +41,26 @@ test("mailbox audit selects recipient and exposes forks, inverted roles and bad 
   assert.ok(malformed.includes("ack-schema"));
   assert.throws(() => auditMailbox(root, "../carol"), /Invalid recipient/);
 });
+
+
+test("conflicting message IDs and forked parents remain explicit at ACK resolution", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-conflict-"));
+  const put = (dir, name, data) => {
+    mkdirSync(join(root, dir), { recursive: true });
+    const raw = JSON.stringify(data); writeFileSync(join(root, dir, name), raw);
+    return createHash("sha256").update(raw).digest("hex");
+  };
+  const first = {sender:"alice",recipients:["bob"],sender_seq:1,message_id:"same",prev_message_sha256:null,kind:"RESULT"};
+  const hash = put("messages/alice", "alice-000001-same.json", first);
+  put("messages/alice", "alice-000001-other.json", {...first,message_id:"other"});
+  put("messages/alice", "alice-000002-next.json", {...first,sender_seq:2,message_id:"next",prev_message_sha256:hash});
+  put("messages/carol", "carol-000001-same.json", {...first,sender:"carol"});
+  put("acks/bob", "bob-000001-ack-same.json", {recipient:"bob",sender:"alice",message_id:"same",message_sha256:hash,status:"RECEIVED"});
+  put("acks/bob", "bob-000001-ack-next.json", {recipient:"bob",sender:"alice",message_id:"next",message_sha256:"bad",status:"RECEIVED"});
+  const result = auditMailbox(root,"bob");
+  assert.ok(result.findings.some(x=>x.code==="ack-target-ambiguous" && x.file.endsWith("ack-same.json")));
+  assert.equal(result.findings.some(x=>["ack-target-missing","ack-hash-mismatch","ack-role-mismatch"].includes(x.code) && x.file.endsWith("ack-same.json")), false);
+  assert.ok(result.findings.some(x=>x.code==="parent-chain-ambiguous" && x.file.endsWith("next.json")));
+  assert.ok(result.findings.some(x=>x.code==="ack-ordinal-reused"));
+  assert.ok(result.acknowledgements.every(x=>x.completionVerified===false));
+});

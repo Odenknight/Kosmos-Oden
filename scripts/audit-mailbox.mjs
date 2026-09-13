@@ -20,7 +20,7 @@ export function auditMailbox(root, recipient) {
       catch { report(file, "invalid-json"); return []; }
     });
   };
-  const ids = new Map();
+  const ids = new Map(), conflictingIds = new Set();
   for (const dir of readdirSync(resolve(root, "messages"), { withFileTypes: true }).filter(e => e.isDirectory())) {
     const chain = [];
     for (const entry of read(`messages/${dir.name}`)) {
@@ -28,7 +28,7 @@ export function auditMailbox(root, recipient) {
       if (!m || typeof m !== "object" || Array.isArray(m) || m.sender !== dir.name || !Number.isSafeInteger(m.sender_seq) || m.sender_seq < 1 || typeof m.message_id !== "string" || !Array.isArray(m.recipients) || m.recipients.some(r => typeof r !== "string")) { report(entry.file, "message-schema"); continue; }
       const prior = ids.get(m.message_id);
       if (prior?.sha256 === entry.sha256) { duplicates.push(entry.file); continue; }
-      if (prior) report(entry.file, "message-id-conflict");
+      if (prior) { conflictingIds.add(m.message_id); report(entry.file, "message-id-conflict"); }
       else ids.set(m.message_id, entry);
       if (basename(entry.file) !== `${m.sender}-${String(m.sender_seq).padStart(6,"0")}-${m.message_id}.json`) report(entry.file, "message-filename");
       chain.push(entry); messages.push(entry);
@@ -37,6 +37,7 @@ export function auditMailbox(root, recipient) {
       const m = entry.data;
       if (chain.filter(e => e.data.sender_seq === m.sender_seq).length > 1) report(entry.file, "sequence-fork");
       const parents = chain.filter(e => e.data.sender_seq === m.sender_seq - 1);
+      if (parents.length > 1) report(entry.file, "parent-chain-ambiguous");
       if (m.sender_seq === 1 ? m.prev_message_sha256 !== null : !parents.some(e => e.sha256 === m.prev_message_sha256)) report(entry.file, "parent-hash-mismatch");
     }
   }
@@ -44,13 +45,15 @@ export function auditMailbox(root, recipient) {
   for (const entry of read(`acks/${recipient}`)) {
     const a = entry.data;
     if (!a || typeof a !== "object" || Array.isArray(a) || typeof a.message_id !== "string") { report(entry.file, "ack-schema"); continue; }
-    const target = ids.get(a.message_id);
+    const ambiguous = conflictingIds.has(a.message_id);
+    const target = ambiguous ? null : ids.get(a.message_id);
     const ordinal = basename(entry.file).match(/-(\d{6})-ack-/)?.[1];
     if (!ordinal || basename(entry.file) !== `${recipient}-${ordinal}-ack-${a.message_id}.json`) report(entry.file, "ack-filename");
     if (ordinal && ordinals.has(ordinal)) report(entry.file, "ack-ordinal-reused");
     ordinals.add(ordinal);
     if (a.recipient !== recipient || (target && (a.sender !== target.data.sender || !target.data.recipients.includes(recipient)))) report(entry.file, "ack-role-mismatch");
-    if (!target) report(entry.file, "ack-target-missing");
+    if (ambiguous) report(entry.file, "ack-target-ambiguous");
+    else if (!target) report(entry.file, "ack-target-missing");
     else if (a.message_sha256 !== target.sha256) report(entry.file, "ack-hash-mismatch");
     if (!["RECEIVED", "ACCEPTED", "REJECTED", "COMPLETED"].includes(a.status)) report(entry.file, "ack-status");
     if (a.status === "COMPLETED" && (!Array.isArray(a.outputs) || !a.outputs.length)) report(entry.file, "completion-evidence-missing");
