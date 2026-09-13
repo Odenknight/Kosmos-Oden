@@ -41,3 +41,17 @@ Availability remains false until a candidate verifies; launch still verifies aga
 Tests cover one-time publication and late-result suppression. Slow or stuck
 filesystem reads are not yet cancellable, and full native responsiveness remains
 unqualified.
+
+## Windows artifact check — 2026-09-13
+
+Engine source `c4940c4efd98e2cab9118b62c25e708737f62bdb` produced the Windows
+x86-64 SEA sidecar using the existing build script. The artifact is 94,172,160
+bytes with SHA-256
+`4ba4d111e8cba8c64db4b9d0400d1cf70b0e06b722c6ef7993030e45d35cd618`.
+Its bounded `--help` invocation exited zero and identified version 2.2.0.
+
+The `verify_sidecar` Cargo example accepted that file with a temporary embedded
+manifest. Restoring `null` and rebuilding caused the same verifier to reject it
+with no valid embedded manifest. The repository retains the disabled default.
+This checks real artifact bytes and the disabled configuration; it does not run
+the service, qualify its protocol, or establish a reproducible/released package.
