@@ -8,6 +8,10 @@
 
 ## Notes workspace implementation candidate - 2026-09-13
 
+- Display Engine documentation assessment and diagnostics in the inspector,
+  with explicit unavailable values and a clarification that scores do not
+  establish truth or approval.
+
 - Add native search continuation beyond the first 100 matches, bound to the
   original corpus, committed graph and policy, with explicit page ranges.
 

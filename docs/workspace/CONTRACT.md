@@ -112,3 +112,18 @@ body are preserved; hidden targets are not resolved into neighbor metadata.
 Each link group and the tag list display at most 100 entries with explicit
 truncation text. Eleven host checks and 24 browser checks pass for this follow-up;
 it is not part of the previously installed `c5b7b7f` native receipt.
+
+## Assessment and diagnostics follow-up
+
+The inspector reads the existing Engine-backed assessment and diagnostics queries
+under the same final corpus, graph and policy publication check as the preview.
+It accepts the documented documentation-and-support-quality interpretation,
+distinguishes a zero score from an unrecorded score, and explains that the score
+does not establish truth or approval. Diagnostics render as inert text, with at
+most 100 entries and explicit truncation. Unavailable projections do not trigger
+assessment or diagnostics queries. Full local verification passes 446 tests and
+all build checks. This increment is not yet installed in the native plugin.
+
+Twelve host checks and 28 browser checks pass across desktop Chromium, mobile
+Chromium, Firefox and WebKit, including unavailable, zero and missing assessments
+and inert diagnostic markup.

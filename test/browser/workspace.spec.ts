@@ -27,6 +27,7 @@ test.beforeEach(async ({ page }) => {
         return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
           related:{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
+          assessment:w.assessment??null,diagnostics:w.diagnostics??null,
           projection: { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
     };
@@ -115,4 +116,20 @@ test("inspector navigation tags and readable links use the checked selection flo
   await page.getByRole('button',{name:'Related Beta',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
+});
+
+test('assessment distinguishes unavailable, zero and unrecorded; diagnostics remain text',async({page})=>{
+  const alpha=page.getByRole('button',{name:'Alpha',exact:true});await alpha.click();
+  await expect(page.getByText('Assessment not available with a recognized interpretation.')).toBeVisible();
+  await expect(page.getByText('Diagnostics unavailable',{exact:true})).toBeVisible();
+  await page.evaluate(()=>{const w=window as any;w.assessment={interpretation:'documentation-and-support-quality-not-truth',scores:{overall:0},policy:{id:'fixture-policy'}};w.diagnostics={diagnostics:[]};});
+  await alpha.click();
+  await expect(page.getByText('Documentation score: 0%',{exact:true})).toBeVisible();
+  await expect(page.getByText('No diagnostics reported',{exact:true})).toBeVisible();
+  await expect(page.getByText('Measures documentation and supporting evidence. It does not establish truth or approval.',{exact:true})).toBeVisible();
+  await page.evaluate(()=>{const w=window as any;w.assessment.scores.overall=null;w.diagnostics={diagnostics:[{severity:'warning',code:'FIXTURE',message:'<img src=x onerror=alert(1)>'}]};});
+  await alpha.click();
+  await expect(page.getByText('Documentation score: Not recorded',{exact:true})).toBeVisible();
+  await expect(page.getByText('warning: FIXTURE — <img src=x onerror=alert(1)>',{exact:true})).toBeVisible();
+  await expect(page.locator('.kosmos-notes-preview img')).toHaveCount(0);
 });

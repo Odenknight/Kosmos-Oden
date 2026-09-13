@@ -70,6 +70,28 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
           details.append(element("pre", text.length <= 64_000 ? text : "This section exceeds the preview budget. Inspect the canonical source."));
           fragment.append(details);
         }
+        const assessment = "assessment" in snapshot.value ? snapshot.value.assessment : null;
+        fragment.append(element("h3", "Documentation assessment"));
+        if (!assessment || assessment.interpretation !== "documentation-and-support-quality-not-truth") {
+          fragment.append(element("p", "Assessment not available with a recognized interpretation."));
+        } else {
+          const score = assessment.scores?.overall;
+          fragment.append(element("p", typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1
+            ? `Documentation score: ${Math.round(score * 10_000) / 100}%` : "Documentation score: Not recorded"));
+          fragment.append(element("p", "Measures documentation and supporting evidence. It does not establish truth or approval."));
+          fragment.append(element("p", `Assessment policy: ${assessment.policy?.id ?? "Not recorded"}`));
+        }
+        const diagnostics = "diagnostics" in snapshot.value ? snapshot.value.diagnostics : null;
+        fragment.append(element("h3", "Diagnostics"));
+        if (!diagnostics) fragment.append(element("p", "Diagnostics unavailable"));
+        else {
+          const items: Array<{ severity: string; code: string; message: string }> = diagnostics.diagnostics;
+          fragment.append(element("p", items.length ? `${items.length} diagnostics reported` : "No diagnostics reported"));
+          const list = element("ul");
+          for (const item of items.slice(0, 100)) list.append(element("li", `${item.severity}: ${item.code} — ${item.message}`));
+          fragment.append(list);
+          if (items.length > 100) fragment.append(element("p", "Showing the first 100 diagnostics."));
+        }
       }
       return { snapshot, fragment };
     }, async ({ snapshot, fragment }, current) => snapshot.publish(() => {

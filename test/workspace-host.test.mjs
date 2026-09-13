@@ -124,3 +124,13 @@ test('Notes exposes only readable neighbors and keeps navigation tags out of eff
   // resolved into hidden neighbor metadata or a navigation result.
   assert.ok(note.content.includes('[[Hidden]]'));
 });
+
+test('assessment and diagnostics retain the shared Engine-backed API semantics',async()=>{
+  const f=fixture(),value=(await f.host.read('Public.md')).value;
+  assert.deepEqual(value.assessment,await f.api.qAssessment({path:'Public.md'}));
+  assert.deepEqual(value.diagnostics,await f.api.qGkxDiagnostics({path:'Public.md'}));
+  assert.equal(value.assessment.interpretation,'documentation-and-support-quality-not-truth');
+  f.api.qGkxNote=async()=>({error:'projection unavailable'});
+  const missing=(await f.host.read('Public.md')).value;
+  assert.equal(missing.assessment,null);assert.equal(missing.diagnostics,null);
+});
