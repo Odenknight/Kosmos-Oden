@@ -92,3 +92,6 @@ M1 qualification and the outstanding reconciliation checks remain open.
 
 Sender directory aliases now produce an explicit confinement finding instead of disappearing from enumeration. Published JSON aliases also reach the existing confined reader and are rejected. A real Windows directory-junction fixture verifies exclusion plus the finding; all 14 focused tests pass. This does not prove protection against every concurrent directory replacement or close M1.
 
+
+Enumeration also checks the messages directory and every selected ACK-directory component before listing children. Empty junctions at messages, acks, or acks/recipient now produce findings; missing required messages storage still throws. All 15 focused tests pass. Per-envelope before/after checks remain necessary because enumeration is not a directory lease.
+

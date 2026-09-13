@@ -143,10 +143,21 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
   if (!/^[a-z0-9][a-z0-9-]*$/.test(recipient)) throw new Error("Invalid recipient identity");
   const findings = [], schemaFindings = [], messages = [], acknowledgements = [], duplicates = [];
   const report = (file, code) => findings.push({ file, code });
+  const list = (directory, optional = true) => {
+    try {
+      let current = realpathSync(root);
+      for (const part of directory.split("/")) {
+        current = resolve(current, part);
+        if (lstatSync(current).isSymbolicLink()) {
+          report(directory, "envelope-reference-path-invalid");
+          return [];
+        }
+      }
+      return readdirSync(current, { withFileTypes: true });
+    } catch (error) { if (optional && error.code === "ENOENT") return []; throw error; }
+  };
   const read = (directory) => {
-    let entries;
-    try { entries = readdirSync(resolve(root, directory), { withFileTypes: true }); }
-    catch (e) { if (e.code === "ENOENT") return []; throw e; }
+    const entries = list(directory);
     return entries.filter(e => (e.isFile() || e.isSymbolicLink()) && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
       const file = `${directory}/${e.name}`;
       let raw;
@@ -162,7 +173,7 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     });
   };
   const ids = new Map(), conflictingIds = new Set();
-  for (const dir of readdirSync(resolve(root, "messages"), { withFileTypes: true })) {
+  for (const dir of list("messages", false)) {
     if (dir.isSymbolicLink()) { report(`messages/${dir.name}`, "envelope-reference-path-invalid"); continue; }
     if (!dir.isDirectory()) continue;
     const chain = [];

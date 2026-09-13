@@ -7,6 +7,22 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
 
+test("empty mailbox directory aliases produce confinement findings without reading children", () => {
+  for (const directory of ["messages", "acks", "acks/bob"]) {
+    const root = mkdtempSync(join(tmpdir(), "mailbox-empty-alias-"));
+    try {
+      mkdirSync(join(root, "external"));
+      if (directory !== "messages") mkdirSync(join(root, "messages"));
+      if (directory === "acks/bob") mkdirSync(join(root, "acks"));
+      symlinkSync(join(root, "external"), join(root, directory), process.platform === "win32" ? "junction" : "dir");
+      const result = auditMailbox(root, "bob");
+      assert.deepEqual(result.findings, [{file:directory === "messages" ? "messages" : "acks/bob", code:"envelope-reference-path-invalid"}]);
+      assert.equal(result.messageCount, 0);
+      assert.deepEqual(result.acknowledgements, []);
+    } finally { rmSync(root, {recursive:true, force:true}); }
+  }
+});
+
 test("sender directory aliases produce a confinement finding instead of disappearing", () => {
   const root = mkdtempSync(join(tmpdir(), "mailbox-directory-alias-"));
   try {
