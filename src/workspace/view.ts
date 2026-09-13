@@ -6,6 +6,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   actions: { openSource(path: string): void; openKosmos(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
+  let selectedPath: string | undefined;
   root.replaceChildren(); root.classList.add("kosmos-notes-workspace");
   const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
     const node = doc.createElement(tag); if (text !== undefined) node.textContent = text; return node;
@@ -28,6 +29,8 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   layout.append(results, preview); root.append(toolbar, status, layout);
 
   async function show(path: string, page: { offset?: number; revision?: string } = {}) {
+    if (closed) return;
+    selectedPath = path;
     notes.invalidate(); delete preview.dataset.path; preview.replaceChildren(element("p", "Loading note…"));
     const pending = notes.select(async () => {
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
@@ -96,6 +99,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       return { snapshot, fragment };
     }, async ({ snapshot, fragment }, current) => snapshot.publish(() => {
       preview.replaceChildren(fragment); preview.dataset.path = path;
+      if (snapshot.value.note.error) selectedPath = undefined;
     }, current), ({ fragment }) => fragment.replaceChildren());
     const version = notes.version;
     try {
@@ -105,9 +109,12 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }
   }
 
-  async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>) {
+  async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>, restoreSelection = false) {
     if (closed) return;
+    const restorePath = restoreSelection ? selectedPath : undefined;
+    if (!restoreSelection) selectedPath = undefined;
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
+    const noteVersion = notes.version;
     status.textContent = "Searching…";
     const pending = searches.select(() => next ? next() : host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
       async (snapshot, current) => snapshot.publish(value => {
@@ -122,22 +129,33 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       }, current), () => {});
     const version = searches.version;
     try {
-      if (!await pending && !closed && version === searches.version) status.textContent = "Scope changed. Search again.";
+      const published = await pending;
+      if (!published && !closed && version === searches.version) status.textContent = "Scope changed. Search again.";
+      if (published && restorePath && !closed && version === searches.version && notes.version === noteVersion) await show(restorePath);
     } catch {
       if (!closed && version === searches.version) status.textContent = "Search unavailable. Retry after the current read finishes.";
     }
   }
-  function schedule() {
+  function schedule(restoreSelection = false) {
+    if (!restoreSelection) selectedPath = undefined;
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => { timer = undefined; void refresh(); }, 180);
+    timer = setTimeout(() => { timer = undefined; void refresh(undefined, restoreSelection); }, 180);
   }
-  query.addEventListener("input", schedule); tag.addEventListener("input", schedule); body.addEventListener("change", schedule);
-  toolbar.append(button("Refresh", () => void refresh()));
+  query.addEventListener("input", () => schedule()); tag.addEventListener("input", () => schedule()); body.addEventListener("change", () => schedule());
+  toolbar.append(button("Refresh", () => void refresh(undefined, true)));
   void refresh();
   return {
-    refresh: () => { if (!closed) schedule(); },
+    refresh: () => { if (!closed) schedule(true); },
+    rename: (oldPath: string, newPath: string) => {
+      if (selectedPath === oldPath || selectedPath?.startsWith(oldPath + "/")) selectedPath = newPath + selectedPath.slice(oldPath.length);
+      if (!closed) schedule(true);
+    },
+    remove: (path: string) => {
+      if (selectedPath === path || selectedPath?.startsWith(path + "/")) selectedPath = undefined;
+      if (!closed) schedule(true);
+    },
     close: () => { closed = true; if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
   };
 }

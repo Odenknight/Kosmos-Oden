@@ -22,6 +22,7 @@ test.beforeEach(async ({ page }) => {
       },
       read: async (path: string, options: any) => {
         w.calls.push({ path, options });
+        if (w.unreadable === path) return snapshot({ note: { error: "unavailable" }, projection: null });
         if (w.slowRead && path === "Alpha.md") await new Promise(resolve => { w.waits.read = resolve; });
         const content = options.offset ? "Second page" : '# Safe heading\n\n**Readable** ![alt](https://invalid.test/a.png) <img src="https://invalid.test/b.png"> [click](javascript:alert(1)) ![[Secret]]';
         return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
@@ -34,6 +35,23 @@ test.beforeEach(async ({ page }) => {
     w.workspace = w.KosmosNotesWorkspace.mountNotesWorkspace(document.querySelector("#notes"), host,
       { openSource: (path: string) => w.opened.push(path), openKosmos: () => w.kosmos++ });
   });
+});
+
+test("refresh and folder rename retain selection; deletion and unreadability clear it", async ({ page }) => {
+  await page.getByRole("button", { name: "Alpha", exact: true }).click();
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Alpha.md", exact: true })).toBeVisible();
+  await page.evaluate(() => (window as any).workspace.rename("Alpha.md", "Folder/Alpha.md"));
+  await expect(page.getByRole("heading", { name: "Folder/Alpha.md", exact: true })).toBeVisible();
+  await page.evaluate(() => (window as any).workspace.rename("Folder", "Renamed"));
+  await expect(page.getByRole("heading", { name: "Renamed/Alpha.md", exact: true })).toBeVisible();
+  await page.evaluate(() => (window as any).workspace.remove("Renamed"));
+  await expect(page.locator(".kosmos-notes-preview")).toBeEmpty();
+  await page.getByRole("button", { name: "Alpha", exact: true }).click();
+  await page.evaluate(() => { const w = window as any; w.unreadable = "Alpha.md"; w.workspace.refresh(); });
+  await expect(page.getByText("Note unavailable in the current scope.", { exact: true })).toBeVisible();
+  await page.evaluate(() => (window as any).workspace.refresh());
+  await expect(page.locator(".kosmos-notes-preview")).toBeEmpty();
 });
 
 test("read, safe preview, provenance, continuation and canonical source actions", async ({ page }) => {

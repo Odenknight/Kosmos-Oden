@@ -127,3 +127,14 @@ all build checks. This increment is not yet installed in the native plugin.
 Twelve host checks and 28 browser checks pass across desktop Chromium, mobile
 Chromium, Firefox and WebKit, including unavailable, zero and missing assessments
 and inert diagnostic markup.
+
+## Selection continuity
+
+Refreshing the native Notes view re-reads its selected path under the current
+publication checks. File and folder renames update that path; deletion clears it
+immediately. Unreadable notes discard the retained selection after displaying the
+unavailable state. Search/filter changes deliberately start a new selection.
+This is continuity within an open Notes pane; persisted selection across closing
+the pane and synchronization with the spatial view remain separate work.
+Full verification passes 446 tests and all build checks. The browser suite passes
+32 checks across all four targets, including rename, deletion and unreadability.

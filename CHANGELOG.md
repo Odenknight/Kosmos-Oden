@@ -8,6 +8,9 @@
 
 ## Notes workspace implementation candidate - 2026-09-13
 
+- Retain the selected note through refresh and file/folder renames, with a new
+  authorized read. Clear deleted or unreadable selections.
+
 - Display Engine documentation assessment and diagnostics in the inspector,
   with explicit unavailable values and a clarification that scores do not
   establish truth or approval.

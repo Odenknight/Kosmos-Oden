@@ -21,8 +21,8 @@ export class KosmosNotesView extends ItemView {
     });
     this.registerEvent(this.app.vault.on("modify", () => this.refresh()));
     this.registerEvent(this.app.vault.on("create", () => this.refresh()));
-    this.registerEvent(this.app.vault.on("delete", () => this.refresh()));
-    this.registerEvent(this.app.vault.on("rename", () => this.refresh()));
+    this.registerEvent(this.app.vault.on("delete", file => this.workspace?.remove(file.path)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.workspace?.rename(oldPath, file.path)));
   }
   refresh(): void { this.workspace?.refresh(); }
   async onClose(): Promise<void> { this.workspace?.close(); this.workspace = undefined; }
