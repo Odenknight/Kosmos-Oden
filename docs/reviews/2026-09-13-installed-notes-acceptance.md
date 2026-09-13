@@ -101,3 +101,19 @@ Receipts: `native-latest-install-20260913.json`,
 `native-latest-verify-20260913.log`, `native-notes-latency-20260913.json`, and
 `native-renderer-handler-20260913.json`. The earlier cold-process receipt belongs
 to `c5b7b7f`; it is not relabeled as a cold-start test of this later artifact.
+# Native saved-layout and inspector follow-up
+
+At 2026-09-13T10:39:32Z, clean source
+`efcbcb4d73ebec53d71fe93e943addaaaeb70188` was installed and reloaded after
+446 tests and all build checks passed. Installed main.js SHA-256:
+`9309933683282a286f0b2c006c415525a8f622ac4ad3bd6d21fe635bd75c7b75`.
+All 11 artifact copies were verified and settings were unchanged; the prior
+installed package was backed up.
+
+The native probe restored the existing synthetic gkx-labels fixture, captured
+search/filter/selection state, switched the leaf to empty, recreated Notes with
+that state, and observed the same selected path and controls. Documentation
+assessment and diagnostics headings were present. The original pane state was
+restored afterward. This qualifies native view recreation with supplied layout
+state, not a cold-process restart or disk-layout recovery. The private receipt is
+`_Claude-Code/native-layout-acceptance-20260913.json`.
