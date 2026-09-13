@@ -31,6 +31,14 @@ boolean. Wiring an actual source/authority check remains required before UI use.
 The callback itself is not a filesystem lock: the host must provide appropriate
 fencing for external writers where atomic source-state guarantees are required.
 
+The Kosmos authority resolver now distinguishes `moc:adopt` from source effects.
+An explicit credential-bound human grant for that operation is required by the
+adoption host contract. A `moc:replace` grant does not authorize adoption, and an
+adoption grant does not authorize replacement. Agent/system adoption requests
+are refused. This is a product authority operation, not a new Engine source-write
+effect or a GKOS conformance claim. The pure resolver neither authenticates an
+operator nor creates grants; the actual provider remains to be configured.
+
 SQLite uses a rollback journal and FULL synchronous commits. Each serialized
 record is limited to 1 MiB, the log to 1,000 commits, and the database has a
 16,384-page ceiling; opens also refuse files exceeding 64 MiB. Journals require

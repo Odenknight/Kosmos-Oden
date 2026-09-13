@@ -53,6 +53,15 @@ function grant(overrides = {}) {
 
 const providerFor = (value) => ({ resolveGrant: () => value });
 
+test("adoption requires its own human grant and does not imply replacement authority", () => {
+  const adoption = request({actor: human, operation: "moc:adopt"});
+  const adoptionGrant = grant({actor: human, operations: ["moc:adopt"]});
+  assert.equal(resolveNavigationEffectsAuthority(adoption, providerFor(adoptionGrant), clock).authorized, true);
+  assert.ok(resolveNavigationEffectsAuthority(adoption, providerFor(grant({actor: human})), clock).reasonCodes.includes("OPERATION_DENIED"));
+  assert.ok(resolveNavigationEffectsAuthority(request({actor: human}), providerFor(adoptionGrant), clock).reasonCodes.includes("OPERATION_DENIED"));
+  assert.ok(resolveNavigationEffectsAuthority(request({operation: "moc:adopt"}), providerFor(grant({operations: ["moc:adopt"]})), clock).reasonCodes.includes("ADOPTION_HUMAN_REQUIRED"));
+});
+
 test("explicit credential-bound grant authorizes only its exact scoped effect", () => {
   const decision = resolveNavigationEffectsAuthority(request(), providerFor(grant()), clock);
   assert.equal(decision.authorized, true);

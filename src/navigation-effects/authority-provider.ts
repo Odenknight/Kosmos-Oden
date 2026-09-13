@@ -8,6 +8,7 @@
 
 export type EffectsActorType = "human" | "agent" | "system";
 export type EffectsOperation =
+  | "moc:adopt"
   | "moc:create"
   | "moc:replace"
   | "moc:rollback"
@@ -65,6 +66,7 @@ export interface EffectsAuthorityClock {
 }
 
 export type EffectsAuthorityReasonCode =
+  | "ADOPTION_HUMAN_REQUIRED"
   | "REQUEST_INVALID"
   | "AUTHORITY_INFERENCE_FIELD_FORBIDDEN"
   | "ACTOR_INVALID"
@@ -103,6 +105,7 @@ export interface EffectsAuthorityDecision {
 }
 
 const OPERATIONS = new Set<EffectsOperation>([
+  "moc:adopt",
   "moc:create",
   "moc:replace",
   "moc:rollback",
@@ -261,6 +264,7 @@ function validateRequest(value: unknown): EffectsAuthorityReasonCode[] {
     if (!record(value.actor) || !validIdentifier(value.actor.credentialId)) reasons.push("CREDENTIAL_REQUIRED");
   }
   if (!validIdentifier(value.vaultId)) reasons.push("VAULT_ID_INVALID");
+  if (value.operation === "moc:adopt" && (!record(value.actor) || value.actor.actorType !== "human")) reasons.push("ADOPTION_HUMAN_REQUIRED");
   if (typeof value.operation !== "string" || !OPERATIONS.has(value.operation as EffectsOperation)) reasons.push("OPERATION_INVALID");
   const target = validatePath(value.targetPath);
   if (!target.valid) reasons.push(target.nfc ? "TARGET_PATH_INVALID" : "TARGET_PATH_NOT_NFC");
