@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
 
 test.beforeEach(async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.setContent('<main id="notes"></main>');
   await page.addStyleTag({ path: resolve("styles.css") });
   await page.addScriptTag({ path: resolve("dist/kosmos-notes-workspace.js") });
@@ -59,7 +60,7 @@ test("read, safe preview, provenance, continuation and canonical source actions"
   await page.getByRole("button", { name: "Alpha", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Safe heading" })).toBeVisible();
   await expect(page.locator(".kosmos-notes-preview img, .kosmos-notes-preview a, .kosmos-notes-preview script")).toHaveCount(0);
-  await expect(page.locator(".kosmos-notes-preview details")).toHaveCount(5);
+  await expect(page.locator(".kosmos-notes-inspector details")).toHaveCount(5);
   expect(requests).toEqual([]);
   await page.getByText("Authored", { exact: true }).click();
   await expect(page.getByText('[\n  "authored only"\n]', { exact: true })).toBeVisible();
@@ -136,7 +137,7 @@ test("inspector navigation tags and readable links use the checked selection flo
   expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
   await page.evaluate(()=>(window as any).related={outgoing:Array.from({length:40},(_,i)=>({title:`Neighbor ${i}`,path:`Neighbor${i}.md`})),backlinks:[],semantic:[]});
   await page.getByRole('button',{name:'Alpha',exact:true}).click();
-  await expect(page.locator('.kosmos-notes-preview svg circle')).toHaveCount(33);
+  await expect(page.locator('.kosmos-notes-inspector svg circle')).toHaveCount(33);
   await expect(page.getByText(/Map limited to 32 neighbors/)).toBeVisible();
 });
 
@@ -175,6 +176,8 @@ test('saved layout restores controls and rechecks selection without retaining pr
 test('manual refresh consumes pending debounce without later clearing a new selection', async ({ page }) => {
   await page.getByRole('button', { name: 'Alpha', exact: true }).waitFor();
   await page.clock.install();
+  // Keep the pending debounce pending while browser actions run.
+  await page.clock.pauseAt(new Date());
   await page.getByRole('searchbox').fill('manual');
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();
   await page.getByRole('button', { name: 'manual', exact: true }).click();
@@ -204,4 +207,46 @@ test('local map renders readable neighbors and supports keyboard inspection',asy
   await neighbor.focus();await page.keyboard.press('Enter');
   await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
+});
+
+test('narrow desktop pane switches navigation, note and inspector with keyboard return', async ({ page }, testInfo) => {
+  await page.locator('#notes').evaluate(node => { (node as HTMLElement).style.width = '340px'; });
+  const browse = page.getByRole('button', { name: 'Browse notes', exact: true });
+  const inspect = page.getByRole('button', { name: 'Inspector', exact: true });
+  await expect(browse).toBeVisible();
+  await browse.click();
+  await expect(page.getByRole('searchbox')).toBeFocused();
+  await expect(page.getByRole('region', { name: 'Selected note', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Selected note', exact: true })).toBeFocused();
+  await expect(page.getByRole('searchbox')).toBeHidden();
+  await inspect.click();
+  await expect(page.getByRole('heading', { name: 'Local map', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeHidden();
+  await page.keyboard.press('Escape');
+  await expect(inspect).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
+  await inspect.click();
+  await page.getByRole('button', { name: 'Related Beta', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Beta.md', exact: true })).toBeVisible();
+  await expect(inspect).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.kosmos-notes-inspector')).toBeHidden();
+  expect(await page.locator('#notes').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.locator('#notes').screenshot({ path: testInfo.outputPath('narrow-note.png') });
+});
+
+test('inspector collapses on desktop and loses stale content immediately on refresh', async ({ page }, testInfo) => {
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  const inspect = page.getByRole('button', { name: 'Inspector', exact: true });
+  await inspect.click();
+  await expect(page.locator('.kosmos-notes-inspector')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Safe heading' })).toBeVisible();
+  await inspect.click();
+  await expect(page.getByRole('heading', { name: 'Local map', exact: true })).toBeVisible();
+  await page.locator('#notes').screenshot({ path: testInfo.outputPath('desktop-inspector.png') });
+  expect(await page.evaluate(() => {
+    (window as any).workspace.refresh();
+    return document.querySelector('.kosmos-notes-inspector')?.textContent;
+  })).toBe('');
 });

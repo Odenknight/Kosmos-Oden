@@ -32,7 +32,7 @@ export function localNoteMap(doc: Document, note: any, related: any, select: (pa
   }
   for (const node of shown) {
     const circle = doc.createElementNS("http://www.w3.org/2000/svg", "circle"), point = xy.get(node.id)!;
-    for (const [key, value] of Object.entries({ cx: point[0], cy: point[1], r: node.id === center.id ? 9 : 6, fill: node.color, stroke: node.id === center.id ? "currentColor" : "transparent", "stroke-width": 3 })) circle.setAttribute(key, String(value));
+    for (const [key, value] of Object.entries({ cx: point[0], cy: point[1], r: node.id === center.id ? 9 : 6, fill: node.color, stroke: "currentColor", "stroke-width": node.id === center.id ? 3 : 1 })) circle.setAttribute(key, String(value));
     circle.setAttribute("role", "button"); circle.setAttribute("tabindex", "0"); circle.setAttribute("aria-label", `Inspect ${node.label}`);
     const title = doc.createElementNS(svg.namespaceURI, "title"); title.textContent = node.label; circle.append(title);
     circle.addEventListener("click", () => select(node.path));
@@ -40,6 +40,6 @@ export function localNoteMap(doc: Document, note: any, related: any, select: (pa
     svg.append(circle);
   }
   const legend = doc.createElement("p");
-  legend.textContent = "Ring: selected note. Dashed lines: semantic links. Other lines: note links. Use the readable link lists below for names and direction." + (truncated ? " Map limited to 32 neighbors." : "");
+  legend.textContent = "Thick ring: selected note. Dashed lines: semantic links. Other lines: note links. Use the readable link lists below for names and direction." + (truncated ? " Map limited to 32 neighbors." : "");
   section.append(svg, legend); return section;
 }

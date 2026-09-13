@@ -152,18 +152,21 @@
   }
 }
 
-/* Native Notes workspace: content remains inside the current pane. */
+/* Native Notes workspace responds to its pane, including a narrow desktop split. */
 .kosmos-notes-workspace { overflow: auto; padding: 1rem; }
-.kosmos-notes-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
-.kosmos-notes-toolbar input[type="search"] { flex: 1 1 15rem; }
+.kosmos-notes-workspace [hidden] { display: none !important; }
+.kosmos-notes-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: .75rem; }
 .kosmos-notes-layout { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr); gap: 1rem; }
+.kosmos-notes-workspace[data-inspector="true"] .kosmos-notes-layout { grid-template-columns: minmax(10rem, 1fr) minmax(0, 3fr) minmax(12rem, 2fr); }
+.kosmos-notes-navigation { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.kosmos-notes-navigation input { min-width: 0; width: 100%; }
+.kosmos-notes-navigation input[type="checkbox"] { width: auto; }
 .kosmos-notes-results { display: flex; flex-direction: column; gap: .35rem; }
 .kosmos-notes-results button { height: auto; text-align: left; white-space: normal; overflow-wrap: anywhere; }
-.kosmos-notes-preview { min-width: 0; overflow-wrap: anywhere; }
-.kosmos-notes-preview pre { overflow: auto; white-space: pre-wrap; }
-.kosmos-notes-preview details { margin-block: .6rem; }
+.kosmos-notes-preview, .kosmos-notes-inspector { min-width: 0; overflow-wrap: anywhere; }
+.kosmos-notes-inspector { border-inline-start: 1px solid var(--background-modifier-border, #59616d); padding-inline-start: .75rem; }
+.kosmos-notes-inspector pre, .kosmos-notes-preview pre { overflow: auto; white-space: pre-wrap; }
+.kosmos-notes-inspector details { margin-block: .6rem; }
 .kosmos-notes-link { text-decoration: underline dotted; }
-@media (max-width: 600px) {
-  .kosmos-notes-layout { grid-template-columns: minmax(0, 1fr); }
-  .kosmos-notes-results { max-height: 12rem; overflow: auto; }
-}
+.kosmos-notes-workspace[data-narrow="true"] .kosmos-notes-layout { grid-template-columns: minmax(0, 1fr); }
+.kosmos-notes-workspace[data-narrow="true"] .kosmos-notes-inspector { border: 0; padding: 0; }

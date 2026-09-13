@@ -156,3 +156,23 @@ and spatial synchronization are not qualified by these browser checks.
 true. The Open Kosmos-Oden workspace command opens Notes when enabled and the
 existing Kosmos view otherwise. Direct commands and saved view IDs remain
 unchanged. This opt-in does not change the global default or qualify rollout.
+
+
+## Pane layout
+
+Notes now separates navigation, canonical-note preview and the read-only
+inspector. The inspector contains the local map, readable links, origin records,
+assessment and diagnostics and can be collapsed on desktop. At a pane width of
+600 CSS pixels or less, Browse notes and Inspector switch between drawers and
+the primary note. This follows the actual pane width, including desktop splits.
+Selecting a readable result or neighbor returns to the note; Escape closes an
+open drawer and restores focus to its button. No global shortcut is captured.
+
+Selection changes and refresh invalidate both preview and inspector together;
+the existing snapshot publication guard still controls their replacement. The
+resize observer and keyboard handler are removed when the workspace closes.
+Browser qualification covers drawer switching, focus, scope checks, stale
+content and continuation in Chromium, Firefox, WebKit and the mobile Chromium
+configuration. General behavior fixtures use a 1280px viewport; the dedicated
+narrow-pane case constrains the pane to 340px. Native installation qualification
+for this layout remains pending.

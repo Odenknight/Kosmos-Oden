@@ -22,20 +22,62 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   const tag = element("input"); tag.placeholder = "Navigation tag (optional)"; tag.setAttribute("aria-label", "Navigation tag");
   const bodyLabel = element("label"), body = element("input"); body.type = "checkbox";
   bodyLabel.append(body, doc.createTextNode(" Search note bodies"));
-  toolbar.append(query, tag, bodyLabel);
+
   const status = element("p"); status.setAttribute("role", "status");
   const layout = element("div"); layout.className = "kosmos-notes-layout";
   const results = element("div"); results.className = "kosmos-notes-results"; results.setAttribute("aria-label", "Readable notes");
   const preview = element("section"); preview.className = "kosmos-notes-preview"; preview.setAttribute("aria-label", "Selected note");
-  layout.append(results, preview); root.append(toolbar, status, layout);
+  preview.tabIndex = -1;
+  const navigation = element("section"); navigation.className = "kosmos-notes-navigation";
+  navigation.setAttribute("aria-label", "Note navigation"); navigation.append(query, tag, bodyLabel, results);
+  const inspector = element("aside"); inspector.className = "kosmos-notes-inspector";
+  inspector.setAttribute("aria-label", "Note inspector"); inspector.tabIndex = -1;
+  let narrow = root.clientWidth <= 600, drawer: "navigation" | "inspector" | undefined;
+  let inspectorOpen = true;
+  const navigationButton = button("Browse notes", () => {
+    drawer = drawer === "navigation" ? undefined : "navigation"; syncPanels();
+    if (drawer) query.focus(); else preview.focus();
+  });
+  const inspectorButton = button("Inspector", () => {
+    if (narrow) drawer = drawer === "inspector" ? undefined : "inspector";
+    else inspectorOpen = !inspectorOpen;
+    syncPanels(); if (!inspector.hidden) inspector.focus(); else preview.focus();
+  });
+  toolbar.append(navigationButton, inspectorButton);
+  function syncPanels() {
+    root.dataset.narrow = String(narrow);
+    navigationButton.hidden = !narrow;
+    navigation.hidden = narrow && drawer !== "navigation";
+    preview.hidden = narrow && !!drawer;
+    inspector.hidden = narrow ? drawer !== "inspector" : !inspectorOpen;
+    root.dataset.inspector = String(!inspector.hidden);
+    navigationButton.setAttribute("aria-expanded", String(!navigation.hidden));
+    inspectorButton.setAttribute("aria-expanded", String(!inspector.hidden));
+  }
+  const escapeDrawer = (event: KeyboardEvent) => {
+    if (event.key !== "Escape" || !narrow || !drawer) return;
+    const trigger = drawer === "navigation" ? navigationButton : inspectorButton;
+    drawer = undefined; syncPanels(); trigger.focus(); event.preventDefault(); event.stopPropagation();
+  };
+  root.addEventListener("keydown", escapeDrawer);
+  const resize = new ResizeObserver(() => {
+    const next = root.clientWidth <= 600;
+    if (next === narrow) return;
+    narrow = next; drawer = undefined; syncPanels();
+    if (doc.activeElement instanceof HTMLElement && doc.activeElement.closest("[hidden]")) navigationButton.hidden ? preview.focus() : navigationButton.focus();
+  });
+  layout.append(navigation, preview, inspector); root.append(toolbar, status, layout);
+  syncPanels(); resize.observe(root);
 
   async function show(path: string, page: { offset?: number; revision?: string } = {}) {
     if (closed) return;
     selectedPath = path;
+    if (narrow) { drawer = undefined; syncPanels(); }
+    inspector.replaceChildren();
     notes.invalidate(); delete preview.dataset.path; preview.replaceChildren(element("p", "Loading note…"));
     const pending = notes.select(async () => {
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
-      const fragment = doc.createDocumentFragment(), { note, projection } = snapshot.value;
+      const fragment = doc.createDocumentFragment(), inspection = doc.createDocumentFragment(), { note, projection } = snapshot.value;
       const related = "related" in snapshot.value ? snapshot.value.related : null;
       if (note.error) {
         fragment.append(element("p", note.code === "NOTE_REVISION_CHANGED" ? "Note changed. Reopen it from the results." : "Note unavailable in the current scope."));
@@ -62,7 +104,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         fragment.append(element("p", `Characters ${continuation.offset}–${continuation.offset + note.content.length} of ${continuation.total_characters}${continuation.complete ? " · End of note" : " · More available"}`));
         if (continuation.next_offset !== null) fragment.append(button("Read next part", () => void show(path, { offset: continuation.next_offset, revision: continuation.revision })));
         if (continuation.offset > 0) fragment.append(button("Back to start", () => void show(path)));
-        if (related) fragment.append(localNoteMap(doc, note, related, path => void show(path)));
+        if (related) inspection.append(localNoteMap(doc, note, related, path => void show(path)));
         if (related) for (const [key, label] of [["outgoing", "Outgoing links"], ["backlinks", "Backlinks"], ["semantic", "Semantic links"]] as const) {
           const links: Array<{ title: string; path: string }> = related[key];
           const section = element("section"); section.append(element("h3", label));
@@ -71,44 +113,45 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
             const item = button(link.title, () => void show(link.path)); item.title = link.path; section.append(item);
           }
           if (links.length > 100) section.append(element("p", `Showing 100 of ${links.length} readable links. Narrow the search to inspect further notes.`));
-          fragment.append(section);
+          inspection.append(section);
         }
-        if (!projection) fragment.append(element("p", "No GKX provenance projection is available."));
+        if (!projection) inspection.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {
           const details = element("details"); details.append(element("summary", origin[0].toUpperCase() + origin.slice(1)));
           const text = JSON.stringify(projection[origin], null, 2) ?? "Unavailable";
           details.append(element("pre", text.length <= 64_000 ? text : "This section exceeds the preview budget. Inspect the canonical source."));
-          fragment.append(details);
+          inspection.append(details);
         }
         const assessment = "assessment" in snapshot.value ? snapshot.value.assessment : null;
-        fragment.append(element("h3", "Documentation assessment"));
+        inspection.append(element("h3", "Documentation assessment"));
         if (!assessment || assessment.interpretation !== "documentation-and-support-quality-not-truth") {
-          fragment.append(element("p", "Assessment not available with a recognized interpretation."));
+          inspection.append(element("p", "Assessment not available with a recognized interpretation."));
         } else {
           const score = assessment.scores?.overall;
-          fragment.append(element("p", typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1
+          inspection.append(element("p", typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1
             ? `Documentation score: ${Math.round(score * 10_000) / 100}%` : "Documentation score: Not recorded"));
-          fragment.append(element("p", "Measures documentation and supporting evidence. It does not establish truth or approval."));
-          fragment.append(element("p", `Assessment policy: ${assessment.policy?.id ?? "Not recorded"}`));
+          inspection.append(element("p", "Measures documentation and supporting evidence. It does not establish truth or approval."));
+          inspection.append(element("p", `Assessment policy: ${assessment.policy?.id ?? "Not recorded"}`));
         }
         const diagnostics = "diagnostics" in snapshot.value ? snapshot.value.diagnostics : null;
-        fragment.append(element("h3", "Diagnostics"));
-        if (!diagnostics) fragment.append(element("p", "Diagnostics unavailable"));
+        inspection.append(element("h3", "Diagnostics"));
+        if (!diagnostics) inspection.append(element("p", "Diagnostics unavailable"));
         else {
           const items: Array<{ severity: string; code: string; message: string }> = diagnostics.diagnostics;
-          fragment.append(element("p", items.length ? `${items.length} diagnostics reported` : "No diagnostics reported"));
+          inspection.append(element("p", items.length ? `${items.length} diagnostics reported` : "No diagnostics reported"));
           const list = element("ul");
           for (const item of items.slice(0, 100)) list.append(element("li", `${item.severity}: ${item.code} — ${item.message}`));
-          fragment.append(list);
-          if (items.length > 100) fragment.append(element("p", "Showing the first 100 diagnostics."));
+          inspection.append(list);
+          if (items.length > 100) inspection.append(element("p", "Showing the first 100 diagnostics."));
         }
       }
-      return { snapshot, fragment };
-    }, async ({ snapshot, fragment }, current) => snapshot.publish(() => {
-      preview.replaceChildren(fragment); preview.dataset.path = path;
+      return { snapshot, fragment, inspection };
+    }, async ({ snapshot, fragment, inspection }, current) => snapshot.publish(() => {
+      preview.replaceChildren(fragment); preview.dataset.path = path; inspector.replaceChildren(inspection);
+      if (narrow && !drawer) preview.focus();
       if (snapshot.value.note.error) selectedPath = undefined;
       actions.stateChanged?.();
-    }, current), ({ fragment }) => fragment.replaceChildren());
+    }, current), ({ fragment, inspection }) => { fragment.replaceChildren(); inspection.replaceChildren(); });
     const version = notes.version;
     try {
       if (!await pending && !closed && version === notes.version) preview.replaceChildren(element("p", "Note or scope changed. Select it again."));
@@ -123,7 +166,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const restorePath = restoreSelection ? selectedPath : undefined;
     if (!restoreSelection) selectedPath = undefined;
     actions.stateChanged?.();
-    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     const noteVersion = notes.version;
     status.textContent = "Searching…";
     const pending = searches.select(() => next ? next() : host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
@@ -148,7 +191,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   }
   function schedule(restoreSelection = false) {
     if (!restoreSelection) selectedPath = undefined;
-    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = undefined; void refresh(undefined, restoreSelection); }, 180);
@@ -176,6 +219,6 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       if (selectedPath === path || selectedPath?.startsWith(path + "/")) selectedPath = undefined;
       if (!closed) schedule(true);
     },
-    close: () => { closed = true; if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
+    close: () => { closed = true; resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },
   };
 }
