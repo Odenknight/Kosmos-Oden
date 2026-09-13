@@ -64,3 +64,17 @@ test("conflicting message IDs and forked parents remain explicit at ACK resoluti
   assert.ok(result.findings.some(x=>x.code==="ack-ordinal-reused"));
   assert.ok(result.acknowledgements.every(x=>x.completionVerified===false));
 });
+
+
+test("unpublished temporary files are ignored while malformed delivered files remain findings", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-interrupted-"));
+  for (const dir of ["messages/alice", "acks/bob"]) {
+    mkdirSync(join(root,dir),{recursive:true});
+    writeFileSync(join(root,dir,".tmp-interrupted.json"), "{partial");
+  }
+  assert.deepEqual(auditMailbox(root,"bob").findings, []);
+  writeFileSync(join(root,"messages/alice","published.json"), "{partial");
+  const result = auditMailbox(root,"bob");
+  assert.deepEqual(result.findings, [{file:"messages/alice/published.json",code:"invalid-json"}]);
+  assert.equal(readFileSync(join(root,"messages/alice/.tmp-interrupted.json"),"utf8"),"{partial");
+});

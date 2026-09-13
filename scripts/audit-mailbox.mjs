@@ -12,7 +12,7 @@ export function auditMailbox(root, recipient) {
     let entries;
     try { entries = readdirSync(resolve(root, directory), { withFileTypes: true }); }
     catch (e) { if (e.code === "ENOENT") return []; throw e; }
-    return entries.filter(e => e.isFile() && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
+    return entries.filter(e => e.isFile() && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
       const file = `${directory}/${e.name}`;
       const raw = readFileSync(resolve(root, file));
       if (raw.length > 65536) { report(file, "oversized"); return []; }
