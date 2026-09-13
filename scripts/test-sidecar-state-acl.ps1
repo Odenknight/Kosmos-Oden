@@ -24,6 +24,11 @@ $held = [IO.FileStream]::new($leaf, [IO.FileMode]::Open,
     [IO.FileShare]::Read, 4096, [IO.FileOptions]::None)
 $moved = Join-Path $fixture 'moved.synthetic'
 try {
+    [SidecarFileIdentity]::Validate($held, $leaf)
+    $mismatchDenied = $false
+    try { [SidecarFileIdentity]::Validate($held, $moved) }
+    catch { if ($_.Exception.Message -match 'path does not match') { $mismatchDenied = $true } else { throw } }
+    if (-not $mismatchDenied) { throw 'Opened identity accepted the wrong path' }
     $renameDenied = $false
     try { [IO.File]::Move($leaf, $moved) } catch [IO.IOException] { $renameDenied = $true }
     if (-not $renameDenied) { throw 'Held ACL target could be renamed' }
@@ -37,6 +42,13 @@ try {
 if ([IO.File]::ReadAllText($leaf) -ne 'synthetic-only-no-credential') { throw 'Held target bytes changed' }
 $hardLink = Join-Path $fixture 'hardlink.synthetic'
 $null = New-Item -ItemType HardLink -Path $hardLink -Target $leaf
+$linkedHandle = [IO.File]::Open($leaf, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+try {
+    $linkedDenied = $false
+    try { [SidecarFileIdentity]::Validate($linkedHandle, $leaf) }
+    catch { if ($_.Exception.Message -match 'single-link regular file') { $linkedDenied = $true } else { throw } }
+    if (-not $linkedDenied) { throw 'Handle identity accepted a multiply linked file' }
+} finally { $linkedHandle.Dispose() }
 $parentBefore = (Get-Acl -LiteralPath $fixture).Sddl
 $parentRefused = $false
 try { & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $fixture }

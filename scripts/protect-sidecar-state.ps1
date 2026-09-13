@@ -39,6 +39,10 @@ if (-not $item.PSIsContainer) {
     $rights = [Security.AccessControl.FileSystemRights]'Read, ChangePermissions, TakeOwnership'
     $leafHandle = [IO.FileStream]::new($item.FullName, [IO.FileMode]::Open, $rights,
         [IO.FileShare]::Read, 4096, [IO.FileOptions]::None)
+    if (-not ('SidecarFileIdentity' -as [type])) {
+        Add-Type -Path (Join-Path $PSScriptRoot 'SidecarFileIdentity.cs')
+    }
+    [SidecarFileIdentity]::Validate($leafHandle, $item.FullName)
 }
 $acl = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { Get-Acl -LiteralPath $item.FullName }
 $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])

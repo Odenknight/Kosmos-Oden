@@ -114,3 +114,12 @@ refusal while held, successful rename after release and unchanged payload bytes.
 This binds the leaf operation after opening; it does not close the earlier
 path-to-open race or make directory ACL operations handle-bound. The prototype
 remains excluded from live startup pending those boundaries and host integration.
+
+Before a leaf ACL changes, `SidecarFileIdentity.cs` now reads file attributes and
+link count from the retained handle and compares its resolved path with the
+intended path. Direct synthetic tests reject a multiply linked open file and a
+wrong expected path, independently of the earlier PowerShell alias checks.
+The path comparison follows ordinary case-insensitive Windows behavior;
+case-sensitive directories and directory ACL operations remain unqualified.
+The helper is still not a complete namespace-race qualification or a live host
+permission implementation.
