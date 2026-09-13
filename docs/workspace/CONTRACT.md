@@ -93,3 +93,11 @@ At 09:35:46 UTC, the candidate API/host queried the actual Obsidian provider:
 two pages of 100 results, second offset 100, readable total 2275, no duplicate
 paths, and successful final publication. This in-process probe left the installed
 plugin unchanged and does not qualify plugin startup/reload or release promotion.
+
+## Installed candidate acceptance
+
+[Installed Notes acceptance](../reviews/2026-09-13-installed-notes-acceptance.md)
+subsequently qualifies plugin registration, preview, source opening and
+close/reopen on clean candidate `c5b7b7f`. The prior temporary probes remain
+historical evidence. Cold process start, negative authorization, the remaining
+fixture matrix and the default transition retain their separate gates.
