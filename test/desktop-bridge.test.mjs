@@ -25,7 +25,7 @@ function harness(invoke) {
     AbortController, setTimeout, clearTimeout,
   });
   ready();
-  return { click: action => click({ target: { dataset: { action } } }), navigations, status };
+  return { click: action => click({ target: { dataset: { action } } }), navigations, status, start };
 }
 
 test("generated Start and Reconnect navigate only after native readiness", async () => {
@@ -59,4 +59,26 @@ test("generated Stop cancels late startup navigation and preserves stopped statu
   await pending;
   assert.equal(h.navigations.length, 0);
   assert.equal(h.status.textContent, "Engine stopped — offline folder mode");
+});
+
+test("late dialog and Stop completions cannot overwrite newer controls", async () => {
+  for (const [action, command, next, expected] of [
+    ["choose", "choose_corpus", "stop", "Engine stopped — offline folder mode"],
+    ["diagnostics", "export_redacted_diagnostics", "stop", "Engine stopped — offline folder mode"],
+    ["stop", "stop_sidecar", "choose", "Corpus selected"],
+  ]) {
+    let release;
+    const h = harness(async name => {
+      if (name === command) return new Promise(resolve => { release = resolve; });
+      return name === "choose_corpus" ? "current-folder" : { running: false };
+    });
+    const pending = h.click(action);
+    await h.click(next);
+    const startDisabled = h.start.disabled;
+    release("obsolete-result");
+    await pending;
+    assert.equal(h.status.textContent, expected);
+    assert.equal(h.start.disabled, startDisabled);
+    assert.equal(h.navigations.length, 0);
+  }
 });

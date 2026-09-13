@@ -40,7 +40,7 @@ const bridge = `<script data-kosmos-desktop-bridge>
       const action = event.target?.dataset?.action;
       const attempt = ["start", "reconnect", "stop", "choose"].includes(action) ? ++connectionAttempt : connectionAttempt;
       try {
-        if (action === "choose") { corpus = await invoke("choose_corpus") || ""; start.disabled = !corpus; show(corpus ? "Corpus selected" : "Offline folder mode"); }
+        if (action === "choose") { const selected = await invoke("choose_corpus"); if (attempt !== connectionAttempt) return; corpus = selected || ""; start.disabled = !corpus; show(corpus ? "Corpus selected" : "Offline folder mode"); }
         if (action === "start" || action === "reconnect") {
           const value = await invoke(action === "start" ? "start_sidecar" : "reconnect_sidecar", action === "start" ? { corpus } : undefined);
           if (attempt !== connectionAttempt) return;
@@ -49,8 +49,8 @@ const bridge = `<script data-kosmos-desktop-bridge>
           await waitForDesktopEngine(invoke, { isCurrent: () => attempt === connectionAttempt });
           if (attempt === connectionAttempt) location.replace(location.pathname + "?api=http%3A%2F%2F127.0.0.1%3A4814");
         }
-        if (action === "stop") { await invoke("stop_sidecar"); show("Engine stopped — offline folder mode"); }
-        if (action === "diagnostics") { const path = await invoke("export_redacted_diagnostics"); show(path ? "Redacted diagnostics exported" : "Export cancelled"); }
+        if (action === "stop") { await invoke("stop_sidecar"); if (attempt === connectionAttempt) show("Engine stopped — offline folder mode"); }
+        if (action === "diagnostics") { const path = await invoke("export_redacted_diagnostics"); if (attempt === connectionAttempt) show(path ? "Redacted diagnostics exported" : "Export cancelled"); }
       } catch (error) { if (attempt === connectionAttempt) show(String(error)); }
     });
     document.body.appendChild(bar);

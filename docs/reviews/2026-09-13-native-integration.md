@@ -136,3 +136,20 @@ uninstall with an unrelated installation-directory file. It does not qualify
 cross-version upgrade or rollback, application-data preservation, signing,
 visible UI behavior, or Engine-enabled operation. The Engine manifest remains
 null. No existing vault records were used by these tests.
+
+## Dialog worker and late completion handling
+
+Corpus selection and redacted diagnostic export now run in the existing
+worker-owned admission helper through a separate single-dialog slot. An open
+dialog or slow export therefore does not occupy the sidecar control or credential
+slot, and repeated dialog operations are refused rather than queued. This moves
+the synchronous picker and export work out of the native command handler.
+
+The generated bridge now ignores obsolete folder-selection, Stop and diagnostic
+results after a newer connection action. A regression exercises all three late
+completion cases and checks status, Start-button state and absence of navigation.
+Seven generated-bridge/readiness tests passed. Native compilation, 18 ordinary
+Rust tests and all-target clippy passed; the explicit Engine process qualification
+was ignored in this run. Visible dialogs and full native responsiveness remain
+unqualified. Diagnostic file replacement still requires a separate review: its
+current remove-before-rename sequence does not preserve the original on failure.

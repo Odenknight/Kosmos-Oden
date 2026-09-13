@@ -21,6 +21,7 @@ struct DesktopState {
     state_root: PathBuf,
     busy: Arc<AtomicBool>,
     credential_busy: Arc<AtomicBool>,
+    dialog_busy: Arc<AtomicBool>,
 }
 
 struct SidecarAdmission(Arc<AtomicBool>);
@@ -78,11 +79,14 @@ struct VersionInfo {
 }
 
 #[tauri::command]
-fn choose_corpus() -> Option<String> {
-    rfd::FileDialog::new()
-        .set_title("Choose a Kosmos knowledge folder")
-        .pick_folder()
-        .map(|path| path.to_string_lossy().into_owned())
+async fn choose_corpus(state: State<'_, DesktopState>) -> Result<Option<String>, String> {
+    admitted_operation(&state.dialog_busy, || {
+        Ok(rfd::FileDialog::new()
+            .set_title("Choose a Kosmos knowledge folder")
+            .pick_folder()
+            .map(|path| path.to_string_lossy().into_owned()))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -148,19 +152,25 @@ async fn version_info(state: State<'_, DesktopState>) -> Result<VersionInfo, Str
 }
 
 #[tauri::command]
-fn export_redacted_diagnostics(state: State<'_, DesktopState>) -> Result<Option<String>, String> {
-    let Some(destination) = rfd::FileDialog::new()
-        .set_title("Export redacted Kosmos diagnostics")
-        .set_file_name("kosmos-oden-diagnostics.json")
-        .add_filter("JSON", &["json"])
-        .save_file()
-    else {
-        return Ok(None);
-    };
+async fn export_redacted_diagnostics(
+    state: State<'_, DesktopState>,
+) -> Result<Option<String>, String> {
+    let supervisor = state.supervisor.clone();
+    admitted_operation(&state.dialog_busy, move || {
+        let Some(destination) = rfd::FileDialog::new()
+            .set_title("Export redacted Kosmos diagnostics")
+            .set_file_name("kosmos-oden-diagnostics.json")
+            .add_filter("JSON", &["json"])
+            .save_file()
+        else {
+            return Ok(None);
+        };
 
-    let report = sidecar::redacted_diagnostics(&state.supervisor.status());
-    atomic_write_json(&destination, &report)?;
-    Ok(Some(destination.to_string_lossy().into_owned()))
+        let report = sidecar::redacted_diagnostics(&supervisor.status());
+        atomic_write_json(&destination, &report)?;
+        Ok(Some(destination.to_string_lossy().into_owned()))
+    })
+    .await
 }
 
 fn canonical_corpus(value: &str) -> Result<PathBuf, String> {
@@ -199,6 +209,7 @@ pub fn run() {
                 state_root,
                 busy: Arc::new(AtomicBool::new(false)),
                 credential_busy: Arc::new(AtomicBool::new(false)),
+                dialog_busy: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
