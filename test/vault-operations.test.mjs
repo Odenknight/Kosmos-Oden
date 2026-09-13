@@ -12,6 +12,18 @@ const providerApi = await bundle("src/plugin/vault-provider.ts");
 const { ProviderError, physicalReadState, readVaultText } = ops;
 const { VaultDataProvider } = providerApi;
 
+test("binary evidence reads share text admission and retain ownership after timeout", async () => {
+  const gate = deferred();
+  const vault = { readBinary: () => gate.promise, cachedRead: async () => "text" };
+  await assert.rejects(ops.readVaultBytes(vault, file("same.md"), 5), e => e.reason === "timeout");
+  assert.equal(physicalReadState(vault).outstanding, 1);
+  await assert.rejects(readVaultText(vault, file("same.md")), e => e.reason === "provider_unavailable");
+  gate.resolve(new ArrayBuffer(0));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(physicalReadState(vault).outstanding, 0);
+  assert.equal(await readVaultText(vault, file("same.md")), "text");
+});
+
 function deferred() {
   let resolve;
   let reject;

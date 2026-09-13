@@ -1,0 +1,15 @@
+{
+  "timestampUtc": "2026-09-13T04:22:06.3505024Z",
+  "result": "PASS",
+  "build": "595834ced75862c5dfbd2cf25fb9ceef919aa200",
+  "mainSha256": "b742778ad2fcce272efdb69f7e56b2b60260a514f5956c201944c4b4d3548f52",
+  "schemaOptionVerified": true,
+  "ordinaryExportHasNoEvidence": true,
+  "evidencePages": 1,
+  "verifiedNoteDigests": 1,
+  "fileByteLengthMatched": true,
+  "semanticSupport": "unverified",
+  "graphiti": "0.30.2",
+  "searchable": false,
+  "sourceContentsPublished": false
+}

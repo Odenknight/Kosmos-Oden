@@ -245,6 +245,30 @@ time, never what was *known* at that time.
 
 ## REST and troubleshooting
 
+### Exact source-byte evidence (MCP opt-in)
+
+Call `export_graphiti_episodes` with `include_source_evidence: true`, `cursor`
+and `limit`. Ordinary exports are unchanged. The Obsidian provider reads only
+the page's authorized note files and verifies their complete UTF-8 content
+against the indexed revision before adding Engine `gkos-source-bytes/1`
+SHA-256 evidence. Frontmatter, line endings and content beyond export truncation
+participate in the digest. It proves byte identity, not semantic support.
+
+One page accepts at most 4 MiB of distinct source bytes. Oversized metadata is
+refused before I/O; actual read length is checked too. Reduce the page limit
+when the aggregate exceeds the budget. A single source larger than 4 MiB is
+not eligible for this mode. The host reads whole files, so a racing file growth
+can allocate more bytes before the post-read rejection; this is not a strict
+peak-memory guarantee. Reads share the existing 16-operation physical pool and
+deadlines. No binary reads are added to startup, ordinary search or exports.
+
+Missing bytes, UTF-8/host normalization differences, edits, policy changes and
+stale graphs fail the operation without returning partial evidence. Refresh the
+index and retry only after reviewing the cause. Providers without the required
+snapshot/byte capabilities reject the option. REST and the existing native
+export command retain their existing behavior; this opt-in is exposed through
+MCP. The complete vault is not atomically snapshotted across separate page calls.
+
 Read-only REST mirrors are available at `/overview`, `/diagnostics`, `/graph`,
 `/notes`, `/note`, `/lineage`, `/related`, `/at`, paginated `/episodes`, and
 the `/gkx/` routes listed by the server root. Note selectors accept `uid`,

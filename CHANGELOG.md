@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 candidate follow-up — 2026-09-13
+
+- Add opt-in `include_source_evidence` to MCP episode export. SHA-256 covers
+  exact source bytes only after full indexed-revision matching, with a 4 MiB
+  page budget, shared read admission and final graph/policy checks.
+- Reconcile the Graphiti roadmap with published hive/Observatory experiment
+  receipts; correct current Engine pin and Graphiti settings descriptions.
+
 ## 0.8.3 candidate comet visibility — 2026-09-13
 
 - Refresh GPU particle size/colour on later traversals; render brighter,
