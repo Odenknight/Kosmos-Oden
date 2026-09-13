@@ -40,9 +40,12 @@ No retained version means unavailable coverage.
 The query never substitutes a current file or a newer observation.
 
 Queries return a one-use, host-held synchronous publication capability.
-It holds the cutoff, source identity, and ledger watermark.
+It holds the cutoff, source identity, and a digest of all committed envelope receipts.
+A same-count replacement of ledger contents invalidates the watermark.
 Current authorization is checked again before retained payload loading and before publication.
 A changed watermark or observed stale host refuses publication.
+An observed failed or throwing host-authority check permanently invalidates that ledger instance.
+Close it and reopen under a fresh host capability; a restored boolean cannot revive pending reads.
 Hidden and absent sources produce null.
 Hidden-source payloads are not loaded by unrelated readable-source queries.
 Historical paths never provide read authority.
@@ -62,7 +65,8 @@ explicit limits, byte accounting, hidden-source isolation, path reuse, final-bou
 missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
 Child processes terminate before commit and after commit without orderly close.
 Reopening proves rollback in the first case and durable retry recovery in the second.
-All 17 component tests pass. Full repository verification passes all 537 tests.
+All 19 component tests pass. Full repository verification passes all 539 tests.
+The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 
 ## Remaining work

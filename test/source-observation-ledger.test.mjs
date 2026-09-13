@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {DatabaseSync} from 'node:sqlite';
+import {stableJson} from 'gkos-engine/retrieval';
 import {createHash} from 'node:crypto';
 import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -49,7 +50,7 @@ test('age and capacity limits refuse coverage without silently deleting retained
  f.state.time='2026-09-15T00:00:00.000Z';assert.equal(read(f.ledger),null);
 });
 test('revocation, changed watermark and hidden source prevent pending publication',t=>{
- const f=fixture(t);f.ledger.append(input(),bytes);const result=f.ledger.knownBy(source,f.state.time);f.state.current=false;assert.throws(()=>result.publish(()=>assert.fail('published')),/HOST_STALE/);f.state.current=true;
+ const f=fixture(t);f.ledger.append(input(),bytes);const result=f.ledger.knownBy(source,f.state.time);f.state.current=false;assert.throws(()=>result.publish(()=>assert.fail('published')),/HOST_STALE/);f.state.current=true;f.reopen();
  const stale=f.ledger.knownBy(source,f.state.time);f.ledger.append(input('two'),bytes);assert.throws(()=>stale.publish(()=>assert.fail('published')),/SNAPSHOT_STALE/);
  const hidden=f.ledger.knownBy(source,f.state.time);f.state.read=false;let value;hidden.publish(v=>value=v);assert.equal(value,null);assert.equal(read(f.ledger),null);assert.throws(()=>f.ledger.append(input('three'),bytes),/HOST_STALE/);
 });
@@ -119,4 +120,19 @@ test('unsupported parser interpretation cannot be retained or published',t=>{
  const f=fixture(t);assert.throws(()=>f.ledger.append({...input(),schemaVersion:'unknown'},bytes),/INTERPRETATION_UNSUPPORTED/);
  f.ledger.append(input(),bytes);f.ledger.close();const ledger=SourceObservationLedger.open(config,()=>new DatabaseSync(f.path),{...f.host,supports:()=>false});
  try{assert.throws(()=>read(ledger),/INTERPRETATION_UNSUPPORTED/);}finally{ledger.close();}
+});
+
+
+test('an observed authority failure permanently invalidates outstanding ledger capabilities',t=>{
+ const f=fixture(t);f.ledger.append(input(),bytes);const pending=f.ledger.knownBy(source,f.state.time);
+ f.state.current=false;assert.throws(()=>f.ledger.knownBy(source,f.state.time),/HOST_STALE/);f.state.current=true;
+ assert.throws(()=>pending.publish(()=>assert.fail('revoked capability revived')),/HOST_STALE/);
+});
+test('the publication watermark binds every committed envelope, not just row count',t=>{
+ const f=fixture(t);f.ledger.append(input(),bytes);const other='550e8400-e29b-41d4-a716-446655440002';
+ f.ledger.append({...input('two'),source:other},bytes);const pending=f.ledger.knownBy(source,f.state.time);
+ const db=new DatabaseSync(f.path);const row=db.prepare('SELECT * FROM observations WHERE seq=2').get();const changed=JSON.parse(row.input);changed.path='Renamed.md';
+ const receipt=digest(stableJson({sequence:row.seq,operation:row.operation,knownAt:row.known_at,parent:row.parent,input:changed}));
+ db.prepare('UPDATE observations SET input=?, receipt_digest=? WHERE seq=2').run(stableJson(changed),receipt);db.close();
+ assert.throws(()=>pending.publish(()=>assert.fail('changed watermark published')),/SNAPSHOT_STALE/);
 });

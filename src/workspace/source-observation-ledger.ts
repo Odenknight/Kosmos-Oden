@@ -52,6 +52,7 @@ function assertDatabase(db: DatabaseSync, retention: Readonly<ObservationRetenti
  */
 export class SourceObservationLedger {
   private closed = false;
+  private invalidated = false;
   private busy = false;
   private constructor(private db: DatabaseSync, private retention: Readonly<ObservationRetention>,
     private host: { current: () => boolean; now: () => string; canRead: (source: string) => boolean; supports: (parser: string, schema: string) => boolean }) {}
@@ -87,7 +88,10 @@ export class SourceObservationLedger {
   }
 
   private current() {
-    if (this.closed || this.host.current() !== true) throw Error("OBSERVATION_HOST_STALE");
+    if (this.closed || this.invalidated) throw Error("OBSERVATION_HOST_STALE");
+    try { if (this.host.current() === true) return; } catch { /* A failed authority check cannot preserve an old grant. */ }
+    this.invalidated = true;
+    throw Error("OBSERVATION_HOST_STALE");
   }
   private transaction<T>(run: () => T): T {
     if (this.busy) throw Error("OBSERVATION_BUSY");
@@ -133,7 +137,7 @@ export class SourceObservationLedger {
       parents.set(input.source, row.seq); lastTime = row.known_at;
       row.parsed = input;
     }
-    return { rows, bytes: count.bytes as number };
+    return { rows, bytes: count.bytes as number, watermark: retrievalSha256(stableJson(rows.map(row => [row.seq, row.receipt_digest]))) };
   }
   append(value: SourceObservation, bytes: Uint8Array | null) {
     const text = stableJson(value);
@@ -169,10 +173,10 @@ export class SourceObservationLedger {
   knownBy(source: string, cutoff: string) {
     if (!isValidGkxAuthoredUid(source) || !instant(cutoff)) throw Error("OBSERVATION_QUERY_INVALID");
     const captured = this.transaction(() => {
-      if (this.host.canRead(source) !== true) return { rows: [], selected: null, watermark: -1 };
-      const { rows } = this.scan();
+      if (this.host.canRead(source) !== true) return { selected: null, watermark: null };
+      const { rows, watermark } = this.scan();
       const selected = rows.slice().reverse().find(row => row.parsed.source === source && row.known_at <= cutoff) ?? null;
-      return { rows: [], selected, watermark: rows.length };
+      return { selected, watermark };
     });
     let available = true;
     return Object.freeze({ publish: (apply: (observation: null | { sequence: number; knownAt: string; input: SourceObservation; bytes: Uint8Array }) => void) => {
@@ -182,8 +186,8 @@ export class SourceObservationLedger {
         const now = this.host.now();
         if (!instant(now)) throw Error("OBSERVATION_CLOCK_REGRESSED");
         if (this.host.canRead(source) !== true) { apply(null); return; }
-        const { rows } = this.scan();
-        if (rows.length !== captured.watermark) throw Error("OBSERVATION_SNAPSHOT_STALE");
+        const { rows, watermark } = this.scan();
+        if (watermark !== captured.watermark) throw Error("OBSERVATION_SNAPSHOT_STALE");
         if (rows.length && now < rows.at(-1).known_at) throw Error("OBSERVATION_CLOCK_REGRESSED");
         const row = captured.selected;
         if (row && rows[row.seq - 1]?.receipt_digest !== row.receipt_digest) throw Error("OBSERVATION_SNAPSHOT_STALE");
