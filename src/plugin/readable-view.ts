@@ -48,7 +48,8 @@ export class KosmosReadableView extends ItemView {
         const state = message.message.payload;
         if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId))) return;
         this.rendererState = state;
-        this.status!.textContent = state.error ? "Renderer could not display the requested note." : state.selectedId ? "Selected note displayed · current policy" : "Readable graph displayed · current policy";
+        const unavailable = this.path && !this.snapshot.value.nodes.some((node: any) => node.path === this.path);
+        this.status!.textContent = unavailable ? "Selected note is unavailable in the current scope." : state.error ? "Renderer could not display the requested note." : state.selectedId ? "Selected note displayed · current policy" : "Readable graph displayed · current policy";
         return;
       }
       if (!message.ok || message.message?.type !== "open-note") return;

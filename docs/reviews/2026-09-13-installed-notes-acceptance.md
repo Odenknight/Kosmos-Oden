@@ -116,6 +116,19 @@ rollback. This qualifies the observed button/publication/renderer-focus path;
 it does not qualify revocation, all lifecycle cases or the remaining spatial plan.
 Receipt: `_Claude-Code/native-spatial-ack-acceptance-20260913.json`.
 
+At 11:16:28Z the same installed build cleared host snapshot/acknowledgement state
+immediately on refresh and received a replacement focus acknowledgement. Closing
+the view released its frame and snapshot; reopening acknowledged the fixture in
+a new view generation. At 11:17:23Z a temporary public-only query instance for
+this view removed a previously displayed confidential synthetic fixture. The
+renderer acknowledged no selection, the hidden node was absent, and the original
+view context was restored. Live API settings did not change and no listener was
+started. This is native view restriction evidence, not Hermes denial evidence.
+Receipts: `native-spatial-lifecycle-20260913.json` and
+`native-spatial-restriction-20260913.json` under `_Claude-Code`.
+The restriction test exposed generic success wording after selection loss; the
+candidate now preserves the explicit selected-note-unavailable message.
+
 At 2026-09-13T10:39:32Z, clean source
 `efcbcb4d73ebec53d71fe93e943addaaaeb70188` was installed and reloaded after
 446 tests and all build checks passed. Installed main.js SHA-256:
