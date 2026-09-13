@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
         if (query === "slow") await new Promise(resolve => { w.waits.search = resolve; });
         if (query === "paged") return { ...snapshot({ results: [{title:"First",path:"Alpha.md"}],total:2 }), offset:0,
           next:async()=>({...snapshot({results:[{title:"Second",path:"Beta.md"}],total:2}),offset:1,next:null}) };
-        return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md" }, { title: "Beta", path: "Beta.md" }], total: 2 });
+        return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md", uid: w.searchUid }, { title: "Beta", path: "Beta.md" }], total: 2 });
       },
       read: async (path: string, options: any) => {
         if (options.uid && w.uidPath) path = w.uidPath;
@@ -426,4 +426,17 @@ test('toolbar mode switch preserves selected identity and refuses stale scope', 
   await page.evaluate(()=>{const w=window as any;w.workspace.select(null);w.waits.read();});
   await page.getByRole('button',{name:'Kosmos',exact:true}).click();
   expect(await page.evaluate(()=>(window as any).kosmos)).toBe(2);
+});
+
+
+test("search selection follows its captured stable identity after path reuse", async ({ page }) => {
+  const uid = "550e8400-e29b-41d4-a716-446655440000";
+  await page.evaluate(uid => {
+    const w = window as any; w.searchUid = uid; w.noteUid = uid; w.workspace.refresh();
+  }, uid);
+  await expect(page.getByRole("button", { name: "Alpha", exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as any).uidPath = "Moved/Alpha.md"; });
+  await page.getByRole("button", { name: "Alpha", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Moved/Alpha.md", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).calls.at(-1).options.uid)).toBe(uid);
 });

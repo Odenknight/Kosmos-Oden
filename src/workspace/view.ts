@@ -306,7 +306,8 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       async (snapshot, current) => snapshot.publish(value => {
         results.replaceChildren();
         for (const note of value.results) {
-          const item = button(note.title, () => void show(note.path));
+          const uid = isValidGkxAuthoredUid(note.uid) ? note.uid : undefined;
+          const item = button(note.title, () => void show(note.path, uid ? { uid } : {}));
           item.title = note.path; results.append(item);
         }
         if (snapshot.next) results.append(button("Next results", () => void refresh(snapshot.next!)));
