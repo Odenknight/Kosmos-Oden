@@ -4,30 +4,59 @@ import { resolve, basename, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 
+function readReference(root, path, budget = 64 * 1024 * 1024) {
+  if (typeof path !== "string") throw Error("reference-schema");
+  const parts = path.split("/");
+  if (!parts.length || parts.some(part => !part || part === "." || part === ".." || /[\\:\x00-\x1f]/.test(part))) throw Error("reference-path-invalid");
+  const base = realpathSync(root);
+  let target = base;
+  for (const part of parts) {
+    target = resolve(target, part);
+    if (lstatSync(target).isSymbolicLink()) throw Error("reference-path-invalid");
+  }
+  const resolved = realpathSync(target), rel = relative(base, resolved);
+  if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) throw Error("reference-path-invalid");
+  const stat = lstatSync(resolved);
+  if (!stat.isFile()) throw Error("reference-not-file");
+  if (stat.size > budget) throw Error("reference-over-budget");
+  return readFileSync(resolved);
+}
+const referenceError = error => error.message.startsWith("reference-") ? error.message : error.code === "ENOENT" ? "reference-missing" : "reference-unreadable";
+
 export function verifyMailboxReference(root, reference) {
+  if (reference?.host !== undefined) return "reference-host-unresolved";
   if (!reference || typeof reference !== "object" || Array.isArray(reference) ||
       typeof reference.path !== "string" || typeof reference.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/.test(reference.sha256)) return "reference-schema";
-  const parts = reference.path.split("/");
-  if (!parts.length || parts.some(part => !part || part === "." || part === ".." || /[\\:\x00-\x1f]/.test(part))) return "reference-path-invalid";
   try {
-    const base = realpathSync(root);
-    let target = base;
-    for (const part of parts) {
-      target = resolve(target, part);
-      if (lstatSync(target).isSymbolicLink()) return "reference-path-invalid";
-    }
-    const resolved = realpathSync(target), rel = relative(base, resolved);
-    if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) return "reference-path-invalid";
-    const stat = lstatSync(resolved);
-    if (!stat.isFile()) return "reference-not-file";
-    if (stat.size > 64 * 1024 * 1024) return "reference-over-budget";
-    const digest = createHash("sha256").update(readFileSync(resolved)).digest("hex");
+    const digest = createHash("sha256").update(readReference(root, reference.path)).digest("hex");
     if (digest === reference.sha256) return null;
     const mutable = reference.path === "COMMUNICATIONS.md" || reference.path === ".coordination/v1/PROTOCOL.md" ||
       /^\.coordination\/v1\/(agents\/[^/]+\.json|status\/[^/]+\.md)$/.test(reference.path);
     return mutable ? "reference-superseded" : "reference-hash-mismatch";
-  } catch (error) { return error.code === "ENOENT" ? "reference-missing" : "reference-unreadable"; }
+  } catch (error) { return referenceError(error); }
+}
+
+export function verifyMailboxBundle(root, reference) {
+  if (reference?.host !== undefined) return "reference-host-unresolved";
+  if (typeof reference?.path !== "string" || typeof reference.sha256sums !== "string") return "reference-schema";
+  try {
+    const raw = readReference(root, `${reference.path}/${reference.sha256sums}`, 65536);
+    const lines = raw.toString("utf8").split(/\r?\n/).filter(line => line.length);
+    if (!lines.length || lines.length > 1000) return "reference-manifest-invalid";
+    const seen = new Set();
+    let remaining = 64 * 1024 * 1024;
+    for (const line of lines) {
+      const match = /^([a-f0-9]{64}) [ *](.+)$/.exec(line);
+      if (!match || seen.has(match[2]) || match[2] === reference.sha256sums) return "reference-manifest-invalid";
+      seen.add(match[2]);
+      const bytes = readReference(root, `${reference.path}/${match[2]}`, remaining);
+      remaining -= bytes.length;
+      if (createHash("sha256").update(bytes).digest("hex") !== match[1]) return "reference-hash-mismatch";
+    }
+    // Historical references name a manifest but do not bind its original bytes.
+    return "reference-manifest-unbound";
+  } catch (error) { return referenceError(error); }
 }
 
 export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../..")) {
@@ -61,7 +90,7 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
         if (m[field] === undefined) continue;
         if (!Array.isArray(m[field])) { report(entry.file, "reference-list-schema"); continue; }
         for (const reference of m[field]) {
-          const code = verifyMailboxReference(referenceRoot, reference);
+          const code = reference?.sha256sums !== undefined ? verifyMailboxBundle(root, reference) : verifyMailboxReference(referenceRoot, reference);
           if (code) report(entry.file, code);
         }
       }

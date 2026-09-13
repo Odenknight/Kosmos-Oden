@@ -4,7 +4,7 @@ The read-only `scripts/audit-mailbox.mjs ROOT RECIPIENT` selects an explicit
 recipient ACK directory and hashes exact message bytes. Its output is an audit,
 not work acceptance. Every ACK keeps `completionVerified: false`.
 
-The current four synthetic tests cover:
+The current five synthetic tests cover:
 
 - Multiple recipients, raw-byte hashes, inverted roles, missing completion evidence,
   malformed delivered JSON, and invalid recipient path input.
@@ -25,10 +25,13 @@ Naming a correction or marking an ACK COMPLETED is not evidence of product work.
 Direct file references now verify raw SHA-256 bytes under the repository root,
 reject absolute/traversing paths and symbolic links, and distinguish changed
 contract-defined mutable files as superseded references. Missing files and files
-above the 64 MiB per-reference budget remain unverified findings. Bundle-manifest
-references are unsupported and reported as schema findings, never silently passed.
+above the 64 MiB per-reference budget remain unverified findings. Mailbox-relative bundle manifests now check member hashes, duplicates and path
+confinement, bounded to 1,000 entries and 64 MiB in total. Historical references
+without a digest of the manifest remain `reference-manifest-unbound` even when
+all members match. Remote-host references remain unresolved; the reader never
+substitutes a same-named local file.
 
-Remaining M1 checks include complete schema validation, bundle-manifest references,
+Remaining M1 checks include complete schema validation, immutable manifest binding,
 retained-head/suffix-loss detection, the protocol's exact legacy
 ACK exception, and evidence-based reconciliation of mutable status/card summaries.
 The reader does not send ACKs, quarantine files, rewrite history or update peer

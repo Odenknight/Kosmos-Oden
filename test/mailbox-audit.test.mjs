@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { auditMailbox, verifyMailboxReference } from "../scripts/audit-mailbox.mjs";
+import { auditMailbox, verifyMailboxReference, verifyMailboxBundle } from "../scripts/audit-mailbox.mjs";
 
 test("mailbox audit selects recipient and exposes forks, inverted roles and bad raw hashes", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-"));
@@ -93,4 +93,24 @@ test("file references hash raw bytes, confine paths, and distinguish superseded 
   writeFileSync(join(root,"COMMUNICATIONS.md"),"new revision");
   assert.equal(verifyMailboxReference(root,{path:"COMMUNICATIONS.md",sha256}),"reference-superseded");
   assert.equal(verifyMailboxReference(root,{path:"bundle",sha256sums:"SHA256SUMS"}),"reference-schema");
+});
+
+
+test("bundle verification checks members without claiming an unbound manifest authentic", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-bundle-"));
+  mkdirSync(join(root,"artifacts/alice"),{recursive:true});
+  writeFileSync(join(root,"artifacts/alice/note.md"),"retained");
+  const hash=createHash("sha256").update("retained").digest("hex");
+  const manifest=join(root,"artifacts/alice/SHA256SUMS");
+  const ref={path:"artifacts/alice",sha256sums:"SHA256SUMS"};
+  writeFileSync(manifest,`${hash} *note.md\n`);
+  assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-unbound");
+  assert.equal(verifyMailboxBundle(root,{...ref,host:"another-host"}),"reference-host-unresolved");
+  writeFileSync(join(root,"artifacts/alice/note.md"),"changed");
+  assert.equal(verifyMailboxBundle(root,ref),"reference-hash-mismatch");
+  writeFileSync(manifest,`${hash}  ../../outside.md\n`);
+  assert.equal(verifyMailboxBundle(root,ref),"reference-path-invalid");
+  writeFileSync(manifest,`${hash}  note.md\n${hash}  note.md\n`);
+  writeFileSync(join(root,"artifacts/alice/note.md"),"retained");
+  assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-invalid");
 });
