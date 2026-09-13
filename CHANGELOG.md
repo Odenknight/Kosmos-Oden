@@ -1,5 +1,11 @@
 # Changelog
 
+## Embedded host message boundary - 2026-09-13
+
+- Accept renderer control messages only from the embedding parent window, for
+  both current and legacy envelopes. Sandbox browser checks verify parent-driven
+  rendering and rejection of non-parent graph replacement in all four targets.
+
 ## Renderer open-request validation - 2026-09-13
 
 - Apply current path validation to legacy renderer open messages. Reject URL

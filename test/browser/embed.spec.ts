@@ -18,5 +18,19 @@ test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ p
 
   const ok = await page.evaluate(() => (window as any).__embedOk);
   expect(ok, "embed reported a rendered scene").toBeTruthy();
+  const embed = page.frames().find(frame => frame !== page.mainFrame());
+  expect(embed).toBeTruthy();
+  const rejected = await embed!.evaluate(() => {
+    const w = window as any;
+    const before = w.__kosmosEmbed.getIndexInfo();
+    const files = [{ relativePath: "Injected.md", content: "# Untrusted frame" }];
+    for (const data of [
+      { protocol: "kosmos-oden", version: 1, type: "vault-snapshot", payload: { files } },
+      { type: "kosmos:files", files },
+    ]) window.dispatchEvent(new MessageEvent("message", { source: window, data }));
+    const after = w.__kosmosEmbed.getIndexInfo();
+    return before.notes === after.notes && before.parseCount === after.parseCount;
+  });
+  expect(rejected, "non-parent messages cannot replace the embedded graph").toBe(true);
   expect(errors).toEqual([]);
 });

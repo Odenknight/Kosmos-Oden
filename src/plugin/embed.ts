@@ -77,6 +77,7 @@ function applyDelta(msg: UpdateMessage): void {
 }
 
 window.addEventListener("message", (ev: MessageEvent) => {
+  if (ev.source !== window.parent) return;
   const raw: any = ev && ev.data;
   if (!raw || typeof raw !== "object") return;
   try {
