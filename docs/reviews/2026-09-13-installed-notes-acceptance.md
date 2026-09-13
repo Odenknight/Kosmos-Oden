@@ -129,6 +129,15 @@ Receipts: `native-spatial-lifecycle-20260913.json` and
 The restriction test exposed generic success wording after selection loss; the
 candidate now preserves the explicit selected-note-unavailable message.
 
+At 11:19:23Z the installed readable-view message handler was exercised with
+synthetic MessageEvents and a finally-restored editor-opening spy. It refused
+wrong-frame, unsafe-path and absent-target requests, resolved the permitted
+fixture to its canonical TFile path, and refused publication after immediate
+view invalidation. The snapshot publication wrapper was also restored. This
+tests the installed handler and does not claim physical iframe-button or editor
+integration coverage. Receipt:
+`_Claude-Code/native-spatial-source-handler-20260913.json`.
+
 At 2026-09-13T10:39:32Z, clean source
 `efcbcb4d73ebec53d71fe93e943addaaaeb70188` was installed and reloaded after
 446 tests and all build checks passed. Installed main.js SHA-256:
