@@ -55,3 +55,25 @@ manifest. Restoring `null` and rebuilding caused the same verifier to reject it
 with no valid embedded manifest. The repository retains the disabled default.
 This checks real artifact bytes and the disabled configuration; it does not run
 the service, qualify its protocol, or establish a reproducible/released package.
+
+## Windows permission boundary review
+
+At Engine `c4940c4`, `loadOrCreateToken` in `src/desktop-agent.ts` explicitly
+describes Windows mode bits as advisory. Its watcher filesystem authority also
+separates Windows mode handling from POSIX owner-mode enforcement. These checks
+do not supply a reusable Windows DACL implementation. The retained shell's
+`owner_only_directory` and `owner_only_file` likewise do nothing on Windows.
+
+The remaining host repair must establish the current OS principal, inspect and
+protect the actual state directory and existing credential/log leaves, reject
+unsupported links or ownership, and verify the resulting ACL. Do not infer
+privacy from a successful `chmod`, an absent error, or a parent directory name.
+Qualification must include permissive inherited and explicit ACEs, existing
+files, newly created files, failed ACL updates and path replacement. Preserve
+the existing data and refuse startup when protection cannot be established.
+
+Windows ACL updates require deliberate inheritance handling: Microsoft's
+[SetNamedSecurityInfo documentation](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow)
+describes propagation of inheritable ACEs to child objects. A directory-only
+change is not by itself proof that every existing credential has the required
+effective access. No live ACL was inspected or changed in this review.
