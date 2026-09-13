@@ -206,3 +206,8 @@ with retained guards, while the existing state-directory rename refusal and
 credential/log protection tests still pass. The initial failure receipt remains
 historical evidence. This fixes the demonstrated guard conflict; actual Engine
 process startup and native UI qualification are still required.
+
+Native debug sweep: `cargo clippy --locked --offline --all-targets -- -D warnings`
+passes after simplifying the nested discovery guard without changing its lock or
+closed-state semantics. No lint suppressions were added. This is Windows static
+analysis of the isolated desktop checkout, not a full release debug certificate.

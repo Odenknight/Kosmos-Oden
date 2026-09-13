@@ -89,10 +89,10 @@ impl Supervisor {
     }
 
     fn publish_discovery(&self, path: PathBuf) {
-        if let Ok(inner) = self.inner.lock() {
-            if !inner.closed {
-                let _ = self.sidecar_path.set(path);
-            }
+        if let Ok(inner) = self.inner.lock()
+            && !inner.closed
+        {
+            let _ = self.sidecar_path.set(path);
         }
     }
 
