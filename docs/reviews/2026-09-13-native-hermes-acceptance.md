@@ -26,3 +26,24 @@ policy change was made to make those assumptions pass.
 This receipt does not qualify the subsequent long-note continuation commit or
 complete R0/R3. Final-candidate identity, cold-start, negative authorization and
 other release gates must still be completed against their intended scope.
+
+## Current installed candidate recheck
+
+At 2026-09-13T13:43:26Z–13:43:31Z the same hash-verified probe ran through
+JEFFREY's existing Hermes profile against installed Kosmos
+`78abe886e5ae88a2a25eee356b8fa37c8f2e954e`, main SHA-256
+`648b93ace90e685214db25767bbbb253c71d67c2eeb57546fb1e4438c5520a25`.
+The native process ID and artifact hash were unchanged across the calls;
+Obsidian's runtime was Node 22.22.1. No profile, credential or vault content changed.
+
+Discovery returned 18 tools. Search, permitted UID read, policy-consistent
+confidential read, related traversal and warm UID read passed, respectively at
+46.74, 16.09, 12.51, 15.49 and 13.45 ms. Five live traversal events carried
+JEFFREY and one consistent visual identity despite generic `mcp` tool arguments.
+The temporary observer was restored. These are functional observations, not a
+performance distribution or identity authorization grant.
+
+Restricted denial and cold-start remain unexercised. The report continues to
+set `release_gate_complete: false`. Private evidence:
+`hermes-current-acceptance-20260913.log` and
+`native-hermes-current-observer-20260913.json` under `_Claude-Code`.
