@@ -78,4 +78,28 @@ The v3 expectation must therefore state its input corpus explicitly:
   sensitivity policy; do not reuse either count.
 
 No historical expectation was edited, and no production area semantics changed.
-The five v2 Obsidian qualification rows remain separate pending requirements.
+The five v2 Obsidian qualification rows are reconciled below; adoption remains
+a separate interface decision.
+
+## Actual Obsidian parser observation
+
+On September 13, Obsidian 1.12.7's metadata cache was read through its CLI for
+the already-installed synthetic fixtures. Their raw SHA-256s matched v2:
+`edge-cases.md` = `63b476e6a7090d88a38899738e0a9b8e1cce1f5fe572d18e1b7bc175e65fafa4`;
+`nested-and-unicode.md` = `7e4100c8622db4065d60c9afa3f1b07962d80359b86b261b4055b4bac5359c8d`.
+
+| Fixture literal | Historical proposed tag status | Observed cached tag status |
+| --- | --- | --- |
+| URL `page#fragment` | No | No |
+| URI `vault=x#y` | No | No |
+| `#project/` | No | Yes, exact literal |
+| `#/bad` | No | Yes, exact literal |
+| `#a//b` | No | Yes, exact literal |
+
+These observations contradict the three slash-related proposal rows. Preserve
+those rows as history; a compatibility fixture must use the observed behavior
+for this version rather than silently treating the proposal as Obsidian's rule.
+Cache positions were inspected, not rewritten. This is native parser evidence
+for these exact files, not universal syntax qualification, rendered-tag interaction
+acceptance, or approval to change Engine parsing semantics. The area-only subset
+was also executed separately and returned the two expected Root paths.
