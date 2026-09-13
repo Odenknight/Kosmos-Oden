@@ -100,6 +100,10 @@ All 28 component tests pass. Full repository verification passes all 548 tests.
 The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 
+An [independent deletion-authority component](HISTORY-DELETION-AUTHORITY.md) now provides durable deny receipts.
+An isolated two-database test proves that restoring source history alone cannot undo those denials.
+The native binding and physical purge remain unfinished.
+
 ## Remaining work
 
 - Bind the ledger to a qualified private native database capability and actual source-capture receipts.
