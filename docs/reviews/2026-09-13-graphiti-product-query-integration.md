@@ -1,0 +1,52 @@
+# Graphiti product query integration requirements
+
+Source inspection: Engine `a7b52b3886b2a2ffbea51bfc7b03114b6508fff0`.
+This identifies the remaining G5/G6 implementation boundary; it does not claim
+an authenticated product query endpoint exists.
+
+The product service owns credentials, corpus snapshots and authorization through
+`src/service/server.ts`. Its current `/graphiti/episodes` route exports authorized
+episodes. It does not execute semantic queries. The private `GraphitiQueryBroker`
+already bounds admission, retains physical slots for transports that ignore
+cancellation, and validates replies against fresh host context.
+
+## Required host binding
+
+1. Authenticate through `ServiceCredentialRegistry`; derive the authorized view
+   through the service's existing policy evaluator. Request fields must not select
+   a corpus, scope, projection, configuration, or ledger job as authority.
+2. Obtain the complete authorized source manifest from the ingestion authority.
+   `ledger.validate_manifest` binds an ordered list of source ID, source digest
+   and episode digest to `source_snapshot_digest`. A set of visible notes alone
+   cannot reconstruct this list or establish complete dependency scope.
+3. Reuse the exact ingestion canonicalization. Python `ledger.canonical` sorts
+   object keys, escapes non-ASCII characters and preserves array order. Generic
+   JavaScript JSON serialization is not an interchangeable digest algorithm.
+   Bind source and episode hashes according to their distinct input definitions;
+   `AuthorizedRecordEvidence.content_digest` is not evidence of raw source bytes.
+4. Read a published ledger generation using the host-derived binding. Its
+   `projection_id`, source mappings, observation receipt and sequence belong to
+   that generation. A successful read is publication evidence, not a user grant.
+5. Supply the broker with a host-owned current-context function and the bounded
+   read-only transport. After asynchronous snapshot or ledger work, recompute
+   authority before accepting or publishing results. A cached context closure
+   would defeat the broker's post-query check.
+6. Revalidate credentials, policy, corpus generation, configuration and complete
+   dependency scope after the provider returns. Return no partial result if any
+   binding changes. Preserve unverified semantic support on accepted citations.
+
+## Required executable acceptance
+
+Exercise the actual authenticated service route with a published synthetic
+ledger: permitted request, missing credential, restricted source dependency,
+cross-corpus projection, changed policy/configuration/generation, credential
+revocation during each await, cancellation, bounded oversized response and
+backend outage. Confirm rejected requests never invoke the provider where
+preflight authority is unavailable, and late results never escape after revocation.
+Run non-ASCII episode digest vectors across the TypeScript/Python boundary.
+
+Then exercise the Kosmos client against that route, including unavailable status,
+native fallback and explicitly unverified evidence display. Existing broker,
+ledger and renderer component tests do not substitute for this integration.
+Keep query capability unavailable until the host binding is implemented and
+qualified. G5/G6 and final release remain open.
