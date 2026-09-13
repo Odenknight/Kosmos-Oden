@@ -96,3 +96,16 @@ Dependency/vendor versions remain independent. The native manifest's explicit
 empty feature lists observed after the CLI build are retained; the earlier build
 receipt identifies the base commit, with this equivalent manifest normalization
 present in the working tree rather than committed at that time.
+
+## Internal installer generation
+
+At `8b1d9a32d6060ecfda86921894dbc7386cbc7a9a`, the official CLI command
+`tauri build --debug --bundles nsis --ci -- --locked --offline` generated the
+Windows x64 installer. Tauri downloaded its NSIS 3.11 and utility 0.5.3 artifacts
+and reported hash validation. The installer is 2,767,905 bytes, SHA-256
+`3bf6ab84273a59cb9276ce8c25838e9d4b688ef2f481d2d53e73362695936db0`.
+Authenticode status is `NotSigned`. No installer was executed and the Engine
+manifest remains null. This proves internal debug installer generation only;
+installation, upgrade/rollback, signing and visible UI remain unqualified. NSIS
+packaging patches the built application with bundle-type information, so its
+executable must not be identified using the earlier unbundled binary receipt.
