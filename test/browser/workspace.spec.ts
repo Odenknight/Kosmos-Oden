@@ -327,3 +327,31 @@ test('inspector tabs support keyboard selection and preserve the section across 
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true })).toBeFocused();
 });
+
+test('evidence declarations preserve origin, zero, missing and invalid values without resolving targets', async ({ page }) => {
+  await page.evaluate(() => { (window as any).projection = {
+    authored: { evidence: { supports: [{ target: '<img src=x onerror=alert(1)>', source_uid: 'source:one', strength: 0, relevance: null }], contradicts: [] } },
+    proposed: { evidence: { supports: [{ target: 'proposed-only', strength: false, relevance: 2 }] } },
+    effective: { evidence: { supports: [], contradicts: [] } },
+  }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.getByText('Authored', { exact: true }).click();
+  const authored = page.getByRole('region', { name: 'authored evidence declarations', exact: true });
+  await expect(authored).toContainText('<img src=x onerror=alert(1)>');
+  await expect(authored).toContainText('source:one');
+  await expect(authored.locator('dt').filter({ hasText: /^Strength$/ }).locator('+ dd')).toHaveText('0');
+  await expect(authored.locator('dt').filter({ hasText: /^Relevance$/ }).locator('+ dd')).toHaveText('Not recorded');
+  await expect(authored).toContainText('No declarations recorded');
+  await expect(authored.locator('img, a, button')).toHaveCount(0);
+  await page.getByText('Proposed', { exact: true }).click();
+  const proposed = page.getByRole('region', { name: 'proposed evidence declarations', exact: true });
+  await expect(proposed).toContainText('proposed-only');
+  await expect(proposed.getByText('Invalid value; inspect source', { exact: true })).toHaveCount(2);
+  await page.getByText('Effective', { exact: true }).click();
+  await expect(page.getByRole('region', { name: 'effective evidence declarations', exact: true })).not.toContainText('proposed-only');
+  await page.evaluate(() => { (window as any).projection.authored.evidence.supports = Array.from({ length: 51 }, () => ({ target: 'bounded', strength: 1, relevance: 1 })); });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.getByText('Authored', { exact: true }).click();
+  await expect(authored.getByRole('listitem')).toHaveCount(50);
+  await expect(authored).toContainText('Showing 50 of 51 declarations');
+});

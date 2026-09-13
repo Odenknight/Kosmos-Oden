@@ -186,6 +186,39 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         if (!projection) metadata.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {
           const details = element("details"); details.append(element("summary", origin[0].toUpperCase() + origin.slice(1)));
+          const evidence = projection[origin]?.evidence;
+          const declarations = element("section"); declarations.setAttribute("aria-label", `${origin} evidence declarations`);
+          declarations.append(element("h3", "Evidence declarations"), element("p", "Recorded declarations, not verified findings. References are not resolved here; strength and relevance do not establish truth or approval."));
+          for (const [kind, label] of [["supports", "Supporting"], ["contradicts", "Contradicting"]] as const) {
+            declarations.append(element("h4", label));
+            const items: unknown = evidence?.[kind];
+            if (!Array.isArray(items)) {
+              declarations.append(element("p", items === undefined ? "Not recorded" : "Invalid declaration list; inspect source"));
+              continue;
+            }
+            if (!items.length) declarations.append(element("p", "No declarations recorded"));
+            const list = element("ol");
+            for (const item of items.slice(0, 50)) {
+              const row = element("li"), fields = element("dl");
+              if (!item || typeof item !== "object" || Array.isArray(item)) {
+                row.textContent = "Unstructured declaration; inspect the origin record below";
+              } else {
+                for (const [label, value] of [["Target", item.target], ["Source UID", item.source_uid], ["Independence group", item.independence_group]] as const)
+                  fields.append(element("dt", label), element("dd", recordedText(value)));
+                for (const key of ["strength", "relevance"] as const) {
+                  const value = item[key];
+                  const text = value === undefined || value === null ? "Not recorded"
+                    : typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? String(value) : "Invalid value; inspect source";
+                  fields.append(element("dt", key[0].toUpperCase() + key.slice(1)), element("dd", text));
+                }
+                row.append(fields);
+              }
+              list.append(row);
+            }
+            declarations.append(list);
+            if (items.length > 50) declarations.append(element("p", `Showing 50 of ${items.length} declarations. Inspect the canonical source for the remainder.`));
+          }
+          details.append(declarations, element("h3", "Origin record"));
           const text = JSON.stringify(projection[origin], null, 2) ?? "Unavailable";
           details.append(element("pre", text.length <= 64_000 ? text : "This section exceeds the preview budget. Inspect the canonical source."));
           metadata.append(details);

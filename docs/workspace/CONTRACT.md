@@ -198,6 +198,17 @@ Text is inert and bounded; explicit boolean false remains visible as false.
 The five origin records remain separately inspectable. These fields do not
 create approval authority or permissions.
 
+Each origin also shows structured supporting and contradicting evidence
+declarations from that same projection. Target, source UID, independence group,
+strength and relevance remain attributed to their origin; proposed evidence is
+not copied into effective evidence by the UI. Zero is displayed as zero, missing
+values as Not recorded, invalid numeric values explicitly as invalid, and empty
+lists separately from absent lists. At most 50 declarations per direction and
+origin are displayed, with an explicit truncation notice. The complete origin
+record remains available within its existing preview budget. References are
+inert text, not resolved or verified findings. This display does not validate
+evidence targets, establish truth, or authorize action.
+
 ## Readable lineage
 
 Notes captures the existing `qLineage` result with the note, projection and
