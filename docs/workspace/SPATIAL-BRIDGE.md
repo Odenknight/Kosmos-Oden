@@ -13,7 +13,7 @@ or Notes selection controls; byte-level message validation is still required.
 
 The `readable-graph` envelope now validates positive safe-integer generations,
 unique IDs/paths, safe vault paths, timestamp syntax and readable link endpoints.
-Known consumed text is limited to 2,000,000 UTF-16 units, with per-field and array
+Known consumed text is limited to 8,000,000 UTF-16 units, with per-field and array
 limits. This is a consumed-field budget, not a transport byte limit. The renderer
 does not yet apply this new message. Conversion lives in `workspace/spatial.ts`
 so the protocol need not import the native host implementation.
@@ -82,3 +82,9 @@ Source references: `src/workspace/host.ts`, `src/plugin/agent-server.ts:qGraph`,
 `src/renderer/renderer.ts:renderGraph`. The renderer currently compares selected
 metadata fields when deciding whether to refresh; projection-field changes and
 removal of previous metadata also require explicit regression coverage.
+
+Native qualification of 935ecd5 rejected the live graph at the original
+2,000,000-unit budget: 2,276 readable nodes and 13,149 links consumed
+2,624,962 units. The bounded allowance is now 8,000,000; regression checks
+accept a larger valid payload and reject one above that bound. This correction
+requires a new installed receipt; the failed attempt remains historical.

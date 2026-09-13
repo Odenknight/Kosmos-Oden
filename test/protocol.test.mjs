@@ -19,6 +19,11 @@ test('readable graph validates scope payload bounds, paths, endpoints and genera
   const graph={builtAt:'2026-09-13',nodes:[{id:'file:A.md',path:'A.md',title:'A',area:'Vault',type:'note',tags:[],timestamp:null}],links:[]};
   const valid=()=>wrap('readable-graph',{generation:1,graph:structuredClone(graph)});
   assert.equal(validateHostMessage(valid()).ok,true);
+  const large=valid();
+  large.payload.graph.nodes[0].tags=Array(800).fill('x'.repeat(4096));
+  assert.equal(validateHostMessage(large).ok,true);
+  large.payload.graph.nodes=Array.from({length:3},(_,i)=>({...large.payload.graph.nodes[0],id:`file:${i}.md`,path:`${i}.md`}));
+  assert.equal(validateHostMessage(large).ok,false);
   for(const mutate of [
     m=>{m.payload.generation=0;}, m=>{m.payload.generation=1.5;},
     m=>{m.payload.graph.nodes[0].path='../private.md';},

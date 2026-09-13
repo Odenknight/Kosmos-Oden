@@ -12,12 +12,12 @@ export function validReadableGraph(value: any): boolean {
       (node.timestamp != null && (!text(node.timestamp) || !Number.isFinite(Date.parse(node.timestamp))))) return false;
     ids.add(node.id); paths.add(node.path);
     units += node.id.length + node.path.length + node.title.length + node.area.length + node.type.length + node.tags.reduce((n: number, tag: string) => n + tag.length, 0) + (node.timestamp?.length ?? 0);
-    if (units > 2_000_000) return false;
+    if (units > 8_000_000) return false;
   }
   for (const link of value.links) {
     if (!link || !ids.has(link.source) || !ids.has(link.target) || !["wikilink", "semantic", "lineage"].includes(link.kind)) return false;
     units += link.source.length + link.target.length + link.kind.length;
-    if (units > 2_000_000) return false;
+    if (units > 8_000_000) return false;
   }
   return true;
 }
