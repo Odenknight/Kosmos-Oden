@@ -155,6 +155,10 @@ export class VaultDataProvider implements AgentDataProvider {
     }
   }
 
+  inspectLineage(graph: GkxGraph, sourceNodeId: string, readableNodeIds: ReadonlySet<string>) {
+    return this.adapter.inspectScopedLineage(graph, sourceNodeId, readableNodeIds);
+  }
+
   private async rebuild(attempt: { active: boolean; until: number }): Promise<GkxGraph> {
     const check = () => { if (!attempt.active || performance.now() >= attempt.until) throw new ProviderError("timeout"); };
     while (true) {

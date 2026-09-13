@@ -22,7 +22,7 @@
  *    endpoints exist (§18).
  */
 import { ProviderError } from "./vault-operations";
-import { inspectScopedLineage, projectAtTime, type ProjectableNote } from "gkos-engine";
+import { projectAtTime, type ProjectableNote, type inspectScopedLineage } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
@@ -325,6 +325,7 @@ export function makeToken(): string {
 export interface AgentDataProvider {
   /** The shared graph snapshot — the same one the viewer renders (§33). */
   getGraph(): Promise<GkxGraph>;
+  inspectLineage?: typeof inspectScopedLineage;
   /** Note body with frontmatter stripped, or null when unknown. */
   getNoteContent(path: string): Promise<string | null>;
   /** Body from the committed graph's source snapshot; never performs vault I/O. */
@@ -1132,7 +1133,7 @@ export class KosmosAgentServer {
       for: n.path,
       chainLength: chain.length,
       chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
-      inspection: inspectScopedLineage(graph, n.id, new Set(byId.keys())),
+      inspection: this.provider.inspectLineage?.(graph, n.id, new Set(byId.keys())) ?? { available: false, declarations: [] },
     };
   }
 

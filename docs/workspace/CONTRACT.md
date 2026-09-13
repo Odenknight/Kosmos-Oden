@@ -238,7 +238,7 @@ scope; confidential successors are excluded. Unavailable data is distinct from
 an empty chain. This is resolved current lineage, not an approval record,
 known-at history.
 
-The candidate pins Engine `fb05e68b08ff60c1f753c5236de4ba0e6b05b6ca`
+The candidate pins Engine `b309d5ec41aac9f20c946598fbc8a5a75b4afcec`
 (Engine PR72, qualification and merge tracked separately). `qLineage` now also
 returns scoped declaration inspection from the Engine's parser-owned candidate
 tiers. The host supplies its readable node set; hidden candidates behave like
@@ -249,7 +249,9 @@ Declaration resolution does not rewrite the existing canonical chain.
 
 Unavailable receipts are distinct from an available empty declaration list.
 Private receipts do not survive graph cloning or transfer between independently
-bundled Engine instances; those cases report unavailable. A shared native-bundle
-test verifies the Engine/server/host path and hidden-versus-absent equality.
+bundled Engine instances; those cases report unavailable. The vault provider
+invokes inspection on its owning Engine adapter; the server does not call the
+separately bundled root inspector. An adapter-backed provider test verifies
+the Engine/server/host path and hidden-versus-absent equality.
 Installed-runtime qualification remains pending. Unresolved means unresolved in
 the readable scope, not globally absent; no status implies approval.
