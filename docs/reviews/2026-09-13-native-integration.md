@@ -75,3 +75,16 @@ readiness/generated-control checks passed. Tauri's
 passes the frontend directory to its hook runner. The earlier `../scripts` path
 was therefore unsuitable for this layout. This checks the hook command directly;
 the Tauri CLI itself is not installed here, and installer creation is unqualified.
+
+## Official CLI build
+
+The official `@tauri-apps/cli` 2.11.4 package was subsequently installed in an
+isolated tool directory after checking its registry repository identity. Project
+JavaScript dependencies were unchanged. At source
+`872c35eb29859d7b6b72b99b505a64d5c62cf414`, `tauri build --debug --no-bundle --ci --
+--locked --offline` passed, including the frontend preparation hook. It produced
+a Windows executable of 13,311,488 bytes, SHA-256
+`c29cf34cba407bcecbafd86f133840d4665d9d8ac63bbb6413e592a5720498fc`.
+The embedded Engine manifest remained null. This supersedes the earlier missing
+CLI observation; it proves the actual CLI build, not installer creation, release
+signing, visible app behavior or Engine-enabled native UI.
