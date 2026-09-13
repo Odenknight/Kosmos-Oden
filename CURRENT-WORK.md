@@ -97,7 +97,11 @@ See `src/plugin/agent-server.ts` and `test/source-evidence.test.mjs`.
 Native profiles now retain the published projection time.
 This fixes a reproduced mismatch after restarting an unchanged source provider.
 The deployed service and native export use different projection envelopes.
-Native acceptance needs its own synthetic publication.
+A separate native synthetic publication now exists.
+A recreated native provider reproduced its manifest and accepted its real receipt.
+The clean plugin package is staged in an isolated synthetic vault.
+Live HTTP connection and visible native acceptance remain open.
+See the [synthetic publication report](docs/reviews/2026-09-13-native-synthetic-publication.md).
 
 The workspace now has an Open cited source button.
 The host checks the citation against the accepted result.
