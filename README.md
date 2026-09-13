@@ -1,5 +1,7 @@
 # Kosmos-Oden — v0.8.3 candidate
 
+[Current Engine Unicode correction](docs/reviews/2026-09-13-graphiti-unicode-consumer.md) · [Earlier Engine development-pin qualification](docs/reviews/2026-09-13-engine-777ba17.md)
+
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
 [Native Hermes read and identity receipt](docs/reviews/2026-09-13-native-hermes-acceptance.md)
@@ -34,7 +36,7 @@ read-only, and the standalone viewer works without Obsidian or the internet.
 
 > **Version 0.8.3 candidate:** adds modern MCP 2026-07-28 and preserves Engine
 > adapter sensitivity policy. Uses the TypeScript GKOS-Engine 2.2.0 development candidate
-> at exact commit `b309d5ec41aac9f20c946598fbc8a5a75b4afcec`. This update preserves the
+> at exact commit `f2bafb78fe647696ac45d382299cb43c5663afb8`. This update preserves the
 > existing plugin and standalone workflows, repairs overlapping vault updates,
 > and hardens local service connections. It includes no Rust build.
 > Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
@@ -223,7 +225,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`b309d5ec41aac9f20c946598fbc8a5a75b4afcec`. Its Effects contract says
+`f2bafb78fe647696ac45d382299cb43c5663afb8`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
