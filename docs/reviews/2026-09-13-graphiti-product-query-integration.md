@@ -70,3 +70,13 @@ pin, including 503 tests and the exact dependency guard.
 The candidate Notes client and related-facts display exist, but the installed
 plugin is unchanged. Production authority, configured native client, resolved
 citations and live acceptance remain required; G5/G6 remain open.
+
+The subsequent Engine `5f96a71` host implementation has now been exercised as a
+persistent isolated synthetic reader. Five live HTTP queries returned the expected
+fixture fact and matching source citations, missing credentials and wrong bindings
+were denied, graph counts were unchanged, and a new service process recovered the
+same published ledger generation after restart. The original Engine source manifest
+and returned query contract were also reconciled locally. Private deployment receipts
+remain in the operator's local records. This advances backend qualification; the
+upstream Engine adapter, native client and actual vault scope still require integration
+and acceptance. The installed plugin and this consumer's Engine pin are unchanged.
