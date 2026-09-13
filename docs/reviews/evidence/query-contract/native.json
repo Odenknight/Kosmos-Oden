@@ -1,0 +1,36 @@
+{
+  "schema": "kosmos-native-query-checkpoint/1",
+  "recorded_at": "2026-09-13T04:56:20.866Z",
+  "protocol": "2026-07-28",
+  "calls_passed": 7,
+  "status": {
+    "state": "export-ready",
+    "searchable": false,
+    "target": "0.30.2"
+  },
+  "build": {
+    "schemaVersion": 1,
+    "project": "kosmos-oden",
+    "version": "0.8.3",
+    "repository": "https://github.com/Odenknight/Kosmos-Oden",
+    "gitCommit": "0c76f9c779a1bb17bf11ec93c4018f3e9383e80e",
+    "gitTag": "",
+    "workflow": null,
+    "runId": null,
+    "nodeVersion": "v24.18.0",
+    "lockfileSha256": "3d852c3efe6a71eab650c3213a0ac788b38e052ee8189664d421fa266ed57f45",
+    "sourceTreeDirty": true,
+    "buildTimeUtc": "2026-09-13T04:48:09.003Z"
+  },
+  "main_sha256": "c4714378d46cac8ae870fd21e479b003a4892af00a9c6b8f4339c1f5bfd443fe",
+  "identity": {
+    "all_events_named_codex": true,
+    "distinct_visual_ids": 1,
+    "observer_restored": true
+  },
+  "limits": [
+    "Configured native endpoint probe, not native Hermes harness acceptance",
+    "Dirty build marker: artifact is not identified by clean commit alone",
+    "No new semantic broker or model ingestion"
+  ]
+}
