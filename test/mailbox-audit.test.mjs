@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { auditMailbox, verifyMailboxReference, verifyMailboxBundle } from "../scripts/audit-mailbox.mjs";
+import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
 
 test("mailbox audit selects recipient and exposes forks, inverted roles and bad raw hashes", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-"));
@@ -21,6 +21,7 @@ test("mailbox audit selects recipient and exposes forks, inverted roles and bad 
   const clean = auditMailbox(root, "bob");
   assert.deepEqual(clean.findings, []);
   assert.equal(clean.acknowledgements.length, 1);
+  assert.ok(clean.schemaFindings.some(x=>x.code==="schema-required-field"), "minimal integrity fixtures must not be certified as complete protocol records");
   assert.equal(clean.acknowledgements[0].completionVerified, false);
   const wrong = auditMailbox(root, "carol").findings.map(f => f.code);
   assert.ok(wrong.includes("ack-role-mismatch"));
@@ -133,4 +134,18 @@ test("retained heads detect removed suffixes and rewritten observations without 
   assert.ok(auditMailbox(root,"bob",root,heads).findings.some(x=>x.code==="retained-head-missing"));
   assert.equal(heads[0].sha256,second.sha256);
   assert.throws(()=>auditMailbox(root,"bob",root,[{sender:"../outside",sequence:2,sha256:second.sha256}]),/Invalid retained head/);
+});
+
+
+test("protocol schema checks missing fields, roles and ACK evidence shapes", () => {
+  const message={schema_version:1,message_id:"m",sender:"alice",recipients:["bob"],sender_seq:1,task_id:"task",in_reply_to:null,created_utc:"2026-09-13T00:00:00Z",kind:"RESULT",payload:{subject:"Result",body_markdown:"Data"},input_plan_digests:[],artifacts:[],prev_message_sha256:null};
+  assert.deepEqual(mailboxSchemaFindings(message,"message"),[]);
+  assert.ok(mailboxSchemaFindings({...message,kind:"ASSIGNMENT"},"message").includes("assignment-role-mismatch"));
+  assert.ok(mailboxSchemaFindings({...message,recipients:["bob","bob"]},"message").includes("schema-recipients"));
+  assert.ok(mailboxSchemaFindings({...message,created_utc:"yesterday"},"message").includes("schema-time"));
+  const incomplete={...message};delete incomplete.payload;
+  assert.ok(mailboxSchemaFindings(incomplete,"message").includes("schema-required-field"));
+  const ack={schema_version:1,ack_id:"a",sender:"alice",recipient:"bob",message_id:"m",message_sha256:"a".repeat(64),status:"RECEIVED",created_utc:message.created_utc,reason:"Received",review_message_id:null,outputs:[]};
+  assert.deepEqual(mailboxSchemaFindings(ack,"ack"),[]);
+  assert.ok(mailboxSchemaFindings({...ack,outputs:null},"ack").includes("schema-outputs"));
 });
