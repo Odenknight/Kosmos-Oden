@@ -69,6 +69,24 @@ for (const scenario of ["unannounced edit", "revision change", "revocation", "in
   });
 }
 
+for (const field of ['vaultName', 'vaultIdentity', 'agentGraphNamespace', 'graphitiCombinedExtraction', 'graphitiSagaMapping']) {
+  for (const boundary of ['source read', 'page return']) {
+    test(`export refuses changed ${field} at ${boundary}`, async () => {
+      const f = fixture();
+      const change = () => {
+        if (field === 'vaultName' || field === 'vaultIdentity') f.provider[field] = () => 'changed-corpus';
+        else f.settings[field] = field === 'agentGraphNamespace' ? 'changed-namespace' : !f.settings[field];
+      };
+      if (boundary === 'source read') f.onRead(change);
+      else {
+        const original = f.server.qEpisodes.bind(f.server);
+        f.server.qEpisodes = async (...args) => { const result = await original(...args); change(); return result; };
+      }
+      await assert.rejects(f.server.qEpisodePage(0, 10, true), e => e.reason === 'provider_unavailable');
+    });
+  }
+}
+
 test("evidence budget rejects oversized metadata before I/O and oversized actual reads before hashing", async () => {
   const f = fixture();
   const graph = await f.provider.getGraph();

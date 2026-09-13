@@ -60,7 +60,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 504 tests.
+The latest completed Kosmos verification passed 514 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -74,6 +74,12 @@ The fix checks elapsed time before starting transport.
 The regression test now passes.
 All four client tests and full repository verification passed after the fix.
 See `src/workspace/semantic-client.ts` and its matching test file.
+
+The export path also had a source-binding gap.
+Vault identity or Graphiti settings could change during an export.
+The export now rejects those changes before returning results.
+Ten new regression cases failed before the fix and passed afterward.
+See `src/plugin/agent-server.ts` and `test/source-evidence.test.mjs`.
 
 ## What still needs work
 

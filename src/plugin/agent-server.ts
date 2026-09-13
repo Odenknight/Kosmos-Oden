@@ -1193,12 +1193,22 @@ export class KosmosAgentServer {
     };
   }
 
+  /** Capture every host field that selects the export's identity or projection. */
+  private captureGraphitiProjection(): () => boolean {
+    const provider = this.provider;
+    const values = () => [provider.vaultName(), provider.vaultIdentity?.(), this.settings.agentGraphNamespace,
+      this.settings.graphitiCombinedExtraction, this.settings.graphitiSagaMapping,
+      this.settings.agentSensitivityCeiling, this.settings.defaultSensitivity];
+    const captured = values();
+    return () => this.provider === provider && values().every((value, index) => value === captured[index]);
+  }
+
   async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false): Promise<any[]> {
+    const projectionCurrent = this.captureGraphitiProjection();
     const provider = this.provider;
     if (includeSourceEvidence && (!provider.getIndexedSourceBytes || !provider.getIndexedBody)) throw new McpRpcError(-32602, "Source-byte evidence is unavailable from this provider");
     const graph = await provider.getGraph();
-    const ceiling = this.settings.agentSensitivityCeiling;
-    const defaultSensitivity = this.settings.defaultSensitivity;
+    if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
     const visibleGraph = this.graphForVisibleNodes(graph);
     const all = buildGraphitiEpisodes(visibleGraph, {
       vault: this.provider.vaultName(),
@@ -1218,7 +1228,7 @@ export class KosmosAgentServer {
     const sources = new Map<string, Uint8Array>();
     let remainingBytes = MAX_SOURCE_EVIDENCE_BYTES;
     for (const episode of episodes) {
-      if (this.provider !== provider || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) throw new ProviderError("provider_unavailable");
+      if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
       let path = "";
       try {
         const body = JSON.parse(episode.episode_body);
@@ -1228,27 +1238,30 @@ export class KosmosAgentServer {
       const c = provider.getIndexedBody
         ? provider.getIndexedBody(path, graph)
         : await provider.getNoteContent(path);
+      if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
       if (c != null) contents.set(path, c);
       if (includeSourceEvidence && !sources.has(path)) {
         if (c == null) throw new ProviderError("provider_unavailable");
         const bytes = await provider.getIndexedSourceBytes!(path, graph, remainingBytes);
-        if (!bytes || bytes.byteLength > remainingBytes) throw new ProviderError("provider_unavailable");
+        if (!projectionCurrent() || !bytes || bytes.byteLength > remainingBytes) throw new ProviderError("provider_unavailable");
         sources.set(path, bytes);
         remainingBytes -= bytes.byteLength;
       }
     }
     const result = attachGraphitiContent(episodes, contents);
     if (includeSourceEvidence) await attachGraphitiSourceEvidence(result, sources);
-    if (this.provider !== provider || await provider.getGraph() !== graph || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) {
+    if (await provider.getGraph() !== graph || !projectionCurrent()) {
       throw new ProviderError("provider_unavailable");
     }
     return result;
   }
 
   async qEpisodePage(offset = 0, limit = DEFAULT_EPISODE_PAGE, includeSourceEvidence = false): Promise<any> {
+    const projectionCurrent = this.captureGraphitiProjection();
     const provider = this.provider;
     const graph = await provider.getGraph();
-    const ceiling = this.settings.agentSensitivityCeiling, defaultSensitivity = this.settings.defaultSensitivity;
+    if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
+    const ceiling = this.settings.agentSensitivityCeiling;
     const visibleGraph = this.graphForVisibleNodes(graph);
     const profile = graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction });
     const total = buildGraphitiEpisodes(visibleGraph, {
@@ -1259,7 +1272,7 @@ export class KosmosAgentServer {
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const pageSize = Math.max(1, Math.min(Math.floor(Number.isFinite(limit) ? limit : DEFAULT_EPISODE_PAGE), MAX_EPISODE_PAGE));
     const episodes = await this.qEpisodes(pageSize, start, includeSourceEvidence);
-    if (this.provider !== provider || await provider.getGraph() !== graph || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) throw new ProviderError("provider_unavailable");
+    if (await provider.getGraph() !== graph || !projectionCurrent()) throw new ProviderError("provider_unavailable");
     const next = start + episodes.length;
     return {
       authority: "non-authoritative Graphiti adapter projection with authored/derived/proposed/approved origin separation",
