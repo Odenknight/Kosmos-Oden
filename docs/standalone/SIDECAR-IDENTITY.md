@@ -243,3 +243,11 @@ PID, preventing retained status from satisfying the next launch. The final child
 was absent and source manifest null afterward; all-target clippy passed.
 This is an actual Engine restart through the native helper boundaries, not yet
 Supervisor automatic recovery/backoff or native desktop lifecycle acceptance.
+
+Supervisor status now reports an explicit unavailable error instead of panicking
+on a poisoned state lock, and a child status-query error no longer implies
+running. Shutdown recovers the poisoned guard solely to close and clean up; it
+does not clear poison or resume normal operation. The 16-test Rust suite and
+all-target clippy pass. The new fixture proves unavailable reporting and closed
+intent after poison; it does not inject an OS process-query failure or prove
+actual child cleanup under poison. Automatic Supervisor recovery remains open.

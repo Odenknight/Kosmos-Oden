@@ -168,12 +168,12 @@ impl Supervisor {
     }
 
     pub fn shutdown(&self) {
-        if let Ok(mut inner) = self.inner.lock() {
-            inner.closed = true;
-            inner.desired_running = false;
-            inner.generation = inner.generation.wrapping_add(1);
-            terminate_child(&mut inner);
-        }
+        // Poison must prevent normal operation, but must not skip child cleanup.
+        let mut inner = self.inner.lock().unwrap_or_else(|error| error.into_inner());
+        inner.closed = true;
+        inner.desired_running = false;
+        inner.generation = inner.generation.wrapping_add(1);
+        terminate_child(&mut inner);
     }
 
     pub fn reconnect(&self, app_state_root: &Path) -> Result<SidecarStatus, String> {
@@ -188,11 +188,24 @@ impl Supervisor {
     }
 
     pub fn status(&self) -> SidecarStatus {
-        let mut inner = self.inner.lock().expect("sidecar state lock poisoned");
-        let running = inner
-            .child
-            .as_mut()
-            .is_some_and(|child| child.try_wait().ok().flatten().is_none());
+        let Ok(mut inner) = self.inner.lock() else {
+            return SidecarStatus {
+                available: false,
+                running: false,
+                service_url: "http://127.0.0.1:4814",
+                restart_count: 0,
+                last_exit: None,
+                last_error: Some("sidecar state unavailable".to_string()),
+            };
+        };
+        let running = match inner.child.as_mut().map(Child::try_wait) {
+            Some(Ok(None)) => true,
+            Some(Err(_)) => {
+                inner.last_error = Some("sidecar process status unavailable".to_string());
+                false
+            }
+            _ => false,
+        };
         SidecarStatus {
             available: !inner.closed && self.sidecar_path.get().is_some(),
             running,
@@ -406,6 +419,30 @@ pub fn redacted_diagnostics(status: &SidecarStatus) -> RedactedDiagnostics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn poisoned_state_reports_unavailable_without_panicking() {
+        let supervisor = Supervisor::with_sidecar(None);
+        let inner = Arc::clone(&supervisor.inner);
+        let _ = std::panic::catch_unwind(move || {
+            let _guard = inner.lock().unwrap();
+            panic!("synthetic state failure");
+        });
+        let status = supervisor.status();
+        assert!(!status.available);
+        assert!(!status.running);
+        assert_eq!(
+            status.last_error.as_deref(),
+            Some("sidecar state unavailable")
+        );
+        supervisor.shutdown();
+        let inner = supervisor
+            .inner
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        assert!(inner.closed);
+        assert!(!inner.desired_running);
+    }
 
     #[test]
     fn discovery_publishes_once_and_never_after_shutdown() {
