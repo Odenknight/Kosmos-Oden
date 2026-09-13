@@ -46,3 +46,22 @@ This proves the packaged host-realm physical-read registry survives fresh module
 and provider construction. It does not execute Obsidian's real unload/reload event
 sequence, nor does it establish process-restart or viewer acceptance. The fixture
 still deliberately stops before UI/event registration.
+
+## Installed candidate 59a61ca — Hermes requalification
+
+A clean build at `59a61ca67724dfc67777199f6f7a90eb4c17c166` reproduced
+main.js SHA-256 `8d053b23e051913b8d0f57ba2fded66d2896e77f13dbd13994ab9b2800be5377`.
+All 11 installation artifacts were verified, settings were unchanged during
+installation, and the previous package was backed up before plugin reload.
+
+On September 13, the existing native Hermes client using MCP SDK 2.0.0 passed
+18-tool discovery, source search, permitted UID read, a confidential fixture
+consistent with the existing policy, related traversal and warm read. Five
+observed callbacks consistently named JEFFREY despite the harness supplying a
+generic `mcp` argument. The runtime process and installed artifact hash stayed
+stable throughout the run; the temporary callback observer was restored.
+
+The confidential read was allowed by the configured policy, so this is not
+restricted-denial evidence. Cold start was not exercised. These receipts advance
+current-candidate client qualification but do not close R0/R3 or certify visible
+UI behavior. The synthetic packaged recovery evidence above remains separate.
