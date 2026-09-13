@@ -275,3 +275,16 @@ late launch/error or state creation occurs. Exhaustion reports the limit without
 incrementing the count or creating state. All 17 tests and all-target clippy pass.
 These prove cancellation and the exhaustion boundary, not five successful
 respawns followed by a sixth failure or successful automatic Engine recovery.
+
+Explicit `real_engine_recovers_through_supervisor` qualification passed using the
+verified Engine binary, synthetic corpus and production port 4814. It starts via
+Supervisor, waits for the owned PID to report one indexed document, kills that
+child, and observes the production monitor launch a different serving PID with
+restart count one. Shutdown clears the child. The qualification is ignored in
+ordinary tests because it requires an explicit binary/manifest and available port;
+it was explicitly selected and passed, not inferred from the ordinary suite.
+
+After restoring the null manifest, the ordinary suite passed 17 tests with this
+one qualification intentionally ignored; all-target clippy passed. This proves
+one successful automatic recovery. Full repeated retry exhaustion, discovery,
+native UI and broader release gates remain open.

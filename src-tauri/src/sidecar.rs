@@ -421,6 +421,94 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "requires explicit verified Engine manifest and KOSMOS_QUALIFICATION_BINARY; binds loopback 4814"]
+    fn real_engine_recovers_through_supervisor() {
+        let binary = PathBuf::from(
+            std::env::var_os("KOSMOS_QUALIFICATION_BINARY").expect("explicit binary required"),
+        );
+        let release =
+            crate::sidecar_release::Release::embedded().expect("qualification manifest required");
+        let _verified = release.verify(&binary).expect("binary mismatch");
+        drop(
+            std::net::TcpListener::bind(("127.0.0.1", PORT))
+                .expect("qualification port is occupied"),
+        );
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-supervisor-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let notes = root.join("notes");
+        fs::create_dir_all(&notes).unwrap();
+        fs::write(notes.join("synthetic.md"), "---\ngkx_version: \"2.3\"\nuid: \"019b2d14-4230-7db7-87d4-7d81cfaec932\"\ntitle: Synthetic\ntype: policy\ncreated_at: \"2026-08-20T00:00:00Z\"\nepistemic_state: reported\nsensitivity: public\n---\nSynthetic only.\n").unwrap();
+        let supervisor = Supervisor::with_sidecar(Some(binary));
+        struct Cleanup(Supervisor);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                self.0.shutdown();
+            }
+        }
+        let _cleanup = Cleanup(supervisor.clone());
+        supervisor.start(notes, &root).unwrap();
+        let await_serving = |previous: Option<u32>| {
+            use std::io::Read;
+            let deadline = std::time::Instant::now() + Duration::from_secs(30);
+            loop {
+                let pid = supervisor
+                    .inner
+                    .lock()
+                    .unwrap()
+                    .child
+                    .as_ref()
+                    .map(Child::id);
+                if let Some(pid) = pid.filter(|value| Some(*value) != previous)
+                    && let Ok(file) = fs::File::open(root.join("sidecar/desktop-agent.status.json"))
+                {
+                    let mut bytes = Vec::new();
+                    file.take(65537).read_to_end(&mut bytes).unwrap();
+                    if bytes.len() <= 65536
+                        && let Ok(status) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                        && status["pid"] == pid
+                        && status["state"] == "serving"
+                        && status["notes_indexed"] == 1
+                    {
+                        return pid;
+                    }
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "Supervisor recovery timed out: {:?}",
+                    supervisor.status().last_error
+                );
+                thread::sleep(Duration::from_millis(50));
+            }
+        };
+        let first_pid = await_serving(None);
+        supervisor
+            .inner
+            .lock()
+            .unwrap()
+            .child
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        let recovered_pid = await_serving(Some(first_pid));
+        assert_ne!(first_pid, recovered_pid);
+        assert_eq!(supervisor.status().restart_count, 1);
+        supervisor.shutdown();
+        assert!(!supervisor.status().running);
+        assert!(supervisor.inner.lock().unwrap().child.is_none());
+        println!(
+            "PASS: production Supervisor recovered verified Engine and reindexed synthetic document; fixture {}",
+            root.display()
+        );
+    }
+
+    #[test]
     fn poisoned_state_reports_unavailable_without_panicking() {
         let supervisor = Supervisor::with_sidecar(None);
         let inner = Arc::clone(&supervisor.inner);
