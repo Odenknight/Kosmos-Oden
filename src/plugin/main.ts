@@ -427,9 +427,9 @@ export default class KosmosOdenPlugin extends Plugin {
     const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled);
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
-    this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml, path => { void this.activateNotes(path).catch(() => new Notice("Kosmos-Oden: Notes could not be opened.")); }));
-    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, this.agentApi, path => {
-      void this.activateReadable(path).catch(() => new Notice("Kosmos-Oden: readable view could not be opened."));
+    this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml, (path, uid) => { void this.activateNotes(path, uid).catch(() => new Notice("Kosmos-Oden: Notes could not be opened.")); }));
+    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, this.agentApi, (path, uid) => {
+      void this.activateReadable(path, uid).catch(() => new Notice("Kosmos-Oden: readable view could not be opened."));
     }));
     this.addRibbonIcon("notebook-pen", "Open Kosmos-Oden Notes", () => void this.activateNotes());
     this.addCommand({ id: "open-kosmos-notes", name: "Open Kosmos-Oden Notes", callback: () => void this.activateNotes() });
@@ -554,7 +554,7 @@ export default class KosmosOdenPlugin extends Plugin {
     ws.setActiveLeaf(leaf, { focus: true });
   }
 
-  async activateNotes(path?: string | null): Promise<void> {
+  async activateNotes(path?: string | null, uid?: string): Promise<void> {
     const ws = this.app.workspace;
     let leaf = ws.getLeavesOfType(NOTES_VIEW_TYPE)[0];
     if (!leaf) {
@@ -563,17 +563,17 @@ export default class KosmosOdenPlugin extends Plugin {
     }
     await ws.revealLeaf(leaf);
     ws.setActiveLeaf(leaf, { focus: true });
-    if (path !== undefined && leaf.view instanceof KosmosNotesView) await leaf.view.select(path);
+    if (path !== undefined && leaf.view instanceof KosmosNotesView) await leaf.view.select(path, uid);
   }
 
-  async activateReadable(path?: string): Promise<void> {
+  async activateReadable(path?: string, uid?: string): Promise<void> {
     const ws = this.app.workspace;
     let leaf = ws.getLeavesOfType(READABLE_VIEW_TYPE)[0];
     if (!leaf) { leaf = ws.getLeaf(true); await leaf.setViewState({ type: READABLE_VIEW_TYPE, active: true }); }
     await ws.revealLeaf(leaf);
     ws.setActiveLeaf(leaf, { focus: true });
     if (leaf.view instanceof KosmosReadableView) {
-      if (path) leaf.view.locate(path); else leaf.view.refresh();
+      if (path) await leaf.view.locate(path, uid); else leaf.view.refresh();
     }
   }
 

@@ -18,7 +18,7 @@ export class KosmosReadableView extends ItemView {
   private status?: HTMLElement;
   private snapshot?: Awaited<ReturnType<NotesWorkspaceHost["graph"]>>;
   private rendererState?: { generation: number; selectedId: string | null; error: "render" | "selection" | null };
-  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string, private openNotes: (path?: string | null) => void = () => {}) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string, private openNotes: (path?: string | null, uid?: string) => void = () => {}) { super(leaf); }
   getViewType() { return READABLE_VIEW_TYPE; }
   getDisplayText() { return "Kosmos-Oden readable notes"; }
   getIcon() { return "orbit"; }
@@ -104,7 +104,7 @@ export class KosmosReadableView extends ItemView {
       const published = await snapshot.publish(value => {
         const selected = this.selectedNode(value.nodes);
         if (!path && !uid) this.openNotes(path);
-        else if (selected) this.openNotes(selected.path);
+        else if (selected) this.openNotes(selected.path, isValidGkxAuthoredUid(selected.uid) ? selected.uid : undefined);
         else this.status!.textContent = "Selected note is unavailable in the current scope.";
       }, () => snapshot === this.snapshot && generation === this.generation && path === this.path && uid === this.uid && !!this.frame);
       if (!published) this.status!.textContent = "Note or scope changed. Select it again.";
@@ -112,13 +112,14 @@ export class KosmosReadableView extends ItemView {
   }
   private post(message: unknown) { this.frame?.contentWindow?.postMessage(message, "*"); }
   syncVisibility() { this.post(wrap("visibility", { visible: !!this.containerEl.offsetParent })); }
-  locate(path: string) {
-    this.path = path; this.uid = undefined;
+  locate(path: string, uid?: string) {
+    if (uid !== undefined && !isValidGkxAuthoredUid(uid)) throw new Error("WORKSPACE_UID_INVALID");
+    this.path = path; this.uid = uid;
     const snapshot = this.snapshot, generation = this.generation;
     if (!snapshot) { this.refresh(); return; }
-    const current = () => this.snapshot === snapshot && this.generation === generation && this.path === path && !!this.frame;
+    const current = () => this.snapshot === snapshot && this.generation === generation && this.path === path && this.uid === uid && !!this.frame;
     return snapshot.publish(value => {
-      const selected = value.nodes.find((node: any) => node.path === path);
+      const selected = this.selectedNode(value.nodes);
       if (selected) { this.remember(selected); this.post(wrap("select-readable-note", { generation, id: selected.id })); }
       else this.status!.textContent = "Selected note is unavailable in the current scope.";
     }, current).then(published => { if (!published && current()) this.refresh(); })

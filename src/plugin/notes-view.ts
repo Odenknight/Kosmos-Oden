@@ -8,7 +8,7 @@ export const NOTES_VIEW_TYPE = "kosmos-oden-notes";
 export class KosmosNotesView extends ItemView {
   private workspace: ReturnType<typeof mountNotesWorkspace> | undefined;
   private savedState: unknown;
-  constructor(leaf: WorkspaceLeaf, private readonly api: KosmosAgentServer, private readonly openKosmos: (path?: string) => void) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private readonly api: KosmosAgentServer, private readonly openKosmos: (path?: string, uid?: string) => void) { super(leaf); }
   getViewType(): string { return NOTES_VIEW_TYPE; }
   getDisplayText(): string { return "Kosmos-Oden Notes"; }
   getIcon(): string { return "notebook-pen"; }
@@ -33,7 +33,7 @@ export class KosmosNotesView extends ItemView {
     this.registerEvent(this.app.vault.on("delete", file => this.workspace?.remove(file.path)));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.workspace?.rename(oldPath, file.path)));
   }
-  select(path: string | null) { return this.workspace?.select(path); }
+  select(path: string | null, uid?: string) { return this.workspace?.select(path, uid); }
   refresh(): void { this.workspace?.refresh(); }
   async onClose(): Promise<void> {
     this.savedState = this.workspace?.getState() ?? this.savedState;

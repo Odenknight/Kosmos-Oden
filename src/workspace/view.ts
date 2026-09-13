@@ -7,7 +7,7 @@ import { localNoteMap } from "./local-map";
 let inspectorSequence = 0;
 
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
-  actions: { openSource(path: string): void; openKosmos(path?: string): void; stateChanged?(): void }) {
+  actions: { openSource(path: string): void; openKosmos(path?: string, uid?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined, selectedUid: string | undefined;
@@ -144,7 +144,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
             .catch(() => { if (!closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; });
         }));
         fragment.append(button("Locate in Kosmos", () => {
-          void snapshot.publish(() => actions.openKosmos(note.path), () => !closed && notes.version === version && preview.dataset.path === path)
+          void snapshot.publish(() => actions.openKosmos(note.path, isValidGkxAuthoredUid(note.uid) ? note.uid : undefined), () => !closed && notes.version === version && preview.dataset.path === path)
             .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Note or scope changed. Select it again."; })
             .catch(() => { if (!closed && notes.version === version) status.textContent = "Note location unavailable. Retry."; });
         }));
@@ -325,9 +325,9 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   toolbar.append(button("Refresh", () => void refresh(undefined, true)));
   void refresh();
   return {
-    select: (path: string | null) => {
+    select: (path: string | null, uid?: string) => {
       if (closed) return;
-      if (path !== null) return show(path);
+      if (path !== null) return show(path, uid ? { uid } : {});
       selectedPath = undefined; selectedUid = undefined; notes.invalidate();
       preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
       actions.stateChanged?.();

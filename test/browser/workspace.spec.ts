@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve("dist/kosmos-notes-workspace.js") });
   await page.evaluate(() => {
     const w = window as any;
-    w.calls = []; w.authorized = true; w.opened = []; w.kosmos = 0; w.located = []; w.waits = {};
+    w.calls = []; w.authorized = true; w.opened = []; w.kosmos = 0; w.located = []; w.locatedUids = []; w.waits = {};
     const snapshot = (value: any) => ({ value, publish: async (apply: any, current: any) => {
       if (!w.authorized || !current()) return false;
       apply(value); return true;
@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
       },
     };
     w.workspace = w.KosmosNotesWorkspace.mountNotesWorkspace(document.querySelector("#notes"), host,
-      { openSource: (path: string) => w.opened.push(path), openKosmos: (path?: string) => { w.kosmos++; w.located.push(path); } });
+      { openSource: (path: string) => w.opened.push(path), openKosmos: (path?: string, uid?: string) => { w.kosmos++; w.located.push(path); w.locatedUids.push(uid); } });
   });
 });
 
@@ -391,4 +391,16 @@ test('saved stable UID restores the moved note and refreshes its canonical path'
   expect(await page.evaluate(() => (window as any).opened)).toEqual(['Moved.md']);
   await page.evaluate(() => (window as any).workspace.select(null));
   expect(await page.evaluate(() => (window as any).workspace.getState().selectedUid)).toBeUndefined();
+});
+
+
+test('mode handoff carries UID into Locate and destination Notes read', async ({ page }) => {
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  await page.evaluate(uid=>{(window as any).noteUid=uid;},uid);
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await page.getByRole('button',{name:'Locate in Kosmos',exact:true}).click();
+  expect(await page.evaluate(()=>(window as any).locatedUids)).toEqual([uid]);
+  await page.evaluate(uid=>{const w=window as any;w.uidPath='Moved.md';return w.workspace.select('Alpha.md',uid);},uid);
+  await expect(page.getByRole('heading',{name:'Moved.md',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).calls.at(-1))).toMatchObject({options:{uid}});
 });

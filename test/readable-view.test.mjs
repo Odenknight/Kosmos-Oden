@@ -83,3 +83,17 @@ test('spatial saved UID follows renamed identity and refuses replacement or ambi
   assert.deepEqual(f.view.getState(),{selectedPath:'One.md',selectedUid:uid});
   f.view.recordSelection(null,4);assert.deepEqual(f.view.getState(),{selectedPath:null});
 });
+
+
+test('cross-mode UID lookup rejects an old-path replacement and forwards identity to Notes', async () => {
+  const f=fixture(), uid='019b2d14-4230-7db7-87d4-7d81cfaec932', opened=[];
+  f.view.snapshot.value.nodes=[{id:'file:A.md',path:'A.md'},{id:'file:Moved.md',path:'Moved.md',uid}];
+  f.view.openNotes=(path,identity)=>opened.push({path,uid:identity});
+  await f.view.locate('A.md',uid);
+  assert.equal(f.messages.at(-1).payload.id,'file:Moved.md');
+  await f.view.returnToNotes();assert.deepEqual(opened,[{path:'Moved.md',uid}]);
+  f.view.snapshot.value.nodes=[{id:'file:A.md',path:'A.md'}];
+  await f.view.locate('A.md',uid);assert.equal(f.messages.length,1);
+  assert.match(f.view.status.textContent,/unavailable/);
+  assert.throws(()=>f.view.locate('A.md','invalid'),/UID_INVALID/);
+});

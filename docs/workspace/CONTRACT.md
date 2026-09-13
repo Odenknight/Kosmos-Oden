@@ -222,8 +222,11 @@ scope checks still apply. The readable spatial view also saves a valid UID,
 uses it on refreshed graph publication, and refuses missing or duplicate UID
 matches when returning to Notes. Renderer selections and explicit Locate actions
 capture the selected node's identity; clearing selection removes both fields.
-The mode-switch callback still passes the freshly resolved path, so carrying UID
-through the destination's asynchronous read remains a separate integration gate.
+Locate and Return to Notes carry the valid UID through the native mode-switch
+callbacks. Destination Notes reads and spatial Locate resolve that identity
+strictly after activation, retaining the destination's scope and publication
+checks. Path-only notes keep their previous behavior. Installed cross-mode
+qualification remains pending.
 
 Notes captures the existing `qLineage` result with the note, projection and
 related links under the same snapshot publication guard. The inspector shows
