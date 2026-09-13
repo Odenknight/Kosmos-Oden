@@ -65,3 +65,18 @@ The confidential read was allowed by the configured policy, so this is not
 restricted-denial evidence. Cold start was not exercised. These receipts advance
 current-candidate client qualification but do not close R0/R3 or certify visible
 UI behavior. The synthetic packaged recovery evidence above remains separate.
+
+## Actual application process restart
+
+The current installed candidate was subsequently tested across graceful app quit
+and relaunch. No Markdown editors were open. The native app quit method was
+verified before invocation; the identified old main process exited before a
+normal relaunch. New main and renderer process IDs were observed, with renderer
+uptime 15.20 seconds, API running, and the same installed main.js hash above.
+No forced process termination was used.
+
+The existing native Hermes acceptance then passed again against that restarted
+runtime. This is current-candidate application startup and post-restart client
+recovery evidence. It does not prove Hermes issued the first uncached request:
+restored views or another client may have accessed the provider first. Restricted
+read denial and the remaining R3 requirements remain open.
