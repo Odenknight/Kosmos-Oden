@@ -1,5 +1,6 @@
 mod sidecar;
 mod sidecar_release;
+mod viewer_credential;
 #[cfg(windows)]
 mod windows_state;
 
@@ -105,15 +106,21 @@ async fn sidecar_status(state: State<'_, DesktopState>) -> Result<SidecarStatus,
 /// The credential crosses only Tauri's invoke IPC and is never included in a
 /// URL, process argument, event payload, log, diagnostic, or persisted shell setting.
 #[tauri::command]
-fn take_viewer_token(state: State<'_, DesktopState>) -> Result<String, String> {
-    let path = state.state_root.join("sidecar").join("desktop-agent.token");
-    let token =
-        fs::read_to_string(&path).map_err(|_| "viewer credential is not ready".to_string())?;
-    let token = token.trim();
-    if token.len() != 64 || !token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err("viewer credential has an invalid format".to_string());
-    }
-    Ok(token.to_string())
+async fn take_viewer_token(state: State<'_, DesktopState>) -> Result<String, String> {
+    sidecar_operation(state, |_, root| {
+        let path = root.join("sidecar").join("desktop-agent.token");
+        #[cfg(windows)]
+        {
+            crate::windows_state::read_credential(&path)
+        }
+        #[cfg(not(windows))]
+        {
+            let file =
+                fs::File::open(path).map_err(|_| "viewer credential is not ready".to_string())?;
+            crate::viewer_credential::read(file)
+        }
+    })
+    .await
 }
 
 #[tauri::command]

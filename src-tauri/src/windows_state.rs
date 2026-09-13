@@ -253,6 +253,28 @@ pub fn ensure(path: &Path) -> io::Result<(File, File)> {
     Ok((parent_handle, directory))
 }
 
+pub fn read_credential(path: &Path) -> Result<String, String> {
+    let validate = || -> io::Result<(File, File)> {
+        let parent = path.parent().ok_or_else(refused)?;
+        for ancestor in path.ancestors().skip(1) {
+            use std::os::windows::fs::MetadataExt;
+            if fs::symlink_metadata(ancestor)?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+            {
+                return Err(refused());
+            }
+        }
+        let directory = open(parent, true)?;
+        let user = User::current()?;
+        private_acl(&directory, &user, true)?;
+        let file = open(path, false)?;
+        private_acl(&file, &user, false)?;
+        Ok((directory, file))
+    };
+    let (_directory, file) =
+        validate().map_err(|_| "viewer credential is not ready".to_string())?;
+    crate::viewer_credential::read(file)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,6 +290,9 @@ mod tests {
         ));
         drop(ensure(&root).unwrap());
         fs::write(root.join("marker"), b"synthetic-only").unwrap();
+        let credential = root.join("desktop-agent.token");
+        fs::write(&credential, "a".repeat(64)).unwrap();
+        assert!(read_credential(&credential).is_ok());
         let guard = ensure(&root).unwrap();
         let moved = root.with_extension("moved");
         assert!(fs::rename(&root, &moved).is_err());
@@ -277,6 +302,8 @@ mod tests {
         assert_eq!(fs::read(root.join("marker")).unwrap(), b"synthetic-only");
         fs::hard_link(root.join("marker"), root.join("alias")).unwrap();
         assert!(ensure(&root).is_err());
+        fs::hard_link(&credential, root.join("token-alias")).unwrap();
+        assert!(read_credential(&credential).is_err());
         assert_eq!(fs::read(root.join("marker")).unwrap(), b"synthetic-only");
     }
 
@@ -294,6 +321,9 @@ mod tests {
         let sddl = format!("{}(A;OICI;GR;;;WD)", user.sddl().unwrap());
         create(&root, &sddl).unwrap();
         fs::write(root.join("marker"), b"preserve-unsafe-fixture").unwrap();
+        let credential = root.join("desktop-agent.token");
+        fs::write(&credential, "a".repeat(64)).unwrap();
+        assert!(read_credential(&credential).is_err());
         assert!(ensure(&root).is_err());
         // The unsafe grant remains detectable: refusal must not repair existing state.
         assert!(private_acl(&open(&root, true).unwrap(), &user, true).is_err());

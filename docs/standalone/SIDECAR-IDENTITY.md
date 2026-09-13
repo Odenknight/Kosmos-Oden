@@ -175,3 +175,13 @@ The default release manifest remains disabled. Full native product launch,
 credential read/write handling, trusted-parent provisioning, concurrent ancestor
 and child namespace mutation, and cross-platform qualification remain open.
 The synthetic helper coverage does not establish those broader boundaries.
+
+Viewer credential IPC now uses the same bounded worker admission as other sidecar
+operations. Parsing reads at most 67 bytes and accepts exactly 64 hexadecimal
+bytes with an optional LF/CRLF. Windows reads retain a validated private directory
+and single-link regular-file handle, check current-user ACLs, and reject static
+ancestor reparse points. Errors do not include credential content or paths.
+The 13-test Rust suite passes, including synthetic private credential success,
+hard-link and unsafe-directory refusal, malformed input and an infinite-reader
+fixture proving bounded consumption. Unix permission/ownership qualification and
+concurrent namespace mutation remain open; no live credentials were accessed.
