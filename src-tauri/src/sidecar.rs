@@ -554,31 +554,63 @@ mod tests {
 
     #[test]
     fn shutdown_terminates_child_even_while_supervisor_is_cloned() {
-        let supervisor = Supervisor::with_sidecar(None);
-        let clone = supervisor.clone();
-        #[cfg(windows)]
-        let child = {
-            use std::os::windows::process::CommandExt;
-            Command::new("cmd")
-                .args(["/C", "ping 127.0.0.1 -n 30 >NUL"])
-                .creation_flags(0x0800_0000)
-                .spawn()
-                .unwrap()
-        };
-        #[cfg(not(windows))]
-        let child = Command::new("sh").args(["-c", "sleep 30"]).spawn().unwrap();
-        let generation = {
-            let mut inner = supervisor.inner.lock().unwrap();
-            inner.child = Some(child);
-            inner.desired_running = true;
-            inner.generation
-        };
+        for poison in [false, true] {
+            let supervisor = Supervisor::with_sidecar(None);
+            let clone = supervisor.clone();
+            #[cfg(windows)]
+            let child = {
+                use std::os::windows::process::CommandExt;
+                Command::new("ping.exe")
+                    .args(["127.0.0.1", "-n", "30"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .creation_flags(0x0800_0000)
+                    .spawn()
+                    .unwrap()
+            };
+            #[cfg(not(windows))]
+            let child = Command::new("sleep").arg("30").spawn().unwrap();
+            #[cfg(windows)]
+            let process_handle = {
+                use std::os::windows::io::AsHandle;
+                child.as_handle().try_clone_to_owned().unwrap()
+            };
+            let generation = {
+                let mut inner = supervisor.inner.lock().unwrap();
+                inner.child = Some(child);
+                inner.desired_running = true;
+                inner.generation
+            };
 
-        supervisor.shutdown();
+            if poison {
+                let state = Arc::clone(&supervisor.inner);
+                let _ = std::panic::catch_unwind(move || {
+                    let _guard = state.lock().unwrap();
+                    panic!("synthetic failure while child is owned");
+                });
+            }
+            supervisor.shutdown();
+            #[cfg(windows)]
+            {
+                use std::os::windows::io::AsRawHandle;
+                assert_eq!(
+                    unsafe {
+                        windows_sys::Win32::System::Threading::WaitForSingleObject(
+                            process_handle.as_raw_handle(),
+                            0,
+                        )
+                    },
+                    windows_sys::Win32::Foundation::WAIT_OBJECT_0
+                );
+            }
 
-        let inner = clone.inner.lock().unwrap();
-        assert!(!inner.desired_running);
-        assert!(inner.child.is_none());
-        assert_ne!(inner.generation, generation);
+            let inner = clone
+                .inner
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            assert!(!inner.desired_running);
+            assert!(inner.child.is_none());
+            assert_ne!(inner.generation, generation);
+        }
     }
 }

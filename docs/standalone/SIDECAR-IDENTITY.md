@@ -251,3 +251,11 @@ does not clear poison or resume normal operation. The 16-test Rust suite and
 all-target clippy pass. The new fixture proves unavailable reporting and closed
 intent after poison; it does not inject an OS process-query failure or prove
 actual child cleanup under poison. Automatic Supervisor recovery remains open.
+
+Shutdown cleanup is now exercised with an actual child in both normal and poisoned
+state. On Windows the fixture retains an independent process handle and verifies
+it is signaled after shutdown, in addition to checking cleared ownership and
+running intent. The synthetic command runs directly without a shell wrapper, so
+killing the owned process cannot leave a shell-spawned fixture descendant. All
+16 tests and all-target clippy pass. This closes the earlier actual-child poison
+fixture gap; automatic Engine recovery and full native lifecycle remain open.
