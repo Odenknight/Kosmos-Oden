@@ -91,6 +91,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   }
   function schedule() {
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
+    status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = undefined; void refresh(); }, 180);
   }

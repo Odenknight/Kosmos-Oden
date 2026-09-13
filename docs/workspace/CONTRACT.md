@@ -67,3 +67,8 @@ The installed plugin has not been replaced by this candidate.
 Follow-up fixture run: eight host checks pass, including configured unlabeled
 defaults, invalid-sensitivity exclusion and missing-projection preservation.
 The 439-test full run preceded these two additional fixture tests.
+
+[Native reader probe](../reviews/2026-09-13-native-notes-probe.md): candidate
+reader/API code subsequently passed real-provider preview and canonical editor
+opening inside a temporary Obsidian pane. Plugin startup/registration and final
+release gates remain unqualified.

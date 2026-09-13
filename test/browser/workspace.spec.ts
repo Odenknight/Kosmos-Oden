@@ -73,6 +73,10 @@ test("revoked scope refuses publication and opening an already displayed source"
   expect(await page.evaluate(() => (window as any).opened)).toEqual([]);
   await page.getByRole("button", { name: "Beta", exact: true }).click();
   await expect(page.getByText("Note or scope changed. Select it again.")).toBeVisible();
+  expect(await page.evaluate(() => {
+    (window as any).workspace.refresh();
+    return document.querySelector('[role="status"]')?.textContent;
+  })).toBe("Searching…");
   await page.evaluate(() => (window as any).workspace.close());
   await expect(page.locator("#notes")).toBeEmpty();
 });
