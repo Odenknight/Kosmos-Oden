@@ -11,6 +11,13 @@ checks pass, including actual cosmology layout with finite positions and stable
 IDs. Build and typecheck pass. This is not yet connected to the iframe protocol
 or Notes selection controls; byte-level message validation is still required.
 
+The `readable-graph` envelope now validates positive safe-integer generations,
+unique IDs/paths, safe vault paths, timestamp syntax and readable link endpoints.
+Known consumed text is limited to 2,000,000 UTF-16 units, with per-field and array
+limits. This is a consumed-field budget, not a transport byte limit. The renderer
+does not yet apply this new message. Conversion lives in `workspace/spatial.ts`
+so the protocol need not import the native host implementation.
+
 The current Notes host captures `qGraph()` with committed corpus, graph object,
 default sensitivity and visibility ceiling checks. That query returns readable
 note summaries and links whose two endpoints are readable. It does not return

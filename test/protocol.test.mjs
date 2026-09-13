@@ -10,6 +10,20 @@ import {
   wrap,
 } from "../dist/kosmos-protocol.mjs";
 
+test('readable graph validates scope payload bounds, paths, endpoints and generation', () => {
+  const graph={builtAt:'2026-09-13',nodes:[{id:'file:A.md',path:'A.md',title:'A',area:'Vault',type:'note',tags:[],timestamp:null}],links:[]};
+  const valid=()=>wrap('readable-graph',{generation:1,graph:structuredClone(graph)});
+  assert.equal(validateHostMessage(valid()).ok,true);
+  for(const mutate of [
+    m=>{m.payload.generation=0;}, m=>{m.payload.generation=1.5;},
+    m=>{m.payload.graph.nodes[0].path='../private.md';},
+    m=>{m.payload.graph.nodes.push({...m.payload.graph.nodes[0]});},
+    m=>{m.payload.graph.links.push({source:'file:A.md',target:'missing',kind:'wikilink'});},
+    m=>{m.payload.graph.nodes[0].tags=['x'.repeat(4097)];},
+    m=>{m.payload.graph.nodes[0].timestamp='invalid';},
+  ]) {const message=valid();mutate(message);assert.equal(validateHostMessage(message).ok,false);}
+});
+
 test("legacy renderer opens receive the same path and envelope checks",()=>{
   for(const [legacy,current] of [["kosmos:open","open-note"],["kosmos:folder","open-folder"]]) {
     const accepted=validateRendererOpenMessage({type:legacy,path:"Notes/Readable.md"});

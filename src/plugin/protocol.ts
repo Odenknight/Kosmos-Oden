@@ -8,6 +8,7 @@
  * main.js, so a single current version is sufficient; unknown/future versions
  * are rejected clearly rather than acted on.
  */
+import { validReadableGraph } from "../workspace/spatial";
 export const KOSMOS_PROTOCOL = "kosmos-oden";
 export const KOSMOS_PROTOCOL_VERSION = 1;
 
@@ -55,6 +56,7 @@ export interface VaultStatusPayload {
 }
 
 export type HostToRenderer =
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-graph"; payload: { generation: number; graph: any } }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-snapshot"; payload: FilesPayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "agent-traversal"; payload: AgentTraversalPayload }
@@ -95,6 +97,10 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this renderer speaks v${KOSMOS_PROTOCOL_VERSION})` };
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "readable-graph") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !validReadableGraph(p.graph)) return { ok: false, reason: "invalid readable graph or generation" };
+    return { ok: true, message: m as unknown as HostToRenderer };
+  }
   if (m.type === "vault-snapshot") {
     if (!isArr(p.files)) return { ok: false, reason: "vault-snapshot payload.files must be an array" };
     for (const f of p.files as any[]) {
