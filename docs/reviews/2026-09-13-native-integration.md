@@ -19,3 +19,19 @@ the integrated source before claiming that gate here. Visible native UI, final
 resource packaging, non-Windows qualification and the broader release gates
 remain open. PowerShell/C# exploratory helpers remain in the historical desktop
 branch; the integrated runtime uses direct Rust Windows APIs.
+
+## Integrated process requalification
+
+At `bd72794d460987e611271ca4570ccf4952b33cc2`, the explicitly selected process
+qualification passed in 26.25 seconds with the reviewed Engine `c4940c4` binary.
+It rejected an invalid discovery candidate, selected the verified executable,
+indexed synthetic data through five actual recoveries and refused the next
+restart at the retry limit. The final child was absent afterward and the source
+manifest restored to `null`. This is new integrated-source evidence, not reuse
+of the historical desktop receipt.
+
+Visible startup remains open. The preparation bridge currently redirects on
+process liveness, whereas the viewer attempts its IPC credential read once.
+Readiness coordination must be implemented and tested before claiming reliable
+native startup; a process existing does not prove its credential or HTTP service
+is ready.
