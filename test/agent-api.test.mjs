@@ -539,7 +539,7 @@ test("agent api", async (t) => {
     assert.deepEqual(seen.map(s => s.agent), ["Codex Game Research", "Hermes Physics", "Codex Game Research"]);
     assert.equal(seen[0].agentId, seen[2].agentId);
     assert.notEqual(seen[0].agentId, seen[1].agentId);
-    for (const agent_name of [42, "", "x".repeat(81)]) {
+    for (const agent_name of [42, "", "x".repeat(81), "JEFFREY\nHermes"]) {
       const result = await mcp({ jsonrpc: "2.0", id: 87, method: "tools/call",
         params: { name: "get_note", arguments: { title: "Engine v2", agent_name } } });
       assert.equal(result.json().error.code, -32602);
@@ -553,7 +553,7 @@ test("agent api", async (t) => {
     const headers = { "X-Kosmos-Agent-Name": "JEFFREY" };
     for (const client of ["mcp", "jeffrey"]) {
       const r = await mcp({ jsonrpc: "2.0", id: 881, method: "tools/call",
-        params: { name: "get_note", arguments: { title: "Engine v2", agent_name: client } } }, { client, headers });
+        params: { name: "get_note", arguments: { title: "Engine v2" } } }, { client, headers });
       assert.equal(r.json().result.isError, false);
     }
     await mcp({ jsonrpc: "2.0", id: 882, method: "tools/call", params: { name: "vault_overview", arguments: {} } }, { client: "mcp", headers });
@@ -564,6 +564,23 @@ test("agent api", async (t) => {
     assert.notEqual(seen[3].agentId, seen[0].agentId);
     const invalid = await mcp({ jsonrpc: "2.0", id: 884, method: "server/discover" }, { headers: { "X-Kosmos-Agent-Name": "x".repeat(81) } });
     assert.equal(invalid.json().error.code, -32602);
+    server.onTraversal = undefined;
+  });
+
+  await t.test("declared agent names precede connection defaults without registering a transport ghost", async () => {
+    const seen = [];
+    server.onTraversal = (paths, tool, agent, agentId) => seen.push({ agent, agentId });
+    const transport = "generic-transport-not-an-agent";
+    for (const agent_name of ["JEFFREY Research", "Other Research", "JEFFREY Research"]) {
+      const result = await mcp({ jsonrpc: "2.0", id: 885, method: "tools/call",
+        params: { name: "vault_overview", arguments: { agent_name } } },
+        { client: transport, headers: { "X-Kosmos-Agent-Name": "Connection Default" } });
+      assert.equal(result.json().result.isError, false);
+    }
+    assert.deepEqual(seen.map(e => e.agent), ["JEFFREY Research", "Other Research", "JEFFREY Research"]);
+    assert.equal(seen[0].agentId, seen[2].agentId);
+    assert.notEqual(seen[0].agentId, seen[1].agentId);
+    assert.ok(![...server.sessions.values()].some(s => s.name === transport || s.name === "Connection Default"));
     server.onTraversal = undefined;
   });
 

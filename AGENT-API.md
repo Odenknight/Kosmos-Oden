@@ -92,10 +92,14 @@ protocol metadata is still the client's responsibility. Restart the adapter afte
 changing its environment.
 
 Native HTTP MCP clients can configure `X-Kosmos-Agent-Name: JEFFREY` once in their
-HTTP headers. This optional Kosmos display-name extension takes precedence over
-clientInfo and tool-level names; it grants no permissions.
+HTTP headers. The display name is resolved in this order: the agent's explicit
+`arguments.agent_name`, this connection header, then `clientInfo.name`.
+The stdio adapter preserves an explicit tool-level name. These names grant no permissions.
 Without that header, send the same `clientInfo.name` on **every** request.
-If they also send `arguments.agent_name`, use that same name. Alternating `mcp`
+Agents can send `arguments.agent_name: "JEFFREY"` on each tool call to portray
+their own identity even when the client identifies itself as `mcp`.
+The declared name also selects the request's per-agent admission bucket.
+Kosmos cannot infer an agent name from a transport label alone. Alternating `mcp`
 and `jeffrey` creates two displayed identities; sharing an address or token does
 not establish that two callers are the same agent. Names are display labels,
 never authorization. Separate agents should use separate adapter processes.

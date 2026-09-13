@@ -158,7 +158,7 @@ test("configured ship identity survives generic and omitted client names without
   assert.equal(received.length, 5);
   assert.deepEqual(received.slice(0, 3).map(m => m.params._meta[MCP_META_CLIENT_INFO].name), ["JEFFREY", "JEFFREY", "JEFFREY"]);
   assert.equal(received[0].params._meta[MCP_META_CLIENT_INFO].version, "1");
-  assert.equal(received[2].params.arguments.agent_name, "JEFFREY");
+  assert.equal(received[2].params.arguments.agent_name, "jeffrey");
   assert.equal(received[3].params._meta[MCP_META_CLIENT_INFO], 42);
   assert.equal(received[4].params._meta, undefined);
   assert.equal(received[1].params._meta[MCP_META_PROTOCOL_VERSION], undefined);
