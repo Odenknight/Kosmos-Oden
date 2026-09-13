@@ -34,17 +34,20 @@ while ($null -ne $ancestor) {
     $ancestor = $ancestor.Parent
 }
 $leafHandle = $null
+$directoryHandle = $null
 try {
+if (-not ('SidecarFileIdentity' -as [type])) {
+    Add-Type -Path (Join-Path $PSScriptRoot 'SidecarFileIdentity.cs')
+}
 if (-not $item.PSIsContainer) {
     $rights = [Security.AccessControl.FileSystemRights]'Read, ChangePermissions, TakeOwnership'
     $leafHandle = [IO.FileStream]::new($item.FullName, [IO.FileMode]::Open, $rights,
         [IO.FileShare]::Read, 4096, [IO.FileOptions]::None)
-    if (-not ('SidecarFileIdentity' -as [type])) {
-        Add-Type -Path (Join-Path $PSScriptRoot 'SidecarFileIdentity.cs')
-    }
     [SidecarFileIdentity]::Validate($leafHandle, $item.FullName)
+} else {
+    $directoryHandle = [SidecarFileIdentity]::OpenDirectory($item.FullName)
 }
-$acl = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { Get-Acl -LiteralPath $item.FullName }
+$acl = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { [SidecarFileIdentity]::ReadDirectoryAcl($directoryHandle) }
 $owner = $acl.GetOwner([Security.Principal.SecurityIdentifier])
 if ($owner -ne $principal -and $owner -ne $identity.Owner) {
     throw 'Sidecar state has a foreign owner'
@@ -65,12 +68,12 @@ $rule = [Security.AccessControl.FileSystemAccessRule]::new(
     [Security.AccessControl.AccessControlType]::Allow)
 $acl.AddAccessRule($rule)
 if ($item.PSIsContainer) {
-    [IO.Directory]::SetAccessControl($item.FullName, $acl)
+    [SidecarFileIdentity]::WriteDirectoryAcl($directoryHandle, $acl)
 } else {
     $leafHandle.SetAccessControl($acl)
 }
 
-$verified = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { Get-Acl -LiteralPath $item.FullName }
+$verified = if ($null -ne $leafHandle) { $leafHandle.GetAccessControl() } else { [SidecarFileIdentity]::ReadDirectoryAcl($directoryHandle) }
 $rules = @($verified.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
 if (-not $verified.AreAccessRulesProtected -or
     $verified.GetOwner([Security.Principal.SecurityIdentifier]) -ne $principal -or
@@ -82,4 +85,5 @@ if (-not $verified.AreAccessRulesProtected -or
 }
 } finally {
     if ($null -ne $leafHandle) { $leafHandle.Dispose() }
+    if ($null -ne $directoryHandle) { $directoryHandle.Dispose() }
 }

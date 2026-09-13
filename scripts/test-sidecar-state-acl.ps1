@@ -10,6 +10,21 @@ $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
 Set-Acl -LiteralPath $leaf -AclObject $acl
 
 & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $fixture
+$directoryHandle = [SidecarFileIdentity]::OpenDirectory($fixture)
+$movedDirectory = $fixture + '-moved'
+try {
+    $directoryRenameDenied = $false
+    try { [IO.Directory]::Move($fixture, $movedDirectory) }
+    catch [IO.IOException] { $directoryRenameDenied = $true }
+    if (-not $directoryRenameDenied) { throw 'Held ACL directory could be renamed' }
+    $directoryAcl = [SidecarFileIdentity]::ReadDirectoryAcl($directoryHandle)
+    [SidecarFileIdentity]::WriteDirectoryAcl($directoryHandle, $directoryAcl)
+    if ([SidecarFileIdentity]::ReadDirectoryAcl($directoryHandle).Sddl -ne $directoryAcl.Sddl) {
+        throw 'Directory handle ACL readback changed'
+    }
+} finally { $directoryHandle.Dispose() }
+[IO.Directory]::Move($fixture, $movedDirectory)
+[IO.Directory]::Move($movedDirectory, $fixture)
 & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $leaf
 if ([IO.File]::ReadAllText($leaf) -ne 'synthetic-only-no-credential') { throw 'Payload changed' }
 $newLeaf = Join-Path $fixture 'new.synthetic'

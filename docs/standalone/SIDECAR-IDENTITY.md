@@ -123,3 +123,12 @@ The path comparison follows ordinary case-insensitive Windows behavior;
 case-sensitive directories and directory ACL operations remain unqualified.
 The helper is still not a complete namespace-race qualification or a live host
 permission implementation.
+
+Directory ACL operations now use an opened directory handle with native
+`GetSecurityInfo`/`SetSecurityInfo`, requesting only owner and DACL fields.
+The handle opens reparse points themselves for rejection and requests list/read
+access in addition to metadata/ACL rights. A metadata-only first attempt did not
+prevent rename; that failed fixture led to the corrected access mask. Synthetic
+tests now confirm rename refusal while held, rename after release, and ACL
+readback through the handle. Parent/child enumeration races and full namespace
+replacement qualification remain open; this is still an isolated prototype.
