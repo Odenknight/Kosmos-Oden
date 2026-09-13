@@ -34,3 +34,18 @@ Private operator receipts: `native-notes-install-20260913.json`,
 `native-notes-installed-acceptance-20260913.json`,
 `native-notes-clean-verify-20260913.log` and
 `hermes-native-c5b7b7f-20260913.log` under `_Claude-Code/`.
+
+## Negative-policy native code check
+
+At 09:46:09 UTC the installed Agent API class was exercised in-process with a
+separate public-only settings object and the real vault provider. The public UID
+read succeeded; the confidential fixture returned only `note not found`, and its
+search returned zero matches. No listener was created and the live regulated
+ceiling was unchanged. Receipt: `native-inprocess-denial-20260913.json`.
+
+This qualifies the installed code's native policy path, not Hermes transport
+under a restrictive policy. Automatic approval review rejected the proposed
+five-minute authenticated LAN test listener on port 4916 because that additional
+network exposure needs explicit authorization. It was not started. The native
+Hermes negative-authorization gate remains open pending that permission or an
+authorized equivalent test endpoint.
