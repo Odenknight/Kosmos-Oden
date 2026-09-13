@@ -1,0 +1,22 @@
+# Packaged provider/server recovery qualification
+
+At source `e2ad386aa086af671dcc7520e6e49974cefe09ac`, run
+`node scripts/qualify-packaged-runtime.mjs` after the full build. This loads the
+actual generated `main.js` through a synthetic partial Obsidian host, stopping
+registration after the bundled provider/server have been initialized. It does
+not rebuild individual modules or alter their production timeout values.
+
+Verified artifact: 1,949,246 bytes, SHA-256
+`8d053b23e051913b8d0f57ba2fded66d2896e77f13dbd13994ab9b2800be5377`.
+A never-settling synthetic read returned HTTP 504 after 10,013.49 ms. Metadata
+remained available. A second data request returned 503 without another physical
+read. After settlement, overview and source search returned 200, a warm request
+reused the committed source, and admission counters returned to zero. The fixture
+closed its loopback listener afterward. No live vault data was read or changed.
+
+This advances the R3 packaged-byte synthetic recovery requirement only. It does
+not prove real Obsidian event wiring, viewer recovery, Hermes client acceptance,
+authenticated restricted denial, installed/loaded identity or full R3 completion.
+Initial harness attempts exposed missing synthetic file statistics and assertions
+against the wrong overview/search response shape; the final fixture uses full
+file metadata and the advertised `/notes` route. Product code was unchanged.
