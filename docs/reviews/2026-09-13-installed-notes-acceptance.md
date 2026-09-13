@@ -152,3 +152,20 @@ assessment and diagnostics headings were present. The original pane state was
 restored afterward. This qualifies native view recreation with supplied layout
 state, not a cold-process restart or disk-layout recovery. The private receipt is
 `_Claude-Code/native-layout-acceptance-20260913.json`.
+
+At 2026-09-13T11:44:58Z, installed source `10994b545e7d4a8a951df554eec489b8467038d8`
+passed the legacy/Notes command-routing probe with the preference restored.
+The native local map had a keyboard-accessible circle with finite coordinates;
+this single-node fixture does not qualify crowded-map presentation. Eight warm
+alternating selections performed zero graph reads. The original polling probe
+reported approximately 60 seconds per sample while the document was hidden;
+that receipt is retained and is not an interaction-latency acceptance result.
+
+At 11:46:23Z, a second probe measured the matching, current-generation renderer
+acknowledgement event from the owned iframe directly, without polling. All eight
+warm synthetic selections completed in 3.9–6.2 ms with zero graph reads, also in
+the hidden document. The graph instrumentation was restored in `finally`.
+This qualifies that warm selection path, not cold startup, whole-corpus latency,
+paint completion, or physical user interaction. Private receipts and harnesses:
+`_Claude-Code/native-activation-acceptance-20260913.{js,json}` and
+`_Claude-Code/native-selection-events-20260913.{js,json}`.
