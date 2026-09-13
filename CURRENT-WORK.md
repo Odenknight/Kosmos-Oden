@@ -34,7 +34,7 @@ They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
 The Engine implementation is now at `885b0b3`.
-Kosmos now pins Engine `d21982d`.
+Kosmos now pins Engine `885b0b3`.
 The Engine now exports its existing pure manifest helpers for native consumers.
 Their package API, compatibility, source inventory, and package checks passed.
 Kosmos now prepares native manifests through that package API.
@@ -42,7 +42,10 @@ It reads only authorized sources and retains a live revision check.
 Source edits or observed configuration changes invalidate prepared state.
 The Engine now shares publication reconciliation between service and native hosts.
 Its Python-ledger, authenticated HTTP, compatibility, and package checks passed.
-Kosmos still needs to adopt this newer helper and complete the native connection.
+Kosmos now composes native manifest preparation, receipt validation, and the query client.
+It rejects stale host authority and source revisions before showing results.
+The plugin configuration lifecycle and Notes view wiring remain open.
+See the [native connection handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md).
 The installed plugin is an earlier candidate, `59a61ca`.
 Do not describe branch changes as already installed.
 
@@ -67,7 +70,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 518 tests.
+The latest completed Kosmos verification passed 519 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.

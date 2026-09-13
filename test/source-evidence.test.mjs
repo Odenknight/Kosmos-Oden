@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import http from "node:http";
 import { build } from "esbuild";
 import {buildManagedGraphitiManifest} from 'gkos-engine/graphiti';
+import {prepareNativeSemanticClient} from '../dist/kosmos-workspace-host.mjs';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS, MAX_SOURCE_EVIDENCE_BYTES } from "../dist/kosmos-agent-server.mjs";
 
 const compiled = await build({ entryPoints: ["src/plugin/vault-provider.ts"], bundle: true, platform: "node", format: "esm", write: false });
@@ -88,6 +89,44 @@ test('native manifest refuses missing identity, cancellation and configuration c
     });
     await assert.rejects(f.server.prepareManagedGraphitiManifest(controller.signal),e=>e.reason==='provider_unavailable');
   }
+});
+
+test('native semantic client binds the real provider manifest and rejects stale host or source state',async()=>{
+  const f=fixture('uid: "019b2d14-4230-7db7-87d4-7d81cfaec932"\r\n');
+  const source=await f.server.prepareManagedGraphitiManifest(new AbortController().signal);
+  const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex');
+  const authority={configuration_digest:hash('configuration'),corpus_id:'native-fixture',policy_digest:hash('policy'),scope_digest:hash('scope')};
+  const binding={...authority,source_snapshot_digest:source.source_snapshot_digest};
+  const projection_id=`gkos_${'a'.repeat(32)}`;
+  const mappings=source.manifest.map((item,i)=>({projection_episode_id:`episode-${i}`,source_digest:item.source_digest,source_id:item.source_id}));
+  const observation=hash(JSON.stringify({binding,mappings,milestone:'persistence-verified',projection_id,searchability:'unverified'}));
+  const publication={binding:{...binding,projection_id},mappings,observation,sequence:1};
+  let allowed=true,calls=0,revoke=false;
+  const options={api:f.server,endpoint:'http://127.0.0.1:1/graphiti/query',token:'x'.repeat(64),authority,publication,current:()=>allowed,
+    fetcher:async(_url,init)=>{
+      calls++; if(revoke) allowed=false;
+      return new Response(JSON.stringify({contract_version:'gkos-graphiti-query/1.0.0-draft.1',request_id:JSON.parse(init.body).request_id,
+        binding:publication.binding,hits:[{fact:'Synthetic fact',semantic_support:'unverified',citations:[mappings[0]]}]}),{headers:{'Content-Type':'application/json'}});
+    }};
+  const signal=new AbortController().signal;
+  const client=await prepareNativeSemanticClient(options,signal);
+  assert.ok(client);
+  const result=await client.search('fact','one',signal);
+  assert.equal(result.hits[0].fact,'Synthetic fact');
+  assert.equal(client.isCurrent('fact','one',result),true);
+  revoke=true;
+  assert.equal(await client.search('fact','two',signal),null);
+  allowed=true; revoke=false;
+  assert.equal(await client.search('fact','three',signal),null);
+  assert.equal(calls,2);
+  const fresh=await prepareNativeSemanticClient(options,signal);
+  f.provider.markChanged('note.md');
+  assert.equal(await fresh.search('fact','four',signal),null);
+  assert.equal(calls,2);
+  const reads=f.reads.length;
+  assert.equal(await prepareNativeSemanticClient({...options,publication:{searchable:true}},signal),null);
+  assert.equal(await prepareNativeSemanticClient({...options,current:async()=>true},signal),null);
+  assert.equal(f.reads.length,reads);
 });
 
 for (const scenario of ["unannounced edit", "revision change", "revocation", "invalid UTF-8", "file replacement", "metadata change"]) {
