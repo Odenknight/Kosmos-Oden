@@ -103,6 +103,19 @@ Receipts: `native-latest-install-20260913.json`,
 to `c5b7b7f`; it is not relabeled as a cold-start test of this later artifact.
 # Native saved-layout and inspector follow-up
 
+## Native readable spatial selection
+
+At 2026-09-13T11:15:00Z, installed source
+`28eed3a7265fcc31325fc76bec6a1215ccc7c321` completed the actual Notes
+“Locate in Kosmos” action. Its own sandboxed iframe acknowledged generation 4,
+selected ID `file:_Kosmos-Qualification-Fixtures/gkx-labels.md`, and no error.
+The native graph contained 2,276 readable notes. Installed main.js SHA-256:
+`0b9d1fdf3e2f82885b2b92985adc233fa422f793f0ced0922bcb44c3abf082a8`.
+All 11 artifact copies were verified with unchanged settings and preserved
+rollback. This qualifies the observed button/publication/renderer-focus path;
+it does not qualify revocation, all lifecycle cases or the remaining spatial plan.
+Receipt: `_Claude-Code/native-spatial-ack-acceptance-20260913.json`.
+
 At 2026-09-13T10:39:32Z, clean source
 `efcbcb4d73ebec53d71fe93e943addaaaeb70188` was installed and reloaded after
 446 tests and all build checks passed. Installed main.js SHA-256:
