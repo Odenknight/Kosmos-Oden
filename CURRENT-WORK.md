@@ -116,6 +116,8 @@ The native plugin is wired to the connection owner; its deployed profile still n
 The latest indexing check still fails the two-second gate.
 Engine now reuses a validated delta digest within each activation check.
 The affected 31 tests pass, but the full edit still takes about 12.38 seconds.
+A follow-up byte-cache experiment passed correctness checks but showed no speed benefit.
+It was removed. Engine remains at `ba2e65d`.
 See the [performance follow-up](docs/reviews/2026-09-13-watcher-performance-follow-up.md).
 
 ## What still needs work
