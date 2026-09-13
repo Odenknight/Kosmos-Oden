@@ -63,9 +63,24 @@ in this checkpoint, and no message was sent as another agent.
 
 ## Reconciled remaining work
 
+Current model-file digests were recorded after verifying the serving endpoint's
+reported path and the serving host's network mapping. SHA-256 reads were streamed;
+file size/modification metadata remained stable during each read. No model
+execution, download, replacement or service restart was performed.
+
+| Role / current file | Bytes | SHA-256 |
+|---|---:|---|
+| Extraction: `Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf` (`util4`) | 5,335,285,728 | `d0027dd3a9128d9323e9f282c8bf010a8526c46477584535991dc1a869b56e96` |
+| Embedding: `nomic-embed-text-v1.5.Q8_0.gguf` | 146,146,432 | `3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7` |
+
+[Artifact observations](evidence/query-contract/model-artifacts.json) identify
+current on-disk bytes. They do not attest already loaded process memory or
+retroactively pin the earlier synthetic experiments. A fresh qualification must
+bind these artifacts and the exact backend/adapter/settings configuration.
+
 | Gate | Remaining work |
 |---|---|
-| G2 | Cross-repository consumer adoption/fixtures and actual model artifact digests; the query contract is now implemented as an optional Engine surface |
+| G2 | Cross-repository consumer adoption/fixtures and fresh qualification bound to the recorded model artifacts plus complete backend/adapter configuration; the query contract is now implemented as an optional Engine surface |
 | G3 | Managed queue/ledger, ambiguous-write and crash reconciliation, immutable generation publication, complete dependency revocation/purge and live concurrent-scope qualification |
 | G4 | Freeze numeric budgets and native baseline, then 1k/10k/50k quality, citation, latency, memory and cost measurements |
 | G5 | Governed broker with transport/admission limits, deadlines, cancellation, modes and native fallback |

@@ -1,0 +1,28 @@
+{
+  "schema": "gkos-model-artifact-observation/1",
+  "artifacts": [
+    {
+      "role": "extraction",
+      "recorded_at": "2026-09-13T05:07:48.9606418Z",
+      "filename": "Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf",
+      "byte_length": 5335285728,
+      "sha256": "d0027dd3a9128d9323e9f282c8bf010a8526c46477584535991dc1a869b56e96",
+      "metadata_stable_during_hash": true
+    },
+    {
+      "role": "embedding",
+      "recorded_at": "2026-09-13T05:08:21.991761+00:00",
+      "filename": "nomic-embed-text-v1.5.Q8_0.gguf",
+      "byte_length": 146146432,
+      "sha256": "3e24342164b3d94991ba9692fdc0dd08e3fd7362e0aacc396a9a5c54a544c3b7",
+      "metadata_stable_during_hash": true
+    }
+  ],
+  "method": "Serving endpoint model paths and serving-host network mappings verified before reading the exact files; streamed SHA-256 with before/after file metadata checks.",
+  "limits": [
+    "Current on-disk bytes, not an attestation of already loaded process memory",
+    "Does not retroactively bind earlier synthetic qualification runs",
+    "Complete adapter/backend/model configuration digest and fresh qualification binding remain required",
+    "No model execution, download, replacement or service restart"
+  ]
+}

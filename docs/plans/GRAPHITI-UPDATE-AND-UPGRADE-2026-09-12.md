@@ -19,7 +19,7 @@ Engine owns contracts and semantic behavior; Kosmos consumes its pinned API.
 | Actual generated runner | Passed bounded fixture | Persistence and duplicate/changed-input refusal, cleanup; this run did not search |
 | Observatory storage/model experiment | Passed bounded fixture, published in PRs 67/68 | Storage restart readback; local util4 extraction plus Nomic 768-dimensional embeddings; five scoped searches and cleanup |
 | Agent display identity | Implemented and direct native MCP verified; declared tool names take precedence in PR 71 | JEFFREY's actual Hermes header configuration verified; native Hermes traversal acceptance remains open |
-| G2 compatibility/contracts | Partial; Engine PR 55 supplies query draft-1 binding/validation | Cross-repository consumer adoption and actual model artifact digests remain; no deployed broker |
+| G2 compatibility/contracts | Partial; Engine PR 55 supplies query draft-1 binding/validation; current model-file SHA-256s recorded | Cross-repository consumer adoption and fresh qualification/configuration binding remain; no deployed broker |
 | G3 ingestion/safety | Partial | Managed queue, crash reconciliation, generation publication, revocation/purge and concurrent-scope fixtures remain |
 | G4 value/performance | Open | Freeze numeric budgets and native baseline before scale/quality/cost comparison |
 | G5 broker | Open | No governed semantic broker in the product; keep native fallback and searchable=false |
@@ -34,7 +34,9 @@ The text model's embeddings endpoint returned HTTP 501; the successful
 Observatory experiment used the existing separate Nomic endpoint instead.
 Unconstrained SDK/backend combinations failed imports; upstream runtime
 constraints resolved those failures. Preserve the qualified model factory and
-constraints. Endpoint/model names are not immutable model-file digests.
+constraints. Endpoint/model names are not immutable model-file digests. The
+latest checkpoint records current on-disk model hashes; these do not retroactively
+identify the bytes loaded by the earlier experiments.
 
 | Experiment | Ingestion | Search observation | Interpretation |
 |---|---|---|---|
