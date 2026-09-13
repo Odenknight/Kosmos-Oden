@@ -1,4 +1,5 @@
 mod sidecar;
+mod sidecar_release;
 
 use serde::Serialize;
 use sidecar::{SidecarStatus, Supervisor};

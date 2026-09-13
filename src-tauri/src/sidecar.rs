@@ -172,12 +172,9 @@ impl Supervisor {
 
     pub fn sidecar_version(&self) -> Option<String> {
         let executable = self.sidecar_path.as_ref()?;
-        let output = Command::new(executable).arg("--version").output().ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let value = String::from_utf8(output.stdout).ok()?.trim().to_string();
-        (!value.is_empty() && value.len() <= 200).then_some(value)
+        let release = crate::sidecar_release::Release::embedded()?;
+        let _verified = release.verify(executable)?;
+        Some(release.version)
     }
 
     fn monitor(&self, generation: u64) {
@@ -257,10 +254,15 @@ fn discover_sidecar(app: &AppHandle, state_root: &Path) -> Option<PathBuf> {
     }
     // Development-only placement; package assembly never writes credentials here.
     candidates.push(state_root.join("bin").join(binary));
-    candidates.into_iter().find(|path| path.is_file())
+    let release = crate::sidecar_release::Release::embedded()?;
+    candidates.into_iter().find(|path| release.verify(path).is_some())
 }
 
 fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
+    let release = crate::sidecar_release::Release::embedded()
+        .ok_or_else(|| "sidecar release identity is unavailable".to_string())?;
+    let _verified = release.verify(executable)
+        .ok_or_else(|| "sidecar release identity does not match".to_string())?;
     let corpus = inner
         .corpus
         .as_ref()
