@@ -130,7 +130,7 @@ export class KosmosView extends ItemView {
     const v = validateRendererOpenMessage(data);
     let type: "open-note" | "open-folder" | null = null;
     let path: string | undefined;
-    if (v.ok && v.message) {
+    if (v.ok && v.message && (v.message.type === "open-note" || v.message.type === "open-folder")) {
       type = v.message.type;
       path = (v.message.payload as any).path;
     } else {

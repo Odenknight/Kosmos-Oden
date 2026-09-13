@@ -88,3 +88,11 @@ Native qualification of 935ecd5 rejected the live graph at the original
 2,624,962 units. The bounded allowance is now 8,000,000; regression checks
 accept a larger valid payload and reject one above that bound. This correction
 requires a new installed receipt; the failed attempt remains historical.
+
+Renderer acknowledgements now report generation, selected ID and an enumerated
+render/selection error. Rendering returns success explicitly; successful focus
+is acknowledged after the existing focus operation. The native host accepts
+only its iframe's current-generation response and checks selected IDs against
+the readable snapshot. Four sandbox browser checks observe both the inspector
+and its acknowledgement; 17 protocol checks, build and typecheck pass. This
+acknowledgement increment still requires installation and native observation.

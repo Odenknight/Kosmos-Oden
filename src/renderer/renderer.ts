@@ -57,7 +57,7 @@ export interface KosmosAppOptions {
 
 export interface KosmosApp {
   ok: boolean;
-  renderGraph(graph: any, label?: string): void;
+  renderGraph(graph: any, label?: string): boolean;
   focusNode(id: string): boolean;
   clearSelection(): void;
   showDemo(): any;
@@ -89,7 +89,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     ok: false,
     focusNode() { return false; },
     clearSelection() {},
-    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
+    renderGraph() { return false; }, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false, drawCalls: 0 }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -2172,9 +2172,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       } // else: identical — nothing to do
       __prevSig = sig;
       if (label) setConn(label, true);
+      return true;
     } catch (e) {
       console.error("Kosmos-Oden: failed to render graph", e);
       showFatal("Could not render this vault.");
+      return false;
     }
   }
 

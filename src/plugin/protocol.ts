@@ -65,6 +65,7 @@ export type HostToRenderer =
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-status"; payload: VaultStatusPayload };
 
 export type RendererToHost =
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-state"; payload: { generation: number; selectedId: string | null; error: "render" | "selection" | null } }
   /** A note was chosen ("Go to Note") — open it in a new tab. */
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-note"; payload: OpenPayload }
   /** A folder-only galaxy was chosen ("Expand Folder") — reveal it in the
@@ -155,6 +156,12 @@ export function validateRendererMessage(data: unknown): ValidationResult<Rendere
   if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this host speaks v${KOSMOS_PROTOCOL_VERSION})` };
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "readable-state") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 ||
+      !(p.selectedId === null || (isStr(p.selectedId) && p.selectedId.length > 0 && p.selectedId.length <= 4096)) ||
+      !(p.error === null || p.error === "render" || p.error === "selection")) return { ok: false, reason: "invalid readable state" };
+    return { ok: true, message: m as unknown as RendererToHost };
+  }
   if (m.type === "open-note" || m.type === "open-folder") {
     if (!safePath(p.path) || /^[a-z][a-z0-9+.-]*:/i.test(p.path as string) || /[\x00-\x1f\x7f]/.test(p.path as string))
       return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };

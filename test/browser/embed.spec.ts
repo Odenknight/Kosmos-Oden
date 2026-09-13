@@ -53,12 +53,17 @@ test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ p
   });
   expect(metadata).toEqual({ projectionChanged: true, removed: true });
   await page.evaluate(() => {
+    (window as any).readableAcks=[];
+    window.addEventListener('message',event=>{if(event.source===document.querySelector('iframe')!.contentWindow && event.data?.type==='readable-state') (window as any).readableAcks.push(event.data.payload);});
+  });
+  await page.evaluate(() => {
     const graph = { builtAt: '2026-09-13', nodes: [{id:'file:Readable.md',path:'Readable.md',title:'Readable',area:'Vault',type:'note',tags:[],timestamp:null}], links: [] };
     document.querySelector('iframe')!.contentWindow!.postMessage({protocol:'kosmos-oden',version:1,type:'readable-graph',payload:{generation:2,graph}}, '*');
   });
   await expect.poll(() => embed!.evaluate(() => (window as any).__kosmosEmbed.getProjectionGeneration())).toBe(2);
   await page.evaluate(() => document.querySelector('iframe')!.contentWindow!.postMessage({protocol:'kosmos-oden',version:1,type:'select-readable-note',payload:{generation:2,id:'file:Readable.md'}},'*'));
   await expect(embed!.locator('#inspector')).toContainText('Readable');
+  await expect.poll(()=>page.evaluate(()=>(window as any).readableAcks.some((state:any)=>state.generation===2 && state.selectedId==='file:Readable.md' && state.error===null))).toBe(true);
   const inspectorBefore=await embed!.locator('#inspector').textContent();
   await page.evaluate(() => {
     const target=document.querySelector('iframe')!.contentWindow!;

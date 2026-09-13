@@ -90,7 +90,9 @@ window.addEventListener("message", (ev: MessageEvent) => {
       const msg = v.message!;
       if (msg.type === "select-readable-note") {
         if (msg.payload.generation !== projectionGeneration) return;
-        if (!app.focusNode(msg.payload.id)) app.showHint("This note is unavailable in the current view.");
+        const focused = app.focusNode(msg.payload.id);
+        if (!focused) app.showHint("This note is unavailable in the current view.");
+        window.parent.postMessage(wrap("readable-state", { generation: projectionGeneration, selectedId: focused ? msg.payload.id : null, error: focused ? null : "selection" }), "*");
         return;
       }
       if (msg.type === "readable-graph") {
@@ -100,8 +102,9 @@ window.addEventListener("message", (ev: MessageEvent) => {
         app.clearTraversalObservability();
         app.setAttachments([]);
         index.setFiles([], [], []);
-        app.renderGraph(graph, "Readable notes");
-        projectionGeneration = msg.payload.generation;
+        const rendered = app.renderGraph(graph, "Readable notes");
+        if (rendered) projectionGeneration = msg.payload.generation;
+        window.parent.postMessage(wrap("readable-state", { generation: msg.payload.generation, selectedId: null, error: rendered ? null : "render" }), "*");
         return;
       }
       if (projectionGeneration && (msg.type === "vault-snapshot" || msg.type === "vault-delta" || msg.type === "agent-traversal")) return;

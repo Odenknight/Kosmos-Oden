@@ -14,6 +14,7 @@ export class KosmosReadableView extends ItemView {
   private path?: string;
   private status?: HTMLElement;
   private snapshot?: Awaited<ReturnType<NotesWorkspaceHost["graph"]>>;
+  private rendererState?: { generation: number; selectedId: string | null; error: "render" | "selection" | null };
   constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string) { super(leaf); }
   getViewType() { return READABLE_VIEW_TYPE; }
   getDisplayText() { return "Kosmos-Oden readable notes"; }
@@ -43,6 +44,13 @@ export class KosmosReadableView extends ItemView {
     this.registerDomEvent(window, "message", event => {
       if (event.source !== this.frame?.contentWindow || !this.snapshot) return;
       const message = validateRendererOpenMessage(event.data);
+      if (message.ok && message.message?.type === "readable-state") {
+        const state = message.message.payload;
+        if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId))) return;
+        this.rendererState = state;
+        this.status!.textContent = state.error ? "Renderer could not display the requested note." : state.selectedId ? "Selected note displayed · current policy" : "Readable graph displayed · current policy";
+        return;
+      }
       if (!message.ok || message.message?.type !== "open-note") return;
       const path = message.message.payload.path, snapshot = this.snapshot, generation = this.generation;
       if (!snapshot.value.nodes.some((node: any) => node.path === path)) return;
@@ -58,6 +66,7 @@ export class KosmosReadableView extends ItemView {
   refresh() {
     const generation = ++this.generation;
     this.snapshot = undefined;
+    this.rendererState = undefined;
     if (this.timer) clearTimeout(this.timer);
     if (!this.loaded || !this.frame) return;
     this.status!.textContent = "Refreshing readable notes…";

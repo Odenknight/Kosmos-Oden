@@ -10,6 +10,11 @@ import {
   wrap,
 } from "../dist/kosmos-protocol.mjs";
 
+test('readable acknowledgements have bounded IDs and enumerated errors',()=>{
+  assert.equal(validateRendererMessage(wrap('readable-state',{generation:1,selectedId:null,error:null})).ok,true);
+  for(const payload of [{generation:0,selectedId:null,error:null},{generation:1,selectedId:'x'.repeat(4097),error:null},{generation:1,selectedId:null,error:'raw provider error'}]) assert.equal(validateRendererMessage(wrap('readable-state',payload)).ok,false);
+});
+
 test('readable selection requires a valid generation and bounded ID',()=>{
   assert.equal(validateHostMessage(wrap('select-readable-note',{generation:2,id:'file:Note.md'})).ok,true);
   for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)}]) assert.equal(validateHostMessage(wrap('select-readable-note',payload)).ok,false);
