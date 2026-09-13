@@ -56,3 +56,12 @@ the four helper checks passed in the complete repository verification: 488 tests
 zero failures/skips, plus type/build/version/lockfile/artifact/invariant/provenance
 checks. The mocked IPC does not reproduce native worker contention, so Stop while
 the credential worker owns admission and visible interaction remain open.
+
+Credential IPC now has its own single-worker admission flag, while Start, Stop,
+Reconnect and status/version retain their control admission. Both use the same
+worker-owned cleanup helper, so abandoned calls cannot release admission early.
+A blocked-worker regression proves another credential read is refused while a
+control operation completes. The native suite passed 18 ordinary tests with the
+explicit process qualification ignored; all-target clippy passed. This removes
+credential-read contention from Stop, but does not prove bounded Stop latency
+during a long control operation or visible native interaction.

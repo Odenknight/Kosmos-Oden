@@ -20,6 +20,7 @@ struct DesktopState {
     supervisor: Supervisor,
     state_root: PathBuf,
     busy: Arc<AtomicBool>,
+    credential_busy: Arc<AtomicBool>,
 }
 
 struct SidecarAdmission(Arc<AtomicBool>);
@@ -40,13 +41,20 @@ async fn sidecar_operation<T: Send + 'static>(
     state: State<'_, DesktopState>,
     operation: impl FnOnce(Supervisor, PathBuf) -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    let admission = SidecarAdmission::acquire(&state.busy)?;
     let supervisor = state.supervisor.clone();
     let root = state.state_root.clone();
+    admitted_operation(&state.busy, move || operation(supervisor, root)).await
+}
+
+async fn admitted_operation<T: Send + 'static>(
+    busy: &Arc<AtomicBool>,
+    operation: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let admission = SidecarAdmission::acquire(busy)?;
     tauri::async_runtime::spawn_blocking(move || {
         // The physical worker owns admission even if the IPC caller goes away.
         let _admission = admission;
-        operation(supervisor, root)
+        operation()
     })
     .await
     .map_err(|_| "sidecar operation failed".to_string())?
@@ -107,7 +115,8 @@ async fn sidecar_status(state: State<'_, DesktopState>) -> Result<SidecarStatus,
 /// URL, process argument, event payload, log, diagnostic, or persisted shell setting.
 #[tauri::command]
 async fn take_viewer_token(state: State<'_, DesktopState>) -> Result<String, String> {
-    sidecar_operation(state, |_, root| {
+    let root = state.state_root.clone();
+    admitted_operation(&state.credential_busy, move || {
         let path = root.join("sidecar").join("desktop-agent.token");
         #[cfg(windows)]
         {
@@ -189,6 +198,7 @@ pub fn run() {
                 supervisor,
                 state_root,
                 busy: Arc::new(AtomicBool::new(false)),
+                credential_busy: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
@@ -238,5 +248,34 @@ mod tests {
     fn rejects_missing_corpus() {
         assert!(canonical_corpus("").is_err());
         assert!(canonical_corpus("definitely-not-a-real-kosmos-directory").is_err());
+    }
+
+    #[test]
+    fn blocked_credential_worker_leaves_control_worker_available() {
+        let credential_busy = Arc::new(AtomicBool::new(false));
+        let control_busy = Arc::new(AtomicBool::new(false));
+        let (entered, started) = std::sync::mpsc::channel();
+        let (release, wait) = std::sync::mpsc::channel();
+        let credentials = Arc::clone(&credential_busy);
+        let worker = std::thread::spawn(move || {
+            tauri::async_runtime::block_on(admitted_operation(&credentials, move || {
+                entered.send(()).unwrap();
+                wait.recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+                Ok(())
+            }))
+        });
+        started
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let repeated =
+            tauri::async_runtime::block_on(admitted_operation(&credential_busy, || Ok(())));
+        let control = tauri::async_runtime::block_on(admitted_operation(&control_busy, || {
+            Ok("control completed")
+        }));
+        release.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        assert!(repeated.is_err());
+        assert_eq!(control.unwrap(), "control completed");
     }
 }
