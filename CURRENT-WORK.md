@@ -6,6 +6,38 @@ This is a handoff for the owner and other agents.
 Read it aloud if the owner asks for a short progress report.
 It records progress. It does not certify a finished release.
 
+## Short version to read aloud
+
+We are upgrading Kosmos-Oden and its GKOS-Engine dependency.
+The aim is useful search with reliable permissions and source references.
+The search service works in isolated tests.
+The complete connection through Obsidian still needs testing.
+The current indexing speed is too slow for the required target.
+We are also building a history store that preserves records safely.
+Deletion decisions already survive a restore of an old history backup.
+The next step is to test removal of retained content after an approved deletion.
+That removal code is local work in progress.
+It is not installed or qualified.
+The comet trails and displayed agent names still need a final visual check.
+Terra checks long-running qualification every six hours.
+The changes are on review branches. The full upgrade is not on main.
+
+## Where the active work lives
+
+- [Kosmos native connection](src/workspace/native-semantic.ts): connects the workspace to governed search. See the [connection guide](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md) for the current integration.
+- [Source history](src/workspace/source-observation-ledger.ts): stores observations and validates retained reads.
+- [Deletion authority](src/workspace/history-deletion-authority.ts): preserves deletion decisions independently of history backups.
+- [History tests](test/history-deletion-authority.test.mjs): check denial, restored backups, and permission changes.
+- [Engine PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73): contains the related search service and Engine changes.
+- [Remaining build gates](docs/reviews/2026-09-13-remaining-build-gates.md): lists the work still required before release.
+
+The last fully verified Kosmos source checkpoint is `1d47ac0`.
+It passed 565 tests and the repository verification checks.
+Local purge edits were started after that checkpoint.
+The existing 45 history tests pass with those edits.
+Dedicated purge tests and full verification are still required.
+Do not count those existing tests as proof that purge works.
+
 ## What we are doing
 
 We are completing the Kosmos-Oden build plans.
@@ -32,7 +64,7 @@ Engine PR 73 builds on PR 72.
 These are separate review branches.
 They have not been merged to main as part of this work.
 
-Before this handoff, Kosmos was at `c4a3ee3`.
+An earlier handoff recorded Kosmos at `c4a3ee3`.
 The Engine implementation is now at `ba2e65d`.
 Kosmos now pins Engine `885b0b3`.
 The Engine now exports its existing pure manifest helpers for native consumers.
@@ -134,8 +166,11 @@ An independent deny authority now keeps deletion decisions outside history backu
 A synthetic restore test confirms that an old history backup cannot undo a current denial.
 A shared host binding now checks corpus identity and combines native permission with the deny authority.
 It refuses stale grants and cannot treat the absence of a denial as permission.
-This records a denial; it does not physically purge data.
-Storage remains off in the plugin. Purge, migration, and native integration remain unfinished.
+The committed component records a denial; it does not physically purge data.
+Local edits now attempt to remove retained content and dependent projection records.
+They require a durable denial and check retention holds before committing.
+Dedicated purge qualification remains unfinished.
+Storage remains off in the plugin. Migration and native integration remain unfinished.
 See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
 
 ## What still needs work
