@@ -59,7 +59,7 @@ export function verifyMailboxBundle(root, reference) {
   } catch (error) { return referenceError(error); }
 }
 
-export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../..")) {
+export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../.."), retainedHeads = []) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(recipient)) throw new Error("Invalid recipient identity");
   const findings = [], messages = [], acknowledgements = [], duplicates = [];
   const report = (file, code) => findings.push({ file, code });
@@ -104,6 +104,14 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
       if (m.sender_seq === 1 ? m.prev_message_sha256 !== null : !parents.some(e => e.sha256 === m.prev_message_sha256)) report(entry.file, "parent-hash-mismatch");
     }
   }
+  if (!Array.isArray(retainedHeads)) throw new Error("Invalid retained heads");
+  for (const head of retainedHeads) {
+    if (!head || typeof head.sender !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(head.sender) ||
+        !Number.isSafeInteger(head.sequence) || head.sequence < 1 || !/^[a-f0-9]{64}$/.test(head.sha256 ?? "")) throw new Error("Invalid retained head");
+    const atSequence = messages.filter(entry => entry.data.sender === head.sender && entry.data.sender_seq === head.sequence);
+    if (!atSequence.length) report(`messages/${head.sender}`, "retained-head-missing");
+    else if (!atSequence.some(entry => entry.sha256 === head.sha256)) report(`messages/${head.sender}`, "retained-head-changed");
+  }
   const ordinals = new Set();
   for (const entry of read(`acks/${recipient}`)) {
     const a = entry.data;
@@ -128,9 +136,10 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const [root, recipient] = process.argv.slice(2);
-  if (!root || !recipient) throw new Error("Usage: node scripts/audit-mailbox.mjs ROOT RECIPIENT");
-  const result = auditMailbox(root, recipient);
+  const [root, recipient, headsFile] = process.argv.slice(2);
+  if (!root || !recipient) throw new Error("Usage: node scripts/audit-mailbox.mjs ROOT RECIPIENT [RETAINED_HEADS_JSON]");
+  const retainedHeads = headsFile ? JSON.parse(readFileSync(headsFile, "utf8").replace(/^\uFEFF/, "")) : [];
+  const result = auditMailbox(root, recipient, resolve(root, "../.."), retainedHeads);
   console.log(JSON.stringify(result, null, 2));
   if (result.findings.length) process.exitCode = 1;
 }

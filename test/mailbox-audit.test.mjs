@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -113,4 +113,24 @@ test("bundle verification checks members without claiming an unbound manifest au
   writeFileSync(manifest,`${hash}  note.md\n${hash}  note.md\n`);
   writeFileSync(join(root,"artifacts/alice/note.md"),"retained");
   assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-invalid");
+});
+
+
+test("retained heads detect removed suffixes and rewritten observations without updating state", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-heads-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  const put = (sequence, previous) => {
+    const raw=JSON.stringify({sender:"alice",recipients:["bob"],sender_seq:sequence,message_id:`m${sequence}`,prev_message_sha256:previous});
+    const path=join(root,`messages/alice/alice-${String(sequence).padStart(6,"0")}-m${sequence}.json`);
+    writeFileSync(path,raw);return {path,sha256:createHash("sha256").update(raw).digest("hex")};
+  };
+  const first=put(1,null),second=put(2,first.sha256);
+  const heads=[{sender:"alice",sequence:2,sha256:second.sha256}];
+  assert.deepEqual(auditMailbox(root,"bob",root,heads).findings,[]);
+  writeFileSync(second.path,readFileSync(second.path,"utf8")+" ");
+  assert.ok(auditMailbox(root,"bob",root,heads).findings.some(x=>x.code==="retained-head-changed"));
+  unlinkSync(second.path);
+  assert.ok(auditMailbox(root,"bob",root,heads).findings.some(x=>x.code==="retained-head-missing"));
+  assert.equal(heads[0].sha256,second.sha256);
+  assert.throws(()=>auditMailbox(root,"bob",root,[{sender:"../outside",sequence:2,sha256:second.sha256}]),/Invalid retained head/);
 });

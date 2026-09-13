@@ -4,7 +4,7 @@ The read-only `scripts/audit-mailbox.mjs ROOT RECIPIENT` selects an explicit
 recipient ACK directory and hashes exact message bytes. Its output is an audit,
 not work acceptance. Every ACK keeps `completionVerified: false`.
 
-The current five synthetic tests cover:
+The current six synthetic tests cover:
 
 - Multiple recipients, raw-byte hashes, inverted roles, missing completion evidence,
   malformed delivered JSON, and invalid recipient path input.
@@ -31,8 +31,13 @@ without a digest of the manifest remain `reference-manifest-unbound` even when
 all members match. Remote-host references remain unresolved; the reader never
 substitutes a same-named local file.
 
-Remaining M1 checks include complete schema validation, immutable manifest binding,
-retained-head/suffix-loss detection, the protocol's exact legacy
+Optional `RETAINED_HEADS_JSON` is a caller-retained array of
+`{sender, sequence, sha256}` records. The CLI checks those original raw-byte heads
+without advancing or rewriting them. Missing or changed retained messages produce
+findings; omitting the file cannot prove suffix-loss detection. A valid head also
+does not clear other chain or schema findings.
+
+Remaining M1 checks include complete schema validation, immutable manifest binding, the protocol's exact legacy
 ACK exception, and evidence-based reconciliation of mutable status/card summaries.
 The reader does not send ACKs, quarantine files, rewrite history or update peer
 cards. Those operations cannot be inferred from a successful read-only audit.
