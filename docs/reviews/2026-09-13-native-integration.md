@@ -48,3 +48,11 @@ serving response, stalled IPC without retry, and refusal of an unauthorized
 serving-shaped response. Preparation generated the current native viewer and
 the script syntax check passed. Visible native interaction remains unqualified;
 these component checks do not certify that full UI flow.
+
+Generated-bridge tests execute the actual prepared script with DOM and IPC
+fixtures. Start and Reconnect do not navigate before credential readiness; Stop
+prevents late navigation and preserves its status message. These two checks and
+the four helper checks passed in the complete repository verification: 488 tests,
+zero failures/skips, plus type/build/version/lockfile/artifact/invariant/provenance
+checks. The mocked IPC does not reproduce native worker contention, so Stop while
+the credential worker owns admission and visible interaction remain open.
