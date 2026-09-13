@@ -83,6 +83,25 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         fragment.append(element("p", note.code === "NOTE_REVISION_CHANGED" ? "Note changed. Reopen it from the results." : "Note unavailable in the current scope."));
       } else {
         fragment.append(element("h2", note.title), element("p", `${note.path} · ${note.sensitivity}`));
+        const recordedText = (value: unknown) => typeof value === "string" && value.trim()
+          ? value.length <= 4096 ? value : "Exceeds preview budget; inspect source" : "Not recorded";
+        const governance = element("section"); governance.setAttribute("aria-label", "Governance summary");
+        governance.append(element("h3", "Governance"),
+          element("p", `Effective epistemic state: ${recordedText(projection?.effective?.epistemicState)}`),
+          element("p", `Effective sensitivity: ${recordedText(projection?.effective?.sensitivity)}`),
+          element("p", "Effective values come from the Engine projection. They do not establish permission to act."));
+        fragment.append(governance);
+        if (projection) {
+          const source = element("details"); source.append(element("summary", "Projection source"));
+          const fields = element("dl");
+          for (const [label, value] of [["Source path", projection.source?.path], ["Source version", projection.source?.version],
+            ["Content hash", projection.source?.contentHash], ["Projection profile", projection.profile], ["Projection mode", projection.mode]] as const) {
+            fields.append(element("dt", label), element("dd", recordedText(value)));
+          }
+          const claim = projection.conformanceClaim;
+          fields.append(element("dt", "Engine projection capability"), element("dd", typeof claim === "boolean" ? String(claim) : recordedText(claim)));
+          source.append(fields); inspection.append(source);
+        }
         const tags: string[] = note.tags ?? [];
         fragment.append(element("h3", "Navigation tags"), element("p", tags.length ? tags.slice(0, 100).join(", ") : "None recorded"));
         if (tags.length > 100) fragment.append(element("p", `Showing 100 of ${tags.length} navigation tags.`));

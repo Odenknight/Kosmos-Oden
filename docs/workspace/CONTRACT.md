@@ -176,3 +176,15 @@ content and continuation in Chromium, Firefox, WebKit and the mobile Chromium
 configuration. General behavior fixtures use a 1280px viewport; the dedicated
 narrow-pane case constrains the pane to 340px. Native installation qualification
 for this layout remains pending.
+
+## Governance header and source
+
+The note header shows effective epistemic state and sensitivity directly from
+the Engine's effective origin. Authored and proposed values do not substitute
+for absent effective fields. Missing text is shown as Not recorded. Projection
+source details expose the existing source path, version, content hash, profile,
+mode and projection capability. The Engine's legacy `conformanceClaim` field
+describes reader/assessor capability; it is not a protocol qualification result.
+Text is inert and bounded; explicit boolean false remains visible as false.
+The five origin records remain separately inspectable. These fields do not
+create approval authority or permissions.

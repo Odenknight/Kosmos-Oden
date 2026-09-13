@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
           related:w.related??{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
           assessment:w.assessment??null,diagnostics:w.diagnostics??null,
-          projection: { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
+          projection: w.projection ?? { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
     };
     w.workspace = w.KosmosNotesWorkspace.mountNotesWorkspace(document.querySelector("#notes"), host,
@@ -60,7 +60,7 @@ test("read, safe preview, provenance, continuation and canonical source actions"
   await page.getByRole("button", { name: "Alpha", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Safe heading" })).toBeVisible();
   await expect(page.locator(".kosmos-notes-preview img, .kosmos-notes-preview a, .kosmos-notes-preview script")).toHaveCount(0);
-  await expect(page.locator(".kosmos-notes-inspector details")).toHaveCount(5);
+  await expect(page.locator(".kosmos-notes-inspector details")).toHaveCount(6);
   expect(requests).toEqual([]);
   await page.getByText("Authored", { exact: true }).click();
   await expect(page.getByText('[\n  "authored only"\n]', { exact: true })).toBeVisible();
@@ -249,4 +249,26 @@ test('inspector collapses on desktop and loses stale content immediately on refr
     (window as any).workspace.refresh();
     return document.querySelector('.kosmos-notes-inspector')?.textContent;
   })).toBe('');
+});
+
+
+test('governance header uses effective origin and preserves an explicit false conformance claim', async ({ page }) => {
+  await page.evaluate(() => { (window as any).projection = {
+    authored: { epistemicState: 'authored fixture' }, proposed: { epistemicState: 'proposed fixture' },
+    effective: { epistemicState: 'supported fixture', sensitivity: 'public' },
+    source: { path: 'Alpha.md', version: '2.3', contentHash: '<untrusted-hash>' },
+    profile: 'fixture-profile', mode: 'fixture-mode', conformanceClaim: false,
+  }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  const summary = page.getByRole('region', { name: 'Governance summary', exact: true });
+  await expect(summary).toContainText('Effective epistemic state: supported fixture');
+  await expect(summary).not.toContainText('proposed fixture');
+  await expect(summary).not.toContainText('authored fixture');
+  await page.getByText('Projection source', { exact: true }).click();
+  await expect(page.locator('.kosmos-notes-inspector dd').filter({ hasText: /^false$/ })).toBeVisible();
+  await expect(page.getByText('<untrusted-hash>', { exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as any).projection = { effective: {}, source: {} }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await expect(summary).toContainText('Effective epistemic state: Not recorded');
+  await expect(summary).toContainText('Effective sensitivity: Not recorded');
 });
