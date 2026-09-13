@@ -2,6 +2,8 @@
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
+[Bounded long-note continuation](docs/reviews/2026-09-13-note-continuation.md)
+
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
 

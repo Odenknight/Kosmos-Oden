@@ -943,7 +943,8 @@ export class KosmosAgentServer {
     };
   }
 
-  async qNote(sel: { path?: string; title?: string }): Promise<any> {
+  async qNote(sel: { path?: string; title?: string; uid?: string; offset?: number; page_size?: number; revision?: string }): Promise<any> {
+    if (sel.page_size !== undefined || sel.offset !== undefined || sel.revision !== undefined) return this.qNotePage(sel);
     const graph = await this.provider.getGraph();
     const n = this.findNode(graph, sel);
     if (!n) return { error: "note not found", hint: "pass path (e.g. Ideas/Engine v2.md) or title" };
@@ -988,6 +989,35 @@ export class KosmosAgentServer {
       links: { outgoing, backlinks, semantic },
       content: this.capContent(content ?? ""),
     };
+  }
+
+  /** Opt-in continuation over committed content; legacy get_note stays unchanged. */
+  private async qNotePage(sel: { path?: string; title?: string; uid?: string; offset?: number; page_size?: number; revision?: string }): Promise<any> {
+    const provider = this.provider, ceiling = this.settings.agentSensitivityCeiling, defaults = this.settings.defaultSensitivity;
+    if (!provider.getIndexedBody || !provider.vaultIdentity) throw new McpRpcError(-32602, "Committed note continuation is unavailable from this provider");
+    const graph = await provider.getGraph(), n = this.findNode(graph, sel);
+    if (!n) return { error: "note not found" };
+    const body = provider.getIndexedBody(n.path, graph);
+    if (body === null) throw new ProviderError("provider_unavailable");
+    if (body.length > 8_000_000) return { error: "note exceeds continuation budget", code: "NOTE_READ_BUDGET_EXCEEDED" };
+    const offset = sel.offset ?? 0, size = sel.page_size ?? MAX_NOTE_CONTENT_CHARS;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > body.length || !Number.isInteger(size) || size < 2 || size > MAX_NOTE_CONTENT_CHARS)
+      throw new McpRpcError(-32602, "Invalid note continuation bounds");
+    const corpus = provider.vaultIdentity();
+    const bytes = new TextEncoder().encode(JSON.stringify([corpus, n.path, ceiling, defaults, body]));
+    const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    const revision = "sha256:" + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+    const currentGraph = await provider.getGraph();
+    if (provider !== this.provider || graph !== currentGraph || ceiling !== this.settings.agentSensitivityCeiling || defaults !== this.settings.defaultSensitivity || corpus !== provider.vaultIdentity() || this.findNode(graph, { path: n.path }) !== n)
+      throw new ProviderError("provider_unavailable");
+    if ((offset > 0 && !sel.revision) || (sel.revision !== undefined && sel.revision !== revision))
+      return { error: "note continuation changed; restart at offset zero", code: "NOTE_REVISION_CHANGED" };
+    if (offset > 0 && /[\uDC00-\uDFFF]/.test(body[offset]) && /[\uD800-\uDBFF]/.test(body[offset - 1]))
+      throw new McpRpcError(-32602, "Continuation offset splits a Unicode character");
+    let end = Math.min(body.length, offset + size);
+    if (end < body.length && /[\uD800-\uDBFF]/.test(body[end - 1]) && /[\uDC00-\uDFFF]/.test(body[end])) end--;
+    return { ...this.brief(n, graph), content: body.slice(offset, end),
+      continuation: { revision, offset, next_offset: end < body.length ? end : null, total_characters: body.length, complete: end === body.length, offset_unit: "UTF-16 code units" } };
   }
 
   private async gkxNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: GkxGraph; node: GkxNode } | null> {
@@ -1275,7 +1305,7 @@ export class KosmosAgentServer {
     return [
       tool("vault_overview", "Vault overview", `Sensitivity-filtered GKOS-Engine v${ENGINE_VERSION} GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.`, { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, tags and paths. Optional body search checks cached prefixes (64,000 characters/note, 8 million/query); reports partial coverage. No embeddings or extra vault reads.", { type: "object", properties: { query: { type: "string" }, body: { type: "boolean" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
-      tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
+      tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links. Opt into committed-body continuation with page_size; use returned revision and next_offset on subsequent calls. Page reads return source summary and content; ordinary reads retain the existing metadata response.", { ...selectionSchema, properties: { ...selectionSchema.properties, page_size: { type: "integer", minimum: 2, maximum: MAX_NOTE_CONTENT_CHARS }, offset: { type: "integer", minimum: 0 }, revision: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" } } }),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection across all readable notes. Use time, not at. No area/path filter or pagination; valid and superseded lists are bounded samples with full readable counts and a truncation flag.", { type: "object", properties: { time: { type: "string", description: "ISO 8601 temporal-validity instant, e.g. 2026-09-01T00:00:00Z" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
@@ -1318,6 +1348,7 @@ export class KosmosAgentServer {
     if (name === "search_notes" && typeof a.query !== "string") throw new McpRpcError(-32602, "search_notes requires string query");
     if (name === "search_notes" && "body" in a && typeof a.body !== "boolean") throw new McpRpcError(-32602, "body must be a boolean");
     if (name === "export_graphiti_episodes" && "include_source_evidence" in a && typeof a.include_source_evidence !== "boolean") throw new McpRpcError(-32602, "include_source_evidence must be a boolean");
+    if (name === "get_note" && "revision" in a && (typeof a.revision !== "string" || !/^sha256:[0-9a-f]{64}$/.test(a.revision))) throw new McpRpcError(-32602, "Invalid note revision");
     if (["get_note", "get_lineage", "get_related", "get_gkx_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
     if (name === "graph_at_time" && typeof a.time !== "string") throw new McpRpcError(-32602, "graph_at_time requires string time");
     const integer = (key: string, min: number, max: number) => {
@@ -1325,6 +1356,7 @@ export class KosmosAgentServer {
       if (!Number.isInteger(a[key]) || a[key] < min || a[key] > max) throw new McpRpcError(-32602, `${key} must be an integer from ${min} to ${max}`);
     };
     integer("limit", 1, name === "export_graphiti_episodes" ? MAX_EPISODE_PAGE : name === "assess_vault" ? 200 : MAX_SEARCH_RESULTS);
+    if (name === "get_note") { integer("page_size", 2, MAX_NOTE_CONTENT_CHARS); integer("offset", 0, 8_000_000); }
     if (name === "export_graphiti_episodes") integer("cursor", 0, Number.MAX_SAFE_INTEGER);
     return a;
   }

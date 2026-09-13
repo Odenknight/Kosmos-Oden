@@ -1,5 +1,11 @@
 # Changelog
 
+## Committed note continuation - 2026-09-13
+
+- Add opt-in `get_note` pages bound to the committed body, corpus and policy.
+  Reject stale revisions and provider replacement; preserve Unicode boundaries
+  and explicit page/read budgets. Existing full-note calls remain compatible.
+
 ## Graphiti recovery consumer - 2026-09-13
 
 - Pin the Engine query-contract/recovery source and consume its packaged
