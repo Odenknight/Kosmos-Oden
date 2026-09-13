@@ -1,4 +1,6 @@
-import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, TFile, WorkspaceLeaf, type ViewStateResult } from "obsidian";
+import { isValidGkxAuthoredUid } from "gkos-engine";
+import { validateVaultRelativePath } from "gkos-engine/navigation-effects";
 import { NotesWorkspaceHost } from "../workspace/host";
 import { validReadableGraph } from "../workspace/spatial";
 import { validateRendererOpenMessage, wrap } from "./protocol";
@@ -12,6 +14,7 @@ export class KosmosReadableView extends ItemView {
   private generation = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private path?: string | null;
+  private uid?: string;
   private status?: HTMLElement;
   private snapshot?: Awaited<ReturnType<NotesWorkspaceHost["graph"]>>;
   private rendererState?: { generation: number; selectedId: string | null; error: "render" | "selection" | null };
@@ -19,6 +22,27 @@ export class KosmosReadableView extends ItemView {
   getViewType() { return READABLE_VIEW_TYPE; }
   getDisplayText() { return "Kosmos-Oden readable notes"; }
   getIcon() { return "orbit"; }
+  getState() { return { selectedPath: this.path, ...(this.uid ? { selectedUid: this.uid } : {}) }; }
+  async setState(state: unknown, result: ViewStateResult) {
+    if (state && typeof state === "object" && !Array.isArray(state)) {
+      const value = state as Record<string, unknown>;
+      const path = value.selectedPath;
+      this.path = path === null ? null : typeof path === "string" && path.length <= 4096 && validateVaultRelativePath(path).valid ? path : undefined;
+      this.uid = typeof value.selectedUid === "string" && isValidGkxAuthoredUid(value.selectedUid) ? value.selectedUid : undefined;
+      this.refresh();
+    }
+    await super.setState(state, result);
+  }
+  private selectedNode(nodes: any[]) {
+    if (!this.uid) return nodes.find(node => node.path === this.path);
+    const matches = nodes.filter(node => node.uid === this.uid);
+    return matches.length === 1 ? matches[0] : undefined;
+  }
+  private remember(node: any) {
+    this.path = node.path;
+    this.uid = isValidGkxAuthoredUid(node.uid) ? node.uid : undefined;
+    this.app?.workspace?.requestSaveLayout();
+  }
   async onOpen() {
     this.contentEl.replaceChildren();
     this.contentEl.classList.add("kosmos-oden-root");
@@ -35,7 +59,7 @@ export class KosmosReadableView extends ItemView {
     this.registerEvent(this.app.vault.on("modify", () => this.refresh()));
     this.registerEvent(this.app.vault.on("create", () => this.refresh()));
     this.registerEvent(this.app.vault.on("delete", file => {
-      if (this.path === file.path || this.path?.startsWith(file.path + "/")) this.path = null;
+      if (this.path === file.path || this.path?.startsWith(file.path + "/")) { this.path = null; this.uid = undefined; }
       this.refresh();
     }));
     this.registerEvent(this.app.vault.on("rename", (file, old) => {
@@ -53,7 +77,7 @@ export class KosmosReadableView extends ItemView {
         const state = message.message.payload;
         if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId && node.path === this.path))) return;
         this.rendererState = state;
-        const unavailable = this.path && !this.snapshot.value.nodes.some((node: any) => node.path === this.path);
+        const unavailable = this.path && !this.selectedNode(this.snapshot.value.nodes);
         this.status!.textContent = unavailable ? "Selected note is unavailable in the current scope." : state.error ? "Renderer could not display the requested note." : state.selectedId ? "Selected note displayed · current policy" : "Readable graph displayed · current policy";
         return;
       }
@@ -69,31 +93,33 @@ export class KosmosReadableView extends ItemView {
   recordSelection(id: string | null, generation: number) {
     if (generation !== this.generation) return;
     if (!this.snapshot) return;
-    if (id === null) { this.path = null; return; }
+    if (id === null) { this.path = null; this.uid = undefined; this.app?.workspace?.requestSaveLayout(); return; }
     const node = this.snapshot.value.nodes.find((node: any) => node.id === id);
-    if (node) this.path = node.path;
+    if (node) this.remember(node);
   }
   async returnToNotes() {
-    const snapshot = this.snapshot, generation = this.generation, path = this.path;
+    const snapshot = this.snapshot, generation = this.generation, path = this.path, uid = this.uid;
     if (!snapshot) { this.status!.textContent = "Wait for the readable graph before returning."; return; }
     try {
       const published = await snapshot.publish(value => {
-        if (!path || value.nodes.some((node: any) => node.path === path)) this.openNotes(path);
+        const selected = this.selectedNode(value.nodes);
+        if (!path && !uid) this.openNotes(path);
+        else if (selected) this.openNotes(selected.path);
         else this.status!.textContent = "Selected note is unavailable in the current scope.";
-      }, () => snapshot === this.snapshot && generation === this.generation && path === this.path && !!this.frame);
+      }, () => snapshot === this.snapshot && generation === this.generation && path === this.path && uid === this.uid && !!this.frame);
       if (!published) this.status!.textContent = "Note or scope changed. Select it again.";
     } catch { this.status!.textContent = "Note or scope changed. Select it again."; }
   }
   private post(message: unknown) { this.frame?.contentWindow?.postMessage(message, "*"); }
   syncVisibility() { this.post(wrap("visibility", { visible: !!this.containerEl.offsetParent })); }
   locate(path: string) {
-    this.path = path;
+    this.path = path; this.uid = undefined;
     const snapshot = this.snapshot, generation = this.generation;
     if (!snapshot) { this.refresh(); return; }
     const current = () => this.snapshot === snapshot && this.generation === generation && this.path === path && !!this.frame;
     return snapshot.publish(value => {
       const selected = value.nodes.find((node: any) => node.path === path);
-      if (selected) this.post(wrap("select-readable-note", { generation, id: selected.id }));
+      if (selected) { this.remember(selected); this.post(wrap("select-readable-note", { generation, id: selected.id })); }
       else this.status!.textContent = "Selected note is unavailable in the current scope.";
     }, current).then(published => { if (!published && current()) this.refresh(); })
       .catch(() => { if (current()) this.refresh(); });
@@ -117,8 +143,8 @@ export class KosmosReadableView extends ItemView {
         this.snapshot = snapshot;
         const generation = ++this.generation;
         this.post(wrap("readable-graph", { generation, graph: value }));
-        const selected = value.nodes.find((node: any) => node.path === this.path);
-        if (selected) this.post(wrap("select-readable-note", { generation, id: selected.id }));
+        const selected = this.selectedNode(value.nodes);
+        if (selected) { this.remember(selected); this.post(wrap("select-readable-note", { generation, id: selected.id })); }
         this.status!.textContent = this.path && !selected ? "Selected note is unavailable in the current scope." : "Readable notes · current policy";
         this.syncVisibility();
       }, current);

@@ -218,8 +218,12 @@ ambiguous UIDs refuse restoration. Notes without a valid UID retain path-based
 behavior. Successful publication updates the saved path and all source actions
 to the current canonical path. Selection clearing/deletion clears both values.
 This identity is a selector, not an authorization grant; normal snapshot and
-scope checks still apply. The spatial view's saved selection remains path-based,
-so shared stable identity across both modes is still a separate requirement.
+scope checks still apply. The readable spatial view also saves a valid UID,
+uses it on refreshed graph publication, and refuses missing or duplicate UID
+matches when returning to Notes. Renderer selections and explicit Locate actions
+capture the selected node's identity; clearing selection removes both fields.
+The mode-switch callback still passes the freshly resolved path, so carrying UID
+through the destination's asynchronous read remains a separate integration gate.
 
 Notes captures the existing `qLineage` result with the note, projection and
 related links under the same snapshot publication guard. The inspector shows

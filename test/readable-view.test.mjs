@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 const bundled=await build({entryPoints:['src/plugin/readable-view.ts'],bundle:true,write:false,format:'esm',platform:'node',plugins:[{
   name:'native-view-stub',setup(builder){
     builder.onResolve({filter:/^obsidian$/},()=>({path:'obsidian',namespace:'stub'}));
-    builder.onLoad({filter:/.*/,namespace:'stub'},()=>({contents:'export class ItemView {} export class TFile {}'}));
+    builder.onLoad({filter:/.*/,namespace:'stub'},()=>({contents:'export class ItemView { async setState() {} } export class TFile {}'}));
   },
 }]});
 const {KosmosReadableView}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
@@ -64,4 +64,22 @@ test('explicit spatial deselection clears the Notes target only in the current g
   f.view.recordSelection('file:A.md',4);f.view.recordSelection(null,3);
   await f.view.returnToNotes();assert.deepEqual(opened,['A.md']);
   f.view.recordSelection(null,4);await f.view.returnToNotes();assert.deepEqual(opened,['A.md',null]);
+});
+
+
+test('spatial saved UID follows renamed identity and refuses replacement or ambiguity', async () => {
+  const f=fixture(), opened=[];
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  f.view.openNotes=path=>opened.push(path);
+  await f.view.setState({selectedPath:'A.md',selectedUid:uid},{});
+  assert.deepEqual(f.view.getState(),{selectedPath:'A.md',selectedUid:uid});
+  f.view.snapshot.value.nodes=[{id:'file:A.md',path:'A.md'},{id:'file:Moved.md',path:'Moved.md',uid}];
+  await f.view.returnToNotes();assert.deepEqual(opened,['Moved.md']);
+  f.view.snapshot.value.nodes=[{id:'file:A.md',path:'A.md'}];
+  await f.view.returnToNotes();assert.equal(opened.length,1);assert.match(f.view.status.textContent,/unavailable/);
+  f.view.snapshot.value.nodes=[{id:'file:One.md',path:'One.md',uid},{id:'file:Two.md',path:'Two.md',uid}];
+  await f.view.returnToNotes();assert.equal(opened.length,1);
+  f.view.recordSelection('file:One.md',4);
+  assert.deepEqual(f.view.getState(),{selectedPath:'One.md',selectedUid:uid});
+  f.view.recordSelection(null,4);assert.deepEqual(f.view.getState(),{selectedPath:null});
 });
