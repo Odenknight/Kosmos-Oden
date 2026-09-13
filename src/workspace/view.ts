@@ -1,6 +1,7 @@
 import type { NotesWorkspaceHost, WorkspaceSearchSnapshot } from "./host";
 import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
+import { localNoteMap } from "./local-map";
 
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
   actions: { openSource(path: string): void; openKosmos(path?: string): void; stateChanged?(): void }) {
@@ -61,6 +62,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         fragment.append(element("p", `Characters ${continuation.offset}–${continuation.offset + note.content.length} of ${continuation.total_characters}${continuation.complete ? " · End of note" : " · More available"}`));
         if (continuation.next_offset !== null) fragment.append(button("Read next part", () => void show(path, { offset: continuation.next_offset, revision: continuation.revision })));
         if (continuation.offset > 0) fragment.append(button("Back to start", () => void show(path)));
+        if (related) fragment.append(localNoteMap(doc, note, related, path => void show(path)));
         if (related) for (const [key, label] of [["outgoing", "Outgoing links"], ["backlinks", "Backlinks"], ["semantic", "Semantic links"]] as const) {
           const links: Array<{ title: string; path: string }> = related[key];
           const section = element("section"); section.append(element("h3", label));

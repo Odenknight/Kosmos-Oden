@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
         const content = options.offset ? "Second page" : '# Safe heading\n\n**Readable** ![alt](https://invalid.test/a.png) <img src="https://invalid.test/b.png"> [click](javascript:alert(1)) ![[Secret]]';
         return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
-          related:{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
+          related:w.related??{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
           assessment:w.assessment??null,diagnostics:w.diagnostics??null,
           projection: { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
@@ -134,6 +134,10 @@ test("inspector navigation tags and readable links use the checked selection flo
   await page.getByRole('button',{name:'Related Beta',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
+  await page.evaluate(()=>(window as any).related={outgoing:Array.from({length:40},(_,i)=>({title:`Neighbor ${i}`,path:`Neighbor${i}.md`})),backlinks:[],semantic:[]});
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await expect(page.locator('.kosmos-notes-preview svg circle')).toHaveCount(33);
+  await expect(page.getByText(/Map limited to 32 neighbors/)).toBeVisible();
 });
 
 test('assessment distinguishes unavailable, zero and unrecorded; diagnostics remain text',async({page})=>{
@@ -188,4 +192,16 @@ test('locating a note uses its selected path and rechecks authority',async({page
   await page.getByRole('button',{name:'Locate in Kosmos',exact:true}).click();
   await expect(page.getByText('Note or scope changed. Select it again.',{exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).located)).toEqual(['Alpha.md']);
+});
+
+test('local map renders readable neighbors and supports keyboard inspection',async({page})=>{
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Local map',exact:true})).toBeVisible();
+  const map=page.locator('svg[aria-label="Selected note and readable neighbors"]');
+  await expect(map.locator('circle')).toHaveCount(2);
+  expect(await map.locator('circle').evaluateAll(nodes=>nodes.every(n=>['cx','cy','r'].every(key=>Number.isFinite(Number(n.getAttribute(key))))))).toBe(true);
+  const neighbor=page.getByRole('button',{name:'Inspect Related Beta',exact:true});
+  await neighbor.focus();await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
 });
