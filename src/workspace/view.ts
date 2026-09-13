@@ -182,6 +182,25 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
           linksPanel.append(list);
           if (!chain.length) linksPanel.append(element("p", "No readable lineage members"));
           if (chain.length > 100) linksPanel.append(element("p", `Showing 100 of ${chain.length} readable lineage members.`));
+          const declarations = element("section"); declarations.setAttribute("aria-label", "Lineage declarations");
+          declarations.append(element("h3", "Declaration resolution"));
+          const inspection = lineage.inspection;
+          if (inspection?.available !== true || !Array.isArray(inspection.declarations)) {
+            declarations.append(element("p", "Declaration resolution unavailable"));
+          } else {
+            declarations.append(element("p", "Resolution is limited to the current readable scope. Unresolved does not mean absent globally. A declaration is not approval."));
+            const statuses: Record<string, string> = { resolved: "Resolved", unresolved: "Unresolved in readable scope", ambiguous: "Ambiguous in readable scope", self: "Self-reference" };
+            const list = element("ul");
+            for (const item of inspection.declarations.slice(0, 100)) {
+              const index = Number.isSafeInteger(item.declarationIndex) && item.declarationIndex >= 0 ? String(item.declarationIndex + 1) : "Not recorded";
+              const line = Number.isSafeInteger(item.sourceLine) && item.sourceLine > 0 ? ` · Source line ${item.sourceLine}` : "";
+              list.append(element("li", `${recordedText(item.field)} · ${recordedText(item.origin)} · Declaration ${index}${line}: ${Object.hasOwn(statuses, item.status) ? statuses[item.status] : "Unknown resolution status"}`));
+            }
+            declarations.append(list);
+            if (!inspection.declarations.length) declarations.append(element("p", "No canonical lineage declarations recorded"));
+            if (inspection.declarations.length > 100) declarations.append(element("p", `Showing 100 of ${inspection.declarations.length} declarations. Inspect the canonical source for the remainder.`));
+          }
+          linksPanel.append(declarations);
         }
         if (!projection) metadata.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {

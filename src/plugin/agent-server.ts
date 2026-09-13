@@ -22,7 +22,7 @@
  *    endpoints exist (§18).
  */
 import { ProviderError } from "./vault-operations";
-import { projectAtTime, type ProjectableNote } from "gkos-engine";
+import { inspectScopedLineage, projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
@@ -1132,6 +1132,7 @@ export class KosmosAgentServer {
       for: n.path,
       chainLength: chain.length,
       chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
+      inspection: inspectScopedLineage(graph, n.id, new Set(byId.keys())),
     };
   }
 

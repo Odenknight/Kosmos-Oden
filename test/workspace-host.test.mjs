@@ -185,3 +185,24 @@ test('assessment and diagnostics retain the shared Engine-backed API semantics',
   assert.equal(missing.assessment,null);assert.equal(missing.diagnostics,null);
 });
 
+
+
+test('native shared bundle exposes scoped declarations and hides restricted targets', async () => {
+  const { build } = await import('esbuild');
+  // Native main bundles its Engine, server and host together; separate test
+  // artifacts intentionally cannot transfer Engine-private WeakMap receipts.
+  const output = await build({ stdin: { contents: `export { buildGraph } from 'gkos-engine'; export { KosmosAgentServer, DEFAULT_AGENT_SETTINGS } from './src/plugin/agent-server'; export { NotesWorkspaceHost } from './src/workspace/host';`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, format: 'esm', platform: 'node', write: false });
+  const native = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0].contents).toString('base64')}`);
+  const source = { relativePath: 'New.md', content: '---\nsensitivity: public\nsupersedes: [Hidden, Missing]\n---\nnew' };
+  async function inspect(files) {
+    const graph = native.buildGraph(files, []);
+    const provider = { getGraph: async () => graph, getIndexedBody: () => 'new', vaultIdentity: () => 'fixture' };
+    const api = new native.KosmosAgentServer({}, { ...native.DEFAULT_AGENT_SETTINGS, agentSensitivityCeiling: 'public' }, provider);
+    return (await new native.NotesWorkspaceHost(api).read('New.md')).value.lineage.inspection;
+  }
+  const actual = await inspect([source, { relativePath: 'Hidden.md', content: '---\nsensitivity: confidential\n---\nsecret' }]);
+  assert.equal(actual.available, true);
+  assert.deepEqual(actual.declarations.map(x => x.status), ['unresolved', 'unresolved']);
+  assert.equal(JSON.stringify(actual).includes('Hidden'), false);
+  assert.deepEqual(actual, await inspect([source]));
+});

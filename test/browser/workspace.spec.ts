@@ -355,3 +355,22 @@ test('evidence declarations preserve origin, zero, missing and invalid values wi
   await expect(authored.getByRole('listitem')).toHaveCount(50);
   await expect(authored).toContainText('Showing 50 of 51 declarations');
 });
+
+
+test('lineage declaration inspection distinguishes unavailable, empty and scoped unresolved', async ({ page }) => {
+  await page.evaluate(() => { (window as any).lineage = { chain: [], inspection: { available: false, declarations: [] } }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
+  const region = page.getByRole('region', { name: 'Lineage declarations', exact: true });
+  await expect(region).toContainText('Declaration resolution unavailable');
+  await page.evaluate(() => { (window as any).lineage.inspection = { available: true, declarations: [] }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await expect(region).toContainText('No canonical lineage declarations recorded');
+  await page.evaluate(() => { (window as any).lineage.inspection.declarations = ['unresolved', 'ambiguous', 'self'].map((status, declarationIndex) => ({ field: 'supersedes', origin: 'authored', declarationIndex, sourceLine: 3, status })); });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await expect(region).toContainText('Declaration 1 \u00b7 Source line 3: Unresolved in readable scope');
+  await expect(region).toContainText('Ambiguous in readable scope');
+  await expect(region).toContainText('Self-reference');
+  await expect(region).toContainText('Unresolved does not mean absent globally');
+  await expect(region.locator('button, a')).toHaveCount(0);
+});
