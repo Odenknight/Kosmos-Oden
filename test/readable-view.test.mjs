@@ -57,3 +57,11 @@ test('return to Notes cannot publish after another selection or closing', async 
   const second=f.view.returnToNotes();f.view.frame=undefined;pending.shift()();await second;
   assert.deepEqual(opened,[]);
 });
+
+
+test('explicit spatial deselection clears the Notes target only in the current generation', async () => {
+  const f=fixture(),opened=[];f.view.openNotes=path=>opened.push(path);
+  f.view.recordSelection('file:A.md',4);f.view.recordSelection(null,3);
+  await f.view.returnToNotes();assert.deepEqual(opened,['A.md']);
+  f.view.recordSelection(null,4);await f.view.returnToNotes();assert.deepEqual(opened,['A.md',null]);
+});

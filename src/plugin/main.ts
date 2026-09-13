@@ -554,7 +554,7 @@ export default class KosmosOdenPlugin extends Plugin {
     ws.setActiveLeaf(leaf, { focus: true });
   }
 
-  async activateNotes(path?: string): Promise<void> {
+  async activateNotes(path?: string | null): Promise<void> {
     const ws = this.app.workspace;
     let leaf = ws.getLeavesOfType(NOTES_VIEW_TYPE)[0];
     if (!leaf) {
@@ -563,7 +563,7 @@ export default class KosmosOdenPlugin extends Plugin {
     }
     await ws.revealLeaf(leaf);
     ws.setActiveLeaf(leaf, { focus: true });
-    if (path && leaf.view instanceof KosmosNotesView) await leaf.view.select(path);
+    if (path !== undefined && leaf.view instanceof KosmosNotesView) await leaf.view.select(path);
   }
 
   async activateReadable(path?: string): Promise<void> {

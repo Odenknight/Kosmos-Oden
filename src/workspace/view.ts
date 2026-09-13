@@ -237,7 +237,13 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   toolbar.append(button("Refresh", () => void refresh(undefined, true)));
   void refresh();
   return {
-    select: (path: string) => show(path),
+    select: (path: string | null) => {
+      if (closed) return;
+      if (path !== null) return show(path);
+      selectedPath = undefined; notes.invalidate();
+      preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
+      actions.stateChanged?.();
+    },
     getState: () => ({ query: query.value, tag: tag.value, body: body.checked, selectedPath }),
     restore: (state: unknown) => {
       if (closed || !state || typeof state !== "object" || Array.isArray(state)) return;

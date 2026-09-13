@@ -11,11 +11,11 @@ export class KosmosReadableView extends ItemView {
   private loaded = false;
   private generation = 0;
   private timer?: ReturnType<typeof setTimeout>;
-  private path?: string;
+  private path?: string | null;
   private status?: HTMLElement;
   private snapshot?: Awaited<ReturnType<NotesWorkspaceHost["graph"]>>;
   private rendererState?: { generation: number; selectedId: string | null; error: "render" | "selection" | null };
-  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string, private openNotes: (path?: string) => void = () => {}) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string, private openNotes: (path?: string | null) => void = () => {}) { super(leaf); }
   getViewType() { return READABLE_VIEW_TYPE; }
   getDisplayText() { return "Kosmos-Oden readable notes"; }
   getIcon() { return "orbit"; }
@@ -35,7 +35,7 @@ export class KosmosReadableView extends ItemView {
     this.registerEvent(this.app.vault.on("modify", () => this.refresh()));
     this.registerEvent(this.app.vault.on("create", () => this.refresh()));
     this.registerEvent(this.app.vault.on("delete", file => {
-      if (this.path === file.path || this.path?.startsWith(file.path + "/")) this.path = undefined;
+      if (this.path === file.path || this.path?.startsWith(file.path + "/")) this.path = null;
       this.refresh();
     }));
     this.registerEvent(this.app.vault.on("rename", (file, old) => {
@@ -66,9 +66,11 @@ export class KosmosReadableView extends ItemView {
       }, () => generation === this.generation && !!this.frame).catch(() => this.refresh());
     });
   }
-  recordSelection(id: string, generation: number) {
+  recordSelection(id: string | null, generation: number) {
     if (generation !== this.generation) return;
-    const node = this.snapshot?.value.nodes.find((node: any) => node.id === id);
+    if (!this.snapshot) return;
+    if (id === null) { this.path = null; return; }
+    const node = this.snapshot.value.nodes.find((node: any) => node.id === id);
     if (node) this.path = node.path;
   }
   async returnToNotes() {

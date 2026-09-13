@@ -65,7 +65,7 @@ export type HostToRenderer =
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-status"; payload: VaultStatusPayload };
 
 export type RendererToHost =
-  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-selection"; payload: { generation: number; id: string } }
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-selection"; payload: { generation: number; id: string | null } }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-state"; payload: { generation: number; selectedId: string | null; error: "render" | "selection" | null } }
   /** A note was chosen ("Go to Note") — open it in a new tab. */
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-note"; payload: OpenPayload }
@@ -101,7 +101,7 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
   if (m.type === "select-readable-note") {
-    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !isStr(p.id) || !p.id.length || p.id.length > 4096) return { ok: false, reason: "invalid readable selection" };
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !(p.id === null || (isStr(p.id) && p.id.length > 0 && p.id.length <= 4096))) return { ok: false, reason: "invalid readable selection" };
     return { ok: true, message: m as unknown as HostToRenderer };
   }
   if (m.type === "readable-graph") {
@@ -158,7 +158,7 @@ export function validateRendererMessage(data: unknown): ValidationResult<Rendere
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
   if (m.type === "readable-selection") {
-    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !isStr(p.id) || !p.id.length || p.id.length > 4096) return { ok: false, reason: "invalid readable selection" };
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !(p.id === null || (isStr(p.id) && p.id.length > 0 && p.id.length <= 4096))) return { ok: false, reason: "invalid readable selection" };
     return { ok: true, message: m as unknown as RendererToHost };
   }
   if (m.type === "readable-state") {

@@ -68,6 +68,8 @@ test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ p
   expect(await page.evaluate(()=>(window as any).readableSelections)).toEqual([]);
   await embed!.locator('#insLinks').getByRole('button',{name:'Readable neighbor',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>(window as any).readableSelections)).toEqual([{generation:2,id:'file:Neighbor.md'}]);
+  await embed!.locator('#insX').click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).readableSelections.at(-1))).toEqual({generation:2,id:null});
   const inspectorBefore=await embed!.locator('#inspector').textContent();
   await page.evaluate(() => {
     const target=document.querySelector('iframe')!.contentWindow!;

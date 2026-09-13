@@ -15,9 +15,10 @@ test('readable acknowledgements have bounded IDs and enumerated errors',()=>{
   for(const payload of [{generation:0,selectedId:null,error:null},{generation:1,selectedId:'x'.repeat(4097),error:null},{generation:1,selectedId:null,error:'raw provider error'}]) assert.equal(validateRendererMessage(wrap('readable-state',payload)).ok,false);
 });
 
-test('renderer selection intent requires a bounded ID and positive integral generation',()=>{
+test('renderer selection intent requires a bounded ID or explicit clear and positive integral generation',()=>{
+  assert.equal(validateRendererMessage(wrap('readable-selection',{generation:2,id:null})).ok,true);
   assert.equal(validateRendererMessage(wrap('readable-selection',{generation:2,id:'file:Note.md'})).ok,true);
-  for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)},{generation:1,id:null}]) {
+  for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)},{generation:1,id:42}]) {
     assert.equal(validateRendererMessage(wrap('readable-selection',payload)).ok,false);
   }
 });

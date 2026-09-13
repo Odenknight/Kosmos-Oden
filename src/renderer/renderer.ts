@@ -44,7 +44,7 @@ function hasWebGL2(): boolean {
 }
 
 export interface KosmosAppOptions {
-  onSelectNote?: (id: string) => void;
+  onSelectNote?: (id: string | null) => void;
   /** Called when the user picks "Go to Note" (embed posts to the plugin). */
   onOpenNote?: (path: string, label?: string) => void;
   /** Called when the user picks "Expand Folder" on a folder-only galaxy/cluster
@@ -1055,11 +1055,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   function selectNode(id: string, fly?: boolean, notify = true) {
     const selected = G.nodeById.get(id);
-    if (notify && selected?.kind === "file" && !isHidden(id)) opts.onSelectNote?.(id);
+    if (notify) opts.onSelectNote?.(selected?.kind === "file" && !isHidden(id) ? id : null);
     selectedId = id; cam.autoRotate = false; applyHighlight(); showInspector(id);
     if (fly !== false && navMode !== "fly") startFlight(navMode === "overview" ? "focus" : navMode);
   }
-  function clearFocus() { selectedId = null; applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
+  function clearFocus(notify = true) { if (notify) opts.onSelectNote?.(null); selectedId = null; applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
 
   /* ---- UI wiring ---- */
   function updateStats() {
@@ -1141,7 +1141,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   window.addEventListener("resize", placeMobileInspector);
   window.addEventListener("orientationchange", () => setTimeout(placeMobileInspector, 120));
   if ((window as any).visualViewport) (window as any).visualViewport.addEventListener("resize", placeMobileInspector);
-  document.getElementById("insX") && document.getElementById("insX").addEventListener("click", clearFocus);
+  document.getElementById("insX") && document.getElementById("insX").addEventListener("click", () => clearFocus());
 
   let labelsEnabled = true;
   function toggleLabels() {
@@ -2195,7 +2195,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
 
   const api: KosmosApp = {
     ok: true,
-    clearSelection: clearFocus,
+    clearSelection: () => clearFocus(false),
     focusNode(id) {
       if (!G?.nodes.some((node: any) => node.id === id && node.kind === "file") || isHidden(id)) return false;
       selectNode(id, true, false); return true;

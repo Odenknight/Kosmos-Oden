@@ -118,3 +118,10 @@ UID selection across sessions, folder selection parity or native installed
 acceptance of this return route. Browser qualification includes an actual
 neighbor-button selection inside the sandbox and four native-class tests cover
 snapshot reuse and return races.
+
+Explicit spatial deselection uses a null selection ID. Clearing focus or selecting
+a non-note object clears the Notes target on return; deletion of the selected
+file also records that clear intent. Host-driven projection resets do not echo
+user selection messages. Notes invalidates pending reads and clears both preview
+and inspector before saving the cleared selection. This does not add a folder
+inspector or establish persistent UID selection.

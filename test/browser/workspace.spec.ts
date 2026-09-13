@@ -289,3 +289,15 @@ test('readable lineage navigation uses checked reads and identifies the selected
   await expect(page.getByText('Note or scope changed. Select it again.', { exact: true })).toBeVisible();
   await expect(page.locator('.kosmos-notes-inspector')).toBeEmpty();
 });
+
+
+test('explicit selection clear invalidates a pending read and retained inspector state', async ({ page }) => {
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.evaluate(() => { (window as any).slowRead = true; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.waitForFunction(() => !!(window as any).waits.read);
+  await page.evaluate(() => { const w=window as any;w.workspace.select(null);w.waits.read(); });
+  await expect(page.locator('.kosmos-notes-preview')).toBeEmpty();
+  await expect(page.locator('.kosmos-notes-inspector')).toBeEmpty();
+  expect(await page.evaluate(() => (window as any).workspace.getState().selectedPath)).toBeUndefined();
+});
