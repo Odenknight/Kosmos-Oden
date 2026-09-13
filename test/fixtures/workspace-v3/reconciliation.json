@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "fixture_set": "workspace-v3-companion",
+  "standing": "review-candidate-not-accepted",
+  "historical_input": {
+    "fixture_set": "tag-fixtures-v2",
+    "manifest_sha256": "fb8ed729545598649a7589f25ef2e8c9c2d6b223e91172c47b9954603d71f81b",
+    "preserve_original_bytes": true
+  },
+  "area_cases": [
+    {
+      "id": "area-subset",
+      "input_paths": [
+        "root-note.md",
+        "Root/in-root-folder.md",
+        "AreaDemo/area-case.md"
+      ],
+      "default_sensitivity": "secret",
+      "ceiling": "secret",
+      "area": "root",
+      "expected_paths": [
+        "Root/in-root-folder.md",
+        "root-note.md"
+      ]
+    },
+    {
+      "id": "whole-bundle",
+      "input": "all-fourteen-v2-notes",
+      "default_sensitivity": "secret",
+      "ceiling": "secret",
+      "area": "root",
+      "expected_count": 13,
+      "excluded_paths": [
+        "AreaDemo/area-case.md"
+      ]
+    }
+  ],
+  "native_tag_observations": {
+    "host": "Obsidian",
+    "version": "1.12.7",
+    "mechanism": "metadata-cache-read-only",
+    "does_not_adopt_engine_semantics": true,
+    "cases": [
+      {
+        "literal": "page#fragment",
+        "historical_expected_is_tag": false,
+        "observed_is_tag": false
+      },
+      {
+        "literal": "vault=x#y",
+        "historical_expected_is_tag": false,
+        "observed_is_tag": false
+      },
+      {
+        "literal": "#project/",
+        "historical_expected_is_tag": false,
+        "observed_is_tag": true
+      },
+      {
+        "literal": "#/bad",
+        "historical_expected_is_tag": false,
+        "observed_is_tag": true
+      },
+      {
+        "literal": "#a//b",
+        "historical_expected_is_tag": false,
+        "observed_is_tag": true
+      }
+    ]
+  },
+  "coordinate_cases": [
+    {
+      "id": "astral-prefix",
+      "text": "😀 #alpha",
+      "literal": "#alpha",
+      "utf8": {
+        "offset": 5,
+        "length": 6
+      },
+      "utf16_code_units": {
+        "offset": 3,
+        "length": 6
+      },
+      "unicode_code_points": {
+        "offset": 2,
+        "length": 6
+      },
+      "offset_base": 0
+    }
+  ],
+  "origin_collision": {
+    "label": "Shared label",
+    "authored_source_uid": "source:authored",
+    "derived_source_uid": "source:derived",
+    "proposed_source_uid": null,
+    "expected_missing_provenance_text": "Not recorded",
+    "effective_supports": []
+  },
+  "open_acceptance": [
+    "interface-review",
+    "visible-native-workspace-interaction",
+    "final-artifact-binding",
+    "performance-budgets-and-measurements"
+  ]
+}

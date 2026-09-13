@@ -6,6 +6,13 @@ future workspace features. The sequencing in
 [FUTURE-TRACKS](../plans/2026-09-10-revised-execution/FUTURE-TRACKS.md) still applies.
 Historical tag-fixtures-v2 and prior audit bytes remain unchanged.
 
+The machine-readable [v3 companion](../../test/fixtures/workspace-v3/reconciliation.json)
+records the corpus scopes, version-specific native observations, origin collision,
+and discriminating span example below. Its adjacent `SHA256SUMS` binds the fixture
+bytes. Run `node --test test/workspace-fixture-v3.test.mjs` to verify that binding
+and the three coordinate interpretations. This check does not execute the
+historical corpus, repeat the native observations, or grant interface acceptance.
+
 ## Existing executable behavior
 
 Paths below are relative to the repository. A test's existence establishes
