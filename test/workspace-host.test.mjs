@@ -222,3 +222,13 @@ test('stable UID restoration follows the readable identity and never falls back 
   const duplicate = fixture(['One.md', 'Two.md'].map(relativePath => ({ relativePath, content: `---\ngkx_version: "2.3"\nuid: "${uid}"\nsensitivity: public\n---\nDuplicate` })));
   await assert.rejects(duplicate.host.read('One.md', { uid }), /Ambiguous UID/);
 });
+
+test('semantic workspace publication rechecks remote scope after the final local refresh',async()=>{
+  const f=fixture(); let allowed=true, displayed=0;
+  const host=new NotesWorkspaceHost(f.api,{search:async()=>({hits:[]}),isCurrent:()=>allowed});
+  const snapshot=await host.semanticSearch('relay','one',new AbortController().signal);
+  const getGraph=f.provider.getGraph;
+  f.provider.getGraph=async()=>{const graph=await getGraph(); allowed=false; return graph;};
+  assert.equal(await snapshot.publish(()=>displayed++,()=>true),false);
+  assert.equal(displayed,0);
+});

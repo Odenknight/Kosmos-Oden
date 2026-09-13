@@ -4,6 +4,8 @@ import { readableSpatialGraph } from "./spatial";
 export { readableSpatialGraph } from "./spatial";
 import type { KosmosAgentServer } from "../plugin/agent-server";
 import { ProviderError } from "../plugin/vault-operations";
+import type {createSemanticQueryClient} from "./semantic-client";
+export {createSemanticQueryClient} from "./semantic-client";
 
 /** Native host capability, not serializable wire authority or a renderer grant. */
 export interface WorkspaceSnapshot<T> {
@@ -23,7 +25,20 @@ export interface WorkspaceSearchSnapshot extends WorkspaceSnapshot<any> {
  */
 export class NotesWorkspaceHost {
   private active = 0;
-  constructor(private readonly api: KosmosAgentServer) {}
+  constructor(private readonly api: KosmosAgentServer, private readonly semantic?: ReturnType<typeof createSemanticQueryClient>) {}
+
+  async semanticSearch(query: string, requestId: string, signal: AbortSignal, limit = 10) {
+    const semantic = this.semantic;
+    const captured = await this.capture(async () => semantic ? semantic.search(query, requestId, signal, limit) : null);
+    return {...captured, publish: async (apply: (value: typeof captured.value) => void, stillSelected: () => boolean) => {
+      let published = false;
+      await captured.publish(value => {
+        if (signal.aborted || value && !semantic?.isCurrent(query, requestId, value, limit)) return;
+        apply(value); published = true;
+      }, stillSelected);
+      return published;
+    }};
+  }
 
   private async capture<T>(read: () => Promise<T>): Promise<WorkspaceSnapshot<T>> {
     if (this.active >= 2) throw new Error("WORKSPACE_BUSY");
