@@ -9,6 +9,12 @@ export interface WorkspaceSnapshot<T> {
   publish(apply: (value: T) => void, stillSelected: () => boolean): Promise<boolean>;
 }
 
+export interface WorkspaceSearchSnapshot extends WorkspaceSnapshot<any> {
+  offset: number;
+  /** Opaque native capability bound to this query and original snapshot. */
+  next: (() => Promise<WorkspaceSearchSnapshot>) | null;
+}
+
 /** Reuse the same read semantics as MCP without starting a listener or emitting
  * agent presence. The host owns this instance; renderer data cannot construct it.
  */
@@ -45,9 +51,20 @@ export class NotesWorkspaceHost {
     } finally { this.active--; }
   }
 
-  search(query: string, options: { body?: boolean; tag?: string; area?: string; limit?: number } = {}) {
+  async search(query: string, options: { body?: boolean; tag?: string; area?: string; limit?: number } = {}): Promise<WorkspaceSearchSnapshot> {
     const captured = { ...options };
-    return this.capture(() => this.api.qSearch(query, captured));
+    const page = async (offset: number): Promise<WorkspaceSearchSnapshot> => {
+      const snapshot = await this.capture(() => this.api.qSearch(query, { ...captured, offset }));
+      const end = offset + snapshot.value.results.length;
+      return { ...snapshot, offset, next: end < snapshot.value.total && end > offset ? async () => {
+        const valid = () => snapshot.publish(() => {}, () => true);
+        if (!await valid()) throw new Error("SEARCH_SNAPSHOT_CHANGED");
+        const next = await page(end);
+        if (!await valid()) throw new Error("SEARCH_SNAPSHOT_CHANGED");
+        return next;
+      } : null };
+    };
+    return page(0);
   }
 
   read(path: string, page: { page_size?: number; offset?: number; revision?: string } = {}) {

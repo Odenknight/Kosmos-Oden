@@ -1,4 +1,4 @@
-import type { NotesWorkspaceHost, WorkspaceSnapshot } from "./host";
+import type { NotesWorkspaceHost, WorkspaceSearchSnapshot } from "./host";
 import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
 
@@ -69,18 +69,20 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }
   }
 
-  async function refresh() {
+  async function refresh(next?: () => Promise<WorkspaceSearchSnapshot>) {
     if (closed) return;
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
-    const pending = searches.select(() => host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
-      async (snapshot: WorkspaceSnapshot<any>, current) => snapshot.publish(value => {
+    const pending = searches.select(() => next ? next() : host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
+      async (snapshot, current) => snapshot.publish(value => {
         results.replaceChildren();
         for (const note of value.results) {
           const item = button(note.title, () => void show(note.path));
           item.title = note.path; results.append(item);
         }
-        status.textContent = `${value.results.length} of ${value.total} readable matches${value.bodySearch ? " · Body search covers bounded prefixes" : ""}`;
+        if (snapshot.next) results.append(button("Next results", () => void refresh(snapshot.next!)));
+        if (snapshot.offset > 0) results.append(button("Back to first results", () => void refresh()));
+        status.textContent = `${snapshot.offset ? `${snapshot.offset + 1}–${snapshot.offset + value.results.length}` : value.results.length} of ${value.total} readable matches${value.bodySearch ? " · Body search covers bounded prefixes" : ""}`;
       }, current), () => {});
     const version = searches.version;
     try {

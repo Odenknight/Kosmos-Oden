@@ -72,3 +72,24 @@ The 439-test full run preceded these two additional fixture tests.
 reader/API code subsequently passed real-provider preview and canonical editor
 opening inside a temporary Obsidian pane. Plugin startup/registration and final
 release gates remain unqualified.
+
+## Search continuation — 2026-09-13
+
+Notes exposes **Next results** and **Back to first results**, with page ranges
+against the readable total. Each next-page capability retains the original query,
+filters and committed corpus/graph/policy binding. It rechecks that binding before
+and after preparing the next page; publication checks it again. A changed binding
+requires a fresh search. The current graph's stable result order is preserved.
+Only one page is displayed at a time; no growing result cache is introduced.
+
+The shared query supports an internal native offset. Public MCP search arguments
+and existing substring/ranking behavior remain unchanged. Counts include only
+readable matches; body search continues to disclose its bounded prefix coverage.
+
+Full verification now passes 443 tests and all build checks. Ten host fixtures
+and 20 browser checks pass, including complete traversal without duplicates,
+revocation before/during continuation and page navigation across four browsers.
+At 09:35:46 UTC, the candidate API/host queried the actual Obsidian provider:
+two pages of 100 results, second offset 100, readable total 2275, no duplicate
+paths, and successful final publication. This in-process probe left the installed
+plugin unchanged and does not qualify plugin startup/reload or release promotion.

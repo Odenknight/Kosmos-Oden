@@ -906,10 +906,13 @@ export class KosmosAgentServer {
     };
   }
 
-  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number; body?: boolean } = {}): Promise<any> {
+  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number; body?: boolean; offset?: number } = {}): Promise<any> {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
+    // Native host continuation only; public MCP keeps its existing schema.
+    const offset = opts.offset ?? 0;
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("SEARCH_OFFSET_INVALID");
     const scored: Array<[number, GkxNode]> = [];
     if (opts.body && !this.provider.getIndexedBody) throw new McpRpcError(-32602, "Body search is unavailable from this provider");
     let bodyCharacters = 0, bodyNotes = 0, bodyLimited = false;
@@ -939,7 +942,7 @@ export class KosmosAgentServer {
       method: opts.body ? "lexical (title/alias/tag/path and bounded body substring; no embeddings)" : "lexical (title/alias/tag/path substring; no embeddings)",
       ...(opts.body ? { bodySearch: { coverage: "partial", notesScanned: bodyNotes, charactersScanned: bodyCharacters, truncated: bodyLimited, maxCharactersPerNote: 64_000, maxCharactersPerQuery: 8_000_000 } } : {}),
       total: scored.length,
-      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph)),
+      results: scored.slice(offset, offset + lim).map(([, n]) => this.brief(n, graph)),
     };
   }
 

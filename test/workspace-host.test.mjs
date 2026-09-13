@@ -83,3 +83,32 @@ test('missing projection remains unavailable instead of fabricating origins',asy
   assert.equal(result.note.content,'Public **body**.');
   assert.equal(result.projection,null);
 });
+
+test('native search pages traverse all readable matches once and retain the original binding',async()=>{
+  const extra=Array.from({length:105},(_,i)=>({relativePath:`Page-${i}.md`,content:'---\ntype: semantic\nsensitivity: public\n---\nReadable.'}));
+  const f=fixture(extra), paths=[];
+  let page=await f.host.search('',{limit:20});
+  const first=page;
+  while(page) {
+    assert.equal(page.value.total,106);
+    assert.equal(page.offset,paths.length);
+    paths.push(...page.value.results.map(n=>n.path));
+    page=page.next?await page.next():null;
+  }
+  assert.equal(paths.length,106);assert.equal(new Set(paths).size,106);
+  assert.equal(paths.includes('Hidden.md'),false);
+  f.changeGraph();
+  await assert.rejects(first.next(),/SEARCH_SNAPSHOT_CHANGED/);
+});
+
+test('search continuation rejects revocation before or during the next page',async()=>{
+  for(const during of [false,true]) {
+    const f=fixture([{relativePath:'Other.md',content:'---\ntype: semantic\nsensitivity: public\n---\nOther.'}]);
+    const first=await f.host.search('',{limit:1});
+    if(during) {
+      const original=f.api.qSearch.bind(f.api);
+      f.api.qSearch=async(...args)=>{const result=await original(...args);f.changeCorpus();return result;};
+    } else f.api.settings.agentSensitivityCeiling='internal';
+    await assert.rejects(first.next());
+  }
+});

@@ -2,6 +2,9 @@
 
 ## Notes workspace implementation candidate - 2026-09-13
 
+- Add native search continuation beyond the first 100 matches, bound to the
+  original corpus, committed graph and policy, with explicit page ranges.
+
 - Add a separate native Notes command and ribbon entry, reusing MCP read policy
   without starting a listener. Search and paged previews reject stale selections
   and recheck corpus, committed graph, and policy before display or source opening.

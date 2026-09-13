@@ -16,6 +16,8 @@ test.beforeEach(async ({ page }) => {
       search: async (query: string, options: any) => {
         w.calls.push({ query, options });
         if (query === "slow") await new Promise(resolve => { w.waits.search = resolve; });
+        if (query === "paged") return { ...snapshot({ results: [{title:"First",path:"Alpha.md"}],total:2 }), offset:0,
+          next:async()=>({...snapshot({results:[{title:"Second",path:"Beta.md"}],total:2}),offset:1,next:null}) };
         return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md" }, { title: "Beta", path: "Beta.md" }], total: 2 });
       },
       read: async (path: string, options: any) => {
@@ -93,4 +95,14 @@ test("keyboard selection and closing during a pending read leave no late content
     await new Promise(resolve => setTimeout(resolve, 0));
   });
   await expect(page.locator("#notes")).toBeEmpty();
+});
+
+test("search result continuation and return to the first page", async ({ page }) => {
+  await page.getByRole("searchbox").fill("paged");
+  await page.getByRole("button", { name:"Next results", exact:true }).click();
+  await expect(page.getByRole("button", { name:"Second", exact:true })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("2–2 of 2 readable matches");
+  await expect(page.getByRole("button", { name:"First", exact:true })).toHaveCount(0);
+  await page.getByRole("button", { name:"Back to first results", exact:true }).click();
+  await expect(page.getByRole("button", { name:"First", exact:true })).toBeVisible();
 });
