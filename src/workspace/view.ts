@@ -134,6 +134,24 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
           if (links.length > 100) section.append(element("p", `Showing 100 of ${links.length} readable links. Narrow the search to inspect further notes.`));
           inspection.append(section);
         }
+        inspection.append(element("h3", "Readable lineage"));
+        const lineage = "lineage" in snapshot.value ? snapshot.value.lineage : null;
+        if (!lineage) inspection.append(element("p", "Lineage unavailable"));
+        else {
+          inspection.append(element("p", "Resolved lineage in the current readable scope. This is not an approval record or historical audit log."));
+          const chain: Array<{ title: string; path: string; current: boolean }> = lineage.chain;
+          const list = element("ul");
+          for (const member of chain.slice(0, 100)) {
+            const item = element("li");
+            const target = button(member.title, () => void show(member.path)); target.title = member.path;
+            item.append(target);
+            if (member.current) item.append(doc.createTextNode(" · Selected note"));
+            list.append(item);
+          }
+          inspection.append(list);
+          if (!chain.length) inspection.append(element("p", "No readable lineage members"));
+          if (chain.length > 100) inspection.append(element("p", `Showing 100 of ${chain.length} readable lineage members.`));
+        }
         if (!projection) inspection.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {
           const details = element("details"); details.append(element("summary", origin[0].toUpperCase() + origin.slice(1)));

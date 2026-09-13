@@ -188,3 +188,13 @@ describes reader/assessor capability; it is not a protocol qualification result.
 Text is inert and bounded; explicit boolean false remains visible as false.
 The five origin records remain separately inspectable. These fields do not
 create approval authority or permissions.
+
+## Readable lineage
+
+Notes captures the existing `qLineage` result with the note, projection and
+related links under the same snapshot publication guard. The inspector shows
+up to 100 resolved members, marks the selected note, and opens members through
+the checked Notes read flow. Counts and members describe only the readable
+scope; confidential successors are excluded. Unavailable data is distinct from
+an empty chain. This is resolved current lineage, not an approval record,
+known-at history, or a complete view of unresolved references.

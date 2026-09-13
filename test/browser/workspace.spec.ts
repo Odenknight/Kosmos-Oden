@@ -29,7 +29,7 @@ test.beforeEach(async ({ page }) => {
         return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
           related:w.related??{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
-          assessment:w.assessment??null,diagnostics:w.diagnostics??null,
+          assessment:w.assessment??null,diagnostics:w.diagnostics??null,lineage:w.lineage??null,
           projection: w.projection ?? { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
     };
@@ -271,4 +271,21 @@ test('governance header uses effective origin and preserves an explicit false co
   await page.getByRole('button', { name: 'Alpha', exact: true }).click();
   await expect(summary).toContainText('Effective epistemic state: Not recorded');
   await expect(summary).toContainText('Effective sensitivity: Not recorded');
+});
+
+
+test('readable lineage navigation uses checked reads and identifies the selected note', async ({ page }) => {
+  await page.evaluate(() => { (window as any).lineage = { chain: [
+    { title: 'Lineage Alpha', path: 'Alpha.md', current: true },
+    { title: 'Lineage Beta', path: 'Beta.md', current: false },
+  ] }; });
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Readable lineage', exact: true })).toBeVisible();
+  await expect(page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Lineage Alpha', exact: true }) })).toContainText('· Selected note');
+  await page.getByRole('button', { name: 'Lineage Beta', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Beta.md', exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as any).authorized = false; });
+  await page.getByRole('button', { name: 'Lineage Alpha', exact: true }).click();
+  await expect(page.getByText('Note or scope changed. Select it again.', { exact: true })).toBeVisible();
+  await expect(page.locator('.kosmos-notes-inspector')).toBeEmpty();
 });

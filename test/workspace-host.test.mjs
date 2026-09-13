@@ -74,6 +74,20 @@ test('denied note never reads a body or reveals a projection',async()=>{
   assert.throws(()=>host.read('../Hidden.md'),/WORKSPACE_PATH_INVALID/);
 });
 
+test('Notes lineage matches the shared query and excludes confidential successors', async () => {
+  const f=fixture([
+    {relativePath:'Successor.md',content:'---\ntype: semantic\nsensitivity: public\nsupersedes: [Public]\n---\nReadable successor'},
+    {relativePath:'PrivateSuccessor.md',content:'---\ntype: semantic\nsensitivity: confidential\nsupersedes: [Public]\n---\nPrivate successor'},
+  ]);
+  const snapshot=await f.host.read('Public.md');
+  assert.deepEqual(snapshot.value.lineage,await f.api.qLineage({path:'Public.md'}));
+  assert.equal(snapshot.value.lineage.chainLength,2);
+  assert.ok(snapshot.value.lineage.chain.some(n=>n.path==='Successor.md'));
+  assert.equal(JSON.stringify(snapshot.value.lineage).includes('PrivateSuccessor'),false);
+  f.changeGraph();
+  assert.equal(await snapshot.publish(()=>assert.fail('stale lineage published'),()=>true),false);
+});
+
 test('publication rejects changed corpus, graph, provider, policy and selection',async()=>{
   for(const change of [f=>f.changeCorpus(),f=>f.changeGraph(),f=>{f.api.provider={...f.provider};},f=>{f.api.settings.agentSensitivityCeiling='internal';}]) {
     const f=fixture(),snapshot=await f.host.read('Public.md');change(f);
