@@ -33,9 +33,12 @@ These are separate review branches.
 They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
-The Engine implementation was at `5f96a71`.
+The Engine implementation is now at `d21982d`.
 Kosmos still pins Engine `7f28b2a`.
 The newer Engine service work is not yet included in that dependency pin.
+The Engine now exports its existing pure manifest helpers for native consumers.
+Their package API, compatibility, source inventory, and package checks passed.
+Kosmos still needs to adopt that revision and bind its native authority.
 The installed plugin is an earlier candidate, `59a61ca`.
 Do not describe branch changes as already installed.
 
