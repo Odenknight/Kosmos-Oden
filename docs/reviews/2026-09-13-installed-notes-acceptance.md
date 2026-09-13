@@ -49,3 +49,29 @@ five-minute authenticated LAN test listener on port 4916 because that additional
 network exposure needs explicit authorization. It was not started. The native
 Hermes negative-authorization gate remains open pending that permission or an
 authorized equivalent test endpoint.
+
+## Verified cold-process startup
+
+On September 13, the CLI `restart` command reported success but process 19956
+and its uptime remained unchanged. That attempt is retained as a failed cold-start
+verification, even though the subsequent Hermes checks passed.
+
+After confirming no unsaved Markdown editors, a normal window close completed
+without forced termination and Obsidian was relaunched. At 10:05:12 UTC, the
+renderer process was 31252 with 33.42 seconds uptime. The exact clean `c5b7b7f`
+source and `22ababdd…37fa032` artifact remained installed. The API was running,
+Notes was registered, and its saved leaf was restored. All six native Hermes
+checks then passed against the relaunched application.
+
+This establishes cold-process startup and subsequent native client operation
+for this installed artifact. Notes restoration or another caller may have read
+the provider before Hermes; the evidence does not establish an uncached first
+Hermes query. The reusable Hermes harness still reports its own
+`cold_start_exercised: false`, because it does not control application lifecycle.
+The outer before/after process receipts supply that separate evidence. Later
+source changes require their own final artifact qualification.
+
+Private receipts: `native-cold-before-20260913.json`,
+`native-cold-after-20260913.json` (unchanged-process attempt),
+`native-verified-cold-after-20260913.json`, and
+`hermes-after-verified-process-restart-20260913.log`.
