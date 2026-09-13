@@ -15,25 +15,30 @@ class Plugin {
   addCommand() { throw stopRegistration; }
 }
 const obsidian = new Proxy({ Plugin }, { get: (target, key) => target[key] ?? class {} });
-const module = { exports: {} };
-new Function("require", "module", "exports", artifact.toString())(
-  name => name === "obsidian" ? obsidian : require(name), module, module.exports,
-);
-const plugin = new module.exports.default();
 const file = { path: "synthetic.md", name: "synthetic.md", extension: "md", stat: { size: 100, mtime: 1, ctime: 1 } };
 const source = "---\nsensitivity: public\n---\n# Packaged recovery fixture\nSynthetic content only.";
 let release, stalled = true, reads = 0;
 const pending = new Promise(resolve => { release = resolve; });
-plugin.app = { vault: {
+const app = { vault: {
   getName: () => "Synthetic packaged qualification",
   getMarkdownFiles: () => [file], getFiles: () => [file],
   cachedRead: async () => { reads++; return stalled ? pending : source; },
 } };
-try { await plugin.onload(); assert.fail("expected synthetic registration boundary"); }
-catch (error) { assert.equal(error, stopRegistration); }
-assert.ok(plugin.provider && plugin.agentApi, "packaged initialization did not create provider/server");
-Object.assign(plugin.agentSettings, { agentEnabled: true, agentPort: 0, agentBindMode: "loopback", agentRequireToken: false });
-const server = plugin.agentApi;
+async function loadPackagedPlugin() {
+  const module = { exports: {} };
+  new Function("require", "module", "exports", artifact.toString())(
+    name => name === "obsidian" ? obsidian : require(name), module, module.exports,
+  );
+  const plugin = new module.exports.default();
+  plugin.app = app;
+  try { await plugin.onload(); assert.fail("expected synthetic registration boundary"); }
+  catch (error) { assert.equal(error, stopRegistration); }
+  assert.ok(plugin.provider && plugin.agentApi, "packaged initialization did not create provider/server");
+  Object.assign(plugin.agentSettings, { agentEnabled: true, agentPort: 0, agentBindMode: "loopback", agentRequireToken: false });
+  return plugin;
+}
+let plugin = await loadPackagedPlugin();
+let server = plugin.agentApi;
 const outcomes = [];
 const traversals = [];
 server.onTraversal = (paths, tool) => traversals.push({ paths, tool });
@@ -70,6 +75,19 @@ try {
   assert.equal((await request(port, "/health")).status, 200);
   assert.equal((await request(port, "/overview")).status, 503);
   assert.equal(reads, 1, "server restart must not forget the outstanding physical read");
+  server.server.closeAllConnections();
+  server.stop();
+  const oldProvider = plugin.provider;
+  plugin = await loadPackagedPlugin();
+  assert.notEqual(plugin.provider, oldProvider);
+  server = plugin.agentApi;
+  server.onTraversal = (paths, tool) => traversals.push({ paths, tool });
+  server.start();
+  await once(server.server, "listening");
+  port = server.server.address().port;
+  assert.equal((await request(port, "/overview")).status, 503);
+  assert.equal(reads, 1, "fresh module/provider must preserve the host-owned physical read registry");
+  assert.deepEqual(traversals, []);
   stalled = false; release(source);
   await new Promise(resolve => setImmediate(resolve));
   const recovered = await request(port, "/overview");
@@ -84,6 +102,7 @@ try {
   assert.equal(server.perAgentInFlight.size, 0);
   outcomes.push({ step: "physical-retry-refusal", status: refused.status },
     { step: "restart-retains-physical-read", status: 503 },
+    { step: "fresh-module-retains-physical-read", status: 503 },
     { step: "recovered-and-warm", status: recovered.status },
     { step: "observed-search-traversal", count: traversals.length });
   console.log(JSON.stringify({ sha256: createHash("sha256").update(artifact).digest("hex"), bytes: artifact.length, outcomes,

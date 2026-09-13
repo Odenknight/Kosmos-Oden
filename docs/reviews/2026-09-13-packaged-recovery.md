@@ -32,3 +32,17 @@ callback for `synthetic.md`. The production timeout observation was 10,011.37 ms
 This is server restart with the same provider, not plugin reload or process
 restart; those boundaries remain separate. The fixture records these assertions
 in its receipt and retains the same partial-host qualification limits.
+
+## Fresh packaged module qualification
+
+The fixture now evaluates `main.js` again, constructs a different plugin/provider,
+and initializes it against the same synthetic vault object while the original
+physical read remains unresolved. The new server returns 503 without another
+physical read. After settlement, the new provider builds, serves search and warm
+requests, and emits the expected traversal. This passed with the same artifact
+hash above and a 10,011.18 ms timeout observation.
+
+This proves the packaged host-realm physical-read registry survives fresh module
+and provider construction. It does not execute Obsidian's real unload/reload event
+sequence, nor does it establish process-restart or viewer acceptance. The fixture
+still deliberately stops before UI/event registration.
