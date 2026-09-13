@@ -19,8 +19,8 @@ Engine owns contracts and semantic behavior; Kosmos consumes its pinned API.
 | Actual generated runner | Passed bounded fixture | Persistence and duplicate/changed-input refusal, cleanup; this run did not search |
 | Observatory storage/model experiment | Passed bounded fixture, published in PRs 67/68 | Storage restart readback; local util4 extraction plus Nomic 768-dimensional embeddings; five scoped searches and cleanup |
 | Agent display identity | Implemented and direct native MCP verified; declared tool names take precedence in PR 71 | JEFFREY's actual Hermes header configuration verified; native Hermes traversal acceptance remains open |
-| G2 compatibility/contracts | Partial; Engine PR 55 supplies query draft-1 binding/validation; current model-file SHA-256s recorded | Cross-repository consumer adoption and fresh qualification/configuration binding remain; no deployed broker |
-| G3 ingestion/safety | Partial | Managed queue, crash reconciliation, generation publication, revocation/purge and concurrent-scope fixtures remain |
+| G2 compatibility/contracts | Partial; Engine query draft-1 and packaged cross-repository consumer fixtures implemented; current model-file SHA-256s recorded | Fresh qualification/configuration binding and broker integration remain |
+| G3 ingestion/safety | Partial; Engine PR 56 adds explicit read-only recovery observations | Managed queue/ledger, automatic crash reconciliation, generation publication, revocation/purge and concurrent-scope fixtures remain |
 | G4 value/performance | Open | Freeze numeric budgets and native baseline before scale/quality/cost comparison |
 | G5 broker | Open | No governed semantic broker in the product; keep native fallback and searchable=false |
 | G6 consumer | Partial | Export/status/identity exist; semantic result/evidence UI and Hermes acceptance remain |
@@ -29,6 +29,10 @@ Engine owns contracts and semantic behavior; Kosmos consumes its pinned API.
 Latest [query-contract and identity checkpoint](../reviews/2026-09-13-query-contract-reconciliation.md)
 records the Engine contract fixture, current native build evidence and the
 distinction between Hermes configuration verification and end-to-end acceptance.
+
+The [recovery consumer checkpoint](../reviews/2026-09-13-graphiti-recovery-consumer.md)
+records the updated immutable Engine pin, packaged consumer fixture and explicit
+read-only operator recovery command. It does not activate semantic search.
 
 The text model's embeddings endpoint returned HTTP 501; the successful
 Observatory experiment used the existing separate Nomic endpoint instead.
