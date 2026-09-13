@@ -145,3 +145,11 @@ The implementation retains supported filesystem security APIs. Microsoft's
 explicitly directs filesystem callers to `SetSecurityInfo` or
 `SetNamedSecurityInfo`; that alternate API was therefore not adopted to avoid
 inheritance behavior. Existing-state enumeration and migration remain open.
+
+`ensure-private-sidecar-state.ps1` provides a non-repair entry point: create
+missing state with a private DACL, or validate existing state and its bounded
+immediate leaves without changing ACLs or contents. It requires the exact owner,
+access, inheritance and propagation settings. Synthetic tests passed for private
+creation, unchanged reuse, refusal of an Everyone-readable leaf, and refusal of
+nonstandard directory propagation with unchanged ACLs. Native host integration,
+trusted-parent qualification and concurrent namespace mutation remain open.
