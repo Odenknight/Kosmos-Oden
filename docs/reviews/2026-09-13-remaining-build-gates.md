@@ -1,7 +1,7 @@
 # Remaining build gates
 
-Inventory at Kosmos `f1f8bb7`, consuming Engine
-`91433b158b4b9bc30bd4d43b7dd8f61363647960`. This is an incomplete-work audit,
+Initial inventory was taken at Kosmos `f1f8bb7`. Updated rows include the
+`78abe88` runtime candidate consuming Engine `b309d5ec41aac9f20c946598fbc8a5a75b4afcec`. This is an incomplete-work audit,
 not a completion certificate. Historical receipts retain their original scope
 and must not be silently reassigned to newer installed bytes.
 
@@ -18,7 +18,7 @@ and must not be silently reassigned to newer installed bytes.
 | N1–N3 retrieval | Local Notes snapshots bind provider identity, graph object and policy; readable query fixtures pass. | Complete negotiated service identity, digest/scope/generation binding and required cross-service pagination/Unicode/revocation fixtures. Preserve transitive Kosmos lineage versus direct-neighbor Engine semantics explicitly. |
 | W1–W4 workspace | Search, preview, origins/evidence, effective header, lineage declaration status, map, drawers, tabs and UID mode continuity have automated coverage. Native tabs and adapter receipt availability observed on `78abe88`. | Complete accepted fixture matrix and native view/edit/return/layout/performance qualification; hidden-window checks do not prove visible interaction. Evidence targets remain unverified and unresolved in the inspector. |
 | T1–T3 temporal history | Version metadata names time axes. This is not a durable observation store. | Define and implement observation records, authorization, retention/deletion/replay/migration and disabled-by-default storage; prove known-at retrieval from retained records rather than file timestamps. |
-| Adoption / Effects | `InMemoryAdoptionStore` is explicitly a test/reference store. Native adapter reports `split-prepare-api-missing`; Obsidian adapter reports durable intent unimplemented. | Durable receipt/registry storage and recovery, prepared-intent host support, lifecycle/reconciliation/assistance, exact authority and native acceptance before enabling effects. Preserve default-off behavior. |
+| Adoption / Effects | Native SQLite adoption storage and a guarded controller now exist alongside the in-memory test store. Component checks do not prove product-host integration. Native adapter still reports `split-prepare-api-missing`; Obsidian adapter reports durable intent unimplemented. | Durable receipt/registry storage and recovery, prepared-intent host support, lifecycle/reconciliation/assistance, exact authority and native acceptance before enabling effects. Preserve default-off behavior. |
 | G2 / G3 | Merged managed-host code and scoped synthetic receipts exist. | Exact runtime/model/backend/configuration reconciliation and complete production recovery boundaries; retain ambiguous attempts as quarantined. |
 | G4 / watcher / MOC qualification | Latest shared task records a 2,000-note edit at 12,648.90 ms, FAIL_BUDGET. | Repair measured end-to-end latency, run declared workload sizes and five-run distributions, reviewed semantic value/cost comparison, and the full 24-hour soak. |
 | G5 / G6 | Private Engine broker/query boundary exists; Kosmos has an immutable consumer pin. | Product-host authorization and authenticated query endpoint, full scope/corpus/generation binding, governed result/evidence/status UI, outage/native fallback and actual client qualification. A dependency upgrade is not this integration. |
@@ -27,11 +27,11 @@ and must not be silently reassigned to newer installed bytes.
 
 ## Immediate implementation priority
 
-The next substantial implementation should address durable adoption storage and
-its crash/replay boundary, reusing existing receipt/registry validation rather
-than creating a second authority model. Inspect the existing adoption store and
-Engine persistence facilities first. Keep source-note mutation disabled until
-the separate Effects authority and prepared-intent requirements are met.
+The adoption storage component is implemented; the remaining work is actual
+product-host authority, prepared intents, recovery integration and native
+acceptance. Reuse the existing receipt/registry validation and SQLite store.
+Keep source-note mutation disabled until the separate Effects authority and
+prepared-intent requirements are met.
 
 Native drawer acceptance remains open because the observed document was hidden
 and its resize transition did not arrive. Repeating the same probe without new
