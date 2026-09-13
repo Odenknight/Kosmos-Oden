@@ -87,68 +87,77 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "---\ngkx_version: \"2.3\"\nuid: \"019b2d14-4230-7db7-87d4-7d81cfaec932\"\ntitle: \"Synthetic startup fixture\"\ntype: \"policy\"\ncreated_at: \"2026-08-20T00:00:00Z\"\nepistemic_state: \"reported\"\nsensitivity: \"public\"\n---\n# Synthetic startup fixture\nNo vault data.\n",
     )?;
     let state = root.join("state");
-    let guard = windows_state::ensure(&state)?;
-    let log = windows_state::open_log(&state.join("desktop-agent.log"))?;
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
-    let mut child = Reap(
-        Command::new(binary)
-            .args(["--notes"])
-            .arg(&notes)
-            .arg("--status-file")
-            .arg(state.join("desktop-agent.status.json"))
-            .arg("--port")
-            .arg(port.to_string())
-            .env_remove("GKOS_CODEX_MCP_ENABLED")
-            .env_remove("GKOS_LOCAL_EMBEDDING_CONFIG")
-            .env_remove("GKOS_MCP_CONTENT_LIMITS")
-            .creation_flags(0x08000000)
-            .stdin(Stdio::null())
-            .stderr(Stdio::from(log.try_clone()?))
-            .stdout(Stdio::from(log))
-            .spawn()?,
-    );
-    drop(guard); // Match the production spawn boundary.
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < deadline {
-        if let Some(exit) = child.0.try_wait()? {
-            return Err(
-                format!("synthetic child exited: {exit}; fixture {}", root.display()).into(),
-            );
-        }
-        if let Ok(file) = fs::File::open(state.join("desktop-agent.status.json")) {
-            let mut bytes = Vec::new();
-            file.take(65537).read_to_end(&mut bytes)?;
-            if bytes.len() <= 65536
-                && let Ok(status) = serde_json::from_slice::<serde_json::Value>(&bytes)
-                && status["state"] == "serving"
-                && status["notes_indexed"] == 1
-            {
-                let token = windows_state::read_credential(&state.join("desktop-agent.token"))?;
-                if graph_request(port, None)?.0 != 401 {
-                    return Err("unauthenticated graph was not denied".into());
-                }
-                let (code, graph) = graph_request(port, Some(&token))?;
-                if code != 200
-                    || !graph["nodes"]
-                        .as_array()
-                        .ok_or("missing graph nodes")?
-                        .iter()
-                        .any(|node| node["path"] == "synthetic.md")
-                {
-                    return Err("authenticated synthetic graph retrieval failed".into());
-                }
-                println!(
-                    "PASS: verified Engine indexed one document; native credential, unauthenticated denial and authenticated graph retrieval passed; synthetic fixture {}",
-                    root.display()
+    for phase in ["initial", "restart"] {
+        let guard = windows_state::ensure(&state)?;
+        let log = windows_state::open_log(&state.join("desktop-agent.log"))?;
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let port = listener.local_addr()?.port();
+        drop(listener);
+        let mut child = Reap(
+            Command::new(&binary)
+                .args(["--notes"])
+                .arg(&notes)
+                .arg("--status-file")
+                .arg(state.join("desktop-agent.status.json"))
+                .arg("--port")
+                .arg(port.to_string())
+                .env_remove("GKOS_CODEX_MCP_ENABLED")
+                .env_remove("GKOS_LOCAL_EMBEDDING_CONFIG")
+                .env_remove("GKOS_MCP_CONTENT_LIMITS")
+                .creation_flags(0x08000000)
+                .stdin(Stdio::null())
+                .stderr(Stdio::from(log.try_clone()?))
+                .stdout(Stdio::from(log))
+                .spawn()?,
+        );
+        drop(guard); // Match the production spawn boundary.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut qualified = false;
+        while Instant::now() < deadline {
+            if let Some(exit) = child.0.try_wait()? {
+                return Err(
+                    format!("synthetic child exited: {exit}; fixture {}", root.display()).into(),
                 );
-                return Ok(());
             }
+            if let Ok(file) = fs::File::open(state.join("desktop-agent.status.json")) {
+                let mut bytes = Vec::new();
+                file.take(65537).read_to_end(&mut bytes)?;
+                if bytes.len() <= 65536
+                    && let Ok(status) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                    && status["state"] == "serving"
+                    && status["notes_indexed"] == 1
+                    && status["pid"] == child.0.id()
+                {
+                    let token = windows_state::read_credential(&state.join("desktop-agent.token"))?;
+                    if graph_request(port, None)?.0 != 401 {
+                        return Err("unauthenticated graph was not denied".into());
+                    }
+                    let (code, graph) = graph_request(port, Some(&token))?;
+                    if code != 200
+                        || !graph["nodes"]
+                            .as_array()
+                            .ok_or("missing graph nodes")?
+                            .iter()
+                            .any(|node| node["path"] == "synthetic.md")
+                    {
+                        return Err("authenticated synthetic graph retrieval failed".into());
+                    }
+                    println!(
+                        "PASS ({phase}): verified Engine indexed one document; native credential, unauthenticated denial and authenticated graph retrieval passed; synthetic fixture {}",
+                        root.display()
+                    );
+                    qualified = true;
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(100));
         }
-        std::thread::sleep(Duration::from_millis(100));
+        if !qualified {
+            return Err(format!("synthetic {phase} timed out; fixture {}", root.display()).into());
+        }
+        drop(child); // Reap before revalidating state and launching the next process.
     }
-    Err(format!("synthetic startup timed out; fixture {}", root.display()).into())
+    Ok(())
 }
 
 #[cfg(not(windows))]

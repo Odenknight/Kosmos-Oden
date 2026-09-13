@@ -234,3 +234,12 @@ verified binary. Requests have connection/read/write bounds and response-size
 limits; no token is printed. The child was absent afterward, source manifest null,
 and all-target clippy passes. This adds actual indexed graph retrieval evidence;
 Supervisor lifecycle, native UI and full cross-service authorization remain open.
+
+The process harness now repeats startup against the same generated state after
+terminating and reaping the first child. Both initial and restart phases passed
+one-document indexing, native credential validation, unauthenticated 401 and
+authenticated graph retrieval. Status acceptance also requires the current child
+PID, preventing retained status from satisfying the next launch. The final child
+was absent and source manifest null afterward; all-target clippy passed.
+This is an actual Engine restart through the native helper boundaries, not yet
+Supervisor automatic recovery/backoff or native desktop lifecycle acceptance.
