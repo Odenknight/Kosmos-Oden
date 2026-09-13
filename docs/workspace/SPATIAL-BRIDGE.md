@@ -96,3 +96,10 @@ only its iframe's current-generation response and checks selected IDs against
 the readable snapshot. Four sandbox browser checks observe both the inspector
 and its acknowledgement; 17 protocol checks, build and typecheck pass. This
 acknowledgement increment still requires installation and native observation.
+
+Native locate now reuses a captured graph when its final publication check still
+passes, sending only a generation-bound selection. Refusal refreshes the graph;
+superseded requests cannot publish or initiate redundant refreshes. Tests invoke
+the actual native class with an Obsidian stub and prove zero graph reads for two
+successive selections. Full verification passes 453 tests and all build checks.
+Installed selection timing and this reuse increment remain to be qualified.

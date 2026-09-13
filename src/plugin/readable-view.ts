@@ -46,7 +46,7 @@ export class KosmosReadableView extends ItemView {
       const message = validateRendererOpenMessage(event.data);
       if (message.ok && message.message?.type === "readable-state") {
         const state = message.message.payload;
-        if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId))) return;
+        if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId && node.path === this.path))) return;
         this.rendererState = state;
         const unavailable = this.path && !this.snapshot.value.nodes.some((node: any) => node.path === this.path);
         this.status!.textContent = unavailable ? "Selected note is unavailable in the current scope." : state.error ? "Renderer could not display the requested note." : state.selectedId ? "Selected note displayed · current policy" : "Readable graph displayed · current policy";
@@ -63,7 +63,18 @@ export class KosmosReadableView extends ItemView {
   }
   private post(message: unknown) { this.frame?.contentWindow?.postMessage(message, "*"); }
   syncVisibility() { this.post(wrap("visibility", { visible: !!this.containerEl.offsetParent })); }
-  locate(path: string) { this.path = path; this.refresh(); }
+  locate(path: string) {
+    this.path = path;
+    const snapshot = this.snapshot, generation = this.generation;
+    if (!snapshot) { this.refresh(); return; }
+    const current = () => this.snapshot === snapshot && this.generation === generation && this.path === path && !!this.frame;
+    return snapshot.publish(value => {
+      const selected = value.nodes.find((node: any) => node.path === path);
+      if (selected) this.post(wrap("select-readable-note", { generation, id: selected.id }));
+      else this.status!.textContent = "Selected note is unavailable in the current scope.";
+    }, current).then(published => { if (!published && current()) this.refresh(); })
+      .catch(() => { if (current()) this.refresh(); });
+  }
   refresh() {
     const generation = ++this.generation;
     this.snapshot = undefined;
