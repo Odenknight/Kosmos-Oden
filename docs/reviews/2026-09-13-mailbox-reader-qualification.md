@@ -50,3 +50,18 @@ Remaining M1 checks include exhaustive field constraints, immutable manifest bin
 ACK exception, and evidence-based reconciliation of mutable status/card summaries.
 The reader does not send ACKs, quarantine files, rewrite history or update peer
 cards. Those operations cannot be inferred from a successful read-only audit.
+
+## Exact historical outputs exception
+
+The Protocol 1.2.0 source was relocated and verified (SHA-256
+`320b514203db63b537f2451111d083ac7e0f6351461ece84148d7ed7cdab661a`).
+Its four pre-1.2 ACKs are recognized by exact raw SHA-256, with only a missing
+`outputs` field interpreted as an empty array. Other schema and integrity checks
+remain in force, and `completionVerified` remains false. The audit exposes
+`legacyOutputs` for this interpretation; source bytes are never rewritten.
+
+All nine reader tests pass. A read-only scan of the original protocol mailbox
+recognized both historical ACKs for the selected recipient. This is not a clean
+mailbox or full M1 claim. Exhaustive field constraints, manifest binding and
+status/card reconciliation remain open. The historical-exception item above is
+superseded only for the explicitly permitted missing-outputs field.

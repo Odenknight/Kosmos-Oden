@@ -4,6 +4,15 @@ import { resolve, basename, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 
+// Protocol 1.2.0 preserves exactly these four pre-1.2 ACK byte sequences.
+// The exception supplies missing outputs only; it grants no work acceptance.
+const LEGACY_ACKS = new Set([
+  "ffac27d3d5fad0658a44779a8fba92f911011a7fc1b5608a0724ea66a063e90f",
+  "58da21f896a2f96a5b64a0ed00a1754d18c3e91d604fa7286a1126b87fe68cc0",
+  "3860b65c2d0a391ca466f100d50ca5bc9208c4ce7e96c58e832da157477830f6",
+  "48fdbae103938678e663a0af08cb1d86c30b64bd56d4d505b9f78522fa852038",
+]);
+
 function readReference(root, path, budget = 64 * 1024 * 1024) {
   if (typeof path !== "string") throw Error("reference-schema");
   const parts = path.split("/");
@@ -157,7 +166,8 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
   }
   const ordinals = new Set();
   for (const entry of read(`acks/${recipient}`)) {
-    const a = entry.data;
+    const legacyOutputs = LEGACY_ACKS.has(entry.sha256) && !Object.hasOwn(entry.data, "outputs");
+    const a = legacyOutputs ? { ...entry.data, outputs: [] } : entry.data;
     for (const code of mailboxSchemaFindings(a, "ack")) schemaFindings.push({ file: entry.file, code });
     if (!a || typeof a !== "object" || Array.isArray(a) || typeof a.message_id !== "string") { report(entry.file, "ack-schema"); continue; }
     const ambiguous = conflictingIds.has(a.message_id);
@@ -176,7 +186,7 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
       const code = output?.sha256sums !== undefined ? verifyMailboxBundle(root, output) : verifyMailboxReference(referenceRoot, output);
       if (code) report(entry.file, `output-${code}`);
     }
-    acknowledgements.push({ file: entry.file, messageId: a.message_id, status: a.status, completionVerified: false });
+    acknowledgements.push({ file: entry.file, messageId: a.message_id, status: a.status, completionVerified: false, legacyOutputs });
   }
   return { recipient, messageCount: messages.length, duplicates, findings, schemaFindings, acknowledgements,
     inbox: messages.filter(e => e.data.recipients.includes(recipient)).map(e => ({ file: e.file, sha256: e.sha256, sender: e.data.sender, sequence: e.data.sender_seq, kind: e.data.kind })),
