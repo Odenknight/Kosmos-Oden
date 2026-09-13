@@ -3,6 +3,8 @@ import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
 import { localNoteMap } from "./local-map";
 
+let inspectorSequence = 0;
+
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
   actions: { openSource(path: string): void; openKosmos(path?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
@@ -33,7 +35,8 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   const inspector = element("aside"); inspector.className = "kosmos-notes-inspector";
   inspector.setAttribute("aria-label", "Note inspector"); inspector.tabIndex = -1;
   let narrow = root.clientWidth <= 600, drawer: "navigation" | "inspector" | undefined;
-  let inspectorOpen = true;
+  let inspectorOpen = true, inspectorTab = 0;
+  const inspectorId = `kosmos-inspector-${++inspectorSequence}`;
   const navigationButton = button("Browse notes", () => {
     drawer = drawer === "navigation" ? undefined : "navigation"; syncPanels();
     if (drawer) query.focus(); else preview.focus();
@@ -79,6 +82,34 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
       const fragment = doc.createDocumentFragment(), inspection = doc.createDocumentFragment(), { note, projection } = snapshot.value;
       const related = "related" in snapshot.value ? snapshot.value.related : null;
+      const panels = [element("section"), element("section"), element("section")];
+      const tabs = element("div"); tabs.className = "kosmos-notes-tabs";
+      tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Inspector sections");
+      const labels = ["Metadata and provenance", "Links and lineage", "Diagnostics and assessment"];
+      const buttons = labels.map((label, index) => {
+        const tab = button(label, () => activate(index));
+        tab.id = `${inspectorId}-tab-${index}`; tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-controls", `${inspectorId}-panel-${index}`);
+        const panel = panels[index]; panel.id = `${inspectorId}-panel-${index}`;
+        panel.setAttribute("role", "tabpanel"); panel.setAttribute("aria-labelledby", tab.id); panel.tabIndex = 0;
+        tab.addEventListener("keydown", event => {
+          const next = event.key === "ArrowRight" ? (index + 1) % labels.length
+            : event.key === "ArrowLeft" ? (index + labels.length - 1) % labels.length
+            : event.key === "Home" ? 0 : event.key === "End" ? labels.length - 1 : undefined;
+          if (next === undefined) return;
+          event.preventDefault(); event.stopPropagation(); activate(next); buttons[next].focus();
+        });
+        return tab;
+      });
+      function activate(index: number) {
+        inspectorTab = index;
+        buttons.forEach((tab, i) => {
+          tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1;
+          panels[i].hidden = i !== index;
+        });
+      }
+      activate(inspectorTab); tabs.append(...buttons);
+      const [metadata, linksPanel, diagnosticsPanel] = panels;
       if (note.error) {
         fragment.append(element("p", note.code === "NOTE_REVISION_CHANGED" ? "Note changed. Reopen it from the results." : "Note unavailable in the current scope."));
       } else {
@@ -100,7 +131,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
           }
           const claim = projection.conformanceClaim;
           fields.append(element("dt", "Engine projection capability"), element("dd", typeof claim === "boolean" ? String(claim) : recordedText(claim)));
-          source.append(fields); inspection.append(source);
+          source.append(fields); metadata.append(source);
         }
         const tags: string[] = note.tags ?? [];
         fragment.append(element("h3", "Navigation tags"), element("p", tags.length ? tags.slice(0, 100).join(", ") : "None recorded"));
@@ -123,7 +154,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         fragment.append(element("p", `Characters ${continuation.offset}–${continuation.offset + note.content.length} of ${continuation.total_characters}${continuation.complete ? " · End of note" : " · More available"}`));
         if (continuation.next_offset !== null) fragment.append(button("Read next part", () => void show(path, { offset: continuation.next_offset, revision: continuation.revision })));
         if (continuation.offset > 0) fragment.append(button("Back to start", () => void show(path)));
-        if (related) inspection.append(localNoteMap(doc, note, related, path => void show(path)));
+        if (related) linksPanel.append(localNoteMap(doc, note, related, path => void show(path)));
         if (related) for (const [key, label] of [["outgoing", "Outgoing links"], ["backlinks", "Backlinks"], ["semantic", "Semantic links"]] as const) {
           const links: Array<{ title: string; path: string }> = related[key];
           const section = element("section"); section.append(element("h3", label));
@@ -132,13 +163,13 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
             const item = button(link.title, () => void show(link.path)); item.title = link.path; section.append(item);
           }
           if (links.length > 100) section.append(element("p", `Showing 100 of ${links.length} readable links. Narrow the search to inspect further notes.`));
-          inspection.append(section);
+          linksPanel.append(section);
         }
-        inspection.append(element("h3", "Readable lineage"));
+        linksPanel.append(element("h3", "Readable lineage"));
         const lineage = "lineage" in snapshot.value ? snapshot.value.lineage : null;
-        if (!lineage) inspection.append(element("p", "Lineage unavailable"));
+        if (!lineage) linksPanel.append(element("p", "Lineage unavailable"));
         else {
-          inspection.append(element("p", "Resolved lineage in the current readable scope. This is not an approval record or historical audit log."));
+          linksPanel.append(element("p", "Resolved lineage in the current readable scope. This is not an approval record or historical audit log."));
           const chain: Array<{ title: string; path: string; current: boolean }> = lineage.chain;
           const list = element("ul");
           for (const member of chain.slice(0, 100)) {
@@ -148,39 +179,40 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
             if (member.current) item.append(doc.createTextNode(" · Selected note"));
             list.append(item);
           }
-          inspection.append(list);
-          if (!chain.length) inspection.append(element("p", "No readable lineage members"));
-          if (chain.length > 100) inspection.append(element("p", `Showing 100 of ${chain.length} readable lineage members.`));
+          linksPanel.append(list);
+          if (!chain.length) linksPanel.append(element("p", "No readable lineage members"));
+          if (chain.length > 100) linksPanel.append(element("p", `Showing 100 of ${chain.length} readable lineage members.`));
         }
-        if (!projection) inspection.append(element("p", "No GKX provenance projection is available."));
+        if (!projection) metadata.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {
           const details = element("details"); details.append(element("summary", origin[0].toUpperCase() + origin.slice(1)));
           const text = JSON.stringify(projection[origin], null, 2) ?? "Unavailable";
           details.append(element("pre", text.length <= 64_000 ? text : "This section exceeds the preview budget. Inspect the canonical source."));
-          inspection.append(details);
+          metadata.append(details);
         }
         const assessment = "assessment" in snapshot.value ? snapshot.value.assessment : null;
-        inspection.append(element("h3", "Documentation assessment"));
+        diagnosticsPanel.append(element("h3", "Documentation assessment"));
         if (!assessment || assessment.interpretation !== "documentation-and-support-quality-not-truth") {
-          inspection.append(element("p", "Assessment not available with a recognized interpretation."));
+          diagnosticsPanel.append(element("p", "Assessment not available with a recognized interpretation."));
         } else {
           const score = assessment.scores?.overall;
-          inspection.append(element("p", typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1
+          diagnosticsPanel.append(element("p", typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1
             ? `Documentation score: ${Math.round(score * 10_000) / 100}%` : "Documentation score: Not recorded"));
-          inspection.append(element("p", "Measures documentation and supporting evidence. It does not establish truth or approval."));
-          inspection.append(element("p", `Assessment policy: ${assessment.policy?.id ?? "Not recorded"}`));
+          diagnosticsPanel.append(element("p", "Measures documentation and supporting evidence. It does not establish truth or approval."));
+          diagnosticsPanel.append(element("p", `Assessment policy: ${assessment.policy?.id ?? "Not recorded"}`));
         }
         const diagnostics = "diagnostics" in snapshot.value ? snapshot.value.diagnostics : null;
-        inspection.append(element("h3", "Diagnostics"));
-        if (!diagnostics) inspection.append(element("p", "Diagnostics unavailable"));
+        diagnosticsPanel.append(element("h3", "Diagnostics"));
+        if (!diagnostics) diagnosticsPanel.append(element("p", "Diagnostics unavailable"));
         else {
           const items: Array<{ severity: string; code: string; message: string }> = diagnostics.diagnostics;
-          inspection.append(element("p", items.length ? `${items.length} diagnostics reported` : "No diagnostics reported"));
+          diagnosticsPanel.append(element("p", items.length ? `${items.length} diagnostics reported` : "No diagnostics reported"));
           const list = element("ul");
           for (const item of items.slice(0, 100)) list.append(element("li", `${item.severity}: ${item.code} — ${item.message}`));
-          inspection.append(list);
-          if (items.length > 100) inspection.append(element("p", "Showing the first 100 diagnostics."));
+          diagnosticsPanel.append(list);
+          if (items.length > 100) diagnosticsPanel.append(element("p", "Showing the first 100 diagnostics."));
         }
+        inspection.append(tabs, ...panels);
       }
       return { snapshot, fragment, inspection };
     }, async ({ snapshot, fragment, inspection }, current) => snapshot.publish(() => {

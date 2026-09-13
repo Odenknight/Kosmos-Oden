@@ -179,6 +179,15 @@ for this layout remains pending.
 
 ## Governance header and source
 
+The inspector groups its existing content into Metadata and provenance, Links
+and lineage, and Diagnostics and assessment tabs. Exactly one panel is visible.
+Arrow keys, Home and End move and activate tabs; ordinary Tab moves into the
+selected panel. The selected section stays active when choosing another note.
+Each mounted workspace has separate tab/panel IDs. Tabs remain inside the
+existing inspector drawer on narrow panes and retain its Escape behavior.
+This organization does not add evidence fields or resolve missing references;
+those remain separate implementation and qualification requirements.
+
 The note header shows effective epistemic state and sensitivity directly from
 the Engine's effective origin. Authored and proposed values do not substitute
 for absent effective fields. Missing text is shown as Not recorded. Projection

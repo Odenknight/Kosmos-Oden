@@ -170,3 +170,6 @@
 .kosmos-notes-link { text-decoration: underline dotted; }
 .kosmos-notes-workspace[data-narrow="true"] .kosmos-notes-layout { grid-template-columns: minmax(0, 1fr); }
 .kosmos-notes-workspace[data-narrow="true"] .kosmos-notes-inspector { border: 0; padding: 0; }
+
+.kosmos-notes-tabs { display: flex; flex-wrap: wrap; gap: .25rem; margin-block-end: .75rem; }
+.kosmos-notes-tabs [aria-selected="true"] { font-weight: 700; border-block-end: 3px solid currentColor; }

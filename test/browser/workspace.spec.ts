@@ -132,6 +132,7 @@ test("inspector navigation tags and readable links use the checked selection flo
   await page.getByRole('button',{name:'Alpha',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Navigation tags',exact:true})).toBeVisible();
   await expect(page.getByText('navigation-only',{exact:true})).toBeVisible();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
   await page.getByRole('button',{name:'Related Beta',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
@@ -143,6 +144,7 @@ test("inspector navigation tags and readable links use the checked selection flo
 
 test('assessment distinguishes unavailable, zero and unrecorded; diagnostics remain text',async({page})=>{
   const alpha=page.getByRole('button',{name:'Alpha',exact:true});await alpha.click();
+  await page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true }).click();
   await expect(page.getByText('Assessment not available with a recognized interpretation.')).toBeVisible();
   await expect(page.getByText('Diagnostics unavailable',{exact:true})).toBeVisible();
   await page.evaluate(()=>{const w=window as any;w.assessment={interpretation:'documentation-and-support-quality-not-truth',scores:{overall:0},policy:{id:'fixture-policy'}};w.diagnostics={diagnostics:[]};});
@@ -199,6 +201,7 @@ test('locating a note uses its selected path and rechecks authority',async({page
 
 test('local map renders readable neighbors and supports keyboard inspection',async({page})=>{
   await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
   await expect(page.getByRole('heading',{name:'Local map',exact:true})).toBeVisible();
   const map=page.locator('svg[aria-label="Selected note and readable neighbors"]');
   await expect(map.locator('circle')).toHaveCount(2);
@@ -222,6 +225,7 @@ test('narrow desktop pane switches navigation, note and inspector with keyboard 
   await expect(page.getByRole('region', { name: 'Selected note', exact: true })).toBeFocused();
   await expect(page.getByRole('searchbox')).toBeHidden();
   await inspect.click();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Local map', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeHidden();
   await page.keyboard.press('Escape');
@@ -243,6 +247,7 @@ test('inspector collapses on desktop and loses stale content immediately on refr
   await expect(page.locator('.kosmos-notes-inspector')).toBeHidden();
   await expect(page.getByRole('heading', { name: 'Safe heading' })).toBeVisible();
   await inspect.click();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Local map', exact: true })).toBeVisible();
   await page.locator('#notes').screenshot({ path: testInfo.outputPath('desktop-inspector.png') });
   expect(await page.evaluate(() => {
@@ -280,6 +285,7 @@ test('readable lineage navigation uses checked reads and identifies the selected
     { title: 'Lineage Beta', path: 'Beta.md', current: false },
   ] }; });
   await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  await page.getByRole('tab', { name: 'Links and lineage', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Readable lineage', exact: true })).toBeVisible();
   await expect(page.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Lineage Alpha', exact: true }) })).toContainText('· Selected note');
   await page.getByRole('button', { name: 'Lineage Beta', exact: true }).click();
@@ -300,4 +306,24 @@ test('explicit selection clear invalidates a pending read and retained inspector
   await expect(page.locator('.kosmos-notes-preview')).toBeEmpty();
   await expect(page.locator('.kosmos-notes-inspector')).toBeEmpty();
   expect(await page.evaluate(() => (window as any).workspace.getState().selectedPath)).toBeUndefined();
+});
+
+test('inspector tabs support keyboard selection and preserve the section across note changes', async ({ page }) => {
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  const metadata = page.getByRole('tab', { name: 'Metadata and provenance', exact: true });
+  await expect(metadata).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel')).toHaveCount(1);
+  await metadata.focus(); await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Links and lineage', exact: true })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Local map', exact: true })).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Beta', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true }).focus();
+  await page.keyboard.press('Home');
+  await expect(metadata).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('tab', { name: 'Diagnostics and assessment', exact: true })).toBeFocused();
 });
