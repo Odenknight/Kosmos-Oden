@@ -1,4 +1,5 @@
 import { validateVaultRelativePath } from "gkos-engine/navigation-effects";
+import { colorForArea } from "gkos-engine";
 import type { KosmosAgentServer } from "../plugin/agent-server";
 import { ProviderError } from "../plugin/vault-operations";
 
@@ -71,6 +72,8 @@ export class NotesWorkspaceHost {
    * corpus, graph object and projection policy checks as Notes. */
   graph() { return this.capture(() => this.api.qGraph()); }
 
+  spatialGraph() { return this.capture(async () => readableSpatialGraph(await this.api.qGraph())); }
+
   read(path: string, page: { page_size?: number; offset?: number; revision?: string } = {}) {
     const checked = validateVaultRelativePath(path);
     if (!checked.valid || checked.normalized !== path) throw new Error("WORKSPACE_PATH_INVALID");
@@ -87,4 +90,31 @@ export class NotesWorkspaceHost {
         assessment: assessment?.error ? null : assessment, diagnostics: diagnostics?.error ? null : diagnostics };
     });
   }
+}
+
+/** Presentation-only projection of qGraph's already filtered summaries. No raw
+ * Engine node or inferred governance data crosses this boundary. */
+export function readableSpatialGraph(source: { builtAt: string; nodes: any[]; links: any[] }) {
+  if (source.nodes.length > 20_000 || source.links.length > 100_000) throw new Error("WORKSPACE_SPATIAL_BUDGET");
+  const nodes = source.nodes.map(note => ({
+    id: note.id, kind: "file", path: note.path, label: note.title,
+    area: note.area, depth: note.path.split("/").length - 1,
+    tags: [...note.tags], aliases: [], type: note.type,
+    color: colorForArea(note.area), validAt: note.timestamp ?? undefined,
+    outgoing: 0, incoming: 0,
+  }));
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const links = source.links.map((link, index) => {
+    const from = byId.get(link.source), to = byId.get(link.target);
+    if (!from || !to) throw new Error("WORKSPACE_SPATIAL_ENDPOINT");
+    from.outgoing++; to.incoming++;
+    return { id: `readable-link:${index}`, source: link.source, target: link.target, kind: link.kind };
+  });
+  return {
+    nodes, links, areas: [...new Set(nodes.map(node => node.area))].sort(),
+    tags: [...new Set(nodes.flatMap(node => node.tags))].sort(),
+    types: [...new Set(nodes.map(node => node.type))].sort(), statuses: [],
+    stats: { indexedAt: source.builtAt, files: nodes.length, links: links.length },
+    __workspaceScope: "readable-notes", __governanceProjection: "unavailable",
+  };
 }

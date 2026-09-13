@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildGraph, stripFrontmatter } from '../dist/kosmos-core.mjs';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS } from '../dist/kosmos-agent-server.mjs';
-import { NotesWorkspaceHost } from '../dist/kosmos-workspace-host.mjs';
+import { NotesWorkspaceHost, readableSpatialGraph } from '../dist/kosmos-workspace-host.mjs';
+import { positionCosmos } from '../dist/kosmos-layout.mjs';
 
 function fixture(extra = [], defaults = 'internal') {
   const files=[
@@ -23,6 +24,24 @@ test('workspace search shares MCP visibility and excludes hidden paths and total
   const snapshot=await host.search('');
   assert.deepEqual(snapshot.value,await api.qSearch(''));
   assert.equal(snapshot.value.total,1); assert.equal(JSON.stringify(snapshot.value).includes('Hidden.md'),false);
+});
+
+test('readable spatial conversion uses existing layout without leaking hidden graph metadata', async () => {
+  const f=fixture([{relativePath:'Links.md',content:'---\ngkx_version: "2.2"\nuid: links\ntype: semantic\nsensitivity: public\n---\n[[Public]] [[Hidden]]'}]);
+  const snapshot=await f.host.spatialGraph();
+  const projected=snapshot.value;
+  assert.equal(projected.nodes.length,2);
+  assert.equal(projected.links.length,1);
+  assert.equal(JSON.stringify(projected).includes('Hidden'),false);
+  assert.ok(projected.nodes.every(n=>!('gkx' in n)));
+  assert.equal(projected.nodes.reduce((sum,n)=>sum+n.outgoing,0),1);
+  const positioned=positionCosmos(structuredClone(projected));
+  for(const node of projected.nodes) assert.ok(positioned.nodes.some(n=>n.id===node.id));
+  assert.ok(positioned.nodes.every(n=>n.position.every(Number.isFinite)));
+  f.changeGraph();
+  assert.equal(await snapshot.publish(()=>assert.fail('stale projection'),()=>true),false);
+  assert.throws(()=>readableSpatialGraph({builtAt:'',nodes:[],links:[{source:'missing',target:'missing'}]}),/WORKSPACE_SPATIAL_ENDPOINT/);
+  assert.throws(()=>readableSpatialGraph({builtAt:'',nodes:Array(20_001),links:[]}),/WORKSPACE_SPATIAL_BUDGET/);
 });
 
 test('spatial graph shares readable query semantics and rejects stale publication', async () => {

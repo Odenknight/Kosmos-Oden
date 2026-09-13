@@ -2,6 +2,15 @@
 
 Status: required integration work, not a completed capability.
 
+Implemented conversion: `NotesWorkspaceHost.spatialGraph()` now prepares a
+presentation graph from the readable summaries under the existing publication
+checks. It uses the Engine area palette, derives degrees from readable links,
+preserves IDs and paths, and omits raw GKX objects and diagnostics. It rejects
+more than 20,000 nodes or 100,000 links and dangling endpoints. Fourteen host
+checks pass, including actual cosmology layout with finite positions and stable
+IDs. Build and typecheck pass. This is not yet connected to the iframe protocol
+or Notes selection controls; byte-level message validation is still required.
+
 The current Notes host captures `qGraph()` with committed corpus, graph object,
 default sensitivity and visibility ceiling checks. That query returns readable
 note summaries and links whose two endpoints are readable. It does not return
