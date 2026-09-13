@@ -38,3 +38,11 @@ The receipt still reports `release_qualified: false`: this is current-runtime
 qualification on one platform, not completion of all release, performance,
 native-host or operational gates. Kosmos's dependency remains the earlier
 runtime-equivalent pin until the final candidate identities are reconciled.
+
+The consumer pin is now reconciled to
+`f898cafb8612be8f2ed13f91a17e6f6f7e4e7d71`, superseding the earlier pin statement.
+Kosmos verification again passes with 493 tests and all build/artifact checks.
+The installed dependency's `navigation-effects-node.mjs` SHA-256 remains
+`5ef2e905dde7f1b4f38fb9d4a569f2c9b3bcb62c1c400f02350e87399fd79458`
+before and after the inventory-only update. This is dependency-artifact evidence;
+the running Obsidian plugin has not been replaced.
