@@ -8,7 +8,8 @@
  *
  * The plugin streams the vault into the iframe: one full snapshot on open,
  * then debounced deltas; the iframe's shared GkxIndex re-parses only what
- * changed (§10). The Agent API answers from the same core index (§33).
+ * changed (§10). The Agent API and Notes share a separate provider index;
+ * using the same Engine library does not establish snapshot parity.
  */
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
