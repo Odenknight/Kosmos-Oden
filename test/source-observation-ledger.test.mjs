@@ -184,3 +184,21 @@ test('withdrawing the publication witness at the final boundary prevents commit'
  let witnesses=0;const f=fixture(t,config,{projectionCurrent:()=>++witnesses<2});f.ledger.append(input(),bytes);const event=projection(f);
  assert.throws(()=>f.ledger.append(event,null),/PROJECTION_STALE/);assert.equal(read(f.ledger).sequence,1);
 });
+
+
+test('projection references refuse duplicate UUID identities with different letter case',t=>{
+ const f=fixture(t,config,{projectionCurrent:()=>true});f.ledger.append(input(),bytes);
+ f.ledger.append({...input('case-alias'),source:source.toUpperCase()},bytes);
+ const event={...projection(f),sources:[f.ledger.sourceReference(source,1),f.ledger.sourceReference(source.toUpperCase(),2)]};
+ assert.throws(()=>f.ledger.append(event,null),/REFERENCE_INVALID/);
+ const db=new DatabaseSync(f.path);const stored=db.prepare('SELECT input FROM observations ORDER BY seq').all().map(row=>JSON.parse(row.input));db.close();
+ assert.equal(stored.length,2);assert.equal(stored[0].source,source);assert.equal(stored[1].source,source.toUpperCase());
+});
+
+
+test('distinct UUIDs remain valid projection references regardless of letter case',t=>{
+ const f=fixture(t,config,{projectionCurrent:()=>true});f.ledger.append(input(),bytes);
+ const distinct='550E8400-E29B-41D4-A716-446655440002';f.ledger.append({...input('distinct'),source:distinct},bytes);
+ const event={...projection(f),sources:[f.ledger.sourceReference(source,1),f.ledger.sourceReference(distinct,2)]};
+ assert.equal(f.ledger.append(event,null).sequence,3);f.reopen();assert.equal(f.ledger.sourceReference(distinct,2).source,distinct);
+});

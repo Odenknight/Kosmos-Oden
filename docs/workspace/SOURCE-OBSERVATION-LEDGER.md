@@ -67,6 +67,9 @@ Each reference contains source UID, committed sequence, source digest, and obser
 `sourceReference` supplies those coordinates only for a currently readable retained source version.
 References to deletion observations, missing records, mismatched receipts, duplicate identities,
 future records, or expired versions are refused.
+UUID letter-case variants count as the same identity for duplicate-reference checks.
+The original stored UID spelling, source bytes and receipt digests are preserved.
+Distinct UUIDs remain valid references even when their letter case differs.
 References are ordered by committed sequence.
 
 The host must supply `projectionCurrent` in addition to ordinary source authority.
@@ -96,7 +99,7 @@ explicit limits, byte accounting, hidden-source isolation, path reuse, final-bou
 missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
 Child processes terminate before commit and after commit without orderly close.
 Reopening proves rollback in the first case and durable retry recovery in the second.
-All 28 component tests pass. Full repository verification passes all 563 tests.
+All 30 component tests pass. Full repository verification passes all 565 tests.
 The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 

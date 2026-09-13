@@ -140,9 +140,9 @@ export class SourceObservationLedger {
       const identities = new Set<string>(); let prior = 0;
       for (const ref of input.sources) {
         if (!ref || Object.keys(ref).sort().join() !== "receiptDigest,sequence,source,sourceDigest" ||
-            !positive(ref.sequence, 10000) || ref.sequence <= prior || !isValidGkxAuthoredUid(ref.source) || identities.has(ref.source) ||
+            !positive(ref.sequence, 10000) || ref.sequence <= prior || !isValidGkxAuthoredUid(ref.source) || identities.has(ref.source.toLowerCase()) ||
             !DIGEST.test(ref.sourceDigest) || !DIGEST.test(ref.receiptDigest)) throw Error("OBSERVATION_REFERENCE_INVALID");
-        identities.add(ref.source); prior = ref.sequence;
+        identities.add(ref.source.toLowerCase()); prior = ref.sequence;
       }
       return;
     }

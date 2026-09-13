@@ -58,8 +58,8 @@ That authority needs its own independently verified recovery procedure.
 
 ## Verified component behavior
 
-All 15 deletion-authority/binding tests and all 28 source-history tests pass.
-Full repository verification passes all 563 tests.
+All 15 deletion-authority/binding tests and all 30 source-history tests pass.
+Full repository verification passes all 565 tests.
 The tests use actual synthetic SQLite databases.
 They cover default-off behavior, current owner/action checks, bounded capacity, retry conflicts,
 clock regression, UUID case variants, missing authority, corrupt chains and unknown schemas.
