@@ -66,7 +66,7 @@ if (packageJson.allowScripts?.[engineSpecifier] !== true) {
   console.error("check-lockfile-sha: FAIL — active Engine dependency lacks its matching allowScripts entry");
   process.exit(1);
 }
-const engineCommit = "f898cafb8612be8f2ed13f91a17e6f6f7e4e7d71";
+const engineCommit = "7f28b2a45d176a85895210bb23e55a7e9bc0faca";
 if (
   engine?.version !== "2.2.0"
   || !String(engine.resolved ?? "").endsWith(`#${engineCommit}`)

@@ -1,6 +1,6 @@
 # Graphiti product query integration requirements
 
-Source inspection: Engine `a7b52b3886b2a2ffbea51bfc7b03114b6508fff0`.
+Historical source inspection: Engine `a7b52b3886b2a2ffbea51bfc7b03114b6508fff0`.
 This identifies the remaining G5/G6 implementation boundary; it does not claim
 an authenticated product query endpoint exists.
 
@@ -50,3 +50,23 @@ native fallback and explicitly unverified evidence display. Existing broker,
 ledger and renderer component tests do not substitute for this integration.
 Keep query capability unavailable until the host binding is implemented and
 qualified. G5/G6 and final release remain open.
+
+## Candidate implementation update
+
+The Kosmos candidate now pins Engine
+`7f28b2a45d176a85895210bb23e55a7e9bc0faca`. This supersedes the initial
+endpoint inventory above: the Engine provides authenticated query and status
+routes with a trusted host callback, deadline and authority rechecks. Cross-language
+manifest vectors and a synthetic Engine-to-Python HTTP/ledger chain exercise
+the protocol. They do not prove a production host binding or live retrieval.
+
+Relationship episodes now carry their originating `source_path`. Kosmos uses
+that path to attach exact source-byte evidence even when an export page contains
+only a relationship episode. The relationship does not include the note body.
+`test/source-evidence.test.mjs` covers that page boundary and denied, stale,
+revoked and oversized source reads. The full `npm run verify` passes with this
+pin, including 503 tests and the exact dependency guard.
+
+The candidate Notes client and related-facts display exist, but the installed
+plugin is unchanged. Production authority, configured native client, resolved
+citations and live acceptance remain required; G5/G6 remain open.

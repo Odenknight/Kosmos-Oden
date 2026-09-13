@@ -1220,7 +1220,10 @@ export class KosmosAgentServer {
     for (const episode of episodes) {
       if (this.provider !== provider || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) throw new ProviderError("provider_unavailable");
       let path = "";
-      try { path = String(JSON.parse(episode.episode_body).path || ""); } catch (_) { /* generated JSON */ }
+      try {
+        const body = JSON.parse(episode.episode_body);
+        path = String((episode.source === "fact_triple" ? body.source_path : body.path) || "");
+      } catch (_) { /* generated JSON */ }
       if (!path) continue;
       const c = provider.getIndexedBody
         ? provider.getIndexedBody(path, graph)

@@ -8,8 +8,8 @@ import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS, MAX_SOURCE_EVIDENCE_BYTES } 
 const compiled = await build({ entryPoints: ["src/plugin/vault-provider.ts"], bundle: true, platform: "node", format: "esm", write: false });
 const { VaultDataProvider } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`);
 
-function fixture() {
-  const raw = "---\r\ntype: semantic\r\nsensitivity: internal\r\n---\r\nExact café 🌌\r\n" + "tail ".repeat(3000);
+function fixture(relationships = "") {
+  const raw = "---\r\ntype: semantic\r\nsensitivity: internal\r\n" + relationships + "---\r\nExact café 🌌\r\n" + "tail ".repeat(3000);
   const settings = { ...DEFAULT_AGENT_SETTINGS, defaultSensitivity: "internal", agentSensitivityCeiling: "internal" };
   const file = { path: "note.md", name: "note.md", extension: "md", stat: { size: Buffer.byteLength(raw), mtime: 1, ctime: 1 } };
   const privateRaw = "---\ntype: semantic\nsensitivity: secret\n---\nPrivate";
@@ -112,4 +112,20 @@ test("evidence reads refuse an old graph and operational paths before I/O", asyn
   assert.equal(await f.provider.getIndexedSourceBytes(f.file.path, old, MAX_SOURCE_EVIDENCE_BYTES), null);
   assert.equal(await f.provider.getIndexedSourceBytes(".gkx/private.md", current, MAX_SOURCE_EVIDENCE_BYTES), null);
   assert.equal(f.reads.length, 0);
+});
+
+test('relationship-only export pages attach the originating source byte evidence',async()=>{
+  const f=fixture('supersedes:\r\n  - "[[private]]"\r\n');
+  f.settings.agentSensitivityCeiling = "secret";
+  const all=await f.server.qEpisodes();
+  const offset=all.findIndex(e=>e.source==='fact_triple');
+  assert.ok(offset>=0,'fixture must produce a relationship episode');
+  const page=await f.server.qEpisodePage(offset,1,true);
+  assert.equal(page.episodes.length,1);
+  assert.equal(page.episodes[0].source,'fact_triple');
+  const body=JSON.parse(page.episodes[0].episode_body);
+  assert.equal(body.source_path,'note.md');
+  assert.equal(body.source_evidence.sha256,createHash('sha256').update(Buffer.from(f.raw)).digest('hex'));
+  assert.equal(body.content,undefined);
+  assert.deepEqual(f.reads,['note.md']);
 });
