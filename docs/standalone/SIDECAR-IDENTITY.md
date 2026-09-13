@@ -28,3 +28,9 @@ cleanup fixture verifies subsequent admission. Startup discovery, diagnostics
 and application shutdown still require responsiveness/lifecycle review. This
 change does not yet establish a responsive complete shell or cancellation of
 an in-progress filesystem operation.
+
+Supervisor shutdown is permanent and shares the launch lock. An already-admitted
+worker released after shutdown cannot create state or start another child; normal
+Stop remains a separate reusable operation. A queued-worker regression verifies
+this ordering. Shutdown can still wait for work holding the lock, so bounded
+shutdown latency and full application-close acceptance remain open.

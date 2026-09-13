@@ -18,6 +18,7 @@ pub struct Supervisor {
 }
 
 struct Inner {
+    closed: bool,
     child: Option<Child>,
     corpus: Option<PathBuf>,
     state_root: Option<PathBuf>,
@@ -59,6 +60,7 @@ impl Supervisor {
         let sidecar_path = discover_sidecar(app, state_root);
         Self {
             inner: Arc::new(Mutex::new(Inner {
+                closed: false,
                 child: None,
                 corpus: None,
                 state_root: None,
@@ -76,6 +78,7 @@ impl Supervisor {
     fn with_sidecar(sidecar_path: Option<PathBuf>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
+                closed: false,
                 child: None,
                 corpus: None,
                 state_root: None,
@@ -94,6 +97,13 @@ impl Supervisor {
     }
 
     pub fn start(&self, corpus: PathBuf, app_state_root: &Path) -> Result<SidecarStatus, String> {
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| "sidecar state lock failed".to_string())?;
+        if inner.closed {
+            return Err("sidecar supervisor is shut down".to_string());
+        }
         let executable = self.sidecar_path.as_ref().ok_or_else(|| {
             "gkos-agent is not installed beside the app; offline folder mode remains available"
                 .to_string()
@@ -104,10 +114,6 @@ impl Supervisor {
         owner_only_directory(&sidecar_state)
             .map_err(|error| format!("cannot protect sidecar state: {error}"))?;
 
-        let mut inner = self
-            .inner
-            .lock()
-            .map_err(|_| "sidecar state lock failed".to_string())?;
         terminate_child(&mut inner);
         inner.generation = inner.generation.wrapping_add(1);
         inner.corpus = Some(corpus);
@@ -137,6 +143,7 @@ impl Supervisor {
 
     pub fn shutdown(&self) {
         if let Ok(mut inner) = self.inner.lock() {
+            inner.closed = true;
             inner.desired_running = false;
             inner.generation = inner.generation.wrapping_add(1);
             terminate_child(&mut inner);
@@ -161,7 +168,7 @@ impl Supervisor {
             .as_mut()
             .is_some_and(|child| child.try_wait().ok().flatten().is_none());
         SidecarStatus {
-            available: self.sidecar_path.is_some(),
+            available: !inner.closed && self.sidecar_path.is_some(),
             running,
             service_url: "http://127.0.0.1:4814",
             restart_count: inner.restart_count,
@@ -356,6 +363,36 @@ pub fn redacted_diagnostics(status: &SidecarStatus) -> RedactedDiagnostics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn admitted_clone_cannot_start_after_shutdown_or_create_state() {
+        let supervisor = Supervisor::with_sidecar(Some(PathBuf::from("unused-sidecar.exe")));
+        let admitted = supervisor.clone();
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-closed-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        assert!(!root.exists());
+        let (resume, wait) = std::sync::mpsc::channel();
+        let worker_root = root.clone();
+        let worker = thread::spawn(move || {
+            wait.recv().unwrap();
+            admitted.start(PathBuf::from("unused-corpus"), &worker_root)
+        });
+        supervisor.shutdown();
+        resume.send(()).unwrap();
+        assert_eq!(
+            worker.join().unwrap().unwrap_err(),
+            "sidecar supervisor is shut down"
+        );
+        assert!(!root.exists());
+        assert!(!supervisor.status().available);
+        assert!(!supervisor.status().running);
+    }
 
     #[test]
     fn missing_sidecar_reports_offline_without_write_authority() {
