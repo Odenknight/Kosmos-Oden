@@ -145,8 +145,21 @@ export function validateRendererMessage(data: unknown): ValidationResult<Rendere
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
   if (m.type === "open-note" || m.type === "open-folder") {
-    if (!safePath(p.path)) return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
+    if (!safePath(p.path) || /^[a-z][a-z0-9+.-]*:/i.test(p.path as string) || /[\x00-\x1f\x7f]/.test(p.path as string))
+      return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
     return { ok: true, message: m as any };
   }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };
+}
+
+/** Legacy compatibility is normalization, never a bypass of current validation. */
+export function validateRendererOpenMessage(data: unknown): ValidationResult<RendererToHost> {
+  if (data && typeof data === "object") {
+    const legacy = data as Record<string, unknown>;
+    if (legacy.protocol === undefined && legacy.version === undefined &&
+      (legacy.type === "kosmos:open" || legacy.type === "kosmos:folder")) {
+      return validateRendererMessage(wrap(legacy.type === "kosmos:open" ? "open-note" : "open-folder", { path: legacy.path }));
+    }
+  }
+  return validateRendererMessage(data);
 }

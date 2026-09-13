@@ -21,7 +21,7 @@ import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settin
 import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
-import { validateRendererMessage, wrap } from "./protocol";
+import { validateRendererOpenMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
@@ -124,16 +124,12 @@ export class KosmosView extends ItemView {
     if (!this.frame || ev.source !== this.frame.contentWindow) return;     // only our own iframe
     const data: any = ev.data;
     // Preferred path: versioned, structurally validated envelope.
-    const v = validateRendererMessage(data);
+    const v = validateRendererOpenMessage(data);
     let type: "open-note" | "open-folder" | null = null;
     let path: string | undefined;
     if (v.ok && v.message) {
       type = v.message.type;
       path = (v.message.payload as any).path;
-    } else if (data && data.type === "kosmos:open" && typeof data.path === "string") {
-      type = "open-note"; path = data.path;               // legacy flat shape (older renderer builds)
-    } else if (data && data.type === "kosmos:folder" && typeof data.path === "string") {
-      type = "open-folder"; path = data.path;
     } else {
       return;
     }
@@ -147,7 +143,7 @@ export class KosmosView extends ItemView {
     if (file instanceof TFile) {
       void this.app.workspace.getLeaf("tab").openFile(file);               // open the note in a NEW tab
     } else {
-      void this.app.workspace.openLinkText(path, "", "tab");               // fall back to link resolution
+      new Notice("Kosmos-Oden: this note is no longer available. Refresh the view.");
     }
   }
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Renderer open-request validation - 2026-09-13
+
+- Apply current path validation to legacy renderer open messages. Reject URL
+  schemes and control characters in either format, and report missing targets
+  without invoking note-creating link resolution.
+
 ## Notes workspace implementation candidate - 2026-09-13
 
 - Add native search continuation beyond the first 100 matches, bound to the

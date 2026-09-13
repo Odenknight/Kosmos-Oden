@@ -6,8 +6,23 @@ import {
   KOSMOS_PROTOCOL_VERSION,
   validateHostMessage,
   validateRendererMessage,
+  validateRendererOpenMessage,
   wrap,
 } from "../dist/kosmos-protocol.mjs";
+
+test("legacy renderer opens receive the same path and envelope checks",()=>{
+  for(const [legacy,current] of [["kosmos:open","open-note"],["kosmos:folder","open-folder"]]) {
+    const accepted=validateRendererOpenMessage({type:legacy,path:"Notes/Readable.md"});
+    assert.equal(accepted.ok,true);assert.equal(accepted.message.type,current);
+    for(const path of ["../secret.md","/etc/passwd","C:\\Windows\\secret.md","sub/../../secret.md","", "https://example.test", "obsidian:open", "C:relative.md", "Notes/\u0000bad.md"]) {
+      assert.equal(validateRendererOpenMessage({type:legacy,path}).ok,false,path);
+      assert.equal(validateRendererOpenMessage(wrap(current,{path})).ok,false,path);
+    }
+    assert.equal(validateRendererOpenMessage({protocol:"foreign",type:legacy,path:"Notes/Readable.md"}).ok,false);
+    assert.equal(validateRendererOpenMessage({version:999,type:legacy,path:"Notes/Readable.md"}).ok,false);
+  }
+  assert.equal(validateRendererOpenMessage(wrap("open-note",{path:"Notes/Readable.md"})).ok,true);
+});
 
 test("wrap produces a versioned envelope", () => {
   const m = wrap("vault-snapshot", { files: [] });
