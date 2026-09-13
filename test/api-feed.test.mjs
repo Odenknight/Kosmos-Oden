@@ -22,7 +22,8 @@ import {
 } from "../dist/kosmos-api-feed.mjs";
 
 test("service connections reject ambiguous origins before issuing requests", async () => {
-  for (const api of ["http://user:pass@localhost:4814", "http://localhost:4814/path", "http://localhost:4814/?q=x", "http://localhost:4814/#fragment"]) {
+  for (const api of ["http://user:pass@localhost:4814", "http://localhost:4814/path", "http://localhost:4814/?q=x", "http://localhost:4814/#fragment",
+    "http://localhost:4814?", "http://localhost:4814#", "http://localhost:4814/?", "http://localhost:4814/#"]) {
     assert.equal(isLoopbackApiUrl(api), false);
     assert.equal((await connectToEngine({ api, token: "secret" }, () => { throw new Error("must not fetch"); })).ok, false);
   }
