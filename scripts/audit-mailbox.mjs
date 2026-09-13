@@ -1,5 +1,5 @@
 /** Read-only coordination audit. Payloads are data; ACKs never establish completion. */
-import { readdirSync, readFileSync, lstatSync, realpathSync, openSync, readSync, closeSync } from "node:fs";
+import { readdirSync, readFileSync, lstatSync, realpathSync, openSync, readSync, closeSync, fstatSync, constants } from "node:fs";
 import { resolve, basename, relative, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
@@ -25,10 +25,34 @@ function readReference(root, path, budget = 64 * 1024 * 1024) {
   }
   const resolved = realpathSync(target), rel = relative(base, resolved);
   if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) throw Error("reference-path-invalid");
-  const stat = lstatSync(resolved);
+  const stat = lstatSync(resolved, { bigint: true });
   if (!stat.isFile()) throw Error("reference-not-file");
-  if (stat.size > budget) throw Error("reference-over-budget");
-  return readFileSync(resolved);
+  if (stat.size > BigInt(budget)) throw Error("reference-over-budget");
+  const same = other => other.isFile() && ["dev", "ino", "mode", "nlink", "size", "mtimeNs", "ctimeNs"].every(key => other[key] === stat[key]);
+  const fd = openSync(resolved, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    if (!same(fstatSync(fd, { bigint: true }))) throw Error("reference-changed");
+    const chunks = [];
+    let length = 0;
+    while (length <= budget) {
+      const buffer = Buffer.alloc(Math.min(65536, budget + 1 - length));
+      const count = readSync(fd, buffer, 0, buffer.length, null);
+      if (!count) break;
+      length += count;
+      if (length > budget) throw Error("reference-over-budget");
+      chunks.push(buffer.subarray(0, count));
+    }
+    if (BigInt(length) !== stat.size || !same(fstatSync(fd, { bigint: true })) ||
+        !same(lstatSync(resolved, { bigint: true }))) throw Error("reference-changed");
+    // Recheck confinement after reading; the original component walk is not a lease.
+    let current = base;
+    for (const part of parts) {
+      current = resolve(current, part);
+      if (lstatSync(current).isSymbolicLink()) throw Error("reference-path-invalid");
+    }
+    if (realpathSync(current) !== resolved) throw Error("reference-path-invalid");
+    return Buffer.concat(chunks, length);
+  } finally { closeSync(fd); }
 }
 const referenceError = error => error.message.startsWith("reference-") ? error.message : error.code === "ENOENT" ? "reference-missing" : "reference-unreadable";
 

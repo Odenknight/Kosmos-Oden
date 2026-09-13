@@ -4,7 +4,46 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
+
+test("reference reads bound concurrent growth and reject changes to the opened file", () => {
+  const moduleUrl = new URL("../scripts/audit-mailbox.mjs", import.meta.url).href;
+  for (const mutation of ["grow", "rewrite", "replace"]) {
+    const output = execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import fs from 'node:fs';
+      import {syncBuiltinESMExports} from 'node:module';
+      import {tmpdir} from 'node:os';
+      import {join} from 'node:path';
+      const root=fs.mkdtempSync(join(tmpdir(),'mailbox-read-race-'));
+      fs.mkdirSync(join(root,'bundle'));
+      const path=join(root,'bundle','SHA256SUMS');
+      fs.writeFileSync(path,'x');
+      const originalOpen=fs.openSync, originalRead=fs.readSync;
+      let targetFd, changed=false, bytesRead=0;
+      fs.openSync=function(p,...args) { const fd=originalOpen(p,...args); if(p===path) targetFd=fd; return fd; };
+      fs.readSync=function(fd,...args) {
+        if(fd===targetFd && !changed) {
+          changed=true;
+          if(${JSON.stringify(mutation)}==='grow') fs.appendFileSync(path,Buffer.alloc(131072,120));
+          else if(${JSON.stringify(mutation)}==='rewrite') fs.writeFileSync(path,'yy');
+          else { fs.renameSync(path,path+'.old'); fs.writeFileSync(path,'x'); }
+        }
+        const count=originalRead(fd,...args); if(fd===targetFd) bytesRead+=count; return count;
+      };
+      syncBuiltinESMExports();
+      try {
+        const {verifyMailboxBundle}=await import(${JSON.stringify(moduleUrl)});
+        const result=verifyMailboxBundle(root,{path:'bundle',sha256sums:'SHA256SUMS'});
+        process.stdout.write(JSON.stringify({result,bytesRead,changed}));
+      } finally { fs.rmSync(root,{recursive:true,force:true}); }
+    `], { encoding: "utf8", windowsHide: true });
+    const result = JSON.parse(output);
+    assert.equal(result.changed, true);
+    assert.equal(result.result, mutation === "grow" ? "reference-over-budget" : "reference-changed");
+    assert.ok(result.bytesRead <= 65537, "manifest growth must not cause an unbounded read");
+  }
+});
 
 test("mailbox audit selects recipient and exposes forks, inverted roles and bad raw hashes", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-"));
