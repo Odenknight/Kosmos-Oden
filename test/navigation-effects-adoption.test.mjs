@@ -267,3 +267,76 @@ test("adoption bundle remains browser-safe and does not import an executor", () 
   assert.equal(inputs.some((path) => /(?:^|\/)(?:node:)?(?:fs|http|https)(?:$|\/)/u.test(path)), false);
   for (const { result } of bundles) assert.doesNotMatch(result.outputFiles[0].text, /node:(?:fs|http|https)/u);
 });
+
+
+async function nativeStoreFixture() {
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join, dirname } = await import('node:path');
+  const bundle = await build({entryPoints:['src/navigation-effects/sqlite-adoption-store.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+  const { SqliteAdoptionStore } = await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+  const directory=mkdtempSync(join(tmpdir(),'kosmos-adoption-'));
+  return {SqliteAdoptionStore,directory,bundleText:bundle.outputFiles[0].text,cleanup:()=>{if(dirname(directory)!==tmpdir())throw Error('Unexpected cleanup path');rmSync(directory,{recursive:true,force:true});}};
+}
+
+test('native adoption store atomically reopens registry and receipt and refuses conflicting replay', async () => {
+  const f=await nativeStoreFixture();let store;
+  try {
+    const registry=await api.createEmptyAdoptionRegistry();
+    await assert.rejects(f.SqliteAdoptionStore.open(f.directory));
+    store=await f.SqliteAdoptionStore.open(f.directory,registry);
+    const plan=await preview({registry});const confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
+    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
+    store.close();store=await f.SqliteAdoptionStore.open(f.directory);
+    assert.deepEqual(await store.load(),confirmed.registry);
+    assert.deepEqual(await store.receipt(confirmed.receipt.receiptId),confirmed.receipt);
+    await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
+    await assert.rejects(store.commit(registry.registryDigest,confirmed.registry,{...confirmed.receipt,credentialId:'different'}));
+    assert.deepEqual(await store.load(),confirmed.registry);
+    await assert.rejects(f.SqliteAdoptionStore.open(f.directory,registry));
+  } finally {store?.close();f.cleanup();}
+});
+
+test('native adoption store serializes competing generation commits and detects corrupt receipts', async () => {
+  const f=await nativeStoreFixture();let first,second;
+  try {
+    const registry=await api.createEmptyAdoptionRegistry();first=await f.SqliteAdoptionStore.open(f.directory,registry);second=await f.SqliteAdoptionStore.open(f.directory);
+    const a=await preview({registry,operationId:'op-a'}),b=await preview({registry,operationId:'op-b'});
+    const ca=await api.confirmMocAdoption(confirmationInput(a,registry)),cb=await api.confirmMocAdoption(confirmationInput(b,registry));
+    const results=await Promise.allSettled([first.commit(registry.registryDigest,ca.registry,ca.receipt),second.commit(registry.registryDigest,cb.registry,cb.receipt)]);
+    assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+    assert.equal((await first.load()).generation,1);
+    first.db.exec("UPDATE commits SET receipt='{}'");
+    await assert.rejects(first.load());
+  } finally {first?.close();second?.close();f.cleanup();}
+});
+
+
+test('native adoption survives process exit immediately before and after transaction commit', async () => {
+  const {writeFileSync}=await import('node:fs');const {join}=await import('node:path');
+  const {pathToFileURL}=await import('node:url');const {spawnSync}=await import('node:child_process');
+  for(const phase of ['before','after']) {
+    const f=await nativeStoreFixture();let store;
+    try {
+      const registry=await api.createEmptyAdoptionRegistry();store=await f.SqliteAdoptionStore.open(f.directory,registry);store.close();store=undefined;
+      const plan=await preview({registry}),confirmed=await api.confirmMocAdoption(confirmationInput(plan,registry));
+      const modulePath=join(f.directory,'store.mjs');writeFileSync(modulePath,f.bundleText);
+      const payload=join(f.directory,'fixture.json');writeFileSync(payload,JSON.stringify({registry,confirmed}));
+      const code=`import {SqliteAdoptionStore} from ${JSON.stringify(pathToFileURL(modulePath).href)};
+        import {readFileSync} from 'node:fs';
+        const fixture=JSON.parse(readFileSync(process.argv[2],'utf8'));
+        const store=await SqliteAdoptionStore.open(process.argv[1]);
+        const exec=store.db.exec.bind(store.db);let commits=0;
+        store.db.exec=sql=>{if(sql==='COMMIT;' && ++commits===2){if(process.argv[3]==='before')process.exit(86);exec(sql);process.exit(87);}return exec(sql);};
+        await store.commit(fixture.registry.registryDigest,fixture.confirmed.registry,fixture.confirmed.receipt);
+        process.exit(99);`;
+      const child=spawnSync(process.execPath,['--input-type=module','-e',code,f.directory,payload,phase],{encoding:'utf8',timeout:10000,windowsHide:true});
+      assert.equal(child.status,phase==='before'?86:87,child.stderr);
+      store=await f.SqliteAdoptionStore.open(f.directory);
+      assert.equal((await store.load()).generation,phase==='before'?0:1);
+      assert.deepEqual(await store.receipt(confirmed.receipt.receiptId),phase==='before'?undefined:confirmed.receipt);
+      await store.commit(registry.registryDigest,confirmed.registry,confirmed.receipt);
+      assert.deepEqual(await store.load(),confirmed.registry);
+    } finally {store?.close();f.cleanup();}
+  }
+});
