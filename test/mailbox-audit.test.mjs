@@ -124,8 +124,13 @@ test("bundle verification checks members without claiming an unbound manifest au
   const ref={path:"artifacts/alice",sha256sums:"SHA256SUMS"};
   writeFileSync(manifest,`${hash} *note.md\n`);
   assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-unbound");
+  const manifestHash=createHash("sha256").update(readFileSync(manifest)).digest("hex");
+  assert.equal(verifyMailboxBundle(root,ref,manifestHash),null);
+  assert.equal(verifyMailboxBundle(root,ref,"0".repeat(64)),"reference-manifest-hash-mismatch");
+  assert.equal(verifyMailboxBundle(root,ref,"not-a-digest"),"reference-schema");
   assert.equal(verifyMailboxBundle(root,{...ref,host:"another-host"}),"reference-host-unresolved");
   writeFileSync(join(root,"artifacts/alice/note.md"),"changed");
+  assert.equal(verifyMailboxBundle(root,ref,manifestHash),"reference-hash-mismatch");
   assert.equal(verifyMailboxBundle(root,ref),"reference-hash-mismatch");
   writeFileSync(manifest,`${hash}  ../../outside.md\n`);
   assert.equal(verifyMailboxBundle(root,ref),"reference-path-invalid");

@@ -72,3 +72,12 @@ file. Ten focused tests pass, including both exact boundary cases. The protocol'
 generated `BOARD.md` is classified as mutable; preserved protocol versions and
 similarly named artifact files still require their immutable hashes. These checks
 do not establish protection against hostile concurrent directory replacement.
+
+The standalone bundle verifier also accepts an explicit third argument containing
+the expected raw manifest SHA-256. It checks that digest before interpreting
+members, then verifies each member normally. Matching members cannot compensate
+for a manifest mismatch. Focused tests cover a bound valid bundle, incorrect or
+malformed manifest digest, and a changed member under an unchanged manifest.
+The mailbox CLI does not synthesize this argument from current files; historical
+unbound references remain unbound. This helper capability is not a protocol
+extension or automatic manifest-authentication claim.

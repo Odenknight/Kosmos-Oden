@@ -46,11 +46,13 @@ export function verifyMailboxReference(root, reference) {
   } catch (error) { return referenceError(error); }
 }
 
-export function verifyMailboxBundle(root, reference) {
+export function verifyMailboxBundle(root, reference, expectedManifestSha256) {
   if (reference?.host !== undefined) return "reference-host-unresolved";
   if (typeof reference?.path !== "string" || typeof reference.sha256sums !== "string") return "reference-schema";
+  if (expectedManifestSha256 !== undefined && (typeof expectedManifestSha256 !== "string" || !/^[a-f0-9]{64}$/.test(expectedManifestSha256))) return "reference-schema";
   try {
     const raw = readReference(root, `${reference.path}/${reference.sha256sums}`, 65536);
+    if (expectedManifestSha256 !== undefined && createHash("sha256").update(raw).digest("hex") !== expectedManifestSha256) return "reference-manifest-hash-mismatch";
     const lines = raw.toString("utf8").split(/\r?\n/).filter(line => line.length);
     if (!lines.length || lines.length > 1000) return "reference-manifest-invalid";
     const seen = new Set();
@@ -64,7 +66,7 @@ export function verifyMailboxBundle(root, reference) {
       if (createHash("sha256").update(bytes).digest("hex") !== match[1]) return "reference-hash-mismatch";
     }
     // Historical references name a manifest but do not bind its original bytes.
-    return "reference-manifest-unbound";
+    return expectedManifestSha256 === undefined ? "reference-manifest-unbound" : null;
   } catch (error) { return referenceError(error); }
 }
 
