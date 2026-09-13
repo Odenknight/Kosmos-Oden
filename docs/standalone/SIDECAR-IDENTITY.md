@@ -259,3 +259,11 @@ running intent. The synthetic command runs directly without a shell wrapper, so
 killing the owned process cannot leave a shell-spawned fixture descendant. All
 16 tests and all-target clippy pass. This closes the earlier actual-child poison
 fixture gap; automatic Engine recovery and full native lifecycle remain open.
+
+The actual Supervisor monitor now has a disabled-release restart regression: an
+owned, terminated synthetic child triggers the production polling/backoff path.
+The monitor records exactly one attempt, reports release identity unavailable,
+clears running intent and creates no state directory. A cleanup guard closes the
+Supervisor even if the fixture fails. All 17 tests and all-target clippy pass.
+This proves monitor refusal; successful automatic Engine recovery, cancellation
+during backoff and maximum-retry exhaustion remain separate qualification work.
