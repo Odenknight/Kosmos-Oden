@@ -67,10 +67,8 @@ async function forward(message) {
     // protocol/capability metadata is never manufactured by this adapter.
     if (info === undefined || (info && typeof info === "object" && !Array.isArray(info) && typeof info.name === "string" && typeof info.version === "string")) {
       meta["io.modelcontextprotocol/clientInfo"] = { ...info, name: agentName.trim(), version: info?.version ?? "kosmos-stdio" };
-      const args = message?.params?.arguments;
-      if (message.method === "tools/call" && args && typeof args.agent_name === "string" && args.agent_name.trim() && args.agent_name.length <= 80) {
-        args.agent_name = agentName.trim();
-      }
+      // Keep an agent's explicit arguments.agent_name; it takes precedence
+      // over this process default at the server.
     }
   }
   const headers = {

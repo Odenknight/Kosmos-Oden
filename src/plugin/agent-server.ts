@@ -457,7 +457,8 @@ export class KosmosAgentServer {
   /** Identity of a modern MCP caller, from the request body's `_meta`. */
   mcpIdentity(parsed: any, req: any): { agent: string; agentId?: string; agentOverride?: string } {
     const info = parsed?.params?._meta?.[MCP_META_CLIENT_INFO];
-    const agentOverride = req?.headers?.["x-kosmos-agent-name"];
+    const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
+    const agentOverride = declared ?? req?.headers?.["x-kosmos-agent-name"];
     const name = agentOverride ?? (info && typeof info === "object" && typeof info.name === "string" ? info.name : "");
     if (!name.trim()) return { agent: this.agentLabel(req) };
     const key = this.registerSession(name, MODERN_MCP_PROTOCOL_VERSION);
@@ -548,6 +549,10 @@ export class KosmosAgentServer {
     const info = meta?.[MCP_META_CLIENT_INFO];
     if (info !== undefined && (!info || typeof info !== "object" || Array.isArray(info) || typeof info.name !== "string" || typeof info.version !== "string")) {
       return { code: -32602, message: "Invalid params: clientInfo must contain string name and version" };
+    }
+    const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
+    if (declared !== undefined && (typeof declared !== "string" || !declared.trim() || declared.length > 80 || /[\u0000-\u001f\u007f]/.test(declared))) {
+      return { code: -32602, message: "agent_name must contain 1-80 printable characters" };
     }
     const designated = req?.headers?.["x-kosmos-agent-name"];
     if (designated !== undefined && (typeof designated !== "string" || !designated.trim() || designated.length > 80 || /[\u0000-\u001f\u007f]/.test(designated))) {
@@ -1300,7 +1305,7 @@ export class KosmosAgentServer {
     for (const key of ["query", "tag", "area", "path", "title", "uid", "time"]) {
       if (a[key] != null && typeof a[key] !== "string") throw new McpRpcError(-32602, `${key} must be a string`);
     }
-    if ("agent_name" in a && (typeof a.agent_name !== "string" || !a.agent_name.trim() || a.agent_name.length > 80)) throw new McpRpcError(-32602, "agent_name must be a nonempty string of at most 80 characters");
+    if ("agent_name" in a && (typeof a.agent_name !== "string" || !a.agent_name.trim() || a.agent_name.length > 80 || /[\u0000-\u001f\u007f]/.test(a.agent_name))) throw new McpRpcError(-32602, "agent_name must be a nonempty string of at most 80 characters");
     const requireSelector = () => {
       if (!(typeof a.path === "string" && a.path.trim()) && !(typeof a.title === "string" && a.title.trim()) && !(typeof a.uid === "string" && a.uid.trim())) {
         throw new McpRpcError(-32602, `${name} requires path, title, or uid`);
@@ -1323,7 +1328,7 @@ export class KosmosAgentServer {
   async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true, agentOverride?: string): Promise<any> {
     args = this.validateToolArgs(name, args || {});
     if (agentOverride || args.agent_name) {
-      const key = this.registerSession(agentOverride || args.agent_name, MODERN_MCP_PROTOCOL_VERSION);
+      const key = this.registerSession(args.agent_name || agentOverride, MODERN_MCP_PROTOCOL_VERSION);
       const session = this.getSession(key);
       agent = session!.name; agentId = session!.visualId;
     }

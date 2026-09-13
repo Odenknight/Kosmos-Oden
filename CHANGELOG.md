@@ -1,5 +1,9 @@
 # Changelog
 
+## Agent identity follow-up - 2026-09-13
+
+- Agent identity: explicit `agent_name` now takes precedence over connection defaults before registration and admission. The stdio adapter preserves the declared name; invalid names fail before registration.
+
 ## 0.8.3 candidate follow-up — 2026-09-13
 
 - Add opt-in `include_source_evidence` to MCP episode export. SHA-256 covers
