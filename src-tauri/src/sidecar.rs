@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -14,7 +14,7 @@ const RESTART_BACKOFF_MS: [u64; 5] = [250, 500, 1_000, 2_000, 4_000];
 #[derive(Clone)]
 pub struct Supervisor {
     inner: Arc<Mutex<Inner>>,
-    sidecar_path: Option<PathBuf>,
+    sidecar_path: Arc<OnceLock<PathBuf>>,
 }
 
 struct Inner {
@@ -57,8 +57,8 @@ pub struct RedactedDiagnostics {
 
 impl Supervisor {
     pub fn discover(app: &AppHandle, state_root: &Path) -> Self {
-        let sidecar_path = discover_sidecar(app, state_root);
-        Self {
+        let candidates = sidecar_candidates(app, state_root);
+        let supervisor = Self {
             inner: Arc::new(Mutex::new(Inner {
                 closed: false,
                 child: None,
@@ -70,12 +70,36 @@ impl Supervisor {
                 last_exit: None,
                 last_error: None,
             })),
-            sidecar_path,
+            sidecar_path: Arc::new(OnceLock::new()),
+        };
+        if let Some(release) = crate::sidecar_release::Release::embedded() {
+            let worker = supervisor.clone();
+            thread::spawn(move || {
+                if let Some(path) = candidates
+                    .into_iter()
+                    .find(|path| release.verify(path).is_some())
+                {
+                    worker.publish_discovery(path);
+                }
+            });
+        }
+        supervisor
+    }
+
+    fn publish_discovery(&self, path: PathBuf) {
+        if let Ok(inner) = self.inner.lock() {
+            if !inner.closed {
+                let _ = self.sidecar_path.set(path);
+            }
         }
     }
 
     #[cfg(test)]
     fn with_sidecar(sidecar_path: Option<PathBuf>) -> Self {
+        let cell = OnceLock::new();
+        if let Some(path) = sidecar_path {
+            let _ = cell.set(path);
+        }
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 closed: false,
@@ -88,12 +112,12 @@ impl Supervisor {
                 last_exit: None,
                 last_error: None,
             })),
-            sidecar_path,
+            sidecar_path: Arc::new(cell),
         }
     }
 
     pub fn sidecar_path(&self) -> Option<&Path> {
-        self.sidecar_path.as_deref()
+        self.sidecar_path.get().map(PathBuf::as_path)
     }
 
     pub fn start(&self, corpus: PathBuf, app_state_root: &Path) -> Result<SidecarStatus, String> {
@@ -104,8 +128,8 @@ impl Supervisor {
         if inner.closed {
             return Err("sidecar supervisor is shut down".to_string());
         }
-        let executable = self.sidecar_path.as_ref().ok_or_else(|| {
-            "gkos-agent is not installed beside the app; offline folder mode remains available"
+        let executable = self.sidecar_path.get().ok_or_else(|| {
+            "Engine unavailable or still being verified; offline folder mode remains available"
                 .to_string()
         })?;
         let sidecar_state = app_state_root.join("sidecar");
@@ -168,7 +192,7 @@ impl Supervisor {
             .as_mut()
             .is_some_and(|child| child.try_wait().ok().flatten().is_none());
         SidecarStatus {
-            available: !inner.closed && self.sidecar_path.is_some(),
+            available: !inner.closed && self.sidecar_path.get().is_some(),
             running,
             service_url: "http://127.0.0.1:4814",
             restart_count: inner.restart_count,
@@ -178,7 +202,7 @@ impl Supervisor {
     }
 
     pub fn sidecar_version(&self) -> Option<String> {
-        let executable = self.sidecar_path.as_ref()?;
+        let executable = self.sidecar_path.get()?;
         let release = crate::sidecar_release::Release::embedded()?;
         let _verified = release.verify(executable)?;
         Some(release.version)
@@ -231,7 +255,7 @@ impl Supervisor {
                 if inner.generation != generation || !inner.desired_running {
                     return;
                 }
-                let Some(executable) = supervisor.sidecar_path.as_ref() else {
+                let Some(executable) = supervisor.sidecar_path.get() else {
                     return;
                 };
                 if let Err(error) = spawn_locked(&mut inner, executable) {
@@ -244,7 +268,7 @@ impl Supervisor {
     }
 }
 
-fn discover_sidecar(app: &AppHandle, state_root: &Path) -> Option<PathBuf> {
+fn sidecar_candidates(app: &AppHandle, state_root: &Path) -> Vec<PathBuf> {
     let binary = if cfg!(windows) {
         "gkos-agent.exe"
     } else {
@@ -261,10 +285,7 @@ fn discover_sidecar(app: &AppHandle, state_root: &Path) -> Option<PathBuf> {
     }
     // Development-only placement; package assembly never writes credentials here.
     candidates.push(state_root.join("bin").join(binary));
-    let release = crate::sidecar_release::Release::embedded()?;
     candidates
-        .into_iter()
-        .find(|path| release.verify(path).is_some())
 }
 
 fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
@@ -363,6 +384,22 @@ pub fn redacted_diagnostics(status: &SidecarStatus) -> RedactedDiagnostics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_publishes_once_and_never_after_shutdown() {
+        let supervisor = Supervisor::with_sidecar(None);
+        let worker = supervisor.clone();
+        assert!(!supervisor.status().available);
+        worker.publish_discovery(PathBuf::from("first"));
+        worker.publish_discovery(PathBuf::from("second"));
+        assert_eq!(supervisor.sidecar_path(), Some(Path::new("first")));
+        let closed = Supervisor::with_sidecar(None);
+        let late_worker = closed.clone();
+        closed.shutdown();
+        late_worker.publish_discovery(PathBuf::from("late"));
+        assert!(closed.sidecar_path().is_none());
+        assert!(!closed.status().available);
+    }
 
     #[test]
     fn admitted_clone_cannot_start_after_shutdown_or_create_state() {

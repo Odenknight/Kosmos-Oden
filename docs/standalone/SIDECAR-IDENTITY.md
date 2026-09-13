@@ -34,3 +34,10 @@ worker released after shutdown cannot create state or start another child; norma
 Stop remains a separate reusable operation. A queued-worker regression verifies
 this ordering. Shutdown can still wait for work holding the lock, so bounded
 shutdown latency and full application-close acceptance remain open.
+
+Initial discovery now hashes candidates on one background worker rather than in
+Tauri setup. The shared selection is published once and is refused after shutdown.
+Availability remains false until a candidate verifies; launch still verifies again.
+Tests cover one-time publication and late-result suppression. Slow or stuck
+filesystem reads are not yet cancellable, and full native responsiveness remains
+unqualified.
