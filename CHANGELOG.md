@@ -8,6 +8,9 @@
 
 ## Notes workspace implementation candidate - 2026-09-13
 
+- Save Notes search, filters and selected path through the Obsidian layout API;
+  restore with fresh reads and policy checks, without saving preview content.
+
 - Retain the selected note through refresh and file/folder renames, with a new
   authorized read. Clear deleted or unreadable selections.
 

@@ -138,3 +138,14 @@ This is continuity within an open Notes pane; persisted selection across closing
 the pane and synchronization with the spatial view remain separate work.
 Full verification passes 446 tests and all build checks. The browser suite passes
 32 checks across all four targets, including rename, deletion and unreadability.
+
+### Saved layout implementation
+
+The native view now implements Obsidian layout state for search text, navigation
+tag, body-search choice and selected path. It stores no preview, projection or
+authorization capability. Restore bounds text fields, checks field types and
+repeats search/read publication checks. Browser qualification passes 36 checks
+across four targets, including restoration under revoked policy and malformed
+saved values. Full verification passes 446 tests and build checks; the subsequent
+close-state retention hook passes typechecking. Native installed layout restore
+and spatial synchronization are not qualified by these browser checks.

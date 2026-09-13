@@ -151,3 +151,19 @@ test('assessment distinguishes unavailable, zero and unrecorded; diagnostics rem
   await expect(page.getByText('warning: FIXTURE — <img src=x onerror=alert(1)>',{exact:true})).toBeVisible();
   await expect(page.locator('.kosmos-notes-preview img')).toHaveCount(0);
 });
+
+test('saved layout restores controls and rechecks selection without retaining preview content', async ({ page }) => {
+  await page.getByRole('searchbox').fill('saved');
+  await page.getByRole('button', { name: 'saved', exact: true }).click();
+  const state = await page.evaluate(() => (window as any).workspace.getState());
+  expect(state).toEqual({ query: 'saved', tag: '', body: false, selectedPath: 'Alpha.md' });
+  await page.evaluate(state => (window as any).workspace.restore(state), state);
+  await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
+  await page.evaluate(state => { const w = window as any; w.authorized = false; w.workspace.restore(state); }, state);
+  await expect(page.getByText('Scope changed. Search again.', { exact: true })).toBeVisible();
+  await expect(page.locator('.kosmos-notes-preview')).toBeEmpty();
+  await page.evaluate(() => { const w = window as any; w.authorized = true; w.workspace.restore({ query: {}, tag: [], body: 'true', selectedPath: 42 }); });
+  await expect(page.getByRole('searchbox')).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Alpha', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).workspace.getState())).toEqual({ query: '', tag: '', body: false, selectedPath: undefined });
+});

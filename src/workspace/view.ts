@@ -3,7 +3,7 @@ import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
 
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
-  actions: { openSource(path: string): void; openKosmos(): void }) {
+  actions: { openSource(path: string): void; openKosmos(): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined;
@@ -100,6 +100,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }, async ({ snapshot, fragment }, current) => snapshot.publish(() => {
       preview.replaceChildren(fragment); preview.dataset.path = path;
       if (snapshot.value.note.error) selectedPath = undefined;
+      actions.stateChanged?.();
     }, current), ({ fragment }) => fragment.replaceChildren());
     const version = notes.version;
     try {
@@ -113,6 +114,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     if (closed) return;
     const restorePath = restoreSelection ? selectedPath : undefined;
     if (!restoreSelection) selectedPath = undefined;
+    actions.stateChanged?.();
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); delete preview.dataset.path;
     const noteVersion = notes.version;
     status.textContent = "Searching…";
@@ -147,6 +149,16 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   toolbar.append(button("Refresh", () => void refresh(undefined, true)));
   void refresh();
   return {
+    getState: () => ({ query: query.value, tag: tag.value, body: body.checked, selectedPath }),
+    restore: (state: unknown) => {
+      if (closed || !state || typeof state !== "object" || Array.isArray(state)) return;
+      const value = state as Record<string, unknown>;
+      query.value = typeof value.query === "string" ? value.query.slice(0, 4096) : "";
+      tag.value = typeof value.tag === "string" ? value.tag.slice(0, 4096) : "";
+      body.checked = value.body === true;
+      selectedPath = typeof value.selectedPath === "string" && value.selectedPath.length <= 4096 ? value.selectedPath : undefined;
+      schedule(true);
+    },
     refresh: () => { if (!closed) schedule(true); },
     rename: (oldPath: string, newPath: string) => {
       if (selectedPath === oldPath || selectedPath?.startsWith(oldPath + "/")) selectedPath = newPath + selectedPath.slice(oldPath.length);
