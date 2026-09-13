@@ -22,6 +22,7 @@ const bundles = await Promise.all([
   bundleEntry("src/navigation-effects/adoption-registry.ts"),
   bundleEntry("src/navigation-effects/adoption-plan.ts"),
   bundleEntry("src/navigation-effects/in-memory-adoption-store.ts"),
+  bundleEntry("src/navigation-effects/adoption-controller.ts"),
 ]);
 const api = Object.assign({}, ...bundles.map((item) => item.module));
 
@@ -31,6 +32,59 @@ const configDigest = digest("a"), policyDigest = digest("b");
 const lf = `Human prefix\n<!-- gkos:moc generated:start version=1 config=${configDigest} -->\ngenerated body\n<!-- gkos:moc generated:end -->\nHuman suffix\n`;
 const crlf = lf.replaceAll("\n", "\r\n");
 const candidate = "<!-- gkos-navigation:managed:start -->\nfresh generated body\n<!-- gkos-navigation:managed:end -->";
+
+test("adoption controller binds previews to source state and closes the final commit window", async () => {
+  const memory = new api.InMemoryAdoptionStore(await api.createEmptyAdoptionRegistry());
+  let bytes = lf, valid = true, beforeCommit = () => {};
+  const controller = api.createAdoptionCallbacks({
+    load: async () => memory.load(),
+    commit: async (expected, registry, receipt, guard) => {
+      beforeCommit();
+      if (guard() !== true) throw Error("ADOPTION_HOST_STATE_STALE");
+      await memory.commit(expected, registry, receipt);
+    },
+  }, async () => ({
+    input: { targetPath: "MOCs/Alpha.md", currentBytes: bytes, candidateBytes: candidate, policyDigest, configDigest, actor },
+    credentialId: "cred-1", stillCurrent: () => valid,
+  }));
+  const stale = await controller.createPreview("region-managed");
+  bytes += "changed";
+  assert.equal(await controller.checkFreshness(stale), false);
+  await assert.rejects(controller.recordAdoption(stale), /PREVIEW_STALE/);
+  bytes = lf;
+  const original = await controller.createPreview("region-managed");
+  const altered = { ...original, semanticSummary: "changed after presentation" };
+  await assert.rejects(controller.recordAdoption(altered), /PREVIEW_STALE/);
+  const revoked = await controller.createPreview("region-managed");
+  beforeCommit = () => { valid = false; };
+  await assert.rejects(controller.recordAdoption(revoked), /HOST_STATE_STALE/);
+  assert.equal(memory.load().generation, 0);
+  valid = true;
+  const closed = await controller.createPreview("region-managed");
+  beforeCommit = () => controller.close();
+  await assert.rejects(controller.recordAdoption(closed), /HOST_STATE_STALE/);
+  assert.equal(memory.load().generation, 0);
+  await assert.rejects(controller.createPreview("region-managed"), /WORKFLOW_UNAVAILABLE/);
+});
+
+test("adoption controller records a current preview once without source writes", async () => {
+  const memory = new api.InMemoryAdoptionStore(await api.createEmptyAdoptionRegistry());
+  const controller = api.createAdoptionCallbacks({
+    load: async () => memory.load(),
+    commit: async (expected, registry, receipt, guard) => {
+      assert.equal(guard(), true);
+      await memory.commit(expected, registry, receipt);
+    },
+  }, async () => ({
+    input: { targetPath: "MOCs/Alpha.md", currentBytes: lf, candidateBytes: candidate, policyDigest, configDigest, actor },
+    credentialId: "cred-1", stillCurrent: () => true,
+  }));
+  const plan = await controller.createPreview("region-managed");
+  assert.equal(await controller.checkFreshness(plan), true);
+  await controller.recordAdoption(plan);
+  assert.equal(memory.load().generation, 1);
+  await assert.rejects(controller.recordAdoption(plan), /PREVIEW_STALE/);
+});
 
 function mergedRegionBytes(currentBytes) {
   const markerStart = currentBytes.indexOf("<!-- gkos:moc generated:start");

@@ -48,6 +48,18 @@ required before those limits are reached.
 
 ## Evidence and remaining gates
 
+The provider-neutral `createAdoptionCallbacks` controller now connects preview,
+freshness checks and confirmation to the store. Only the trusted native host may
+supply its capture callback: it must authenticate adoption authority and fence
+source, credential and policy changes through the synchronous `stillCurrent`
+check. The controller re-plans against fresh source and registry state, rejects
+substituted previews, serializes recording, and checks closure and host freshness
+inside the store's final transaction guard. Call `close()` when its workflow ends.
+It has no source-note write API and is not yet wired into the native modal.
+Synthetic tests cover changed source, substituted preview, late revocation,
+closure immediately before commit, successful recording and duplicate refusal.
+Human authentication provider selection and actual host fencing remain required.
+
 Real temporary-database tests on Windows cover reopen, receipt/registry pairing,
 idempotent and conflicting replay, competing writers and corrupt receipt refusal.
 Child processes exit immediately before and after the actual SQLite transaction
