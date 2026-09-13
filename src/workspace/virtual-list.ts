@@ -21,8 +21,13 @@ export function mountVirtualList(container: HTMLElement, count: number, row: (in
         const element = row(i); element.setAttribute("role", "listitem");
         element.setAttribute("aria-posinset", String(i + 1)); element.setAttribute("aria-setsize", String(count));
         element.style.cssText = `position:absolute;top:${i * height}px;height:${height}px;width:100%;box-sizing:border-box`;
-        element.addEventListener("focusin", () => { active = i; });
-        rendered.set(i, element); space.append(element);
+        element.addEventListener("focusin", () => {
+          active = i;
+          for (const [index, held] of rendered) held.querySelector("button")!.tabIndex = index === active ? 0 : -1;
+        });
+        const following = [...rendered.keys()].filter(index => index > i).sort((a, b) => a - b)[0];
+        space.insertBefore(element, following === undefined ? null : rendered.get(following)!);
+        rendered.set(i, element);
       }
     }
     for (const [i, element] of rendered) {
@@ -34,7 +39,7 @@ export function mountVirtualList(container: HTMLElement, count: number, row: (in
     focusRequested ||= focus;
     const version = ++revision;
     try {
-      const ok = await publish(() => { if (!closed && version === revision) { render(focusRequested); focusRequested = false; } });
+      const ok = await publish(() => { if (!closed && version === revision) { render(focusRequested && viewport.contains(doc.activeElement)); focusRequested = false; } });
       if (!ok && !closed && version === revision) { space.replaceChildren(); rendered.clear(); }
     } catch { if (!closed && version === revision) { space.replaceChildren(); rendered.clear(); } }
   }

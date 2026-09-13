@@ -472,3 +472,19 @@ test("virtual rows stay bounded and support keyboard traversal and revocation", 
   });
   await expect(page.locator(".kosmos-notes-result")).toHaveCount(0);
 });
+
+
+test("virtual rows retain document order and update the mouse-selected tab stop", async ({ page }) => {
+  await page.getByRole("searchbox").fill("many");
+  const viewport = page.locator(".kosmos-notes-viewport");
+  await expect(page.getByRole("button", {name:"Note 0",exact:true})).toBeVisible();
+  await viewport.evaluate(element => { element.scrollTop = 5000; });
+  await expect(page.getByRole("button", {name:"Note 46",exact:true})).toBeVisible();
+  await viewport.evaluate(element => { element.scrollTop = 4500; });
+  await expect(page.getByRole("button", {name:"Note 41",exact:true})).toBeVisible();
+  const order = await viewport.locator('[role="listitem"]').evaluateAll(rows => rows.map(row => Number(row.getAttribute("aria-posinset"))));
+  expect(order).toEqual([...order].sort((a,b)=>a-b));
+  await page.getByRole("button", {name:"Note 41",exact:true}).click();
+  await expect(page.getByRole("button", {name:"Note 41",exact:true})).toHaveAttribute("tabindex", "0");
+  await expect(viewport.locator('button[tabindex="0"]')).toHaveCount(1);
+});
