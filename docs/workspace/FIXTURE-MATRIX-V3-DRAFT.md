@@ -51,3 +51,31 @@ coverage to inspect; only an exact-candidate execution establishes a passing run
 
 W2 remains open until the fixture revision and expected semantics are reviewed.
 W3/W4 and native release acceptance are not closed by this document.
+
+## Historical area expectation reconciliation
+
+The preserved v2 bundle has 14 notes and 16 manifest-listed files. All 16
+matched their recorded hashes during the September 13 read-only check. The
+observed `SHA256SUMS` digest is
+`fb8ed729545598649a7589f25ef2e8c9c2d6b223e91172c47b9954603d71f81b`.
+This establishes consistency with the retained manifest, not independent
+authentication of its original publication.
+
+The `area_cases` row for `area=root` lists `root-note.md` and
+`Root/in-root-folder.md`, without an explicit corpus subset. Against all 14
+notes, the current consumer's `qSearch('', {area:'root', limit:100})` returns
+13 matches at default sensitivity `secret` and ceiling `secret`. All top-level
+notes belong to Root; `AreaDemo/area-case.md` is the sole other-area note.
+The observed Engine bundle SHA-256 is
+`ed5342efb6132059729693471e8163a2506739d7b50322d237c09a209fad4176`.
+
+The v3 expectation must therefore state its input corpus explicitly:
+
+- Area-only case: load exactly `root-note.md`, `Root/in-root-folder.md` and
+  `AreaDemo/area-case.md`; expect two Root matches at a secret ceiling.
+- Whole-bundle case: load all 14 notes; expect 13 Root matches at that ceiling.
+- Lower-ceiling cases: derive the expected set from the separately specified
+  sensitivity policy; do not reuse either count.
+
+No historical expectation was edited, and no production area semantics changed.
+The five v2 Obsidian qualification rows remain separate pending requirements.
