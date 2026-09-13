@@ -404,3 +404,26 @@ test('mode handoff carries UID into Locate and destination Notes read', async ({
   await expect(page.getByRole('heading',{name:'Moved.md',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>(window as any).calls.at(-1))).toMatchObject({options:{uid}});
 });
+
+
+test('toolbar mode switch preserves selected identity and refuses stale scope', async ({ page }) => {
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  await page.evaluate(uid=>{(window as any).noteUid=uid;},uid);
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await page.getByRole('button',{name:'Kosmos',exact:true}).click();
+  expect(await page.evaluate(()=>(window as any).located)).toEqual(['Alpha.md']);
+  expect(await page.evaluate(()=>(window as any).locatedUids)).toEqual([uid]);
+  await page.evaluate(()=>{(window as any).authorized=false;});
+  await page.getByRole('button',{name:'Kosmos',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Note or scope changed. Select it again.');
+  expect(await page.evaluate(()=>(window as any).located)).toHaveLength(1);
+  await page.evaluate(()=>{const w=window as any;w.authorized=true;w.slowRead=true;});
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await page.waitForFunction(()=>!!(window as any).waits.read);
+  await page.getByRole('button',{name:'Kosmos',exact:true}).click();
+  await expect(page.getByRole('status')).toHaveText('Wait for the selected note before switching views.');
+  expect(await page.evaluate(()=>(window as any).located)).toHaveLength(1);
+  await page.evaluate(()=>{const w=window as any;w.workspace.select(null);w.waits.read();});
+  await page.getByRole('button',{name:'Kosmos',exact:true}).click();
+  expect(await page.evaluate(()=>(window as any).kosmos)).toBe(2);
+});

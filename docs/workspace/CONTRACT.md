@@ -222,11 +222,13 @@ scope checks still apply. The readable spatial view also saves a valid UID,
 uses it on refreshed graph publication, and refuses missing or duplicate UID
 matches when returning to Notes. Renderer selections and explicit Locate actions
 capture the selected node's identity; clearing selection removes both fields.
-Locate and Return to Notes carry the valid UID through the native mode-switch
+The toolbar Kosmos action, Locate, and Return to Notes carry the valid UID through the native mode-switch
 callbacks. Destination Notes reads and spatial Locate resolve that identity
 strictly after activation, retaining the destination's scope and publication
 checks. Path-only notes keep their previous behavior. Installed cross-mode
 qualification remains pending.
+The toolbar waits while the selected note is loading and uses the same snapshot
+check as Locate. With no selection it opens the general readable view.
 
 Notes captures the existing `qLineage` result with the note, projection and
 related links under the same snapshot publication guard. The inspector shows

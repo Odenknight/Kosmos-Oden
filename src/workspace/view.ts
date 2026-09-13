@@ -11,6 +11,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined, selectedUid: string | undefined;
+  let locateSelected: (() => void) | undefined;
   root.replaceChildren(); root.classList.add("kosmos-notes-workspace");
   const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
     const node = doc.createElement(tag); if (text !== undefined) node.textContent = text; return node;
@@ -19,7 +20,11 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const node = element("button", label); node.type = "button"; node.addEventListener("click", action); return node;
   };
   const toolbar = element("div"); toolbar.className = "kosmos-notes-toolbar";
-  toolbar.append(element("strong", "Notes"), button("Kosmos", () => actions.openKosmos()));
+  toolbar.append(element("strong", "Notes"), button("Kosmos", () => {
+    if (locateSelected) locateSelected();
+    else if (selectedPath) status.textContent = "Wait for the selected note before switching views.";
+    else actions.openKosmos();
+  }));
   const query = element("input"); query.type = "search"; query.placeholder = "Search readable notes";
   query.setAttribute("aria-label", "Search readable notes");
   const tag = element("input"); tag.placeholder = "Navigation tag (optional)"; tag.setAttribute("aria-label", "Navigation tag");
@@ -78,11 +83,12 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     selectedPath = path; selectedUid = page.uid;
     if (narrow) { drawer = undefined; syncPanels(); }
     inspector.replaceChildren();
-    notes.invalidate(); delete preview.dataset.path; preview.replaceChildren(element("p", "Loading note…"));
+    notes.invalidate(); locateSelected = undefined; delete preview.dataset.path; preview.replaceChildren(element("p", "Loading note…"));
     const pending = notes.select(async () => {
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
       const fragment = doc.createDocumentFragment(), inspection = doc.createDocumentFragment(), { note, projection } = snapshot.value;
       if (!note.error) path = note.path;
+      let locate: (() => void) | undefined;
       const related = "related" in snapshot.value ? snapshot.value.related : null;
       const panels = [element("section"), element("section"), element("section")];
       const tabs = element("div"); tabs.className = "kosmos-notes-tabs";
@@ -143,11 +149,12 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
             .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; })
             .catch(() => { if (!closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; });
         }));
-        fragment.append(button("Locate in Kosmos", () => {
+        locate = () => {
           void snapshot.publish(() => actions.openKosmos(note.path, isValidGkxAuthoredUid(note.uid) ? note.uid : undefined), () => !closed && notes.version === version && preview.dataset.path === path)
             .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Note or scope changed. Select it again."; })
             .catch(() => { if (!closed && notes.version === version) status.textContent = "Note location unavailable. Retry."; });
-        }));
+        };
+        fragment.append(button("Locate in Kosmos", locate));
         const content = element("article"); content.className = "markdown-rendered";
         // Only our HTML-disabled, resource-free parser produces this HTML.
         content.innerHTML = renderWorkspaceMarkdown(note.content);
@@ -268,8 +275,9 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         }
         inspection.append(tabs, ...panels);
       }
-      return { snapshot, fragment, inspection };
-    }, async ({ snapshot, fragment, inspection }, current) => snapshot.publish(() => {
+      return { snapshot, fragment, inspection, locate };
+    }, async ({ snapshot, fragment, inspection, locate }, current) => snapshot.publish(() => {
+      locateSelected = locate;
       preview.replaceChildren(fragment); preview.dataset.path = path; inspector.replaceChildren(inspection);
       if (narrow && !drawer) preview.focus();
       if (snapshot.value.note.error) { selectedPath = undefined; selectedUid = undefined; }
@@ -291,7 +299,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const restoreUid = restoreSelection ? selectedUid : undefined;
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     actions.stateChanged?.();
-    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); locateSelected = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     const noteVersion = notes.version;
     status.textContent = "Searching…";
     const pending = searches.select(() => next ? next() : host.search(query.value, { body: body.checked, tag: tag.value || undefined, limit: 100 }),
@@ -316,7 +324,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   }
   function schedule(restoreSelection = false) {
     if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
-    searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
+    searches.invalidate(); notes.invalidate(); locateSelected = undefined; results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = undefined; void refresh(undefined, restoreSelection); }, 180);
@@ -328,7 +336,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     select: (path: string | null, uid?: string) => {
       if (closed) return;
       if (path !== null) return show(path, uid ? { uid } : {});
-      selectedPath = undefined; selectedUid = undefined; notes.invalidate();
+      selectedPath = undefined; selectedUid = undefined; notes.invalidate(); locateSelected = undefined;
       preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
       actions.stateChanged?.();
     },
