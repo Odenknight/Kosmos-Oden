@@ -18,6 +18,14 @@ limits. This is a consumed-field budget, not a transport byte limit. The rendere
 does not yet apply this new message. Conversion lives in `workspace/spatial.ts`
 so the protocol need not import the native host implementation.
 
+Renderer application is now implemented: a newer readable generation replaces
+the scene through the existing layout and clears the prior source index,
+attachments and traversal observability. Older/equal generations and subsequent
+raw source graph messages are ignored for that iframe lifetime. Versioned
+visibility messages remain operational. Build/typecheck and four sandbox browser
+checks pass. The native host sender and generation-bound selection remain open;
+normal installed operation does not yet enter this projection mode.
+
 The current Notes host captures `qGraph()` with committed corpus, graph object,
 default sensitivity and visibility ceiling checks. That query returns readable
 note summaries and links whose two endpoints are readable. It does not return

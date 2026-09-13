@@ -11,6 +11,7 @@ import { GkxIndex, type IndexChanges } from "gkos-engine";
 import type { SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import { validateHostMessage, wrap } from "./protocol";
+import { readableSpatialGraph } from "../workspace/spatial";
 
 const app = createKosmosApp({
   autoStart: "wait",
@@ -45,6 +46,7 @@ interface UpdateMessage {
 }
 
 let navigationEnabled = false;
+let projectionGeneration = 0;
 
 function toSourceFiles(files: Array<{ relativePath: string; content: string }>): SourceFile[] {
   return (files || []).map((f) => ({ relativePath: f.relativePath, content: f.content, kind: "note" as const }));
@@ -86,6 +88,17 @@ window.addEventListener("message", (ev: MessageEvent) => {
       const v = validateHostMessage(raw);
       if (!v.ok) { if (v.reason) console.warn("Kosmos-Oden: rejected host message —", v.reason); return; }
       const msg = v.message!;
+      if (msg.type === "readable-graph") {
+        if (msg.payload.generation <= projectionGeneration) return;
+        const graph = readableSpatialGraph(msg.payload.graph);
+        app.clearTraversalObservability();
+        app.setAttachments([]);
+        index.setFiles([], [], []);
+        app.renderGraph(graph, "Readable notes");
+        projectionGeneration = msg.payload.generation;
+        return;
+      }
+      if (projectionGeneration && (msg.type === "vault-snapshot" || msg.type === "vault-delta" || msg.type === "agent-traversal")) return;
       if (msg.type === "vault-snapshot") applySnapshot(msg.payload as FilesMessage);
       else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
       else if (msg.type === "agent-traversal") app.notifyAgentTraversal((msg.payload as any).paths, (msg.payload as any).tool, (msg.payload as any).agent, false, (msg.payload as any).agentId);
@@ -94,6 +107,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       return;
     }
     // Backward-compatible path: legacy flat messages (older host builds).
+    if (projectionGeneration) return;
     if (raw.type === "kosmos:files") applySnapshot(raw as FilesMessage);
     else if (raw.type === "kosmos:update") applyDelta(raw as UpdateMessage);
     else if (raw.type === "kosmos:graph") app.renderGraph(raw.graph, raw.label);
@@ -109,4 +123,5 @@ window.addEventListener("message", (ev: MessageEvent) => {
 /* Test/diagnostic hook (no effect on normal use). */
 (window as any).__kosmosEmbed = {
   getIndexInfo: () => ({ notes: index.noteCount, parseCount: index.parseCount, diagnostics: index.getDiagnostics() }),
+  getProjectionGeneration: () => projectionGeneration,
 };
