@@ -2,11 +2,16 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { waitForDesktopEngine } from "./desktop-readiness.mjs";
+import { execFileSync } from "node:child_process";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = resolve(root, "kosmos-oden-stand-alone.html");
 const generated = resolve(root, "src-tauri", "generated");
 const output = resolve(generated, "index.html");
+
+if (process.argv.includes("--build")) {
+  execFileSync(process.execPath, [resolve(root, "scripts/build.mjs"), "--standalone-only"], { cwd: root, stdio: "inherit" });
+}
 
 if (!existsSync(source)) {
   console.error("prepare-desktop: missing kosmos-oden-stand-alone.html; run npm run build:standalone first");

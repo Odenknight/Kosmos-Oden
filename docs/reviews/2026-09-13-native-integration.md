@@ -65,3 +65,13 @@ control operation completes. The native suite passed 18 ordinary tests with the
 explicit process qualification ignored; all-target clippy passed. This removes
 credential-read contention from Stop, but does not prove bounded Stop latency
 during a long control operation or visible native interaction.
+
+Native dev/build hooks now use frontend-root-relative script paths and pass
+`--build` to preparation. That mode invokes the existing standalone builder
+before injecting the bridge, preventing stale viewer output from being packaged.
+The hook command ran successfully from the repository frontend root, and all six
+readiness/generated-control checks passed. Tauri's
+[build implementation](https://github.com/tauri-apps/tauri/blob/dev/crates/tauri-cli/src/build.rs)
+passes the frontend directory to its hook runner. The earlier `../scripts` path
+was therefore unsuitable for this layout. This checks the hook command directly;
+the Tauri CLI itself is not installed here, and installer creation is unqualified.
