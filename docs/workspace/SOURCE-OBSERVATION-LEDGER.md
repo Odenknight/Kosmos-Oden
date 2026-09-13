@@ -1,0 +1,79 @@
+# Source observation ledger: isolated implementation
+
+This implements part of the [observation-history contract](OBSERVATION-HISTORY-CONTRACT.md).
+It does not complete T1, T2, or T3.
+The plugin does not open this ledger or retain history automatically.
+
+## Implemented behavior
+
+`src/workspace/source-observation-ledger.ts` owns a dedicated host-supplied SQLite connection.
+Missing or disabled retention configuration returns before opening a database.
+Explicit initialization refuses an existing schema.
+The component checks the application ID, schema version, exact schema, and retained configuration.
+It repeats those checks inside each transaction.
+
+The host supplies a corpus identity, authenticated current-state capability, clock, current source-read authorization, and supported parser/schema checks.
+The capability must bind the selected corpus, retention revision, authority generation, source identity and host lifetime.
+A mutable global enabled flag is insufficient.
+The host must prove unique source identity, exact original bytes, and parser receipts before append.
+The ledger verifies the source digest through the Engine and validates canonical source paths and authored UIDs.
+These checks do not replace native source capture.
+
+Source versions and source-deletion observations receive a committed sequence and host timestamp.
+Authored validity remains separate and may be unknown.
+Equal timestamps use sequence order.
+Regressing commit timestamps are refused.
+The same operation and input return the original receipt after restart.
+Changed retry input is a conflict.
+A retry also checks that the retained payload is still available and correct.
+
+The envelope and payload are inserted in one synchronous SQLite transaction.
+The connection uses full synchronization and rollback journaling.
+A record digest covers sequence, operation, observation time, parent, and canonical input.
+Each source's parent sequence and the global sequence are checked when reading metadata.
+Payloads and their supported parser/schema interpretation are checked before being published.
+
+A known-by query chooses the last retained source observation at or before its cutoff.
+A deletion observation blocks returning an older version for a later cutoff.
+A deletion observation is not a physical purge request.
+No retained version means unavailable coverage.
+The query never substitutes a current file or a newer observation.
+
+Queries return a one-use, host-held synchronous publication capability.
+It holds the cutoff, source identity, and ledger watermark.
+Current authorization is checked again before retained payload loading and before publication.
+A changed watermark or observed stale host refuses publication.
+Hidden and absent sources produce null.
+Hidden-source payloads are not loaded by unrelated readable-source queries.
+Historical paths never provide read authority.
+
+Retention requires positive age, logical-byte, and observation-count limits.
+Logical bytes include payload and stored envelope fields; SQLite page overhead is separate.
+Current implementation ceilings are 64 MiB of logical records, 10,000 observations, and ten years of age.
+The database also has a page-count ceiling.
+Capacity exhaustion refuses append without pruning records.
+Expired observations are unavailable to queries.
+
+## Evidence
+
+`test/source-observation-ledger.test.mjs` uses actual temporary SQLite databases.
+It checks restart persistence, retry identity, equal and regressing clocks, deletion cutoffs,
+explicit limits, byte accounting, hidden-source isolation, path reuse, final-boundary revocation,
+missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
+Child processes terminate before commit and after commit without orderly close.
+Reopening proves rollback in the first case and durable retry recovery in the second.
+All 17 component tests pass. Full repository verification passes all 537 tests.
+These are Windows component tests, not native Obsidian acceptance.
+
+## Remaining work
+
+- Bind the ledger to a qualified private native database capability and actual source-capture receipts.
+- Accept the retention contract and owner controls before production activation.
+- Add separate projection-publication observations and their source-observation references.
+- Implement explicit purge, retention holds, durable deny receipts, and derived-data cleanup.
+- Add independent deletion-watermark reconciliation so backup restoration cannot resurrect purged records.
+- Complete replay, import provenance, migration, backup and rollback qualification.
+- Add the required valid-at interpretation, cursor binding and complete temporal query interface.
+- Complete native durability, startup/rendering budgets, and the accepted T2/T3 fixture matrix.
+
+No production history storage or temporal workspace feature is enabled by this component.
