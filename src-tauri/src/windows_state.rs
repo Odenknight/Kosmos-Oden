@@ -109,6 +109,11 @@ fn open(path: &Path, directory: bool) -> io::Result<File> {
         .share_mode(FILE_SHARE_READ)
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
         .open(path)?;
+    validate_handle(&file, path, directory)?;
+    Ok(file)
+}
+
+fn validate_handle(file: &File, path: &Path, directory: bool) -> io::Result<()> {
     let mut info = unsafe { mem::zeroed::<BY_HANDLE_FILE_INFORMATION>() };
     unsafe {
         if GetFileInformationByHandle(file.as_raw_handle(), &mut info) == 0 {
@@ -138,6 +143,29 @@ fn open(path: &Path, directory: bool) -> io::Result<File> {
     {
         return Err(refused());
     }
+    Ok(())
+}
+
+/// Caller retains `ensure`'s state guard. No bytes are written before readback.
+pub fn open_log(path: &Path) -> io::Result<File> {
+    let user = User::current()?;
+    let parent = open(path.parent().ok_or_else(refused)?, true)?;
+    private_acl(&parent, &user, true)?;
+    let mut options = OpenOptions::new();
+    options
+        .append(true)
+        .access_mode(FILE_APPEND_DATA | READ_CONTROL | FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = match options.create_new(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            options.create_new(false).open(path)?
+        }
+        Err(error) => return Err(error),
+    };
+    validate_handle(&file, path, false)?;
+    private_acl(&file, &user, false)?;
     Ok(file)
 }
 
@@ -278,8 +306,37 @@ pub fn read_credential(path: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    static FILESYSTEM_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[test]
+    fn log_handles_append_and_refuse_aliases_before_writing() {
+        let _serial = FILESYSTEM_TEST.lock().unwrap();
+        use std::io::Write;
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-native-log-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _guard = ensure(&root).unwrap();
+        let path = root.join("desktop-agent.log");
+        {
+            let mut log = open_log(&path).unwrap();
+            log.write_all(b"first").unwrap();
+            assert!(fs::rename(&path, root.join("moved.log")).is_err());
+            assert!(OpenOptions::new().write(true).open(&path).is_err());
+        }
+        open_log(&path).unwrap().write_all(b"second").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"firstsecond");
+        drop(_guard);
+        fs::hard_link(&path, root.join("alias.log")).unwrap();
+        assert!(open_log(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"firstsecond");
+    }
     #[test]
     fn private_creation_reuse_and_hardlink_refusal() {
+        let _serial = FILESYSTEM_TEST.lock().unwrap();
         let root = std::env::temp_dir().join(format!(
             "kosmos-native-state-{}-{}",
             std::process::id(),
@@ -309,6 +366,7 @@ mod tests {
 
     #[test]
     fn refuses_existing_broad_acl_without_repair() {
+        let _serial = FILESYSTEM_TEST.lock().unwrap();
         let root = std::env::temp_dir().join(format!(
             "kosmos-native-unsafe-{}-{}",
             std::process::id(),

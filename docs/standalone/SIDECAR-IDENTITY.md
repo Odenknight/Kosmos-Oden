@@ -185,3 +185,14 @@ The 13-test Rust suite passes, including synthetic private credential success,
 hard-link and unsafe-directory refusal, malformed input and an infinite-reader
 fixture proving bounded consumption. Unix permission/ownership qualification and
 concurrent namespace mutation remain open; no live credentials were accessed.
+
+Windows log creation now uses an append-only handle validated for single-link
+regular-file identity and current-user ACL before any output is written. Existing
+logs are opened without truncation; new logs inherit the checked private parent.
+The same handle is passed to child output. Synthetic checks prove append
+preservation, replacement/write-open refusal while held and hard-link refusal
+without changing existing bytes. All 14 Rust tests pass. Filesystem tests sharing
+the temporary parent are serialized because retained parent handles otherwise
+interfere with sibling rename fixtures; the initial failure receipt is retained.
+Actual child startup and its atomic status/token writes still require qualification
+against the lifetime of the retained launch guards.

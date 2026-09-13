@@ -1,5 +1,7 @@
 use serde::Serialize;
-use std::fs::{self, OpenOptions};
+use std::fs;
+#[cfg(not(windows))]
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -320,6 +322,10 @@ fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
         .map_err(|error| format!("cannot protect sidecar state: {error}"))?;
     let status_file = state_root.join("desktop-agent.status.json");
     let log_path = state_root.join("desktop-agent.log");
+    #[cfg(windows)]
+    let stdout = crate::windows_state::open_log(&log_path)
+        .map_err(|error| format!("cannot open sidecar log: {error}"))?;
+    #[cfg(not(windows))]
     let stdout = OpenOptions::new()
         .create(true)
         .append(true)
