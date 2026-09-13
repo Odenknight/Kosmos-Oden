@@ -34,11 +34,13 @@ They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
 The Engine implementation is now at `d21982d`.
-Kosmos still pins Engine `7f28b2a`.
-The newer Engine service work is not yet included in that dependency pin.
+Kosmos now pins Engine `d21982d`.
 The Engine now exports its existing pure manifest helpers for native consumers.
 Their package API, compatibility, source inventory, and package checks passed.
-Kosmos still needs to adopt that revision and bind its native authority.
+Kosmos now prepares native manifests through that package API.
+It reads only authorized sources and retains a live revision check.
+Source edits or observed configuration changes invalidate prepared state.
+Trusted publication reconciliation and the native client connection remain open.
 The installed plugin is an earlier candidate, `59a61ca`.
 Do not describe branch changes as already installed.
 
@@ -63,7 +65,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 516 tests.
+The latest completed Kosmos verification passed 518 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.

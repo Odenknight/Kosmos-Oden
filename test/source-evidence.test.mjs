@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import http from "node:http";
 import { build } from "esbuild";
+import {buildManagedGraphitiManifest} from 'gkos-engine/graphiti';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS, MAX_SOURCE_EVIDENCE_BYTES } from "../dist/kosmos-agent-server.mjs";
 
 const compiled = await build({ entryPoints: ["src/plugin/vault-provider.ts"], bundle: true, platform: "node", format: "esm", write: false });
@@ -51,6 +52,42 @@ test("source evidence option rejects non-boolean values and unsupported provider
   f.provider.getIndexedSourceBytes = undefined;
   await assert.rejects(f.server.callTool("export_graphiti_episodes", { include_source_evidence: true }), /unavailable from this provider/);
   assert.equal(f.reads.length, 0);
+});
+
+test('native manifest uses readable original bytes and invalidates before a pending rebuild',async()=>{
+  const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+  const f=fixture(`uid: "${uid}"\r\n`);
+  const result=await f.server.prepareManagedGraphitiManifest(new AbortController().signal);
+  assert.equal(result.current(),true);
+  assert.deepEqual(f.reads,['note.md']);
+  const expected=await buildManagedGraphitiManifest(result.episodes.map(episode=>({source_id:uid,raw:Buffer.from(f.raw),episode})));
+  assert.deepEqual(result.manifest,expected.manifest);
+  assert.equal(result.source_snapshot_digest,expected.source_snapshot_digest);
+  f.provider.markChanged('note.md');
+  assert.equal(result.current(),false);
+  await f.provider.getGraph();
+  assert.equal(result.current(),false);
+  const fresh=await f.server.prepareManagedGraphitiManifest(new AbortController().signal);
+  f.settings.graphitiSagaMapping=true;
+  assert.equal(fresh.current(),false);
+  f.settings.graphitiSagaMapping=false;
+  assert.equal(fresh.current(),false);
+});
+
+test('native manifest refuses missing identity, cancellation and configuration changes during source reads',async()=>{
+  const missing=fixture();
+  await assert.rejects(missing.server.prepareManagedGraphitiManifest(new AbortController().signal),e=>e.reason==='provider_unavailable');
+  assert.deepEqual(missing.reads,[]);
+  for(const action of ['abort','configuration','source']) {
+    const f=fixture('uid: "019b2d14-4230-7db7-87d4-7d81cfaec932"\r\n');
+    const controller=new AbortController();
+    f.onRead(()=>{
+      if(action==='abort') controller.abort();
+      if(action==='configuration') f.settings.graphitiSagaMapping=true;
+      if(action==='source') f.provider.markChanged('note.md');
+    });
+    await assert.rejects(f.server.prepareManagedGraphitiManifest(controller.signal),e=>e.reason==='provider_unavailable');
+  }
 });
 
 for (const scenario of ["unannounced edit", "revision change", "revocation", "invalid UTF-8", "file replacement", "metadata change"]) {

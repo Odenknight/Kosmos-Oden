@@ -155,6 +155,13 @@ export class VaultDataProvider implements AgentDataProvider {
     }
   }
 
+  captureGraphCurrent(graph: GkxGraph): () => boolean {
+    const revision = this.revision;
+    return () => this.revision === revision && this.index.graph === graph && !this.fullDirty && !this.building &&
+      !this.changedPaths.size && !this.removedPaths.size && !this.renamedPaths.length &&
+      this.projectedSensitivity === this.settings.defaultSensitivity;
+  }
+
   inspectLineage(graph: GkxGraph, sourceNodeId: string, readableNodeIds: ReadonlySet<string>) {
     return this.adapter.inspectScopedLineage(graph, sourceNodeId, readableNodeIds);
   }

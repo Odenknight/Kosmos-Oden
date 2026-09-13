@@ -24,6 +24,8 @@
 import { ProviderError } from "./vault-operations";
 import { projectAtTime, type ProjectableNote, type inspectScopedLineage } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
+import {buildManagedGraphitiManifest, type ManagedGraphitiEpisode} from "gkos-engine/graphiti";
+import {isValidGkxAuthoredUid} from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
 import { ENGINE_VERSION, GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
@@ -331,6 +333,8 @@ export interface AgentDataProvider {
   /** Body from the committed graph's source snapshot; never performs vault I/O. */
   getIndexedBody?(path: string, graph: GkxGraph): string | null;
   getIndexedSourceBytes?(path: string, graph: GkxGraph, maxBytes: number): Promise<Uint8Array | null>;
+  /** Synchronous revision check for a host-held committed snapshot. */
+  captureGraphCurrent?(graph: GkxGraph): () => boolean;
   vaultName(): string;
   /** Opaque stable-ish identity used to disambiguate Graphiti namespaces. */
   vaultIdentity?(): string;
@@ -1201,6 +1205,51 @@ export class KosmosAgentServer {
       this.settings.agentSensitivityCeiling, this.settings.defaultSensitivity];
     const captured = values();
     return () => this.provider === provider && values().every((value, index) => value === captured[index]);
+  }
+
+  /** Native host preparation only. No MCP method exposes this authority closure. */
+  async prepareManagedGraphitiManifest(signal: AbortSignal) {
+    const projectionCurrent = this.captureGraphitiProjection(), provider = this.provider;
+    if (!provider.getIndexedSourceBytes || !provider.captureGraphCurrent) throw new ProviderError("provider_unavailable");
+    const graph = await provider.getGraph(), graphCurrent = provider.captureGraphCurrent(graph);
+    let invalidated = false;
+    const current = () => {
+      if (signal.aborted || !projectionCurrent() || !graphCurrent()) invalidated = true;
+      return !invalidated;
+    };
+    const check = () => { if (!current()) throw new ProviderError("provider_unavailable"); };
+    check();
+    const visible = this.graphForVisibleNodes(graph);
+    // Check the complete count before using the bounded public export reader.
+    const total = buildGraphitiEpisodes(visible, {combinedExtraction:this.settings.graphitiCombinedExtraction,
+      sagaMapping:this.settings.graphitiSagaMapping}).length;
+    if (!total || total > MAX_EPISODES) throw new ProviderError("provider_unavailable");
+    const episodes = await this.qEpisodes();
+    check();
+    if (episodes.length !== total) throw new ProviderError("provider_unavailable");
+    const nodes = new Map(visible.nodes.filter(node => node.kind === "file").map(node => [node.path, node]));
+    const counts = new Map<string, number>();
+    for (const node of graph.nodes) if (node.kind === "file" && node.gkx?.uid) counts.set(node.gkx.uid, (counts.get(node.gkx.uid) ?? 0) + 1);
+    const sources = new Map<string, Uint8Array>();
+    const inputs: Array<{source_id:string; raw:Uint8Array; episode:ManagedGraphitiEpisode}> = [];
+    let remaining = 64 * 1024 * 1024;
+    for (const episode of episodes) {
+      check();
+      const body = JSON.parse(episode.episode_body), path = episode.source === "fact_triple" ? body.source_path : body.path;
+      const node = nodes.get(path), uid = node?.gkx?.uid;
+      if (!uid || !isValidGkxAuthoredUid(uid) || counts.get(uid) !== 1) throw new ProviderError("provider_unavailable");
+      if (!sources.has(path)) {
+        const raw = await provider.getIndexedSourceBytes(path, graph, remaining);
+        check();
+        if (!raw || raw.byteLength > remaining) throw new ProviderError("provider_unavailable");
+        remaining -= raw.byteLength; sources.set(path, new Uint8Array(raw));
+      }
+      inputs.push({source_id:uid, raw:sources.get(path)!, episode:{name:episode.name, episode_body:episode.episode_body,
+        source_description:episode.source_description, reference_time:episode.reference_time}});
+    }
+    const manifest = await buildManagedGraphitiManifest(inputs);
+    check();
+    return {...manifest, episodes:inputs.map(input => input.episode), current};
   }
 
   async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false): Promise<any[]> {
