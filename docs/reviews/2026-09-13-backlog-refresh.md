@@ -34,3 +34,24 @@ of the candidate's `f2bafb7`; the newer pin is retained. The earlier qualificati
 report remains unchanged. Merge resolution changes only documentation relative
 to the previously verified candidate; dependency pin validation passed, and the
 481-test receipt remains scoped to the unchanged executable files.
+
+## Retained host code review
+
+Inspection of PR41's exact head above found that its debouncer, reconciliation
+classifier and self-write ledger are exposed through a test entry point, with no
+production callers in that tree. Copying those files would not wire a host.
+Current Engine owns `ManagedMocCoordinator`; reuse its durable admission and
+recovery boundary when implementing the host. Its revision overflow correction
+is separately documented in the coordinator consumer report.
+
+The retained `src-tauri/src/sidecar.rs` has the following concrete follow-ups:
+
+| Boundary | Source observation | Required repair or qualification |
+| --- | --- | --- |
+| CLI arguments | Launch passes `--notes`, `--status-file`, and `--port`; current Engine accepts these flags | Verify the packaged executable's actual version, identity and behavior; flag compatibility alone is insufficient |
+| Executable discovery | Resource, adjacent-executable and development-state candidates are selected with `is_file()` | Bind the selected binary to the release manifest and reject mismatching bytes before launch |
+| Version discovery | `sidecar_version()` uses synchronous `Command::output()` without a deadline | Bound the probe, terminate/reap a stalled process, and keep the shell responsive |
+| Windows state protection | `owner_only_directory` and `owner_only_file` apply Unix modes but are no-ops on non-Unix platforms | Establish and test Windows ACL policy; inherited permissions have not been inspected and are not proven unsafe or owner-only |
+
+These findings are source review, not Windows runtime acceptance. No sidecar was
+started and no permission or credential configuration was changed by this review.
