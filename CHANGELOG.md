@@ -1,5 +1,13 @@
 # Changelog
 
+## Full comet routes and transport placeholders - 2026-09-13
+
+- Retain bright dust along the whole visited route, separately from the small
+  transient particle ring. Routes stay bright for two minutes after the last
+  visit, then fade together over 30 seconds; point budgets remain bounded.
+- Skip the generic `mcp` placeholder when resolving portrayed agent names,
+  including tool arguments that would otherwise override a named connection.
+
 ## Agent identity follow-up - 2026-09-13
 
 - Agent identity: explicit `agent_name` now takes precedence over connection defaults before registration and admission. The stdio adapter preserves the declared name; invalid names fail before registration.

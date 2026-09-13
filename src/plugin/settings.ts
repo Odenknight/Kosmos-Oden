@@ -101,7 +101,8 @@ with your designated name, then restart the adapter. HTTP clients should send
 \`X-Kosmos-Agent-Name: JEFFREY\` (replace with your name) in their connection
 headers, or the same \`clientInfo.name\` on every request. An explicit
 \`arguments.agent_name\` takes precedence over the connection header and client name;
-the stdio adapter preserves it. Send your portrayed name on each tool call. Alternating a generic \`mcp\` label
+the stdio adapter preserves it. The transport placeholder \`mcp\` is skipped;
+requests with no name display \`Unnamed agent\`. Send your portrayed name on each tool call. Alternating a generic \`mcp\` label
 and a designated name creates separate ships; names never grant authority.
 
 ### Cursor / Windsurf / any Streamable-HTTP MCP client

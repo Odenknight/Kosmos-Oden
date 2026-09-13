@@ -94,7 +94,9 @@ changing its environment.
 Native HTTP MCP clients can configure `X-Kosmos-Agent-Name: JEFFREY` once in their
 HTTP headers. The display name is resolved in this order: the agent's explicit
 `arguments.agent_name`, this connection header, then `clientInfo.name`.
-The stdio adapter preserves an explicit tool-level name. These names grant no permissions.
+The `mcp` transport placeholder (case-insensitive) is skipped at each level;
+it cannot override a configured agent name. If no actual name is supplied,
+the display says `Unnamed agent`. The stdio adapter preserves an explicit tool-level name. These names grant no permissions.
 Without that header, send the same `clientInfo.name` on **every** request.
 Agents can send `arguments.agent_name: "JEFFREY"` on each tool call to portray
 their own identity even when the client identifies itself as `mcp`.

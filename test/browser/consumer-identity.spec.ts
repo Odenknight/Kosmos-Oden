@@ -59,7 +59,7 @@ test('stable identity survives the versioned embed request-to-render adapter', a
   expect(diagnostics.agentTraversalAgents).toBe(2);
 });
 
-test('busy trails retain segments for 30 seconds and idle agents fade with heartbeat recovery', async ({ page }) => {
+test('busy trails retain route dust for two minutes and idle agents fade with heartbeat recovery', async ({ page }) => {
   await page.goto('/dist/kosmos-embed.html?capture=1&seed=1907&time=0&animation=off');
   await page.evaluate(() => window.postMessage({
     protocol: 'kosmos-oden', version: 1, type: 'vault-snapshot',
@@ -81,7 +81,10 @@ test('busy trails retain segments for 30 seconds and idle agents fade with heart
   });
   await page.evaluate(() => { (window as any).agentTimeOffset = 29000; });
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(39);
-  await page.evaluate(() => { (window as any).agentTimeOffset = 36000; });
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentRouteDustParticles)).toBeGreaterThan(39);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 119000; });
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentRouteDustParticles)).toBeGreaterThan(39);
+  await page.evaluate(() => { (window as any).agentTimeOffset = 151000; });
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTrailSegments)).toBe(0);
   await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops)).toBe(0);
   await expect(page.locator('.agent-name').filter({ hasText: 'Codex Game Research' })).toHaveCount(1);

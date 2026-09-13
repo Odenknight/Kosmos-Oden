@@ -224,8 +224,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 4096; // bounded history for bursts of search results
-  const AGENT_TRAIL_MS = 30000;
-  const AGENT_TRAIL_FADE_MS = 5000;
+  const AGENT_TRAIL_MS = 120000;
+  const AGENT_TRAIL_FADE_MS = 30000;
   const AGENT_IDLE_MS = 120000;
   const AGENT_FADE_MS = 30000;
   let agentSegments: Array<{ from: string; to: string; t: number; agent: string }> = [];
@@ -1495,7 +1495,17 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
     const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3;
     world.add(mesh);
-    agentTrail = { geo, pos, col, cap, mesh };
+    // Persistent route dust is separate from the short-lived head particle ring.
+    // Share its shader, but reserve samples for every retained segment.
+    const dustCap = MOBILE ? 8192 : 32768, dustGeo = keep(new THREE.BufferGeometry());
+    const dustPos = new Float32Array(dustCap * 3), dustCol = new Float32Array(dustCap * 3);
+    const dustAlpha = new Float32Array(dustCap), dustSize = new Float32Array(dustCap);
+    for (const [name, data, itemSize] of [["position", dustPos, 3], ["color", dustCol, 3], ["aAlpha", dustAlpha, 1], ["aSize", dustSize, 1]] as const)
+      dustGeo.setAttribute(name, new THREE.BufferAttribute(data, itemSize).setUsage(THREE.DynamicDrawUsage));
+    dustGeo.setDrawRange(0, 0);
+    const dustMesh = new THREE.Points(dustGeo, ensureAgentDust().points.material);
+    dustMesh.frustumCulled = false; dustMesh.renderOrder = 4; world.add(dustMesh);
+    agentTrail = { geo, pos, col, cap, mesh, dustCap, dustGeo, dustPos, dustCol, dustAlpha, dustSize, dustMesh };
     return agentTrail;
   }
   /** GPU point pool for the comet tail and residual snow-dust. Particles are
@@ -1547,12 +1557,13 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
   /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
   function updateAgentTrail(): void {
-    if (!agentSteps.length && !agentSegments.length) { if (agentTrail) agentTrail.geo.setDrawRange(0, 0); updateAgentMarkers(); return; }
+    if (!agentSteps.length && !agentSegments.length) { if (agentTrail) { agentTrail.geo.setDrawRange(0, 0); agentTrail.dustGeo.setDrawRange(0, 0); } updateAgentMarkers(); return; }
     const now = performance.now();
     agentSteps = agentSteps.filter((s) => now - s.t < AGENT_TRAIL_MS && idToRender.has(s.id));
     refreshAgentLive(now);
     agentSegments = agentSegments.filter(s => now - s.t < AGENT_TRAIL_MS + AGENT_TRAIL_FADE_MS);
-    const T = ensureAgentTrail(); let v = 0;
+    const T = ensureAgentTrail(); let v = 0, dustCount = 0;
+    const samples = Math.min(128, Math.floor(T.dustCap / Math.max(1, agentSegments.length)));
     for (const segment of agentSegments) {
       const a = idToRender.get(segment.from), b = idToRender.get(segment.to);
       if (!a || !b) continue;
@@ -1560,8 +1571,20 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const [cr, cg, cb] = agentColor(segment.agent).rgb;
       T.pos[o] = pa[0]; T.pos[o + 1] = pa[1]; T.pos[o + 2] = pa[2]; T.pos[o + 3] = pb[0]; T.pos[o + 4] = pb[1]; T.pos[o + 5] = pb[2];
       T.col[o] = cr * f; T.col[o + 1] = cg * f; T.col[o + 2] = cb * f; T.col[o + 3] = cr * f; T.col[o + 4] = cg * f; T.col[o + 5] = cb * f;
+      for (let i = 0; i < samples; i++) {
+        const u = samples > 1 ? i / (samples - 1) : .5, d = dustCount++, j = d * 3;
+        const spread = Math.max(.2, cam.radius * .00045), angle = i * 2.399963;
+        const jitter = Math.sin(i * 17.3) * spread;
+        T.dustPos[j] = pa[0] + (pb[0] - pa[0]) * u + Math.cos(angle) * jitter;
+        T.dustPos[j + 1] = pa[1] + (pb[1] - pa[1]) * u + Math.sin(angle) * jitter;
+        T.dustPos[j + 2] = pa[2] + (pb[2] - pa[2]) * u;
+        T.dustCol[j] = cr; T.dustCol[j + 1] = cg; T.dustCol[j + 2] = cb;
+        T.dustAlpha[d] = f * .8; T.dustSize[d] = (LOWPOWER ? 4 : 5) + (i % 3);
+      }
       v++;
     }
+    for (const attr of Object.values(T.dustGeo.attributes) as any[]) attr.needsUpdate = true;
+    T.dustGeo.setDrawRange(0, dustCount);
     T.geo.attributes.position.needsUpdate = true; T.geo.attributes.color.needsUpdate = true; T.geo.setDrawRange(0, v * 2);
     updateAgentMarkers();
   }
@@ -1683,6 +1706,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
     }
     if (!touched) return;
+    // Keep the route from its source while this agent continues travelling.
+    for (const segment of agentSegments) if (segment.agent === who) segment.t = now;
     refreshAgentLive(now); updateAgentTrail();
     updateTrafficHeat(true);
     const label = replay ? `Replay · ${displayLabel}` : (displayLabel === DEFAULT_AGENT ? "Agent traversal" : displayLabel + " traversal");
@@ -1694,7 +1719,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     agentHeads.clear();
     for (const id of __agentLive) { liveIds.delete(id); agentIds.delete(id); }
     __agentLive.clear();
-    if (agentTrail) agentTrail.geo.setDrawRange(0, 0);
+    if (agentTrail) { agentTrail.geo.setDrawRange(0, 0); agentTrail.dustGeo.setDrawRange(0, 0); }
     if (agentDust) {
       agentDust.alpha.fill(0); agentDust.active = 0;
       agentDust.geo.attributes.aAlpha.needsUpdate = true;
@@ -2173,7 +2198,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setTrafficHeatmapEnabled,
     clearTrafficHeatmap,
     setHostVisible,
-    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTrailSegments: agentSegments.length, agentTraversalHops: agentSteps.length, agentTraversalAgents: new Set(agentSteps.map(s => s.agent)).size, agentColorCacheEntries: __agentColors.size, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
+    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTrailSegments: agentSegments.length, agentTraversalHops: agentSteps.length, agentTraversalAgents: new Set(agentSteps.map(s => s.agent)).size, agentColorCacheEntries: __agentColors.size, agentDustParticles: agentDust?.active ?? 0, agentRouteDustParticles: agentTrail?.dustGeo.drawRange.count ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running, drawCalls: renderer.info.render.calls }; },
     showError: showFatal,
     showHint,

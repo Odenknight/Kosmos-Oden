@@ -553,14 +553,14 @@ test("agent api", async (t) => {
     const headers = { "X-Kosmos-Agent-Name": "JEFFREY" };
     for (const client of ["mcp", "jeffrey"]) {
       const r = await mcp({ jsonrpc: "2.0", id: 881, method: "tools/call",
-        params: { name: "get_note", arguments: { title: "Engine v2" } } }, { client, headers });
+        params: { name: "get_note", arguments: { title: "Engine v2", agent_name: "mcp" } } }, { client, headers });
       assert.equal(r.json().result.isError, false);
     }
     await mcp({ jsonrpc: "2.0", id: 882, method: "tools/call", params: { name: "vault_overview", arguments: {} } }, { client: "mcp", headers });
     assert.equal(seen.length, 3);
     assert.ok(seen.every(e => e.agent === "JEFFREY" && e.agentId === seen[0].agentId));
     await mcp({ jsonrpc: "2.0", id: 883, method: "tools/call", params: { name: "vault_overview", arguments: {} } }, { client: "mcp" });
-    assert.equal(seen[3].agent, "mcp");
+    assert.equal(seen[3].agent, "Unnamed agent");
     assert.notEqual(seen[3].agentId, seen[0].agentId);
     const invalid = await mcp({ jsonrpc: "2.0", id: 884, method: "server/discover" }, { headers: { "X-Kosmos-Agent-Name": "x".repeat(81) } });
     assert.equal(invalid.json().error.code, -32602);

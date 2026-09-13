@@ -454,13 +454,17 @@ export class KosmosAgentServer {
     } catch (_) { return null; }
   }
 
-  /** Identity of a modern MCP caller, from the request body's `_meta`. */
+  /** Transport placeholders are not portrayed agent names. */
+  private displayAgentName(...names: unknown[]): string {
+    return names.find((name): name is string => typeof name === "string" && !!name.trim() && name.trim().toLowerCase() !== "mcp") || "Unnamed agent";
+  }
+
+  /** Identity of a modern MCP caller, resolved before registration. */
   mcpIdentity(parsed: any, req: any): { agent: string; agentId?: string; agentOverride?: string } {
     const info = parsed?.params?._meta?.[MCP_META_CLIENT_INFO];
     const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
-    const agentOverride = declared ?? req?.headers?.["x-kosmos-agent-name"];
-    const name = agentOverride ?? (info && typeof info === "object" && typeof info.name === "string" ? info.name : "");
-    if (!name.trim()) return { agent: this.agentLabel(req) };
+    const agentOverride = this.displayAgentName(declared, req?.headers?.["x-kosmos-agent-name"], info?.name);
+    const name = agentOverride;
     const key = this.registerSession(name, MODERN_MCP_PROTOCOL_VERSION);
     const rec = this.getSession(key);
     return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId, agentOverride };
@@ -1328,7 +1332,7 @@ export class KosmosAgentServer {
   async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true, agentOverride?: string): Promise<any> {
     args = this.validateToolArgs(name, args || {});
     if (agentOverride || args.agent_name) {
-      const key = this.registerSession(args.agent_name || agentOverride, MODERN_MCP_PROTOCOL_VERSION);
+      const key = this.registerSession(this.displayAgentName(args.agent_name, agentOverride, agent), MODERN_MCP_PROTOCOL_VERSION);
       const session = this.getSession(key);
       agent = session!.name; agentId = session!.visualId;
     }
