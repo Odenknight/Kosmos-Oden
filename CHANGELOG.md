@@ -1,5 +1,12 @@
 # Changelog
 
+## Graphiti recovery consumer - 2026-09-13
+
+- Pin the Engine query-contract/recovery source and consume its packaged
+  contract fixture. Exported Python scripts now support explicit FalkorDB
+  read-only reconciliation; ordinary traversal and semantic search status are
+  unchanged. Recovery observations never grant retry or publication authority.
+
 ## Full comet routes and transport placeholders - 2026-09-13
 
 - Retain bright dust along the whole visited route, separately from the small

@@ -17,7 +17,7 @@ read-only, and the standalone viewer works without Obsidian or the internet.
 
 > **Version 0.8.3 candidate:** adds modern MCP 2026-07-28 and preserves Engine
 > adapter sensitivity policy. Uses the TypeScript GKOS-Engine 2.2.0 development candidate
-> at exact commit `f39cccbacd5d2469b5e17dc0c1ef81d8d59cd9c4`. This update preserves the
+> at exact commit `25208e014e001f95b7660165618cc337af960dbe`. This update preserves the
 > existing plugin and standalone workflows, repairs overlapping vault updates,
 > and hardens local service connections. It includes no Rust build.
 > Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
@@ -206,7 +206,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`f39cccbacd5d2469b5e17dc0c1ef81d8d59cd9c4`. Its Effects contract says
+`25208e014e001f95b7660165618cc337af960dbe`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
