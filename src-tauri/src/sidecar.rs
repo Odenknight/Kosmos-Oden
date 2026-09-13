@@ -255,13 +255,16 @@ fn discover_sidecar(app: &AppHandle, state_root: &Path) -> Option<PathBuf> {
     // Development-only placement; package assembly never writes credentials here.
     candidates.push(state_root.join("bin").join(binary));
     let release = crate::sidecar_release::Release::embedded()?;
-    candidates.into_iter().find(|path| release.verify(path).is_some())
+    candidates
+        .into_iter()
+        .find(|path| release.verify(path).is_some())
 }
 
 fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
     let release = crate::sidecar_release::Release::embedded()
         .ok_or_else(|| "sidecar release identity is unavailable".to_string())?;
-    let _verified = release.verify(executable)
+    let _verified = release
+        .verify(executable)
         .ok_or_else(|| "sidecar release identity does not match".to_string())?;
     let corpus = inner
         .corpus

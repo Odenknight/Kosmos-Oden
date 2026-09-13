@@ -20,3 +20,11 @@ manifest generation, actual executable launch, ancestor replacement/reparse-poin
 tests, non-Windows race behavior, hash-work responsiveness, Windows state ACLs,
 and the canonical viewer build remain unqualified. The temporary generated
 frontend used for Rust tests is explicitly a test fixture, not the viewer.
+
+Start, reconnect, stop, status and version IPC commands now run on a blocking
+worker with one-operation admission. The worker retains admission until it exits,
+even if its caller disappears; additional requests receive a busy error. A panic
+cleanup fixture verifies subsequent admission. Startup discovery, diagnostics
+and application shutdown still require responsiveness/lifecycle review. This
+change does not yet establish a responsive complete shell or cancellation of
+an in-progress filesystem operation.

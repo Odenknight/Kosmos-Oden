@@ -5,6 +5,10 @@ use serde::Serialize;
 use sidecar::{SidecarStatus, Supervisor};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use tauri::{Manager, State};
 
 const SERVICE_URL: &str = "http://127.0.0.1:4814";
@@ -12,6 +16,37 @@ const SERVICE_URL: &str = "http://127.0.0.1:4814";
 struct DesktopState {
     supervisor: Supervisor,
     state_root: PathBuf,
+    busy: Arc<AtomicBool>,
+}
+
+struct SidecarAdmission(Arc<AtomicBool>);
+impl SidecarAdmission {
+    fn acquire(busy: &Arc<AtomicBool>) -> Result<Self, String> {
+        busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "sidecar operation is busy".to_string())?;
+        Ok(Self(Arc::clone(busy)))
+    }
+}
+impl Drop for SidecarAdmission {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+async fn sidecar_operation<T: Send + 'static>(
+    state: State<'_, DesktopState>,
+    operation: impl FnOnce(Supervisor, PathBuf) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let admission = SidecarAdmission::acquire(&state.busy)?;
+    let supervisor = state.supervisor.clone();
+    let root = state.state_root.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        // The physical worker owns admission even if the IPC caller goes away.
+        let _admission = admission;
+        operation(supervisor, root)
+    })
+    .await
+    .map_err(|_| "sidecar operation failed".to_string())?
 }
 
 impl Drop for DesktopState {
@@ -40,24 +75,29 @@ fn choose_corpus() -> Option<String> {
 }
 
 #[tauri::command]
-fn start_sidecar(corpus: String, state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
-    let corpus = canonical_corpus(&corpus)?;
-    state.supervisor.start(corpus, &state.state_root)
+async fn start_sidecar(
+    corpus: String,
+    state: State<'_, DesktopState>,
+) -> Result<SidecarStatus, String> {
+    sidecar_operation(state, move |supervisor, root| {
+        supervisor.start(canonical_corpus(&corpus)?, &root)
+    })
+    .await
 }
 
 #[tauri::command]
-fn stop_sidecar(state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
-    state.supervisor.stop()
+async fn stop_sidecar(state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
+    sidecar_operation(state, |supervisor, _| supervisor.stop()).await
 }
 
 #[tauri::command]
-fn reconnect_sidecar(state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
-    state.supervisor.reconnect(&state.state_root)
+async fn reconnect_sidecar(state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
+    sidecar_operation(state, |supervisor, root| supervisor.reconnect(&root)).await
 }
 
 #[tauri::command]
-fn sidecar_status(state: State<'_, DesktopState>) -> SidecarStatus {
-    state.supervisor.status()
+async fn sidecar_status(state: State<'_, DesktopState>) -> Result<SidecarStatus, String> {
+    sidecar_operation(state, |supervisor, _| Ok(supervisor.status())).await
 }
 
 /// The credential crosses only Tauri's invoke IPC and is never included in a
@@ -75,15 +115,18 @@ fn take_viewer_token(state: State<'_, DesktopState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn version_info(state: State<'_, DesktopState>) -> VersionInfo {
-    VersionInfo {
-        shell_version: env!("CARGO_PKG_VERSION"),
-        viewer_version: env!("CARGO_PKG_VERSION"),
-        service_url: SERVICE_URL,
-        sidecar_available: state.supervisor.sidecar_path().is_some(),
-        sidecar_version: state.supervisor.sidecar_version(),
-        release_status: "internal-alpha",
-    }
+async fn version_info(state: State<'_, DesktopState>) -> Result<VersionInfo, String> {
+    sidecar_operation(state, |supervisor, _| {
+        Ok(VersionInfo {
+            shell_version: env!("CARGO_PKG_VERSION"),
+            viewer_version: env!("CARGO_PKG_VERSION"),
+            service_url: SERVICE_URL,
+            sidecar_available: supervisor.sidecar_path().is_some(),
+            sidecar_version: supervisor.sidecar_version(),
+            release_status: "internal-alpha",
+        })
+    })
+    .await
 }
 
 #[tauri::command]
@@ -138,6 +181,7 @@ pub fn run() {
             app.manage(DesktopState {
                 supervisor,
                 state_root,
+                busy: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })
@@ -179,6 +223,22 @@ fn owner_only_directory(path: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sidecar_worker_retains_admission_until_exit_including_panic() {
+        let busy = Arc::new(AtomicBool::new(false));
+        let admission = SidecarAdmission::acquire(&busy).unwrap();
+        let (release, wait) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _admission = admission;
+            wait.recv().unwrap();
+            panic!("synthetic worker failure");
+        });
+        assert!(SidecarAdmission::acquire(&busy).is_err());
+        release.send(()).unwrap();
+        assert!(worker.join().is_err());
+        assert!(SidecarAdmission::acquire(&busy).is_ok());
+    }
 
     #[test]
     fn rejects_missing_corpus() {
