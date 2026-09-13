@@ -225,3 +225,12 @@ status showed `serving`, and the corrected test passed. This receipt proves
 helper-level process startup only: it does not exercise Supervisor discovery,
 restarts, native UI, or indexed-note retrieval. The synthetic plain Markdown note
 was not an accepted indexed-document fixture. These remain separate gates.
+
+The process fixture now uses the accepted GKX 2.3 frontmatter shape from Engine's
+watcher CLI tests and requires exactly one indexed document. It also requests the
+live loopback `/graph`: no credential returns 401; the native-read viewer token
+returns 200 with `synthetic.md` in graph nodes. Both checks passed against the
+verified binary. Requests have connection/read/write bounds and response-size
+limits; no token is printed. The child was absent afterward, source manifest null,
+and all-target clippy passes. This adds actual indexed graph retrieval evidence;
+Supervisor lifecycle, native UI and full cross-service authorization remain open.
