@@ -8,6 +8,13 @@
 - Reconcile the Graphiti roadmap with published hive/Observatory experiment
   receipts; correct current Engine pin and Graphiti settings descriptions.
 
+## 0.8.3 candidate comet visibility — 2026-09-13
+
+- Refresh GPU particle size/colour on later traversals; render brighter,
+  denser comet dust with white cores, coloured halos and slower fading.
+- Keep dust visible at overview zoom and soften the straight breadcrumb line.
+  Existing desktop/mobile particle bounds and independent agent colours remain.
+
 ## 0.8.3 candidate bugfixes — 2026-09-12
 
 - Pin the Engine Graphiti 0.30.2 adapter and reuse its persistence-checked
