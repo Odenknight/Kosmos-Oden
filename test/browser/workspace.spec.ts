@@ -24,8 +24,9 @@ test.beforeEach(async ({ page }) => {
         w.calls.push({ path, options });
         if (w.slowRead && path === "Alpha.md") await new Promise(resolve => { w.waits.read = resolve; });
         const content = options.offset ? "Second page" : '# Safe heading\n\n**Readable** ![alt](https://invalid.test/a.png) <img src="https://invalid.test/b.png"> [click](javascript:alert(1)) ![[Secret]]';
-        return snapshot({ note: { title: path, path, sensitivity: "public", content,
+        return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
+          related:{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
           projection: { authored: ["authored only"], derived: ["derived only"], proposed: ["proposed only"], approved: ["approved only"], effective: ["effective only"] } });
       },
     };
@@ -105,4 +106,13 @@ test("search result continuation and return to the first page", async ({ page })
   await expect(page.getByRole("button", { name:"First", exact:true })).toHaveCount(0);
   await page.getByRole("button", { name:"Back to first results", exact:true }).click();
   await expect(page.getByRole("button", { name:"First", exact:true })).toBeVisible();
+});
+
+test("inspector navigation tags and readable links use the checked selection flow", async ({page})=>{
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Navigation tags',exact:true})).toBeVisible();
+  await expect(page.getByText('navigation-only',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Related Beta',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Beta.md',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).calls.at(-1).path)).toBe('Beta.md');
 });

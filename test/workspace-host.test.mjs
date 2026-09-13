@@ -112,3 +112,15 @@ test('search continuation rejects revocation before or during the next page',asy
     await assert.rejects(first.next());
   }
 });
+
+test('Notes exposes only readable neighbors and keeps navigation tags out of effective labels',async()=>{
+  const f=fixture([{relativePath:'Links.md',content:'---\ngkx_version: "2.2"\nuid: links-fixture\ntype: semantic\nsensitivity: public\ntags: [navigation-only]\n---\n[[Public]] and [[Hidden]]'}]);
+  const {note,projection,related}=(await f.host.read('Links.md')).value;
+  assert.deepEqual(note.tags,['navigation-only']);
+  assert.equal(projection.effective.labels.includes('navigation-only'),false);
+  assert.deepEqual(related.outgoing.map(n=>n.path),['Public.md']);
+  assert.equal(JSON.stringify(related).includes('Hidden.md'),false);
+  // The author-written reference stays in permitted source content; it is not
+  // resolved into hidden neighbor metadata or a navigation result.
+  assert.ok(note.content.includes('[[Hidden]]'));
+});

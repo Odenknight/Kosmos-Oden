@@ -76,7 +76,8 @@ export class NotesWorkspaceHost {
       if (note.error) return { note, projection: null };
       if (note.path !== path) throw new Error("WORKSPACE_PATH_MISMATCH");
       const projection = await this.api.qGkxNote({ path });
-      return { note, projection: projection.error ? null : projection };
+      const related = await this.api.qRelated({ path });
+      return { note, projection: projection.error ? null : projection, related: related.error ? null : related };
     });
   }
 }

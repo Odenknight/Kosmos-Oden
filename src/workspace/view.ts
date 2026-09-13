@@ -32,10 +32,14 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const pending = notes.select(async () => {
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
       const fragment = doc.createDocumentFragment(), { note, projection } = snapshot.value;
+      const related = "related" in snapshot.value ? snapshot.value.related : null;
       if (note.error) {
         fragment.append(element("p", note.code === "NOTE_REVISION_CHANGED" ? "Note changed. Reopen it from the results." : "Note unavailable in the current scope."));
       } else {
         fragment.append(element("h2", note.title), element("p", `${note.path} · ${note.sensitivity}`));
+        const tags: string[] = note.tags ?? [];
+        fragment.append(element("h3", "Navigation tags"), element("p", tags.length ? tags.slice(0, 100).join(", ") : "None recorded"));
+        if (tags.length > 100) fragment.append(element("p", `Showing 100 of ${tags.length} navigation tags.`));
         fragment.append(button("Open source in Obsidian", () => {
           void snapshot.publish(() => actions.openSource(note.path), () => !closed && notes.version === version && preview.dataset.path === path)
             .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; })
@@ -49,6 +53,16 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
         fragment.append(element("p", `Characters ${continuation.offset}–${continuation.offset + note.content.length} of ${continuation.total_characters}${continuation.complete ? " · End of note" : " · More available"}`));
         if (continuation.next_offset !== null) fragment.append(button("Read next part", () => void show(path, { offset: continuation.next_offset, revision: continuation.revision })));
         if (continuation.offset > 0) fragment.append(button("Back to start", () => void show(path)));
+        if (related) for (const [key, label] of [["outgoing", "Outgoing links"], ["backlinks", "Backlinks"], ["semantic", "Semantic links"]] as const) {
+          const links: Array<{ title: string; path: string }> = related[key];
+          const section = element("section"); section.append(element("h3", label));
+          if (!links.length) section.append(element("p", "No readable links"));
+          for (const link of links.slice(0, 100)) {
+            const item = button(link.title, () => void show(link.path)); item.title = link.path; section.append(item);
+          }
+          if (links.length > 100) section.append(element("p", `Showing 100 of ${links.length} readable links. Narrow the search to inspect further notes.`));
+          fragment.append(section);
+        }
         if (!projection) fragment.append(element("p", "No GKX provenance projection is available."));
         else for (const origin of ["authored", "derived", "proposed", "approved", "effective"] as const) {
           const details = element("details"); details.append(element("summary", origin[0].toUpperCase() + origin.slice(1)));

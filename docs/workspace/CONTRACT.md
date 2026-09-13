@@ -101,3 +101,14 @@ subsequently qualifies plugin registration, preview, source opening and
 close/reopen on clean candidate `c5b7b7f`. The prior temporary probes remain
 historical evidence. Cold process start, negative authorization, the remaining
 fixture matrix and the default transition retain their separate gates.
+
+## Inspector navigation follow-up
+
+The inspector now displays navigation tags separately from Engine assessment
+labels and exposes outgoing links, backlinks and semantic links from the existing
+policy-filtered related-note query. Following a link uses the same authorized
+read/selection path as a search result. Author-written references in a readable
+body are preserved; hidden targets are not resolved into neighbor metadata.
+Each link group and the tag list display at most 100 entries with explicit
+truncation text. Eleven host checks and 24 browser checks pass for this follow-up;
+it is not part of the previously installed `c5b7b7f` native receipt.
