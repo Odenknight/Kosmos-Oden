@@ -136,7 +136,8 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
       } finally { closeSync(fd); }
       const raw = buffer.subarray(0, length);
       if (raw.length > 65536) { report(file, "oversized"); return []; }
-      try { return [{ file, data: JSON.parse(raw.toString("utf8").replace(/^\uFEFF/, "")), sha256: createHash("sha256").update(raw).digest("hex") }]; }
+      // Reject corrupt UTF-8 instead of silently replacing bytes before parsing.
+      try { return [{ file, data: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw)), sha256: createHash("sha256").update(raw).digest("hex") }]; }
       catch { report(file, "invalid-json"); return []; }
     });
   };

@@ -114,6 +114,34 @@ test("mailbox envelope reads enforce the exact 64 KiB boundary", () => {
   assert.deepEqual(report.findings,[{file:"messages/alice/alice-000001-sized.json",code:"oversized"}]);
 });
 
+test("message and ACK decoding rejects corrupt UTF-8 without rewriting delivered bytes", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-utf8-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  mkdirSync(join(root,"acks/bob"),{recursive:true});
+  const message={sender:"alice",recipients:["bob"],sender_seq:1,message_id:"utf8",prev_message_sha256:null,payload:{subject:"MARKER"}};
+  const ack={recipient:"bob",sender:"alice",message_id:"utf8",status:"RECEIVED",reason:"MARKER"};
+  const messagePath=join(root,"messages/alice/alice-000001-utf8.json");
+  const ackPath=join(root,"acks/bob/bob-000001-ack-utf8.json");
+  for (const invalid of [[0xff],[0xc0,0xaf],[0xed,0xa0,0x80],[0xe2,0x82]]) {
+    const raws=[message,ack].map(value => {
+      const [before,after]=JSON.stringify(value).split("MARKER");
+      return Buffer.concat([Buffer.from(before),Buffer.from(invalid),Buffer.from(after)]);
+    });
+    writeFileSync(messagePath,raws[0]); writeFileSync(ackPath,raws[1]);
+    const report=auditMailbox(root,"bob");
+    assert.equal(report.messageCount,0); assert.equal(report.acknowledgements.length,0);
+    assert.equal(report.findings.filter(x=>x.code==="invalid-json").length,2);
+    assert.deepEqual(readFileSync(messagePath),raws[0]); assert.deepEqual(readFileSync(ackPath),raws[1]);
+  }
+  // An actual replacement character is valid text; a BOM is retained in the hash.
+  const valid=Buffer.concat([Buffer.from([0xef,0xbb,0xbf]),Buffer.from(JSON.stringify({...message,payload:{subject:"� 😀"}}))]);
+  writeFileSync(messagePath,valid); unlinkSync(ackPath);
+  const report=auditMailbox(root,"bob");
+  assert.equal(report.messageCount,1);
+  assert.equal(report.inbox[0].sha256,createHash("sha256").update(valid).digest("hex"));
+  assert.equal(report.findings.some(x=>x.code==="invalid-json"),false);
+});
+
 
 test("bundle verification checks members without claiming an unbound manifest authentic", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-bundle-"));

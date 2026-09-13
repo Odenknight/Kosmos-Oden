@@ -4,7 +4,7 @@ The read-only `scripts/audit-mailbox.mjs ROOT RECIPIENT` selects an explicit
 recipient ACK directory and hashes exact message bytes. Its output is an audit,
 not work acceptance. Every ACK keeps `completionVerified: false`.
 
-The current nine synthetic tests cover:
+The current eleven synthetic tests cover:
 
 - Multiple recipients, raw-byte hashes, inverted roles, missing completion evidence,
   malformed delivered JSON, and invalid recipient path input.
@@ -81,3 +81,11 @@ malformed manifest digest, and a changed member under an unchanged manifest.
 The mailbox CLI does not synthesize this argument from current files; historical
 unbound references remain unbound. This helper capability is not a protocol
 extension or automatic manifest-authentication claim.
+
+Envelope decoding now rejects malformed UTF-8 before JSON parsing instead of
+silently replacing corrupt bytes. Eleven focused tests pass, including malformed
+message and ACK text, overlong encodings, encoded surrogates and truncated
+multibyte sequences. Delivered files remain byte-identical. A valid literal
+replacement character and an optional leading UTF-8 BOM remain accepted, with
+the BOM included in the raw-byte digest. This closes a decoding defect; full
+M1 qualification and the outstanding reconciliation checks remain open.
