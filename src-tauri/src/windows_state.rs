@@ -106,7 +106,11 @@ impl User {
 fn open(path: &Path, directory: bool) -> io::Result<File> {
     let file = OpenOptions::new()
         .access_mode(READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA)
-        .share_mode(FILE_SHARE_READ)
+        .share_mode(if directory {
+            FILE_SHARE_READ | FILE_SHARE_WRITE
+        } else {
+            FILE_SHARE_READ
+        })
         .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
         .open(path)?;
     validate_handle(&file, path, directory)?;
@@ -307,6 +311,27 @@ pub fn read_credential(path: &Path) -> Result<String, String> {
 mod tests {
     use super::*;
     static FILESYSTEM_TEST: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    #[test]
+    fn launch_guard_allows_child_status_publication() {
+        let _serial = FILESYSTEM_TEST.lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-native-publication-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _guard = ensure(&root).unwrap();
+        let temporary = root.join("status.pending");
+        let destination = root.join("status.json");
+        fs::write(&temporary, b"synthetic-status").unwrap();
+        fs::rename(&temporary, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"synthetic-status");
+        fs::write(&temporary, b"synthetic-update").unwrap();
+        fs::rename(&temporary, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"synthetic-update");
+    }
     #[test]
     fn log_handles_append_and_refuse_aliases_before_writing() {
         let _serial = FILESYSTEM_TEST.lock().unwrap();

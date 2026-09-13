@@ -196,3 +196,13 @@ the temporary parent are serialized because retained parent handles otherwise
 interfere with sibling rename fixtures; the initial failure receipt is retained.
 Actual child startup and its atomic status/token writes still require qualification
 against the lifetime of the retained launch guards.
+
+A synthetic publication fixture reproduced a sharing violation when state
+handles allowed only read sharing: renaming a temporary child to its status name
+failed while the launch guard was held. Directory handles now allow read/write
+sharing but continue to omit delete sharing. File handles remain read-share only.
+The 15-test suite proves first publication and replacement of a status file work
+with retained guards, while the existing state-directory rename refusal and
+credential/log protection tests still pass. The initial failure receipt remains
+historical evidence. This fixes the demonstrated guard conflict; actual Engine
+process startup and native UI qualification are still required.
