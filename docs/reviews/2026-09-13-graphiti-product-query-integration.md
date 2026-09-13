@@ -80,3 +80,13 @@ and returned query contract were also reconciled locally. Private deployment rec
 remain in the operator's local records. This advances backend qualification; the
 upstream Engine adapter, native client and actual vault scope still require integration
 and acceptance. The installed plugin and this consumer's Engine pin are unchanged.
+
+The deployed synthetic reader is now connected through `createServiceGraphitiHost`
+and the authenticated Engine query/status routes. A resident private ledger
+inspector reduced repeated-interpreter overhead: five end-to-end gateway queries
+took 392–403 ms, versus an initial 14-second result. Mutating the synthetic source
+disabled readiness and queries; restoring its exact bytes recovered readiness.
+Restarting the reader replaced the reader, inspector and gateway processes and
+restored the expected query result. These are one-source synthetic measurements,
+not the outstanding large-vault latency or soak qualification. Native-client and
+actual vault-scope acceptance remain open.
