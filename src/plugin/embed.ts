@@ -96,6 +96,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       if (msg.type === "readable-graph") {
         if (msg.payload.generation <= projectionGeneration) return;
         const graph = readableSpatialGraph(msg.payload.graph);
+        app.clearSelection();
         app.clearTraversalObservability();
         app.setAttachments([]);
         index.setFiles([], [], []);

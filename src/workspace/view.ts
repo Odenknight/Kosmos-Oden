@@ -3,7 +3,7 @@ import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
 
 export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspaceHost, "search" | "read">,
-  actions: { openSource(path: string): void; openKosmos(): void; stateChanged?(): void }) {
+  actions: { openSource(path: string): void; openKosmos(path?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
   let selectedPath: string | undefined;
@@ -15,7 +15,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     const node = element("button", label); node.type = "button"; node.addEventListener("click", action); return node;
   };
   const toolbar = element("div"); toolbar.className = "kosmos-notes-toolbar";
-  toolbar.append(element("strong", "Notes"), button("Kosmos", actions.openKosmos));
+  toolbar.append(element("strong", "Notes"), button("Kosmos", () => actions.openKosmos()));
   const query = element("input"); query.type = "search"; query.placeholder = "Search readable notes";
   query.setAttribute("aria-label", "Search readable notes");
   const tag = element("input"); tag.placeholder = "Navigation tag (optional)"; tag.setAttribute("aria-label", "Navigation tag");
@@ -47,6 +47,11 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
           void snapshot.publish(() => actions.openSource(note.path), () => !closed && notes.version === version && preview.dataset.path === path)
             .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; })
             .catch(() => { if (!closed && notes.version === version) status.textContent = "Source changed or is unavailable. Search again."; });
+        }));
+        fragment.append(button("Locate in Kosmos", () => {
+          void snapshot.publish(() => actions.openKosmos(note.path), () => !closed && notes.version === version && preview.dataset.path === path)
+            .then(opened => { if (!opened && !closed && notes.version === version) status.textContent = "Note or scope changed. Select it again."; })
+            .catch(() => { if (!closed && notes.version === version) status.textContent = "Note location unavailable. Retry."; });
         }));
         const content = element("article"); content.className = "markdown-rendered";
         // Only our HTML-disabled, resource-free parser produces this HTML.

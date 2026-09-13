@@ -33,6 +33,17 @@ observe the actual inspector after current, stale and missing selections;
 16 protocol checks, build and typecheck pass. Native host issuance, selection
 reauthorization and projection invalidation are still required.
 
+Native wiring candidate: Notes now opens `kosmos-oden-readable-view`, and its
+selected-note action reauthorizes before activation. That view captures the
+readable graph, validates it, and posts projection plus selection synchronously
+inside the final publication callback. It clears the displayed projection before
+vault or settings refresh, updates selection paths on rename, and mediates source
+opening through the captured graph. The historical Kosmos view types remain
+registered. This new view does not yet qualify the full shared spatial track:
+native installed lifecycle, revocation, source-opening and selection observation
+remain required. Full verification passed 450 tests before the final inspector
+clear; final build/typecheck and 48 Notes/embed browser checks pass.
+
 The current Notes host captures `qGraph()` with committed corpus, graph object,
 default sensitivity and visibility ceiling checks. That query returns readable
 note summaries and links whose two endpoints are readable. It does not return

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve("dist/kosmos-notes-workspace.js") });
   await page.evaluate(() => {
     const w = window as any;
-    w.calls = []; w.authorized = true; w.opened = []; w.kosmos = 0; w.waits = {};
+    w.calls = []; w.authorized = true; w.opened = []; w.kosmos = 0; w.located = []; w.waits = {};
     const snapshot = (value: any) => ({ value, publish: async (apply: any, current: any) => {
       if (!w.authorized || !current()) return false;
       apply(value); return true;
@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
       },
     };
     w.workspace = w.KosmosNotesWorkspace.mountNotesWorkspace(document.querySelector("#notes"), host,
-      { openSource: (path: string) => w.opened.push(path), openKosmos: () => w.kosmos++ });
+      { openSource: (path: string) => w.opened.push(path), openKosmos: (path?: string) => { w.kosmos++; w.located.push(path); } });
   });
 });
 
@@ -178,4 +178,14 @@ test('manual refresh consumes pending debounce without later clearing a new sele
   await page.clock.runFor(250);
   await expect(page.getByRole('heading', { name: 'Alpha.md', exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).calls.filter((x: any) => x.query === 'manual').length)).toBe(1);
+});
+
+test('locating a note uses its selected path and rechecks authority',async({page})=>{
+  await page.getByRole('button',{name:'Alpha',exact:true}).click();
+  await page.getByRole('button',{name:'Locate in Kosmos',exact:true}).click();
+  expect(await page.evaluate(()=>(window as any).located)).toEqual(['Alpha.md']);
+  await page.evaluate(()=>(window as any).authorized=false);
+  await page.getByRole('button',{name:'Locate in Kosmos',exact:true}).click();
+  await expect(page.getByText('Note or scope changed. Select it again.',{exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>(window as any).located)).toEqual(['Alpha.md']);
 });

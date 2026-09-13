@@ -59,6 +59,7 @@ export interface KosmosApp {
   ok: boolean;
   renderGraph(graph: any, label?: string): void;
   focusNode(id: string): boolean;
+  clearSelection(): void;
   showDemo(): any;
   setConn(label: string, live: boolean): void;
   /** Live vault-connectivity signal: green dot + "connected" tooltip when the
@@ -87,6 +88,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const noopApp: KosmosApp = {
     ok: false,
     focusNode() { return false; },
+    clearSelection() {},
     renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false, drawCalls: 0 }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
@@ -2188,6 +2190,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
 
   const api: KosmosApp = {
     ok: true,
+    clearSelection: clearFocus,
     focusNode(id) {
       if (!G?.nodes.some((node: any) => node.id === id && node.kind === "file") || isHidden(id)) return false;
       selectNode(id, true); return true;

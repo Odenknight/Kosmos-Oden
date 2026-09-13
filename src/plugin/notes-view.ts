@@ -8,7 +8,7 @@ export const NOTES_VIEW_TYPE = "kosmos-oden-notes";
 export class KosmosNotesView extends ItemView {
   private workspace: ReturnType<typeof mountNotesWorkspace> | undefined;
   private savedState: unknown;
-  constructor(leaf: WorkspaceLeaf, private readonly api: KosmosAgentServer, private readonly openKosmos: () => void) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private readonly api: KosmosAgentServer, private readonly openKosmos: (path?: string) => void) { super(leaf); }
   getViewType(): string { return NOTES_VIEW_TYPE; }
   getDisplayText(): string { return "Kosmos-Oden Notes"; }
   getIcon(): string { return "notebook-pen"; }
