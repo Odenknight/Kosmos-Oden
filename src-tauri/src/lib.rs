@@ -175,8 +175,6 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let state_root = app.path().app_data_dir()?;
-            fs::create_dir_all(state_root.join("sidecar"))?;
-            owner_only_directory(&state_root.join("sidecar"))?;
             let supervisor = Supervisor::discover(app.handle(), &state_root);
             app.manage(DesktopState {
                 supervisor,
@@ -205,19 +203,6 @@ pub fn run() {
                 app.state::<DesktopState>().supervisor.shutdown();
             }
         });
-}
-
-fn owner_only_directory(path: &Path) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
-    }
-    #[cfg(not(unix))]
-    let _ = path;
-    // Windows mode bits do not establish an ACL. The shell uses the per-user
-    // app-data directory and makes no stronger Windows permissions claim.
-    Ok(())
 }
 
 #[cfg(test)]

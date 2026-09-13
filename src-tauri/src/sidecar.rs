@@ -133,10 +133,6 @@ impl Supervisor {
                 .to_string()
         })?;
         let sidecar_state = app_state_root.join("sidecar");
-        fs::create_dir_all(&sidecar_state)
-            .map_err(|error| format!("cannot prepare sidecar state: {error}"))?;
-        owner_only_directory(&sidecar_state)
-            .map_err(|error| format!("cannot protect sidecar state: {error}"))?;
 
         terminate_child(&mut inner);
         inner.generation = inner.generation.wrapping_add(1);
@@ -146,7 +142,11 @@ impl Supervisor {
         inner.restart_count = 0;
         inner.last_exit = None;
         inner.last_error = None;
-        spawn_locked(&mut inner, executable)?;
+        if let Err(error) = spawn_locked(&mut inner, executable) {
+            inner.desired_running = false;
+            inner.last_error = Some(error.clone());
+            return Err(error);
+        }
         let generation = inner.generation;
         drop(inner);
         self.monitor(generation);
@@ -302,6 +302,10 @@ fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
         .state_root
         .as_ref()
         .ok_or_else(|| "sidecar state root is unavailable".to_string())?;
+    fs::create_dir_all(state_root)
+        .map_err(|error| format!("cannot prepare sidecar state: {error}"))?;
+    owner_only_directory(state_root)
+        .map_err(|error| format!("cannot protect sidecar state: {error}"))?;
     let status_file = state_root.join("desktop-agent.status.json");
     let log_path = state_root.join("desktop-agent.log");
     let stdout = OpenOptions::new()
@@ -438,6 +442,36 @@ mod tests {
         assert!(!status.available);
         assert!(!status.running);
         assert!(supervisor.sidecar_version().is_none());
+    }
+
+    #[test]
+    fn disabled_release_cannot_create_state_even_after_discovery() {
+        assert!(
+            crate::sidecar_release::Release::embedded().is_none(),
+            "run this source-tree test with the default null release manifest"
+        );
+        let root = std::env::temp_dir().join(format!(
+            "kosmos-disabled-release-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let supervisor = Supervisor::with_sidecar(Some(PathBuf::from("unverified.exe")));
+        assert_eq!(
+            supervisor
+                .start(PathBuf::from("unused-corpus"), &root)
+                .unwrap_err(),
+            "sidecar release identity is unavailable"
+        );
+        assert!(!root.exists());
+        assert!(!supervisor.status().running);
+        assert!(!supervisor.inner.lock().unwrap().desired_running);
+        assert_eq!(
+            supervisor.status().last_error.as_deref(),
+            Some("sidecar release identity is unavailable")
+        );
     }
 
     #[test]

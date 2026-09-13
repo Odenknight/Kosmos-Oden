@@ -153,3 +153,10 @@ access, inheritance and propagation settings. Synthetic tests passed for private
 creation, unchanged reuse, refusal of an Everyone-readable leaf, and refusal of
 nonstandard directory propagation with unchanged ACLs. Native host integration,
 trusted-parent qualification and concurrent namespace mutation remain open.
+
+Startup no longer creates sidecar state during shell setup. State creation now
+occurs only after release and executable verification in the common spawn path,
+including restarts. Failed initial launch clears running intent and retains its
+error. The default-null-manifest regression proves no state directory is created
+even when discovery previously published a candidate. The source-tree Rust suite
+passes 10 tests; this does not qualify Windows ACL enforcement or native UI.
