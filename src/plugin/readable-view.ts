@@ -15,7 +15,7 @@ export class KosmosReadableView extends ItemView {
   private status?: HTMLElement;
   private snapshot?: Awaited<ReturnType<NotesWorkspaceHost["graph"]>>;
   private rendererState?: { generation: number; selectedId: string | null; error: "render" | "selection" | null };
-  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private host: NotesWorkspaceHost, private html: () => string, private openNotes: (path?: string) => void = () => {}) { super(leaf); }
   getViewType() { return READABLE_VIEW_TYPE; }
   getDisplayText() { return "Kosmos-Oden readable notes"; }
   getIcon() { return "orbit"; }
@@ -24,6 +24,8 @@ export class KosmosReadableView extends ItemView {
     this.contentEl.classList.add("kosmos-oden-root");
     this.contentEl.style.display = "flex"; this.contentEl.style.flexDirection = "column";
     this.status = document.createElement("p"); this.status.setAttribute("role", "status");
+    const back = document.createElement("button"); back.type = "button"; back.textContent = "Return to Notes";
+    back.addEventListener("click", () => void this.returnToNotes()); this.contentEl.append(back);
     const frame = document.createElement("iframe"); this.frame = frame;
     frame.style.flex = "1"; frame.style.minHeight = "0"; frame.style.height = "0";
     frame.title = "Kosmos-Oden readable notes";
@@ -44,6 +46,9 @@ export class KosmosReadableView extends ItemView {
     this.registerDomEvent(window, "message", event => {
       if (event.source !== this.frame?.contentWindow || !this.snapshot) return;
       const message = validateRendererOpenMessage(event.data);
+      if (message.ok && message.message?.type === "readable-selection") {
+        this.recordSelection(message.message.payload.id, message.message.payload.generation); return;
+      }
       if (message.ok && message.message?.type === "readable-state") {
         const state = message.message.payload;
         if (state.generation !== this.generation || (state.selectedId && !this.snapshot.value.nodes.some((node: any) => node.id === state.selectedId && node.path === this.path))) return;
@@ -60,6 +65,22 @@ export class KosmosReadableView extends ItemView {
         if (file instanceof TFile) void this.app.workspace.getLeaf("tab").openFile(file);
       }, () => generation === this.generation && !!this.frame).catch(() => this.refresh());
     });
+  }
+  recordSelection(id: string, generation: number) {
+    if (generation !== this.generation) return;
+    const node = this.snapshot?.value.nodes.find((node: any) => node.id === id);
+    if (node) this.path = node.path;
+  }
+  async returnToNotes() {
+    const snapshot = this.snapshot, generation = this.generation, path = this.path;
+    if (!snapshot) { this.status!.textContent = "Wait for the readable graph before returning."; return; }
+    try {
+      const published = await snapshot.publish(value => {
+        if (!path || value.nodes.some((node: any) => node.path === path)) this.openNotes(path);
+        else this.status!.textContent = "Selected note is unavailable in the current scope.";
+      }, () => snapshot === this.snapshot && generation === this.generation && path === this.path && !!this.frame);
+      if (!published) this.status!.textContent = "Note or scope changed. Select it again.";
+    } catch { this.status!.textContent = "Note or scope changed. Select it again."; }
   }
   private post(message: unknown) { this.frame?.contentWindow?.postMessage(message, "*"); }
   syncVisibility() { this.post(wrap("visibility", { visible: !!this.containerEl.offsetParent })); }

@@ -15,6 +15,9 @@ import { readableSpatialGraph } from "../workspace/spatial";
 
 const app = createKosmosApp({
   autoStart: "wait",
+  onSelectNote: id => {
+    if (projectionGeneration > 0) window.parent.postMessage(wrap("readable-selection", { generation: projectionGeneration, id }), "*");
+  },
   onOpenNote: (path, label) => {
     try { window.parent.postMessage(wrap("open-note", { path, label }), "*"); } catch (_) { /* sandboxed */ }
   },

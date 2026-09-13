@@ -427,7 +427,7 @@ export default class KosmosOdenPlugin extends Plugin {
     const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled);
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
-    this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml));
+    this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml, path => { void this.activateNotes(path).catch(() => new Notice("Kosmos-Oden: Notes could not be opened.")); }));
     this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, this.agentApi, path => {
       void this.activateReadable(path).catch(() => new Notice("Kosmos-Oden: readable view could not be opened."));
     }));
@@ -554,7 +554,7 @@ export default class KosmosOdenPlugin extends Plugin {
     ws.setActiveLeaf(leaf, { focus: true });
   }
 
-  async activateNotes(): Promise<void> {
+  async activateNotes(path?: string): Promise<void> {
     const ws = this.app.workspace;
     let leaf = ws.getLeavesOfType(NOTES_VIEW_TYPE)[0];
     if (!leaf) {
@@ -563,6 +563,7 @@ export default class KosmosOdenPlugin extends Plugin {
     }
     await ws.revealLeaf(leaf);
     ws.setActiveLeaf(leaf, { focus: true });
+    if (path && leaf.view instanceof KosmosNotesView) await leaf.view.select(path);
   }
 
   async activateReadable(path?: string): Promise<void> {

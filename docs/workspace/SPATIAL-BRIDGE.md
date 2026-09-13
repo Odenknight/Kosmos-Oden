@@ -103,3 +103,18 @@ superseded requests cannot publish or initiate redundant refreshes. Tests invoke
 the actual native class with an Obsidian stub and prove zero graph reads for two
 successive selections. Full verification passes 453 tests and all build checks.
 Installed selection timing and this reuse increment remain to be qualified.
+# Spatial-to-Notes return implementation
+
+The readable view now offers Return to Notes. User selection of a readable file
+in the renderer emits a bounded `readable-selection` ID and generation; host
+focus commands do not echo user intent. The host accepts only its own iframe,
+the current generation and a member of its captured readable graph. Returning
+rechecks that snapshot and the current path before activating Notes, which then
+performs its own checked read. Pending returns cannot publish after another
+selection or closure. Existing source-editor opening remains separate.
+
+This increment covers readable file selection. It does not establish persistent
+UID selection across sessions, folder selection parity or native installed
+acceptance of this return route. Browser qualification includes an actual
+neighbor-button selection inside the sandbox and four native-class tests cover
+snapshot reuse and return races.

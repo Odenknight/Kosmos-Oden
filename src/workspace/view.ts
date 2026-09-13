@@ -237,6 +237,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   toolbar.append(button("Refresh", () => void refresh(undefined, true)));
   void refresh();
   return {
+    select: (path: string) => show(path),
     getState: () => ({ query: query.value, tag: tag.value, body: body.checked, selectedPath }),
     restore: (state: unknown) => {
       if (closed || !state || typeof state !== "object" || Array.isArray(state)) return;

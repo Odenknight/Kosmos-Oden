@@ -44,6 +44,7 @@ function hasWebGL2(): boolean {
 }
 
 export interface KosmosAppOptions {
+  onSelectNote?: (id: string) => void;
   /** Called when the user picks "Go to Note" (embed posts to the plugin). */
   onOpenNote?: (path: string, label?: string) => void;
   /** Called when the user picks "Expand Folder" on a folder-only galaxy/cluster
@@ -1052,7 +1053,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     glow.mesh.instanceMatrix.needsUpdate = true;
     glow.attrs.aVisible.needsUpdate = true; glow.attrs.aColor.needsUpdate = true; glow.attrs.aSize.needsUpdate = true; glow.attrs.aLive.needsUpdate = true; glow.attrs.aSeed.needsUpdate = true;
   }
-  function selectNode(id: string, fly?: boolean) {
+  function selectNode(id: string, fly?: boolean, notify = true) {
+    const selected = G.nodeById.get(id);
+    if (notify && selected?.kind === "file" && !isHidden(id)) opts.onSelectNote?.(id);
     selectedId = id; cam.autoRotate = false; applyHighlight(); showInspector(id);
     if (fly !== false && navMode !== "fly") startFlight(navMode === "overview" ? "focus" : navMode);
   }
@@ -2195,7 +2198,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     clearSelection: clearFocus,
     focusNode(id) {
       if (!G?.nodes.some((node: any) => node.id === id && node.kind === "file") || isHidden(id)) return false;
-      selectNode(id, true); return true;
+      selectNode(id, true, false); return true;
     },
     renderGraph,
     showDemo() {

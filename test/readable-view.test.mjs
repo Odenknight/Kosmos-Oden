@@ -33,3 +33,27 @@ test('refused publication refreshes; superseded selection cannot post or trigger
   pending[1]();await second;pending[0]();await first;
   assert.equal(g.messages.length,1);assert.equal(g.messages[0].payload.id,'file:B.md');assert.equal(g.refreshes(),0);
 });
+
+
+test('return to Notes follows only current readable selections and rechecks publication', async () => {
+  const f=fixture(),opened=[];f.view.openNotes=path=>opened.push(path);
+  await f.view.locate('A.md');
+  f.view.recordSelection('file:B.md',3);
+  await f.view.returnToNotes();assert.deepEqual(opened,['A.md']);
+  f.view.recordSelection('file:missing.md',4);
+  await f.view.returnToNotes();assert.deepEqual(opened,['A.md','A.md']);
+  f.view.recordSelection('file:B.md',4);
+  await f.view.returnToNotes();assert.equal(opened.at(-1),'B.md');
+  f.view.snapshot.publish=async()=>false;
+  await f.view.returnToNotes();assert.equal(opened.length,3);assert.match(f.view.status.textContent,/scope changed/);
+});
+
+test('return to Notes cannot publish after another selection or closing', async () => {
+  const f=fixture(),opened=[],pending=[];f.view.openNotes=path=>opened.push(path);
+  f.view.recordSelection('file:A.md',4);
+  f.view.snapshot.publish=(apply,current)=>new Promise(resolve=>pending.push(()=>{const valid=current();if(valid)apply(f.view.snapshot.value);resolve(valid);}));
+  const first=f.view.returnToNotes();f.view.recordSelection('file:B.md',4);pending.shift()();await first;
+  assert.deepEqual(opened,[]);
+  const second=f.view.returnToNotes();f.view.frame=undefined;pending.shift()();await second;
+  assert.deepEqual(opened,[]);
+});
