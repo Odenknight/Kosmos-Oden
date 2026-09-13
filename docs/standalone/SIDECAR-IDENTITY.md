@@ -77,3 +77,18 @@ Windows ACL updates require deliberate inheritance handling: Microsoft's
 describes propagation of inheritable ACEs to child objects. A directory-only
 change is not by itself proof that every existing credential has the required
 effective access. No live ACL was inspected or changed in this review.
+
+The isolated `scripts/protect-sidecar-state.ps1` prototype now applies a protected
+DACL granting the current Windows user full control, removes previous access
+rules, and reads back owner, inheritance and access entries. It rejects final
+reparse points and ownership outside the current identity/token owner. The
+synthetic test passed for an existing Everyone-readable file, a protected parent,
+a new inherited file, repeat application and unchanged contents. It uses .NET
+access-control setters to apply modified sections only; the first PowerShell
+`Set-Acl` attempt failed on an unnecessary security privilege and was corrected.
+
+This helper is not wired into the native host. Ancestor replacement, hard links,
+foreign-owner refusal fixtures, all existing state leaves, bounded subprocess
+execution and final host readback remain required before using it on real state.
+Tests used process-only `RemoteSigned` for local scripts; no configured execution
+policy or live application ACL was changed.
