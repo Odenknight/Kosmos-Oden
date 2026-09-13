@@ -160,3 +160,18 @@ including restarts. Failed initial launch clears running intent and retains its
 error. The default-null-manifest regression proves no state directory is created
 even when discovery previously published a candidate. The source-tree Rust suite
 passes 10 tests; this does not qualify Windows ACL enforcement or native UI.
+
+The Rust Windows launch path now calls `windows_state::ensure` directly after
+binary verification. It uses the already locked Microsoft `windows-sys` bindings,
+creates new state with an explicit current-user protected DACL, validates existing
+directory and immediate file ACLs without repair, and retains parent/directory
+handles through spawn. No PowerShell subprocess or runtime compilation is used.
+The 12-test Rust suite passes, including new/reused private state, hard-link
+refusal, broad existing ACL refusal preserving contents, blocked rename while
+handles are held and successful rename after release. This supersedes the earlier
+statement that no native permission implementation is wired in.
+
+The default release manifest remains disabled. Full native product launch,
+credential read/write handling, trusted-parent provisioning, concurrent ancestor
+and child namespace mutation, and cross-platform qualification remain open.
+The synthetic helper coverage does not establish those broader boundaries.

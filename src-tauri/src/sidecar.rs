@@ -302,6 +302,18 @@ fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
         .state_root
         .as_ref()
         .ok_or_else(|| "sidecar state root is unavailable".to_string())?;
+    #[cfg(windows)]
+    let _state_guard = {
+        fs::create_dir_all(
+            state_root
+                .parent()
+                .ok_or("sidecar state parent is unavailable")?,
+        )
+        .map_err(|error| format!("cannot prepare sidecar parent: {error}"))?;
+        crate::windows_state::ensure(state_root)
+            .map_err(|error| format!("cannot protect sidecar state: {error}"))?
+    };
+    #[cfg(not(windows))]
     fs::create_dir_all(state_root)
         .map_err(|error| format!("cannot prepare sidecar state: {error}"))?;
     owner_only_directory(state_root)

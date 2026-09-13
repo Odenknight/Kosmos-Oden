@@ -1,5 +1,7 @@
 mod sidecar;
 mod sidecar_release;
+#[cfg(windows)]
+mod windows_state;
 
 use serde::Serialize;
 use sidecar::{SidecarStatus, Supervisor};
