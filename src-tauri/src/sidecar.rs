@@ -389,10 +389,14 @@ mod tests {
         let supervisor = Supervisor::with_sidecar(None);
         let clone = supervisor.clone();
         #[cfg(windows)]
-        let child = Command::new("cmd")
-            .args(["/C", "ping 127.0.0.1 -n 30 >NUL"])
-            .spawn()
-            .unwrap();
+        let child = {
+            use std::os::windows::process::CommandExt;
+            Command::new("cmd")
+                .args(["/C", "ping 127.0.0.1 -n 30 >NUL"])
+                .creation_flags(0x0800_0000)
+                .spawn()
+                .unwrap()
+        };
         #[cfg(not(windows))]
         let child = Command::new("sh").args(["-c", "sleep 30"]).spawn().unwrap();
         let generation = {
