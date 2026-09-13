@@ -550,7 +550,8 @@ export default class KosmosOdenPlugin extends Plugin {
       leaf = ws.getLeaf(true);
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
-    ws.revealLeaf(leaf);
+    await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
   }
 
   async activateNotes(): Promise<void> {
@@ -561,6 +562,7 @@ export default class KosmosOdenPlugin extends Plugin {
       await leaf.setViewState({ type: NOTES_VIEW_TYPE, active: true });
     }
     await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
   }
 
   async activateReadable(path?: string): Promise<void> {
@@ -568,6 +570,7 @@ export default class KosmosOdenPlugin extends Plugin {
     let leaf = ws.getLeavesOfType(READABLE_VIEW_TYPE)[0];
     if (!leaf) { leaf = ws.getLeaf(true); await leaf.setViewState({ type: READABLE_VIEW_TYPE, active: true }); }
     await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
     if (leaf.view instanceof KosmosReadableView) {
       if (path) leaf.view.locate(path); else leaf.view.refresh();
     }
