@@ -9,6 +9,22 @@ if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw 'Sidecar state reparse points are unsupported'
 }
 if ($item.LinkType -eq 'HardLink') { throw 'Sidecar state hard links are unsupported' }
+if ($item.PSIsContainer) {
+    # An inheritable DACL can affect existing children. Do not update a parent
+    # before rejecting aliases or nested state that this prototype cannot bind.
+    $children = @(Get-ChildItem -LiteralPath $item.FullName -Force | Select-Object -First 257)
+    if ($children.Count -gt 256) { throw 'Sidecar state exceeds the inspection bound' }
+    foreach ($child in $children) {
+        if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+            $child.LinkType -eq 'HardLink' -or $child.PSIsContainer) {
+            throw 'Sidecar state child aliases or directories are unsupported'
+        }
+        $childOwner = (Get-Acl -LiteralPath $child.FullName).GetOwner([Security.Principal.SecurityIdentifier])
+        if ($childOwner -ne $principal -and $childOwner -ne $identity.Owner) {
+            throw 'Sidecar state child has a foreign owner'
+        }
+    }
+}
 $ancestor = if ($item.PSIsContainer) { $item.Parent } else { $item.Directory }
 while ($null -ne $ancestor) {
     $checkedAncestor = Get-Item -LiteralPath $ancestor.FullName -Force

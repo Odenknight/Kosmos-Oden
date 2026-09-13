@@ -99,3 +99,10 @@ junction and a leaf beneath a junction, with target ACLs unchanged after refusal
 These are static alias checks. The check-to-update race remains open; do not
 wire this path-based prototype into live startup until handle-bound validation
 and ACL application are qualified.
+
+Before applying an inheritable directory ACL, the prototype now inspects up to
+256 immediate children and refuses excess entries, child aliases, nested
+directories or foreign owners. This bounds the prototype's supported state
+layout; it is not a vault-size limit. Synthetic tests confirm unchanged parent
+and leaf ACLs when a hard-linked child exists, and unchanged ACLs on inspection
+overflow. Foreign-owner and concurrent-replacement qualification remain open.

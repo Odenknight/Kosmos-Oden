@@ -21,6 +21,12 @@ if ($rules.Count -ne 1 -or $rules[0].IdentityReference -ne $principal) { throw '
 $before = (Get-Acl -LiteralPath $leaf).Sddl
 $hardLink = Join-Path $fixture 'hardlink.synthetic'
 $null = New-Item -ItemType HardLink -Path $hardLink -Target $leaf
+$parentBefore = (Get-Acl -LiteralPath $fixture).Sddl
+$parentRefused = $false
+try { & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $fixture }
+catch { if ($_.Exception.Message -match 'child aliases or directories are unsupported') { $parentRefused = $true } else { throw } }
+if (-not $parentRefused -or (Get-Acl -LiteralPath $fixture).Sddl -ne $parentBefore -or
+    (Get-Acl -LiteralPath $leaf).Sddl -ne $before) { throw 'Parent alias refusal failed or changed ACLs' }
 $junction = Join-Path $fixture 'junction.synthetic'
 $target = Join-Path $fixture 'target.synthetic'
 $null = New-Item -ItemType Directory -Path $target
@@ -37,5 +43,13 @@ foreach ($alias in @($hardLink, $junction, (Join-Path $junction 'nested.syntheti
 if ((Get-Acl -LiteralPath $leaf).Sddl -ne $before -or (Get-Acl -LiteralPath $targetLeaf).Sddl -ne $targetBefore) {
     throw 'Rejected alias changed target ACL'
 }
-Write-Output 'PASS: directory, existing/new leaves, repeat application, payload preservation, hard-link/final-junction/ancestor-junction refusal without target ACL changes'
+$overflow = Join-Path $fixture 'overflow.synthetic'
+$null = New-Item -ItemType Directory -Path $overflow
+for ($i = 0; $i -lt 257; $i++) { [IO.File]::WriteAllText((Join-Path $overflow "$i.synthetic"), '') }
+$overflowBefore = (Get-Acl -LiteralPath $overflow).Sddl
+$overflowRefused = $false
+try { & (Join-Path $PSScriptRoot 'protect-sidecar-state.ps1') -LiteralPath $overflow }
+catch { if ($_.Exception.Message -match 'exceeds the inspection bound') { $overflowRefused = $true } else { throw } }
+if (-not $overflowRefused -or (Get-Acl -LiteralPath $overflow).Sddl -ne $overflowBefore) { throw 'Inspection bound failed' }
+Write-Output 'PASS: directory, existing/new leaves, repeat, payload, parent/leaf aliases and bounded inspection without rejected ACL changes'
 # Retain the small synthetic fixture for inspection; no recursive deletion.
