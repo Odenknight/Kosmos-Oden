@@ -41,7 +41,8 @@ test('semantic client denies revoked scope and changed response binding',async()
 
 test('cancelled transports retain physical slots until they settle',async()=>{
   const resolvers=[];
-  const client=createSemanticQueryClient({...config,current:context,fetcher:()=>new Promise(resolve=>resolvers.push(resolve))});
+  const transportBudget={active:0};
+  const client=createSemanticQueryClient({...config,current:context,transportBudget,fetcher:()=>new Promise(resolve=>resolvers.push(resolve))});
   for(let i=0;i<2;i++) {
     const controller=new AbortController();
     const pending=client.search('relay','one',controller.signal);
@@ -50,6 +51,8 @@ test('cancelled transports retain physical slots until they settle',async()=>{
   }
   assert.equal(await client.search('relay','one',new AbortController().signal),null);
   assert.equal(resolvers.length,2);
+  const replacement=createSemanticQueryClient({...config,current:context,transportBudget,fetcher:async()=>assert.fail('reconnect bypassed physical slots')});
+  assert.equal(await replacement.search('relay','one',new AbortController().signal),null);
   for(const resolve of resolvers) resolve(response(result()));
   await new Promise(resolve=>setTimeout(resolve,0));
   const controller=new AbortController();

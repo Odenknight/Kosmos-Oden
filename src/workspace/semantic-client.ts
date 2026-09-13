@@ -5,13 +5,15 @@ import type {GraphitiQueryContext, GraphitiQueryResult} from "gkos-engine/graphi
  * endpoints or credentials. Unavailable semantic results permit native fallback. */
 export function createSemanticQueryClient(options: {
   endpoint: string; token: string; current: () => GraphitiQueryContext; fetcher?: typeof fetch;
+  /** Shared by replacement clients so reconnect cannot bypass physical limits. */
+  transportBudget?: {active: number};
 }) {
   const endpoint = new URL(options.endpoint);
   if (!["http:", "https:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash || endpoint.search ||
       !/^[A-Za-z0-9._~-]{32,512}$/.test(options.token)) throw new TypeError("SEMANTIC_CLIENT_CONFIGURATION_INVALID");
   const headers = {Authorization: `Bearer ${options.token}`, "Content-Type": "application/json", Accept: "application/json"};
   const fetcher = options.fetcher ?? fetch, current = options.current;
-  let active = 0;
+  const budget = options.transportBudget ?? {active: 0};
   return {
     isCurrent(query: string, requestId: string, result: GraphitiQueryResult, limit = 10): boolean {
       try {
@@ -20,13 +22,13 @@ export function createSemanticQueryClient(options: {
       } catch { return false; }
     },
     async search(query: string, requestId: string, signal: AbortSignal, limit = 10): Promise<GraphitiQueryResult | null> {
-      if (active >= 2 || signal.aborted) return null;
+      if (budget.active >= 2 || signal.aborted) return null;
       const controller = new AbortController(), expires = performance.now() + 5000;
       const abort = () => controller.abort();
       signal.addEventListener("abort", abort, {once:true});
       const timer = setTimeout(abort, 5000);
       let onAbort: (() => void) | undefined;
-      active++;
+      budget.active++;
       const operation = (async () => {
         const request = prepareGraphitiQueryRequest(query, limit, requestId, current());
         if (!request || controller.signal.aborted || performance.now() >= expires) return null;
@@ -52,7 +54,7 @@ export function createSemanticQueryClient(options: {
           if (!complete) {try {await reader.cancel();} catch { /* Native fallback. */ }}
           reader.releaseLock();
         }
-      })().catch(() => null).finally(() => {active--;});
+      })().catch(() => null).finally(() => {budget.active--;});
       try {
         return await Promise.race([operation, new Promise<null>(resolve => {
           onAbort = () => resolve(null);

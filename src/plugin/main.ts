@@ -15,6 +15,7 @@ import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidia
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { KosmosNotesView, NOTES_VIEW_TYPE } from "./notes-view";
+import {NativeSemanticConnection, readNativeSemanticProfile} from "../workspace/native-semantic";
 import { KosmosReadableView, READABLE_VIEW_TYPE } from "./readable-view";
 import { NotesWorkspaceHost } from "../workspace/host";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
@@ -331,6 +332,8 @@ export default class KosmosOdenPlugin extends Plugin {
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
   nextcloudStatus = "Not configured";
   agentApi!: KosmosAgentServer;
+  private readonly semanticConnection = new NativeSemanticConnection();
+  private nativeSemanticConfiguration: unknown = null;
   provider!: VaultDataProvider;
 
   private eventsLive = false;
@@ -393,6 +396,7 @@ export default class KosmosOdenPlugin extends Plugin {
 
   async onload(): Promise<void> {
     const persisted = await this.loadData();
+    this.nativeSemanticConfiguration = persisted?.nativeSemantic ?? null;
     this.agentSettings = migrateAgentSettings(persisted);
     this.nextcloudSettings = migrateNextcloudSettings(persisted?.nextcloud);
     if (!persisted?.nextcloud) this.nextcloudSettings.remoteFolder = `Kosmos-Oden/${this.app.vault.getName()}`;
@@ -428,11 +432,13 @@ export default class KosmosOdenPlugin extends Plugin {
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
     this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml, (path, uid) => { void this.activateNotes(path, uid).catch(() => new Notice("Kosmos-Oden: Notes could not be opened.")); }));
-    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, this.agentApi, (path, uid) => {
+    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, new NotesWorkspaceHost(this.agentApi, this.semanticConnection), (path, uid) => {
       void this.activateReadable(path, uid).catch(() => new Notice("Kosmos-Oden: readable view could not be opened."));
     }));
     this.addRibbonIcon("notebook-pen", "Open Kosmos-Oden Notes", () => void this.activateNotes());
     this.addCommand({ id: "open-kosmos-notes", name: "Open Kosmos-Oden Notes", callback: () => void this.activateNotes() });
+    this.addCommand({ id: "reconnect-kosmos-semantic", name: "Reconnect related-fact search", callback: () => void this.reconnectSemanticSearch(true) });
+    void this.reconnectSemanticSearch(false);
     this.addCommand({ id: "open-kosmos-workspace", name: "Open Kosmos-Oden workspace", callback: () => {
       void (this.agentSettings.notesWorkspaceEnabled ? this.activateNotes() : this.activate());
     } });
@@ -578,6 +584,7 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   async saveAgentSettings(): Promise<void> {
+    this.semanticConnection.disconnect();
     for (const leaf of this.app.workspace.getLeavesOfType(READABLE_VIEW_TYPE))
       if (leaf.view instanceof KosmosReadableView) leaf.view.refresh();
     for (const leaf of this.app.workspace.getLeavesOfType(NOTES_VIEW_TYPE))
@@ -592,7 +599,20 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   private async savePluginData(): Promise<void> {
-    await this.saveData({ ...this.agentSettings, nextcloud: this.nextcloudSettings, nextcloudState: this.nextcloudState });
+    await this.saveData({ ...this.agentSettings, nextcloud: this.nextcloudSettings, nextcloudState: this.nextcloudState,
+      nativeSemantic: this.nativeSemanticConfiguration });
+  }
+
+  private async reconnectSemanticSearch(notify: boolean): Promise<void> {
+    this.semanticConnection.disconnect();
+    const profile = readNativeSemanticProfile(this.nativeSemanticConfiguration);
+    let connected = false;
+    if (profile && profile.vaultIdentity === this.provider.vaultIdentity()) {
+      const configuration = this.nativeSemanticConfiguration;
+      connected = await this.semanticConnection.connect({api:this.agentApi,...profile,
+        current: () => this.nativeSemanticConfiguration === configuration && profile.vaultIdentity === this.provider.vaultIdentity()});
+    }
+    if (notify) new Notice(connected ? "Kosmos-Oden: related-fact search connected." : "Kosmos-Oden: related-fact search is unavailable. Readable note search remains available.");
   }
 
   /** Stable per-vault suffix (FNV-1a over plugin id and vault name). The
@@ -693,6 +713,7 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.semanticConnection.disconnect();
     this.eventsLive = false;
     this.agentApi?.stop();
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.

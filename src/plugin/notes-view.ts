@@ -1,14 +1,13 @@
 import { ItemView, TFile, WorkspaceLeaf, type ViewStateResult } from "obsidian";
 import { NotesWorkspaceHost } from "../workspace/host";
 import { mountNotesWorkspace } from "../workspace/view";
-import type { KosmosAgentServer } from "./agent-server";
 
 export const NOTES_VIEW_TYPE = "kosmos-oden-notes";
 
 export class KosmosNotesView extends ItemView {
   private workspace: ReturnType<typeof mountNotesWorkspace> | undefined;
   private savedState: unknown;
-  constructor(leaf: WorkspaceLeaf, private readonly api: KosmosAgentServer, private readonly openKosmos: (path?: string, uid?: string) => void) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private readonly host: NotesWorkspaceHost, private readonly openKosmos: (path?: string, uid?: string) => void) { super(leaf); }
   getViewType(): string { return NOTES_VIEW_TYPE; }
   getDisplayText(): string { return "Kosmos-Oden Notes"; }
   getIcon(): string { return "notebook-pen"; }
@@ -19,7 +18,7 @@ export class KosmosNotesView extends ItemView {
     await super.setState(state, result);
   }
   async onOpen(): Promise<void> {
-    this.workspace = mountNotesWorkspace(this.contentEl, new NotesWorkspaceHost(this.api), {
+    this.workspace = mountNotesWorkspace(this.contentEl, this.host, {
       openSource: path => {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file instanceof TFile) void this.app.workspace.getLeaf("tab").openFile(file);

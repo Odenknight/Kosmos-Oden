@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import http from "node:http";
 import { build } from "esbuild";
 import {buildManagedGraphitiManifest} from 'gkos-engine/graphiti';
-import {prepareNativeSemanticClient} from '../dist/kosmos-workspace-host.mjs';
+import {prepareNativeSemanticClient,NativeSemanticConnection,readNativeSemanticProfile} from '../dist/kosmos-workspace-host.mjs';
 import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS, MAX_SOURCE_EVIDENCE_BYTES } from "../dist/kosmos-agent-server.mjs";
 
 const compiled = await build({ entryPoints: ["src/plugin/vault-provider.ts"], bundle: true, platform: "node", format: "esm", write: false });
@@ -114,19 +114,42 @@ test('native semantic client binds the real provider manifest and rejects stale 
   const result=await client.search('fact','one',signal);
   assert.equal(result.hits[0].fact,'Synthetic fact');
   assert.equal(client.isCurrent('fact','one',result),true);
+  const connection=new NativeSemanticConnection();
+  assert.equal(await connection.connect(options),true);
+  const prior=await connection.search('fact','connection',signal);
+  assert.equal(connection.isCurrent('fact','connection',prior),true);
+  assert.equal(await connection.connect(options),true);
+  assert.equal(connection.isCurrent('fact','connection',prior),false);
+  const original=f.server.prepareManagedGraphitiManifest.bind(f.server);
+  let release,started;
+  const didStart=new Promise(resolve=>{started=resolve;});
+  f.server.prepareManagedGraphitiManifest=async s=>{started();await new Promise(resolve=>{release=resolve;});return original(s);};
+  const stale=connection.connect(options);
+  await didStart;
+  f.server.prepareManagedGraphitiManifest=original;
+  assert.equal(await connection.connect(options),true);
+  release(); assert.equal(await stale,false);
+  assert.ok(await connection.search('fact','new-connection',signal));
+  connection.disconnect();
+  assert.equal(await connection.search('fact','disconnected',signal),null);
+  const beforeRevocation=calls;
   revoke=true;
   assert.equal(await client.search('fact','two',signal),null);
   allowed=true; revoke=false;
   assert.equal(await client.search('fact','three',signal),null);
-  assert.equal(calls,2);
+  assert.equal(calls,beforeRevocation+1);
   const fresh=await prepareNativeSemanticClient(options,signal);
   f.provider.markChanged('note.md');
   assert.equal(await fresh.search('fact','four',signal),null);
-  assert.equal(calls,2);
+  assert.equal(calls,beforeRevocation+1);
   const reads=f.reads.length;
   assert.equal(await prepareNativeSemanticClient({...options,publication:{searchable:true}},signal),null);
   assert.equal(await prepareNativeSemanticClient({...options,current:async()=>true},signal),null);
   assert.equal(f.reads.length,reads);
+  const profile={endpoint:options.endpoint,token:options.token,authority,publication,vaultIdentity:f.provider.vaultIdentity()};
+  assert.deepEqual(readNativeSemanticProfile(profile),profile);
+  for(const invalid of [{...profile,endpoint:'https://name:secret@example.invalid/query'}, {...profile,extra:true}, {...profile,token:'short'}, {...profile,vaultIdentity:''}])
+    assert.equal(readNativeSemanticProfile(invalid),null);
 });
 
 for (const scenario of ["unannounced edit", "revision change", "revocation", "invalid UTF-8", "file replacement", "metadata change"]) {

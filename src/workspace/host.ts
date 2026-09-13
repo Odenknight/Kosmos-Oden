@@ -7,7 +7,7 @@ import { ProviderError } from "../plugin/vault-operations";
 import type {createSemanticQueryClient} from "./semantic-client";
 import type {GraphitiQueryCitation, GraphitiQueryResult} from "gkos-engine/graphiti";
 export {createSemanticQueryClient} from "./semantic-client";
-export {prepareNativeSemanticClient} from "./native-semantic";
+export {prepareNativeSemanticClient, NativeSemanticConnection, readNativeSemanticProfile} from "./native-semantic";
 
 /** Native host capability, not serializable wire authority or a renderer grant. */
 export interface WorkspaceSnapshot<T> {

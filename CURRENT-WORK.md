@@ -44,7 +44,10 @@ The Engine now shares publication reconciliation between service and native host
 Its Python-ledger, authenticated HTTP, compatibility, and package checks passed.
 Kosmos now composes native manifest preparation, receipt validation, and the query client.
 It rejects stale host authority and source revisions before showing results.
-The plugin configuration lifecycle and Notes view wiring remain open.
+The plugin now owns the connection lifecycle and passes it into the Notes view.
+It reads an optional private profile bound to the native vault identity.
+Reconnection invalidates old clients and cannot replace newer work with a late result.
+Deployed-profile and visible native acceptance checks remain open.
 See the [native connection handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md).
 The installed plugin is an earlier candidate, `59a61ca`.
 Do not describe branch changes as already installed.
@@ -97,11 +100,11 @@ It requires a unique readable note UID and matching original source bytes.
 Changed or hidden sources remain unavailable.
 Changing the search discards a pending source resolution.
 All 31 Chromium workspace tests passed.
-The native plugin still needs its semantic service connection.
+The native plugin is wired to the connection owner; its deployed profile still needs qualification.
 
 ## What still needs work
 
-- Connect the semantic client to the actual native Notes view.
+- Qualify the deployed semantic profile through the actual native Notes view.
 - Verify real vault permissions and source changes through that view.
 - Qualify source resolution and the visible user experience in the native plugin.
 - Fix indexing latency and complete the required performance runs and soak.

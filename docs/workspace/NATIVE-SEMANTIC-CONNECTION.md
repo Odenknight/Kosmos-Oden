@@ -30,6 +30,30 @@ bytes. They cover successful query acceptance, revoked host access during
 transport, pending source changes before transport, malformed readiness data,
 and refusal of an asynchronous authority callback.
 
-The native plugin's configuration lifecycle and Notes view wiring remain
-unfinished. This module does not install a connection, ingest vault content,
-or establish native user-interface acceptance.
+The native plugin now owns a `NativeSemanticConnection` and passes it to the
+Notes workspace. Startup prepares a connection only when the plugin's trusted
+`data.json` contains a `nativeSemantic` profile. The profile has exactly these
+fields: `vaultIdentity`, `endpoint`, `token`, `authority`, and `publication`.
+`authority` contains the configured corpus, scope, policy, and configuration
+digests. `publication` is the host-read published ledger receipt described by
+the Engine. The profile's vault identity must equal the native provider's
+identity. A query-status response is insufficient.
+
+The profile is optional. Missing, invalid, mismatched, or stale configuration
+leaves ordinary readable search available. Existing profile data is preserved
+when other plugin settings are saved. The profile contains credentials and
+must remain private; do not place it in source notes or GitHub.
+
+Reload the plugin after updating the profile. The command **Reconnect
+related-fact search** prepares a fresh connection from the loaded profile.
+Saving agent settings disconnects the old connection immediately. Plugin
+unload also disconnects it. Source changes invalidate retained clients;
+updated ingestion and a matching published receipt are needed for a changed
+corpus.
+
+Reconnection cannot revive old results or allow an older preparation to
+replace a newer one. Replacement clients share the physical transport limit.
+Cancelled preparation retains its slot until the underlying work settles.
+
+This code does not provision a profile, ingest vault content, or establish
+visible native user-interface acceptance. Those deployment checks remain open.
