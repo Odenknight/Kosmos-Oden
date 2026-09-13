@@ -32,3 +32,12 @@ test("consumer fixture refuses unavailable status and late scope or episode revo
   const revoked = context(); revoked.authorized_episodes.clear();
   assert.equal(acceptGraphitiQueryResult(fixture.request, JSON.stringify(fixture.result), revoked), null);
 });
+
+test("pinned Engine rejects malformed Unicode without rewriting valid query text", () => {
+  assert.equal(prepareGraphitiQueryRequest("bad\ud800query", 5, "id", context()), null);
+  const query = "Titans 😀 e\u0301";
+  assert.equal(prepareGraphitiQueryRequest(query, 5, "id", context()).query, query);
+  const result = structuredClone(fixture.result);
+  result.hits[0].fact = "bad\udfffresult";
+  assert.equal(acceptGraphitiQueryResult(fixture.request, JSON.stringify(result), context()), null);
+});
