@@ -103,3 +103,20 @@ Cache positions were inspected, not rewritten. This is native parser evidence
 for these exact files, not universal syntax qualification, rendered-tag interaction
 acceptance, or approval to change Engine parsing semantics. The area-only subset
 was also executed separately and returned the two expected Root paths.
+
+## Span-coordinate reconciliation
+
+The 58 span-bearing rows in v2's inline, frontmatter, non-tag and qualification
+groups were checked against unchanged source text. All 58 match both UTF-16
+code-unit slicing and Unicode-code-point slicing; only 54 match UTF-8 byte
+slicing. The four byte mismatches are in the Unicode note. The historical
+description of those spans as byte coordinates is therefore inaccurate.
+
+This corpus does not distinguish UTF-16 from code points. Do not claim that it
+proves either convention uniquely. A v3 coordinate fixture must include, for
+example, the exact string `😀 #alpha`: the tag starts at UTF-8 byte offset 5,
+UTF-16 code-unit offset 3, and Unicode-code-point offset 2. Its ASCII length is
+6 in all three conventions. Use explicitly named fields rather than a bare
+`offset`, and state whether line/column coordinates are zero- or one-based.
+This discriminating example is a fixture-design requirement, not adoption of
+new parser semantics or a rewrite of historical spans.
