@@ -33,7 +33,7 @@ These are separate review branches.
 They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
-The Engine implementation is now at `885b0b3`.
+The Engine implementation is now at `72689af`.
 Kosmos now pins Engine `885b0b3`.
 The Engine now exports its existing pure manifest helpers for native consumers.
 Their package API, compatibility, source inventory, and package checks passed.
@@ -100,7 +100,9 @@ The deployed service and native export use different projection envelopes.
 A separate native synthetic publication now exists.
 A recreated native provider reproduced its manifest and accepted its real receipt.
 The clean plugin package is staged in an isolated synthetic vault.
-Live HTTP connection and visible native acceptance remain open.
+The new native HTTP route passed five live queries with published citations.
+The isolated vault is open in Obsidian and its loaded plugin reproduced the manifest.
+The visible Notes baseline works. Connecting it to the live service remains open.
 See the [synthetic publication report](docs/reviews/2026-09-13-native-synthetic-publication.md).
 
 The workspace now has an Open cited source button.
