@@ -61,6 +61,11 @@ for (const group of ["dependencies", "devDependencies"]) {
 }
 
 const engine = packages["node_modules/gkos-engine"];
+const engineSpecifier = packageJson.dependencies?.["gkos-engine"];
+if (packageJson.allowScripts?.[engineSpecifier] !== true) {
+  console.error("check-lockfile-sha: FAIL — active Engine dependency lacks its matching allowScripts entry");
+  process.exit(1);
+}
 const engineCommit = "c4940c4efd98e2cab9118b62c25e708737f62bdb";
 if (
   engine?.version !== "2.2.0"

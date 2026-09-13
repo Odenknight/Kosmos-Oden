@@ -27,10 +27,13 @@ source rebuild. Full `npm run verify` passed: 492 tests, zero failures, plus
 type/build/version/lock/artifact/invariant/provenance checks.
 
 PR 41 also checks that the active Engine dependency has a matching `allowScripts`
-entry. The current package has that entry, but its lockfile checker does not
-enforce it; this guard still needs disposition. Its historical dependency pin
-must not replace the current immutable pin. Documentation and test changes remain
-traceable in the retained PR head.
+entry. That guard is now restored against the current dependency specifier.
+A subprocess regression test runs the actual checker against isolated copies:
+missing, empty, false, string-valued and stale-specifier permissions fail; the
+exact current specifier with boolean `true` passes. The current repository check
+also passes. No dependency or permission was added or changed. Its historical
+dependency pin must not replace the current immutable pin. Documentation and
+test changes remain traceable in the retained PR head.
 
 ## Remaining source work
 
