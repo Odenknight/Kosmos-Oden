@@ -22,11 +22,12 @@ test.beforeEach(async ({ page }) => {
         return snapshot({ results: [{ title: query || "Alpha", path: "Alpha.md" }, { title: "Beta", path: "Beta.md" }], total: 2 });
       },
       read: async (path: string, options: any) => {
+        if (options.uid && w.uidPath) path = w.uidPath;
         w.calls.push({ path, options });
         if (w.unreadable === path) return snapshot({ note: { error: "unavailable" }, projection: null });
         if (w.slowRead && path === "Alpha.md") await new Promise(resolve => { w.waits.read = resolve; });
         const content = options.offset ? "Second page" : '# Safe heading\n\n**Readable** ![alt](https://invalid.test/a.png) <img src="https://invalid.test/b.png"> [click](javascript:alert(1)) ![[Secret]]';
-        return snapshot({ note: { title: path, path, sensitivity: "public", content, tags:["navigation-only"],
+        return snapshot({ note: { title: path, path, uid: w.noteUid, sensitivity: "public", content, tags:["navigation-only"],
           continuation: { offset: options.offset || 0, next_offset: options.offset ? null : 100, revision: "revision-1", total_characters: 200, complete: !!options.offset } },
           related:w.related??{outgoing:[{title:"Related Beta",path:"Beta.md"}],backlinks:[],semantic:[]},
           assessment:w.assessment??null,diagnostics:w.diagnostics??null,lineage:w.lineage??null,
@@ -373,4 +374,21 @@ test('lineage declaration inspection distinguishes unavailable, empty and scoped
   await expect(region).toContainText('Self-reference');
   await expect(region).toContainText('Unresolved does not mean absent globally');
   await expect(region.locator('button, a')).toHaveCount(0);
+});
+
+
+test('saved stable UID restores the moved note and refreshes its canonical path', async ({ page }) => {
+  const uid = '019b2d14-4230-7db7-87d4-7d81cfaec932';
+  await page.evaluate(uid => { (window as any).noteUid = uid; }, uid);
+  await page.getByRole('button', { name: 'Alpha', exact: true }).click();
+  const state = await page.evaluate(() => (window as any).workspace.getState());
+  expect(state.selectedUid).toBe(uid);
+  await page.evaluate(state => { const w = window as any; w.uidPath = 'Moved.md'; w.workspace.restore(state); }, state);
+  await expect(page.getByRole('heading', { name: 'Moved.md', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).calls.at(-1))).toMatchObject({ options: { uid } });
+  expect(await page.evaluate(() => (window as any).workspace.getState())).toMatchObject({ selectedPath: 'Moved.md', selectedUid: uid });
+  await page.getByRole('button', { name: 'Open source in Obsidian', exact: true }).click();
+  expect(await page.evaluate(() => (window as any).opened)).toEqual(['Moved.md']);
+  await page.evaluate(() => (window as any).workspace.select(null));
+  expect(await page.evaluate(() => (window as any).workspace.getState().selectedUid)).toBeUndefined();
 });

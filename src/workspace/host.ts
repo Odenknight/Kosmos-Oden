@@ -1,3 +1,4 @@
+import { isValidGkxAuthoredUid } from "gkos-engine";
 import { validateVaultRelativePath } from "gkos-engine/navigation-effects";
 import { readableSpatialGraph } from "./spatial";
 export { readableSpatialGraph } from "./spatial";
@@ -75,14 +76,18 @@ export class NotesWorkspaceHost {
 
   spatialGraph() { return this.capture(async () => readableSpatialGraph(await this.api.qGraph())); }
 
-  read(path: string, page: { page_size?: number; offset?: number; revision?: string } = {}) {
+  read(path: string, page: { page_size?: number; offset?: number; revision?: string; uid?: string } = {}) {
     const checked = validateVaultRelativePath(path);
     if (!checked.valid || checked.normalized !== path) throw new Error("WORKSPACE_PATH_INVALID");
     const captured = { ...page };
+    if (captured.uid !== undefined && !isValidGkxAuthoredUid(captured.uid)) throw new Error("WORKSPACE_UID_INVALID");
     return this.capture(async () => {
-      const note = await this.api.qNote({ path, ...captured, page_size: captured.page_size ?? 200_000 });
+      const note = await this.api.qNote({ ...(captured.uid ? { uid: captured.uid } : { path }), offset: captured.offset, revision: captured.revision, page_size: captured.page_size ?? 200_000 });
       if (note.error) return { note, projection: null };
-      if (note.path !== path) throw new Error("WORKSPACE_PATH_MISMATCH");
+      if (captured.uid ? note.uid !== captured.uid : note.path !== path) throw new Error("WORKSPACE_PATH_MISMATCH");
+      const resolved = validateVaultRelativePath(note.path);
+      if (!resolved.valid || resolved.normalized !== note.path) throw new Error("WORKSPACE_PATH_INVALID");
+      path = note.path;
       const projection = await this.api.qGkxNote({ path });
       const related = await this.api.qRelated({ path });
       const lineage = await this.api.qLineage({ path });

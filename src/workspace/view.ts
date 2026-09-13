@@ -1,3 +1,4 @@
+import { isValidGkxAuthoredUid } from "gkos-engine";
 import type { NotesWorkspaceHost, WorkspaceSearchSnapshot } from "./host";
 import { renderWorkspaceMarkdown } from "./markdown";
 import { WorkspaceSelection } from "./selection";
@@ -9,7 +10,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   actions: { openSource(path: string): void; openKosmos(path?: string): void; stateChanged?(): void }) {
   const doc = root.ownerDocument, searches = new WorkspaceSelection(), notes = new WorkspaceSelection();
   let timer: ReturnType<typeof setTimeout> | undefined, closed = false;
-  let selectedPath: string | undefined;
+  let selectedPath: string | undefined, selectedUid: string | undefined;
   root.replaceChildren(); root.classList.add("kosmos-notes-workspace");
   const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
     const node = doc.createElement(tag); if (text !== undefined) node.textContent = text; return node;
@@ -72,15 +73,16 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
   layout.append(navigation, preview, inspector); root.append(toolbar, status, layout);
   syncPanels(); resize.observe(root);
 
-  async function show(path: string, page: { offset?: number; revision?: string } = {}) {
+  async function show(path: string, page: { offset?: number; revision?: string; uid?: string } = {}) {
     if (closed) return;
-    selectedPath = path;
+    selectedPath = path; selectedUid = page.uid;
     if (narrow) { drawer = undefined; syncPanels(); }
     inspector.replaceChildren();
     notes.invalidate(); delete preview.dataset.path; preview.replaceChildren(element("p", "Loading note…"));
     const pending = notes.select(async () => {
       const snapshot = await host.read(path, { ...page, page_size: 100_000 });
       const fragment = doc.createDocumentFragment(), inspection = doc.createDocumentFragment(), { note, projection } = snapshot.value;
+      if (!note.error) path = note.path;
       const related = "related" in snapshot.value ? snapshot.value.related : null;
       const panels = [element("section"), element("section"), element("section")];
       const tabs = element("div"); tabs.className = "kosmos-notes-tabs";
@@ -270,7 +272,8 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     }, async ({ snapshot, fragment, inspection }, current) => snapshot.publish(() => {
       preview.replaceChildren(fragment); preview.dataset.path = path; inspector.replaceChildren(inspection);
       if (narrow && !drawer) preview.focus();
-      if (snapshot.value.note.error) selectedPath = undefined;
+      if (snapshot.value.note.error) { selectedPath = undefined; selectedUid = undefined; }
+      else { selectedPath = path; selectedUid = isValidGkxAuthoredUid(snapshot.value.note.uid) ? snapshot.value.note.uid : undefined; }
       actions.stateChanged?.();
     }, current), ({ fragment, inspection }) => { fragment.replaceChildren(); inspection.replaceChildren(); });
     const version = notes.version;
@@ -285,7 +288,8 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     if (closed) return;
     if (timer) { clearTimeout(timer); timer = undefined; }
     const restorePath = restoreSelection ? selectedPath : undefined;
-    if (!restoreSelection) selectedPath = undefined;
+    const restoreUid = restoreSelection ? selectedUid : undefined;
+    if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     actions.stateChanged?.();
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     const noteVersion = notes.version;
@@ -305,13 +309,13 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     try {
       const published = await pending;
       if (!published && !closed && version === searches.version) status.textContent = "Scope changed. Search again.";
-      if (published && restorePath && !closed && version === searches.version && notes.version === noteVersion) await show(restorePath);
+      if (published && restorePath && !closed && version === searches.version && notes.version === noteVersion) await show(restorePath, restoreUid ? { uid: restoreUid } : {});
     } catch {
       if (!closed && version === searches.version) status.textContent = "Search unavailable. Retry after the current read finishes.";
     }
   }
   function schedule(restoreSelection = false) {
-    if (!restoreSelection) selectedPath = undefined;
+    if (!restoreSelection) { selectedPath = undefined; selectedUid = undefined; }
     searches.invalidate(); notes.invalidate(); results.replaceChildren(); preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
     status.textContent = "Searching…";
     if (timer) clearTimeout(timer);
@@ -324,11 +328,11 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
     select: (path: string | null) => {
       if (closed) return;
       if (path !== null) return show(path);
-      selectedPath = undefined; notes.invalidate();
+      selectedPath = undefined; selectedUid = undefined; notes.invalidate();
       preview.replaceChildren(); inspector.replaceChildren(); delete preview.dataset.path;
       actions.stateChanged?.();
     },
-    getState: () => ({ query: query.value, tag: tag.value, body: body.checked, selectedPath }),
+    getState: () => ({ query: query.value, tag: tag.value, body: body.checked, selectedPath, ...(selectedUid ? { selectedUid } : {}) }),
     restore: (state: unknown) => {
       if (closed || !state || typeof state !== "object" || Array.isArray(state)) return;
       const value = state as Record<string, unknown>;
@@ -336,6 +340,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       tag.value = typeof value.tag === "string" ? value.tag.slice(0, 4096) : "";
       body.checked = value.body === true;
       selectedPath = typeof value.selectedPath === "string" && value.selectedPath.length <= 4096 ? value.selectedPath : undefined;
+      selectedUid = typeof value.selectedUid === "string" && isValidGkxAuthoredUid(value.selectedUid) ? value.selectedUid : undefined;
       schedule(true);
     },
     refresh: () => { if (!closed) schedule(true); },
@@ -344,7 +349,7 @@ export function mountNotesWorkspace(root: HTMLElement, host: Pick<NotesWorkspace
       if (!closed) schedule(true);
     },
     remove: (path: string) => {
-      if (selectedPath === path || selectedPath?.startsWith(path + "/")) selectedPath = undefined;
+      if (selectedPath === path || selectedPath?.startsWith(path + "/")) { selectedPath = undefined; selectedUid = undefined; }
       if (!closed) schedule(true);
     },
     close: () => { closed = true; resize.disconnect(); root.removeEventListener("keydown", escapeDrawer); if (timer) clearTimeout(timer); searches.close(); notes.close(); root.replaceChildren(); },

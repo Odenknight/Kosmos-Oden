@@ -206,3 +206,18 @@ test('native shared bundle exposes scoped declarations and hides restricted targ
   assert.equal(JSON.stringify(actual).includes('Hidden'), false);
   assert.deepEqual(actual, await inspect([source]));
 });
+
+
+test('stable UID restoration follows the readable identity and never falls back to an occupied old path', async () => {
+  const uid = '019b2d14-4230-7db7-87d4-7d81cfaec932';
+  const f = fixture([{ relativePath: 'Moved.md', content: `---\ngkx_version: "2.3"\nuid: "${uid}"\nsensitivity: public\n---\nMoved` }]);
+  const snapshot = await f.host.read('Public.md', { uid });
+  assert.equal(snapshot.value.note.path, 'Moved.md');
+  assert.equal(snapshot.value.projection.source.path, 'Moved.md');
+  assert.equal(snapshot.value.lineage.for, 'Moved.md');
+  const missing = await f.host.read('Public.md', { uid: '019b2d14-4230-7db7-87d4-7d81cfaec933' });
+  assert.equal(missing.value.note.error, 'note not found');
+  assert.throws(() => f.host.read('Public.md', { uid: 'invalid' }), /UID_INVALID/);
+  const duplicate = fixture(['One.md', 'Two.md'].map(relativePath => ({ relativePath, content: `---\ngkx_version: "2.3"\nuid: "${uid}"\nsensitivity: public\n---\nDuplicate` })));
+  await assert.rejects(duplicate.host.read('One.md', { uid }), /Ambiguous UID/);
+});

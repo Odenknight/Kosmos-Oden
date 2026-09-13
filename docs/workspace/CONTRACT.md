@@ -211,6 +211,16 @@ evidence targets, establish truth, or authorize action.
 
 ## Readable lineage
 
+Notes saved state retains a valid authored UUID alongside the canonical path.
+Refresh and layout restoration use strict UID lookup when that identity exists;
+they do not fall back to a different note occupying the old path. Missing or
+ambiguous UIDs refuse restoration. Notes without a valid UID retain path-based
+behavior. Successful publication updates the saved path and all source actions
+to the current canonical path. Selection clearing/deletion clears both values.
+This identity is a selector, not an authorization grant; normal snapshot and
+scope checks still apply. The spatial view's saved selection remains path-based,
+so shared stable identity across both modes is still a separate requirement.
+
 Notes captures the existing `qLineage` result with the note, projection and
 related links under the same snapshot publication guard. The inspector shows
 up to 100 resolved members, marks the selected note, and opens members through
