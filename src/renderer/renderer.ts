@@ -1492,7 +1492,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const pa = new THREE.BufferAttribute(pos, 3); pa.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("position", pa);
     const ca = new THREE.BufferAttribute(col, 3); ca.setUsage(THREE.DynamicDrawUsage); geo.setAttribute("color", ca);
     geo.setDrawRange(0, 0);
-    const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+    const mat = keep(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
     const mesh = new THREE.LineSegments(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 3;
     world.add(mesh);
     agentTrail = { geo, pos, col, cap, mesh };
@@ -1510,11 +1510,13 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     geo.setAttribute("aAlpha", new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
     geo.setAttribute("aSize", new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
     const mat = keep(new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, vertexColors: true, blending: THREE.AdditiveBlending,
+      transparent: true, depthWrite: false, depthTest: false, vertexColors: true, blending: THREE.AdditiveBlending,
+      uniforms: { uPixelRatio: { value: renderer.getPixelRatio() } },
       vertexShader: `attribute float aAlpha; attribute float aSize; varying vec3 vColor; varying float vAlpha;
-        void main(){ vColor=color; vAlpha=aAlpha; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*clamp(260.0/max(8.0,-mv.z),0.65,3.6); gl_Position=projectionMatrix*mv; }`,
+        uniform float uPixelRatio;
+        void main(){ vColor=color; vAlpha=aAlpha; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uPixelRatio*clamp(260.0/max(8.0,-mv.z),1.0,2.4); gl_Position=projectionMatrix*mv; }`,
       fragmentShader: `varying vec3 vColor; varying float vAlpha;
-        void main(){ vec2 q=gl_PointCoord-vec2(.5); float r=length(q); if(r>.5)discard; float core=smoothstep(.5,.05,r); float halo=smoothstep(.5,.22,r); gl_FragColor=vec4(vColor,vAlpha*(core*.72+halo*.28)); }`,
+        void main(){ vec2 q=gl_PointCoord-vec2(.5); float r=length(q); if(r>.5)discard; float core=1.0-smoothstep(.02,.16,r); float halo=pow(1.0-smoothstep(.08,.5,r),1.4); gl_FragColor=vec4(mix(vColor*1.4,vec3(1.0),core*.85),vAlpha*(core*.65+halo*.65)); }`,
     }));
     const points = new THREE.Points(geo, mat); points.frustumCulled = false; points.renderOrder = 4; world.add(points);
     agentDust = { cap, geo, pos, col, alpha, size, vel, born, die, points, cursor: 0, active: 0 };
@@ -1525,19 +1527,22 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     D.pos[o]=x; D.pos[o+1]=y; D.pos[o+2]=z; D.vel[o]=vx; D.vel[o+1]=vy; D.vel[o+2]=vz;
     D.col[o]=Math.min(1,c[0]*1.15+.08); D.col[o+1]=Math.min(1,c[1]*1.15+.08); D.col[o+2]=Math.min(1,c[2]*1.15+.08);
     D.alpha[i]=1; D.size[i]=size; D.born[i]=now; D.die[i]=now+life; D.active=Math.min(D.cap,D.active+1);
+    D.geo.attributes.color.needsUpdate=true; D.geo.attributes.aSize.needsUpdate=true;
   }
   function burstAgentDust(prevId:string|null,id:string,agent:string,now:number):void {
     const b=idToRender.get(id)?.node?.position; if(!b)return; const a=prevId?idToRender.get(prevId)?.node?.position:null;
-    const burst=LOWPOWER?5:11;
+    const burst=LOWPOWER?12:28;
     for(let i=0;i<burst;i++){const j=(i+.5)/burst,ang=i*2.399963,r=.22+(i%4)*.13; emitAgentDust(b[0]+Math.cos(ang)*r,b[1]+((i%3)-1)*.18,b[2]+Math.sin(ang)*r,agent,now,9000+(i%5)*1700,LOWPOWER?3.2:4.6,Math.cos(ang)*.055,-.025-(i%3)*.012,Math.sin(ang)*.055);}
-    if(!a)return; const count=LOWPOWER?8:22,dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
-    for(let i=0;i<count;i++){const u=(i+1)/(count+1),jitter=((i*17)%11-5)*.018,ang=i*2.399963; emitAgentDust(a[0]+dx*u+Math.cos(ang)*jitter,a[1]+dy*u+Math.sin(ang)*jitter,a[2]+dz*u+Math.cos(ang*.7)*jitter,agent,now,6000+(1-u)*9000,LOWPOWER?2.8:4.1,-dx*.004,-.018-Math.abs(dy)*.001,-dz*.004);}
+    if(!a)return; const count=LOWPOWER?64:160,dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
+    const spread=Math.max(.35,cam.radius*.0015);
+    for(let i=0;i<count;i++){const t=(i+.5)/count,u=1-Math.pow(1-t,1.4),jitter=((i*17)%11-5)*spread*(1-u*.75),ang=i*2.399963; emitAgentDust(a[0]+dx*u+Math.cos(ang)*jitter,a[1]+dy*u+Math.sin(ang)*jitter,a[2]+dz*u+Math.cos(ang*.7)*jitter,agent,now,16000+u*14000,(LOWPOWER?4:5)+u*7,-dx*.001,-.018-Math.abs(dy)*.0004,-dz*.001);}
   }
   function updateAgentDust(dt:number,now:number):void {
     if(!agentDust&&!agentSteps.length)return;
     if(agentSteps.length&&now-__agentDustHeadT>AGENT_DUST_HEAD_MS){__agentDustHeadT=now;const heads=new Map<string,any>();for(const s of agentSteps)if(now-s.t<8000)heads.set(s.agent,s);for(const s of heads.values()){const p=idToRender.get(s.id)?.node?.position;if(p)emitAgentDust(p[0]+(Math.random()-.5)*.32,p[1]+(Math.random()-.5)*.32,p[2]+(Math.random()-.5)*.32,s.agent,now,4200+Math.random()*3600,LOWPOWER?2.6:3.8,(Math.random()-.5)*.035,-.018-Math.random()*.025,(Math.random()-.5)*.035);}}
     const D=agentDust;if(!D)return;let active=0;
-    for(let i=0;i<D.cap;i++){if(D.die[i]<=now){D.alpha[i]=0;continue;}const life=D.die[i]-D.born[i],age=now-D.born[i],f=Math.max(0,1-age/life),o=i*3;D.pos[o]+=D.vel[o]*dt;D.pos[o+1]+=D.vel[o+1]*dt;D.pos[o+2]+=D.vel[o+2]*dt;D.vel[o]*=.998;D.vel[o+2]*=.998;D.alpha[i]=f*f;active++;}
+    D.points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio();
+    for(let i=0;i<D.cap;i++){if(D.die[i]<=now){D.alpha[i]=0;continue;}const life=D.die[i]-D.born[i],age=now-D.born[i],f=Math.max(0,1-age/life),o=i*3;D.pos[o]+=D.vel[o]*dt;D.pos[o+1]+=D.vel[o+1]*dt;D.pos[o+2]+=D.vel[o+2]*dt;D.vel[o]*=.998;D.vel[o+2]*=.998;D.alpha[i]=Math.pow(f,.85);active++;}
     D.active=active;D.geo.attributes.position.needsUpdate=true;D.geo.attributes.aAlpha.needsUpdate=true;
   }
   /** Fading emerald breadcrumb of the last hops an AI agent made through the vault (Agent API). */
