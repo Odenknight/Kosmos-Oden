@@ -88,3 +88,11 @@ a Windows executable of 13,311,488 bytes, SHA-256
 The embedded Engine manifest remained null. This supersedes the earlier missing
 CLI observation; it proves the actual CLI build, not installer creation, release
 signing, visible app behavior or Engine-enabled native UI.
+
+The repository version check now includes Tauri config, the Cargo shell package,
+and its lockfile entry. Each was temporarily changed to 0.0.0 independently; all
+three mismatches were refused, originals restored, and the normal check passed.
+Dependency/vendor versions remain independent. The native manifest's explicit
+empty feature lists observed after the CLI build are retained; the earlier build
+receipt identifies the base commit, with this equivalent manifest normalization
+present in the working tree rather than committed at that time.
