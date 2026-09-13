@@ -82,6 +82,14 @@ async function bundleEngineCore() {
 }
 
 async function buildNodeBundles() {
+  const workspaceView = await bundle("src/workspace/view.ts", { extra: { globalName: "KosmosNotesWorkspace", minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-notes-workspace.js"), workspaceView);
+  const workspaceMarkdown = await bundle("src/workspace/markdown.ts", { format: "esm", platform: "browser", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-workspace-markdown.mjs"), workspaceMarkdown);
+  const workspaceHost = await bundle("src/workspace/host.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-workspace-host.mjs"), workspaceHost);
+  const workspaceSelection = await bundle("src/workspace/selection.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-workspace-selection.mjs"), workspaceSelection);
   const operationalPaths = await bundle("src/operational-paths.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-operational-paths.mjs"), operationalPaths);
   const navigationEffects = await bundle("src/navigation-effects/engine-adapter.ts", { format: "esm", platform: "browser", extra: { minify: false } });

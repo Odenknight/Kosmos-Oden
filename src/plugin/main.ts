@@ -13,6 +13,7 @@
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
+import { KosmosNotesView, NOTES_VIEW_TYPE } from "./notes-view";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
@@ -427,6 +428,9 @@ export default class KosmosOdenPlugin extends Plugin {
     const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled);
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
+    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, this.agentApi, () => void this.activate()));
+    this.addRibbonIcon("notebook-pen", "Open Kosmos-Oden Notes", () => void this.activateNotes());
+    this.addCommand({ id: "open-kosmos-notes", name: "Open Kosmos-Oden Notes", callback: () => void this.activateNotes() });
     this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
     this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
     this.addCommand({
@@ -544,7 +548,21 @@ export default class KosmosOdenPlugin extends Plugin {
     ws.revealLeaf(leaf);
   }
 
-  async saveAgentSettings(): Promise<void> { await this.savePluginData(); }
+  async activateNotes(): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(NOTES_VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = ws.getLeaf(true);
+      await leaf.setViewState({ type: NOTES_VIEW_TYPE, active: true });
+    }
+    await ws.revealLeaf(leaf);
+  }
+
+  async saveAgentSettings(): Promise<void> {
+    for (const leaf of this.app.workspace.getLeavesOfType(NOTES_VIEW_TYPE))
+      if (leaf.view instanceof KosmosNotesView) leaf.view.refresh();
+    await this.savePluginData();
+  }
 
   async saveNextcloudSettings(): Promise<void> {
     const scope = syncScope(this.nextcloudSettings);

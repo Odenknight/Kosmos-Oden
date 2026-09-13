@@ -1,5 +1,14 @@
 # Changelog
 
+## Notes workspace implementation candidate - 2026-09-13
+
+- Add a separate native Notes command and ribbon entry, reusing MCP read policy
+  without starting a listener. Search and paged previews reject stale selections
+  and recheck corpus, committed graph, and policy before display or source opening.
+- Render resource-free Markdown and display five Engine provenance origins
+  separately. Editing opens the canonical file in Obsidian. Native qualification
+  and changing the default workspace remain pending.
+
 ## Committed note continuation - 2026-09-13
 
 - Add opt-in `get_note` pages bound to the committed body, corpus and policy.
