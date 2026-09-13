@@ -59,6 +59,18 @@ export function verifyMailboxBundle(root, reference) {
   } catch (error) { return referenceError(error); }
 }
 
+function validMailboxTime(value) {
+  if (typeof value !== "string") return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+  if (!m) return false;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
+    Number(m[4]) < 24 && Number(m[5]) < 60 && Number(m[6]) < 60 &&
+    (!m[7] || Number(m[8]) < 24 && Number(m[9]) < 60) && Number.isFinite(Date.parse(value));
+}
+
 export function mailboxSchemaFindings(value, kind) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return ["schema-object"];
   const findings = [];
@@ -67,7 +79,7 @@ export function mailboxSchemaFindings(value, kind) {
     : ["schema_version","ack_id","recipient","sender","message_id","message_sha256","status","created_utc","reason","review_message_id","outputs"];
   if (required.some(key => !Object.hasOwn(value,key))) findings.push("schema-required-field");
   if (value.schema_version !== 1) findings.push("schema-version");
-  if (typeof value.created_utc !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value.created_utc) || !Number.isFinite(Date.parse(value.created_utc))) findings.push("schema-time");
+  if (!validMailboxTime(value.created_utc)) findings.push("schema-time");
   const text = key => typeof value[key] === "string";
   if (!text("sender") || !/^[a-z0-9][a-z0-9-]*$/.test(value.sender) || !text("message_id") || !value.message_id) findings.push("schema-identity");
   if (kind === "message") {
@@ -160,6 +172,10 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     else if (a.message_sha256 !== target.sha256) report(entry.file, "ack-hash-mismatch");
     if (!["RECEIVED", "ACCEPTED", "REJECTED", "COMPLETED"].includes(a.status)) report(entry.file, "ack-status");
     if (a.status === "COMPLETED" && (!Array.isArray(a.outputs) || !a.outputs.length)) report(entry.file, "completion-evidence-missing");
+    if (Array.isArray(a.outputs)) for (const output of a.outputs) {
+      const code = output?.sha256sums !== undefined ? verifyMailboxBundle(root, output) : verifyMailboxReference(referenceRoot, output);
+      if (code) report(entry.file, `output-${code}`);
+    }
     acknowledgements.push({ file: entry.file, messageId: a.message_id, status: a.status, completionVerified: false });
   }
   return { recipient, messageCount: messages.length, duplicates, findings, schemaFindings, acknowledgements,

@@ -149,3 +149,22 @@ test("protocol schema checks missing fields, roles and ACK evidence shapes", () 
   assert.deepEqual(mailboxSchemaFindings(ack,"ack"),[]);
   assert.ok(mailboxSchemaFindings({...ack,outputs:null},"ack").includes("schema-outputs"));
 });
+
+
+test("schema time rejects calendar rollover and accepts actual leap days", () => {
+  for (const created_utc of ["2026-02-29T00:00:00Z","2026-02-30T00:00:00Z","1900-02-29T00:00:00Z","2026-04-31T00:00:00Z","2026-09-13T24:00:00Z","2026-09-13T00:00:00+24:00"])
+    assert.ok(mailboxSchemaFindings({created_utc},"message").includes("schema-time"),created_utc);
+  for (const created_utc of ["2000-02-29T00:00:00Z","2024-02-29T23:59:59.1234567Z","2026-09-13T00:00:00-04:00"])
+    assert.equal(mailboxSchemaFindings({created_utc},"message").includes("schema-time"),false,created_utc);
+});
+
+test("ACK output hashes are checked without elevating completion status", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-output-"));
+  mkdirSync(join(root,"messages"));mkdirSync(join(root,"acks/bob"),{recursive:true});
+  writeFileSync(join(root,"result.md"),"output");
+  const ack={recipient:"bob",sender:"alice",message_id:"m",status:"COMPLETED",outputs:[{path:"result.md",sha256:"0".repeat(64)}]};
+  writeFileSync(join(root,"acks/bob/bob-000001-ack-m.json"),JSON.stringify(ack));
+  const result=auditMailbox(root,"bob",root);
+  assert.ok(result.findings.some(x=>x.code==="output-reference-hash-mismatch"));
+  assert.equal(result.acknowledgements[0].completionVerified,false);
+});

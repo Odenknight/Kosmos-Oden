@@ -4,7 +4,7 @@ The read-only `scripts/audit-mailbox.mjs ROOT RECIPIENT` selects an explicit
 recipient ACK directory and hashes exact message bytes. Its output is an audit,
 not work acceptance. Every ACK keeps `completionVerified: false`.
 
-The current seven synthetic tests cover:
+The current nine synthetic tests cover:
 
 - Multiple recipients, raw-byte hashes, inverted roles, missing completion evidence,
   malformed delivered JSON, and invalid recipient path input.
@@ -42,8 +42,11 @@ time syntax, kinds, payload/reference list shapes and ACK fields. Non-coordinato
 ASSIGNMENT records are flagged. Schema findings also make the CLI fail; minimal
 integrity fixtures are not certified as complete protocol records.
 
-Remaining M1 checks include strict calendar/field constraints and output-reference
-validation, immutable manifest binding, the protocol's exact legacy
+Calendar validation rejects impossible dates, 24-hour rollover and invalid offsets;
+ACK outputs use the same reference validation as message artifacts. Output hash
+verification never changes `completionVerified` to true.
+
+Remaining M1 checks include exhaustive field constraints, immutable manifest binding, the protocol's exact legacy
 ACK exception, and evidence-based reconciliation of mutable status/card summaries.
 The reader does not send ACKs, quarantine files, rewrite history or update peer
 cards. Those operations cannot be inferred from a successful read-only audit.
