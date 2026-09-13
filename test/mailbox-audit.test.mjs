@@ -7,17 +7,18 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
 
-test("reference reads bound concurrent growth and reject changes to the opened file", () => {
+test("reference, message and ACK reads bound growth and reject changes to the opened file", () => {
   const moduleUrl = new URL("../scripts/audit-mailbox.mjs", import.meta.url).href;
-  for (const mutation of ["grow", "rewrite", "replace"]) {
+  for (const scope of ["bundle", "message", "ack"]) for (const mutation of ["grow", "rewrite", "replace"]) {
     const output = execFileSync(process.execPath, ["--input-type=module", "-e", `
       import fs from 'node:fs';
       import {syncBuiltinESMExports} from 'node:module';
       import {tmpdir} from 'node:os';
       import {join} from 'node:path';
       const root=fs.mkdtempSync(join(tmpdir(),'mailbox-read-race-'));
-      fs.mkdirSync(join(root,'bundle'));
-      const path=join(root,'bundle','SHA256SUMS');
+      for(const directory of ['bundle','messages/alice','acks/bob']) fs.mkdirSync(join(root,directory),{recursive:true});
+      const scope=${JSON.stringify(scope)};
+      const path=join(root,scope==='bundle'?'bundle/SHA256SUMS':scope==='message'?'messages/alice/alice-000001-m.json':'acks/bob/bob-000001-ack-m.json');
       fs.writeFileSync(path,'x');
       const originalOpen=fs.openSync, originalRead=fs.readSync;
       let targetFd, changed=false, bytesRead=0;
@@ -33,15 +34,19 @@ test("reference reads bound concurrent growth and reject changes to the opened f
       };
       syncBuiltinESMExports();
       try {
-        const {verifyMailboxBundle}=await import(${JSON.stringify(moduleUrl)});
-        const result=verifyMailboxBundle(root,{path:'bundle',sha256sums:'SHA256SUMS'});
+        const {verifyMailboxBundle,auditMailbox}=await import(${JSON.stringify(moduleUrl)});
+        const audit=scope==='bundle'?null:auditMailbox(root,'bob',root);
+        const result=scope==='bundle'?verifyMailboxBundle(root,{path:'bundle',sha256sums:'SHA256SUMS'}):audit.findings[0]?.code;
+        if(audit && (audit.messageCount!==0 || audit.acknowledgements.length!==0)) throw new Error('Changed envelope was admitted');
         process.stdout.write(JSON.stringify({result,bytesRead,changed}));
       } finally { fs.rmSync(root,{recursive:true,force:true}); }
     `], { encoding: "utf8", windowsHide: true });
     const result = JSON.parse(output);
     assert.equal(result.changed, true);
-    assert.equal(result.result, mutation === "grow" ? "reference-over-budget" : "reference-changed");
-    assert.ok(result.bytesRead <= 65537, "manifest growth must not cause an unbounded read");
+    assert.equal(result.result, scope === "bundle"
+      ? mutation === "grow" ? "reference-over-budget" : "reference-changed"
+      : mutation === "grow" ? "oversized" : "envelope-reference-changed");
+    assert.ok(result.bytesRead <= 65537, "concurrent growth must not cause an unbounded read");
   }
 });
 

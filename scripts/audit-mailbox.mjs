@@ -146,20 +146,13 @@ export function auditMailbox(root, recipient, referenceRoot = resolve(root, "../
     catch (e) { if (e.code === "ENOENT") return []; throw e; }
     return entries.filter(e => e.isFile() && !e.name.startsWith(".tmp-") && e.name.endsWith(".json")).sort((a,b) => a.name.localeCompare(b.name)).flatMap(e => {
       const file = `${directory}/${e.name}`;
-      // Read one byte beyond the protocol limit to detect oversize without
-      // allocating the entire delivered file, including files growing in place.
-      const buffer = Buffer.alloc(65537);
-      const fd = openSync(resolve(root, file), "r");
-      let length = 0;
-      try {
-        while (length < buffer.length) {
-          const count = readSync(fd, buffer, length, buffer.length - length, null);
-          if (!count) break;
-          length += count;
-        }
-      } finally { closeSync(fd); }
-      const raw = buffer.subarray(0, length);
-      if (raw.length > 65536) { report(file, "oversized"); return []; }
+      let raw;
+      try { raw = readReference(root, file, 65536); }
+      catch (error) {
+        const code = referenceError(error);
+        report(file, code === "reference-over-budget" ? "oversized" : `envelope-${code}`);
+        return [];
+      }
       // Reject corrupt UTF-8 instead of silently replacing bytes before parsing.
       try { return [{ file, data: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(raw)), sha256: createHash("sha256").update(raw).digest("hex") }]; }
       catch { report(file, "invalid-json"); return []; }

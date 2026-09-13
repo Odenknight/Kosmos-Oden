@@ -20,3 +20,13 @@ The local read-only audit still reports 135 messages, six acknowledgements,
 This closes the unbounded reference-read defect. It does not establish full
 mailbox qualification, authenticate unbound historical manifests, reconcile
 agent cards/status files, or turn an acknowledgement into work acceptance.
+
+## Envelope follow-up
+
+Messages and acknowledgements now use the same bounded, identity-checked reader.
+An observed change produces `envelope-reference-changed` and the envelope is
+excluded from chain/ACK resolution; oversize retains the existing `oversized`
+finding. The regression matrix now exercises growth, rewrite and replacement
+for bundles, messages and ACKs (nine subprocess cases). All 12 mailbox tests
+and full repository verification passed again. The local audit counts remain
+unchanged. No mailbox files were rewritten or quarantined by this read-only tool.
