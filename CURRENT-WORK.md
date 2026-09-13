@@ -33,14 +33,16 @@ These are separate review branches.
 They have not been merged to main as part of this work.
 
 Before this handoff, Kosmos was at `c4a3ee3`.
-The Engine implementation is now at `d21982d`.
+The Engine implementation is now at `885b0b3`.
 Kosmos now pins Engine `d21982d`.
 The Engine now exports its existing pure manifest helpers for native consumers.
 Their package API, compatibility, source inventory, and package checks passed.
 Kosmos now prepares native manifests through that package API.
 It reads only authorized sources and retains a live revision check.
 Source edits or observed configuration changes invalidate prepared state.
-Trusted publication reconciliation and the native client connection remain open.
+The Engine now shares publication reconciliation between service and native hosts.
+Its Python-ledger, authenticated HTTP, compatibility, and package checks passed.
+Kosmos still needs to adopt this newer helper and complete the native connection.
 The installed plugin is an earlier candidate, `59a61ca`.
 Do not describe branch changes as already installed.
 
