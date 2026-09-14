@@ -25,7 +25,10 @@ The complete four-browser run passed 246 checks with two declared platform skips
 All twelve reference images have independent approval. Earlier Windows history
 failures remain preserved. Explicit private file creation and correct helper
 installation now pass all three hosted storage backends, 12 tests each.
-Its pinned Engine passed 1,216 tests on each hosted Windows runtime lane.
+The earlier Engine pin passed 1,216 tests on each hosted Windows runtime lane.
+The new development pin and its separate runtime evidence are recorded in the
+[native UTF-16 candidate report](docs/reviews/2026-09-14-engine-native-string-qualification.md).
+The changed consumer requires fresh integration verification.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
 Production history and automatic source writes remain disabled.
