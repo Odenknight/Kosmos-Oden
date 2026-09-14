@@ -95,3 +95,26 @@ Sender directory aliases now produce an explicit confinement finding instead of 
 
 Enumeration also checks the messages directory and every selected ACK-directory component before listing children. Empty junctions at messages, acks, or acks/recipient now produce findings; missing required messages storage still throws. All 15 focused tests pass. Per-envelope before/after checks remain necessary because enumeration is not a directory lease.
 
+
+
+## September 14: M1 executable acceptance matrix
+
+The preserved Protocol 1.2.0 source still matches the SHA-256 above.
+The focused suite now passes all 16 tests on Windows with Node 24.18.0.
+The new `M1 CLI recipient matrix` test launches the actual command for two
+recipients, using complete synthetic protocol envelopes. Both commands return
+exit 1 for the disclosed fork. Neither returns a clean-audit claim.
+
+| M1 assertion | Executed evidence |
+| --- | --- |
+| Explicit recipient and ACK directory | Bob sees only Bob's ACK; Carol sees only Carol's ACK. The test calls the CLI with each recipient argument. |
+| Raw hash and sender/recipient roles | Carol's inverted roles and wrong raw target hash are reported; Bob's valid ACK does not inherit these findings. |
+| Preserve forks and corrected history | Both reports retain all three original messages. The correction does not clear its ambiguous predecessor chain. Every fixture file remains byte-identical after both commands. |
+| Generic ACK is not completion | ACCEPTED and COMPLETED ACKs both retain `completionVerified: false`; COMPLETED without outputs reports missing evidence. |
+| Duplicate sequence and ACK ordinal | The existing conflicting-ID test checks reused ordinals, a sequence fork, and ambiguous target resolution. |
+| No background monitoring | The CLI executes once and exits. No timer or monitor was added. |
+
+These assertions qualify the named synthetic reader behaviors. They do not
+establish complete protocol conformance, authenticate unbound historical bundle
+manifests, or reconcile every live agent card. Status reconciliation remains an
+owner-scoped action based on original evidence; this audit never writes peer files.

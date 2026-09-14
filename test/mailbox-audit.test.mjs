@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, symlin
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
 
 test("empty mailbox directory aliases produce confinement findings without reading children", () => {
@@ -306,4 +306,51 @@ test("ACK output hashes are checked without elevating completion status", () => 
   const result=auditMailbox(root,"bob",root);
   assert.ok(result.findings.some(x=>x.code==="output-reference-hash-mismatch"));
   assert.equal(result.acknowledgements[0].completionVerified,false);
+});
+
+
+test("M1 CLI recipient matrix preserves forks and corrections without accepting ACK claims", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-m1-cli-"));
+  const originals = new Map();
+  const put = (path, value) => {
+    const full = join(root, path), bytes = Buffer.from(JSON.stringify(value));
+    mkdirSync(join(full, '..'), { recursive: true });
+    writeFileSync(full, bytes); originals.set(full, bytes);
+    return createHash('sha256').update(bytes).digest('hex');
+  };
+  const base = { schema_version: 1, sender: 'alice', recipients: ['bob', 'carol'],
+    sender_seq: 1, message_id: 'first', task_id: 'm1', in_reply_to: null,
+    created_utc: '2026-09-14T00:00:00Z', kind: 'FINDING',
+    payload: { subject: 'Historical finding', body_markdown: 'Synthetic original.' },
+    input_plan_digests: [], artifacts: [], prev_message_sha256: null };
+  const first = put('messages/alice/alice-000001-first.json', base);
+  put('messages/alice/alice-000001-fork.json', { ...base, message_id: 'fork' });
+  put('messages/alice/alice-000002-correction.json', { ...base, sender_seq: 2,
+    message_id: 'correction', in_reply_to: 'first', prev_message_sha256: first,
+    payload: { subject: 'Correction', body_markdown: 'Earlier finding corrected; retain original and fork.' } });
+  const ack = { schema_version: 1, ack_id: 'bob-ack', recipient: 'bob', sender: 'alice',
+    message_id: 'first', message_sha256: first, status: 'ACCEPTED',
+    created_utc: base.created_utc, reason: 'Received for review', review_message_id: null, outputs: [] };
+  put('acks/bob/bob-000001-ack-first.json', ack);
+  put('acks/carol/carol-000001-ack-first.json', { ...ack, ack_id: 'carol-ack',
+    recipient: 'alice', sender: 'carol', message_sha256: '0'.repeat(64), status: 'COMPLETED' });
+  for (const recipient of ['bob', 'carol']) {
+    const child = spawnSync(process.execPath, ['scripts/audit-mailbox.mjs', root, recipient],
+      { encoding: 'utf8', timeout: 10000, windowsHide: true });
+    assert.ifError(child.error); assert.equal(child.signal, null);
+    assert.equal(child.status, 1, 'disclosed ambiguity must fail the audit');
+    const report = JSON.parse(child.stdout);
+    assert.equal(report.recipient, recipient);
+    assert.equal(report.messageCount, 3);
+    assert.deepEqual(report.schemaFindings, []);
+    assert.equal(report.acknowledgements.length, 1);
+    assert.equal(report.acknowledgements[0].completionVerified, false);
+    assert.ok(report.acknowledgements[0].file.startsWith(`acks/${recipient}/`));
+    assert.ok(report.findings.some(x => x.code === 'sequence-fork'));
+    assert.ok(report.findings.some(x => x.code === 'parent-chain-ambiguous' && x.file.endsWith('correction.json')));
+    for (const code of ['ack-role-mismatch', 'ack-hash-mismatch', 'completion-evidence-missing']) {
+      assert.equal(report.findings.some(x => x.code === code), recipient === 'carol', code);
+    }
+  }
+  for (const [path, bytes] of originals) assert.deepEqual(readFileSync(path), bytes);
 });
