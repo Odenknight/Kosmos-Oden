@@ -80,5 +80,8 @@ every recovery operation and recheck all other current preconditions.
 The current consumer pin advances to Engine `13ff119` after its exact full
 Windows Node 24 qualification passed 1,215 tests. This includes the same Effects
 APIs plus native executable asset loading. Its full Node 22 qualification is
-separate and remains pending. The installed-package integration checks continue
+separate and ended in failure: 1,212 passed, two failed, and one skipped.
+The later focused passes do not qualify the complete run. See the
+[terminal qualification update](../reviews/2026-09-14-node22-terminal-qualification.md).
+The installed-package integration checks continue
 to exercise the pinned dependency. Production host capabilities remain unavailable.

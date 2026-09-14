@@ -32,10 +32,10 @@ A newer profiled run took 13.14 seconds.
 A small serializer experiment did not establish a useful improvement.
 The next target is repeated whole-graph processing during activation.
 
-The same Engine revision is now undergoing full Node 22 qualification.
-Terra is scheduled to check long-running results every six hours.
-The last recorded check found the run still active.
-We can continue independent work while it runs.
+The full Node 22 qualification ended in failure at 07:15 UTC on September 14.
+It recorded 1,212 passes, two failures, and one skip across 1,215 tests.
+Both failing cases later passed in focused runs; the full gate remains failed.
+The reboot resume is diagnosing the failures before another full run.
 The upgrade remains on review branches.
 It has not been merged to main.
 
@@ -54,8 +54,8 @@ That exact revision passed all 1,215 tests on Windows Node 24.
 The full run finished at 06:42 UTC on September 14.
 Both log hashes and the tested source revision were verified.
 Its eight focused Node 22 native and asset tests also passed.
-A separate full Node 22 run is active under Terra monitoring.
-Do not report that newer run as passed without its terminal receipt.
+The separate full Node 22 run failed. Its terminal receipt and focused follow-up
+evidence are recorded in the [Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
 
 The normal installed plugin remains candidate `59a61ca`.
 The isolated Obsidian test vault runs candidate `27309b2`.
@@ -91,7 +91,7 @@ In Engine PR 74, inspect `src/navigation-effects/node/executor.ts`.
 Also read `docs/EFFECTS-HOST-API-PROGRESS.md`.
 In Engine PR 75, inspect `scripts/sea-native-assets.mjs`.
 Also inspect `src/watcher/windows-retained-guard.ts`.
-Keep that exact candidate unchanged while its qualification runs.
+Preserve that exact candidate and its terminal qualification receipts.
 
 In the Rust branch, start with `conformance/differential/README.md`.
 Its recorded TypeScript outputs are observations, not approved reference results.

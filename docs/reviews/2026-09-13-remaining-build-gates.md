@@ -85,6 +85,8 @@ Engine `13ff119` full Windows Node 24 qualification completed at 06:42:29 UTC
 on September 14. All 1,215 tests passed with no failures, skips, or cancellations.
 The source revision and both raw command-log hashes were checked. The receipt
 still says the release is not qualified. A separate isolated full Node 22.22.1
-qualification is running at that same revision under the six-hour Terra monitor.
+qualification ended at 07:15:16 UTC with 1,212 passed, two failed, and one skipped.
+Its status is FAIL and release_qualified is false. Later focused passes do not
+replace that result; see the [terminal update](2026-09-14-node22-terminal-qualification.md).
 The Kosmos dependency now includes this revision. Neither this pin update nor
 the Node 24 pass completes the remaining product and native acceptance gates.
