@@ -81,6 +81,7 @@ Branch changes must not be described as installed.
 | [Search handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md) | Explains the native search integration. |
 | [History handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md) | Explains storage contracts and recovery behavior. |
 | [Performance report](docs/reviews/2026-09-13-watcher-performance-follow-up.md) | Records the indexing failure and tested experiments. |
+| [Browser qualification](docs/reviews/2026-09-13-browser-candidate-qualification.md) | Records the full browser result and repeatable visual failures. |
 
 In GKOS-Engine, inspect `src/watcher/contracts.ts` on the branch listed above.
 The latest change computes each canonical sort key once.
