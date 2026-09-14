@@ -3,6 +3,7 @@
 Updated: September 13, 2026.
 Owner of this implementation task: Astra-Oden.
 This is a short reading guide for the owner and other agents.
+Start with the “Read aloud” section when explaining this work to the owner.
 It describes work in progress. It is not a release certificate.
 Earlier checkpoints remain in Git history and the linked reports.
 
@@ -36,6 +37,9 @@ The required target is still two seconds.
 Synchronous filesystem calls account for only a small part of the measured delay.
 Repeated serialization remains the main performance investigation.
 The comet trails and real agent names still need final installed visual checks.
+The latest browser run passed 231 tests.
+Three visual comparisons failed. Two tests were skipped.
+The failed images need review before their references can change.
 Terra is scheduled to check long-running qualification every six hours.
 The upgrade is on review branches. It has not been merged to main.
 
@@ -46,6 +50,10 @@ The upgrade is on review branches. It has not been merged to main.
 | Kosmos-Oden | Native search, history, permissions, and workspace behavior | [PR 80](https://github.com/Odenknight/Kosmos-Oden/pull/80) |
 | GKOS-Engine | Search service, source verification, and indexing performance | [PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73) |
 | GKOS-Engine qualification base | Broader Engine qualification | [PR 72](https://github.com/Odenknight/GKOS-Engine/pull/72) |
+
+GKOS-standard defines the shared contracts used by these products.
+GKOS-Engine-Rust needs its own working implementation evidence.
+A passing TypeScript test does not prove that the Rust product works.
 
 Kosmos work is on `codex/build-plan-completion-20260913`.
 The executable helper was introduced at `785aecd`.
@@ -74,9 +82,18 @@ Branch changes must not be described as installed.
 | [History handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md) | Explains storage contracts and recovery behavior. |
 | [Performance report](docs/reviews/2026-09-13-watcher-performance-follow-up.md) | Records the indexing failure and tested experiments. |
 
+In GKOS-Engine, inspect `src/watcher/contracts.ts` on the branch listed above.
+The latest change computes each canonical sort key once.
+It avoids repeating serialization inside the sort comparison.
+The performance report links the measured result and its limits.
+
 ## Evidence and limits
 
 The latest full Kosmos verification passed 598 tests.
+The separate browser matrix finished with 231 passes, three failures, and two skips.
+All three failures concern the desktop star-focus reference image.
+The generated mobile reference images remain untracked and unapproved.
+Their passing comparisons do not establish approved visual acceptance.
 The in-process adapter passes all eleven dedicated Windows storage tests.
 The executable variant also passes its storage regression run.
 The combined history workflow passed in an isolated Obsidian vault.
