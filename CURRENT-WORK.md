@@ -31,7 +31,9 @@ That prevents a differently spelled deletion from exposing an older version.
 Production installation and owner controls remain unfinished.
 
 Indexing also misses its performance target.
-A 2,000-note edit takes about 12.38 seconds against a two-second target.
+Recent 2,000-note diagnostics still take about 12 seconds against a two-second target.
+Synchronous filesystem calls account for only a small part of the measured delay.
+Repeated serialization remains the main performance investigation.
 The comet trails and real agent names still need final installed visual checks.
 Terra is scheduled to check long-running qualification every six hours.
 The upgrade is on review branches. It has not been merged to main.
