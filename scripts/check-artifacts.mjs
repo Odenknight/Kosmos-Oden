@@ -50,6 +50,15 @@ if (existsSync(stdioAdapter)) {
   must(!/method:\s*"DELETE"/.test(source), "stdio adapter reintroduced session termination, removed in this revision");
 }
 
+// Desktop-only Effects inspection is a separate lazy-loaded Node artifact.
+// Keeping it out of main.js lets the Obsidian/mobile module load without Node.
+const effectsInspectionHost = resolve(root, "effects-inspection-host.cjs");
+must(existsSync(effectsInspectionHost), "effects-inspection-host.cjs is missing (run npm run build)");
+if (existsSync(effectsInspectionHost)) {
+  const source = readFileSync(effectsInspectionHost, "utf8");
+  must(source.includes("inspectRecovery"), "Effects inspection host lacks the Engine inspection operation");
+}
+
 // version agreement between built artifacts and manifest/package
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8"));
@@ -87,4 +96,4 @@ if (problems.length) {
   for (const p of problems) console.error("check-artifacts:", p);
   process.exit(1);
 }
-console.log("check-artifacts: OK — plugin, standalone, and stdio adapter artifacts are present and version-consistent");
+console.log("check-artifacts: OK — plugin, optional Effects host, standalone, and stdio adapter artifacts are present and version-consistent");

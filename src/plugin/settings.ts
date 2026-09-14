@@ -270,6 +270,21 @@ export class KosmosSettingTab extends PluginSettingTab {
         this.plugin.provider.markFullDirty();
         new Notice("Kosmos-Oden: reopen or refresh the cosmos view to apply the Navigation center policy.");
       }));
+    gkxEl.createEl("h3", { text: "Navigation Effects recovery" });
+    const effectsInspectionStatus = gkxEl.createEl("p", {
+      text: "Read-only recovery inspection has not run. Source effects and automatic writes remain unavailable.",
+      cls: "setting-item-description",
+    });
+    new Setting(gkxEl).setName("Inspect recovery status")
+      .setDesc("Reads existing Engine recovery evidence without creating Effects state, recovering work, or enabling writes.")
+      .addButton(button => button.setButtonText("Inspect").onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.plugin.inspectNavigationEffects();
+        if (this.plugin.effectsInspectionCanPublish()) {
+          effectsInspectionStatus.setText(this.plugin.effectsInspectionMessage(result));
+          button.setDisabled(false);
+        }
+      }));
     gkxEl.createEl("h3", { text: "Portable note timestamps" });
     gkxEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .gkx files are excluded." });
     new Setting(gkxEl).setName("Stamp note creation and modification times")

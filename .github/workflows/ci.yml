@@ -40,7 +40,7 @@ jobs:
       - name: Version synchronization
         run: npm run check:versions
 
-      - name: Artifact checks (main.js, kosmos-oden-stand-alone.html, self-containment)
+      - name: Artifact checks (plugin, optional desktop host, standalone, self-containment)
         run: npm run check:artifacts
 
       - name: Invariants policy (kosmos-invariants.yml)
@@ -55,6 +55,7 @@ jobs:
           name: kosmos-oden-${{ github.sha }}
           path: |
             main.js
+            effects-inspection-host.cjs
             manifest.json
             styles.css
             kosmos-oden-stand-alone.html
@@ -72,12 +73,12 @@ jobs:
       - name: First build
         run: |
           npm run build
-          sha256sum main.js kosmos-oden-stand-alone.html dist/kosmos-embed.html > first.sha256
+          sha256sum main.js effects-inspection-host.cjs kosmos-oden-stand-alone.html dist/kosmos-embed.html > first.sha256
       - name: Second build
         run: |
           git clean -xfd -e node_modules -e first.sha256
           npm run build
-          sha256sum main.js kosmos-oden-stand-alone.html dist/kosmos-embed.html > second.sha256
+          sha256sum main.js effects-inspection-host.cjs kosmos-oden-stand-alone.html dist/kosmos-embed.html > second.sha256
       - name: Compare
         run: diff -u first.sha256 second.sha256
 

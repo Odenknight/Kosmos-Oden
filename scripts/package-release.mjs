@@ -37,7 +37,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = resolve(root, "release");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
-const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md", "LICENSE", "THIRD-PARTY-NOTICES.md"];
+const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "effects-inspection-host.cjs", "docs/REVIEW-0.8.3.md", "LICENSE", "THIRD-PARTY-NOTICES.md"];
 
 function git(cmd, fallback = "") {
   try { return execSync(`git ${cmd}`, { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }

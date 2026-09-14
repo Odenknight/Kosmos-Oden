@@ -86,6 +86,8 @@ async function bundleEngineCore() {
 }
 
 async function buildNodeBundles() {
+  const effectsInspectionHost = await bundle("src/navigation-effects/plugin-inspection-host.ts", { format: "cjs", platform: "node" });
+  writeFileSync(resolve(root, "effects-inspection-host.cjs"), effectsInspectionHost);
   const workspaceView = await bundle("src/workspace/view.ts", { extra: { globalName: "KosmosNotesWorkspace", minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-notes-workspace.js"), workspaceView);
   const workspaceMarkdown = await bundle("src/workspace/markdown.ts", { format: "esm", platform: "browser", extra: { minify: false } });
@@ -121,7 +123,7 @@ async function buildNodeBundles() {
   // standalone live Agent-API feed glue is DOM-free and unit-testable
   const apiFeed = await bundle("src/standalone/api-feed.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-api-feed.mjs"), apiFeed);
-  console.log("built dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-version-metadata.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
+  console.log("built effects-inspection-host.cjs, dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-version-metadata.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
 }
 
 const RENDERER_PROVENANCE = JSON.parse(readFileSync(resolve(root, "renderer-provenance.json"), "utf8"));
