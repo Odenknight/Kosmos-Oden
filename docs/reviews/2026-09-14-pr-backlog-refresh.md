@@ -74,3 +74,36 @@ The actual host coordinator, durable recovery integration, and source-write gate
 remain unfinished. This restoration does not activate Effects or close PR38/41.
 Their remaining desktop, service, packaging, exclusion, and documentation changes
 still need a behavior-by-behavior disposition.
+
+## Corpus exclusions and packaging follow-up
+
+The historical corpus-exclusions module is superseded by src/operational-paths.ts.
+The central predicate already covers exact operational roots, separators, case,
+repeated relative prefixes and repeated slashes. Current plugin corpus scans,
+source reads, timestamp operations, migration, enrichment, and standalone directory
+scans use it. Existing tests cover those call sites. The restored Effects debouncer
+now reuses this predicate instead of maintaining its own operational-root list.
+Its separate temporary-file exclusion remains intact.
+
+PR38/41 portable-alpha packaging is absent from the current release script.
+The historical test also deletes an output directory inside the checkout;
+it was not copied into the current suite unchanged.
+The current script previously ignored --portable and all other arguments, then
+started rebuilding the ordinary plugin release. It also erased the previous
+release before discovering a missing input artifact.
+
+Unsupported options now exit 2 before filesystem changes. All required artifact
+bytes are read before replacing the previous output. Missing/unreadable inputs
+exit 1 while preserving the old release. Normal plugin packaging still stages
+exact source bytes and their checksums. This does not provide atomic rollback
+for a failure while writing the new output; that remains a separate requirement.
+
+An isolated regression fixture failed before the change. It now confirms refusal
+and prior-receipt preservation, plus successful staging and exact checksums for
+all nine normal release artifacts. Full verification passed 612 tests, with no
+failures or skips. The additional successful-staging assertions also passed in
+a focused rerun. No real release output was removed by these tests.
+
+Portable packaging, supplied-sidecar verification, SBOM evidence, target reporting,
+and native distribution acceptance remain open. Refusing --portable prevents a
+misleading success; it does not complete the portable feature or close PR38/41.

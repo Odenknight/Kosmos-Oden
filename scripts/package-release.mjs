@@ -13,9 +13,14 @@
  */
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+if (process.argv.length !== 2) {
+  console.error("package-release: unsupported arguments; this command currently packages the plugin release only");
+  process.exit(2);
+}
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = resolve(root, "release");
@@ -32,13 +37,20 @@ function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+// Read the complete input set before changing the previous release. A missing
+// build artifact must not destroy a usable package or its historical receipt.
+const artifactBytes = new Map();
+for (const f of ARTIFACTS) {
+  try { artifactBytes.set(f, readFileSync(resolve(root, f))); }
+  catch { console.error(`package-release: missing or unreadable artifact ${f} — run npm run build first`); process.exit(1); }
+}
+
 rmSync(rel, { recursive: true, force: true });
 mkdirSync(rel, { recursive: true });
 
 for (const f of ARTIFACTS) {
   mkdirSync(dirname(resolve(rel, f)), { recursive: true });
-  try { copyFileSync(resolve(root, f), resolve(rel, f)); }
-  catch (e) { console.error(`package-release: missing artifact ${f} — run npm run build first`); process.exit(1); }
+  writeFileSync(resolve(rel, f), artifactBytes.get(f));
 }
 
 const lockHash = (() => {

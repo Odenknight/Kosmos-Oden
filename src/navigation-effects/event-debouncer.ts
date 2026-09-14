@@ -1,3 +1,5 @@
+import { isKosmosOperationalPath } from "../operational-paths";
+
 export type WatcherEventKind = "create" | "modify" | "rename" | "delete";
 
 export interface WatcherDelivery {
@@ -66,9 +68,7 @@ export function normalizeWatcherPath(input: string): string | null {
 export function isIgnoredEffectsPath(input: string): boolean {
   const path = normalizeWatcherPath(input);
   if (!path) return true;
-  const lower = path.toLocaleLowerCase("en-US");
-  if (lower === ".gkx" || lower.startsWith(".gkx/")) return true;
-  if (lower === "_archive/moc-runs" || lower.startsWith("_archive/moc-runs/")) return true;
+  if (isKosmosOperationalPath(path)) return true;
   const name = path.slice(path.lastIndexOf("/") + 1);
   // Effect adapters use hidden same-directory temporary files. The second
   // spelling is reserved for hosts that cannot create a leading-dot file.
