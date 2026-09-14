@@ -67,6 +67,8 @@ Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
 The normal installed plugin remains the earlier `59a61ca` candidate.
 Branch changes must not be described as installed.
+The separate synthetic Obsidian vault now runs candidate `27309b2`.
+Its installation and plugin load passed. Visible native acceptance remains open.
 
 ## Where to look in the code
 

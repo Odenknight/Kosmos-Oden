@@ -60,3 +60,21 @@ The local browser log is `heartbeat-adapter.log`, SHA256
 These checks cover the candidate and synthetic embed transport.
 They do not prove the active Hermes profile or normally installed plugin uses these bytes.
 The earlier visual-baseline failures remain open.
+
+## Isolated native installation
+
+Candidate `27309b2` was installed into the existing synthetic Obsidian vault.
+The previous plugin directory was backed up before unloading the plugin.
+All nine copied release artifacts matched their candidate SHA256 hashes.
+Saved settings were unchanged, including after plugin reload.
+Obsidian loaded the plugin under Node 22.22.1.
+Installed `main.js` SHA256:
+`0fade93f433c79fed7c3485c054fb53e228261730d277cce16ecb41502882c13`.
+
+The native view created its frame and reported host-side readiness.
+Its frame measured 656 by 716 pixels, but the host reported it was not visible.
+Direct access to the embedded renderer was refused by the cross-origin boundary.
+That boundary was not changed.
+There is no renderer-diagnostics reply on the current host message interface.
+This proves isolated installation and plugin load, not visible native acceptance.
+The normal vault installation remains unchanged.
