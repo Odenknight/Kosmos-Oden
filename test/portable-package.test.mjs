@@ -30,7 +30,29 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
       os: "windows", arch: "x86_64", bytes: bytes.length, sha256: digest };
     const saveManifest = value => writeFileSync(resolve(root, "candidate.json"), JSON.stringify(value, null, 2) + "\n");
     saveManifest(manifest);
-    const args = ["--portable", "--sidecar=windows-x64=candidate.exe", "--sidecar-manifest=windows-x64=candidate.json"];
+    const seaInventory = { schemaVersion: 1, completeSbom: false,
+      scope: "SEA build composition only; Node internals and license completeness are not established",
+      target: "x86_64-pc-windows-msvc", finalExecutable: { bytes: bytes.length, sha256: digest },
+      observedInputs: [{ logicalName: "synthetic-input", bytes: 1, sha256: "a".repeat(64) }] };
+    const saveSeaInventory = value => writeFileSync(resolve(root, "candidate.inputs.json"), JSON.stringify(value, null, 2) + "\n");
+    saveSeaInventory(seaInventory);
+    const args = ["--portable", "--sidecar=windows-x64=candidate.exe", "--sidecar-manifest=windows-x64=candidate.json",
+      "--sidecar-inventory=windows-x64=candidate.inputs.json"];
+    for (const change of [{ ...seaInventory, target: "aarch64-apple-darwin" },
+      { ...seaInventory, finalExecutable: { bytes: bytes.length + 1, sha256: digest } },
+      { ...seaInventory, finalExecutable: { bytes: bytes.length, sha256: "b".repeat(64) } },
+      { ...seaInventory, schemaVersion: 2 }, { ...seaInventory, completeSbom: true },
+      { ...seaInventory, scope: "authenticated complete SBOM" }, { ...seaInventory, observedInputs: [] }]) {
+      saveSeaInventory(change);
+      assert.throws(() => stagePortable(root, args), /SEA input inventory/);
+      assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    }
+    saveSeaInventory(seaInventory);
+    const canonicalSea = readFileSync(resolve(root, "candidate.inputs.json"));
+    writeFileSync(resolve(root, "candidate.inputs.json"), canonicalSea.toString().replace('"schemaVersion": 1,', '"schemaVersion": 1, "schemaVersion": 1,'));
+    assert.throws(() => stagePortable(root, args), /SEA input inventory/);
+    assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    saveSeaInventory(seaInventory);
     for (const change of [{ ...manifest, arch: "aarch64" }, { ...manifest, sha256: "b".repeat(64) },
       { ...manifest, bytes: bytes.length + 1 }]) {
       saveManifest(change);
@@ -46,7 +68,8 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
       assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
     }
     saveInventory(inventory);
-    for (const invalid of [[...args, "--unknown"], [...args, args[1]], ["--portable", args[1]]]) {
+    for (const invalid of [[...args, "--unknown"], [...args, args[1]], [...args, args[3]],
+      args.slice(0, 3), ["--portable", args[3]], ["--portable", args[1]]]) {
       assert.throws(() => stagePortable(root, invalid));
       assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
     }
@@ -60,6 +83,10 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     assert.deepEqual(readFileSync(resolve(target, "gkos-agent.exe")), bytes);
     assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${digest}  gkos-agent.exe\n`));
     assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).runtimeQualified, false);
+    assert.deepEqual(readFileSync(resolve(target, "sidecar-build-inputs.json")), canonicalSea);
+    assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).sidecarInventorySha256, hash(canonicalSea));
+    assert.equal(JSON.parse(readFileSync(resolve(output, "SBOM-INPUT.json"))).artifacts[1].sidecarInventorySha256, hash(canonicalSea));
+    assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${hash(canonicalSea)}  sidecar-build-inputs.json\n`));
     const inventoryBytes = readFileSync(resolve(root, "dist/standalone-build-inputs.json"));
     assert.deepEqual(readFileSync(resolve(target, "standalone-build-inputs.json")), inventoryBytes);
     assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).standaloneInventorySha256, hash(inventoryBytes));

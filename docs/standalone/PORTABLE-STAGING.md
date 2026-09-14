@@ -26,11 +26,11 @@ It does not build, execute, sign, or qualify those sidecars.
 Every package reports productionReady=false and runtimeQualified=false.
 
 ```sh
-node scripts/package-release.mjs --portable --allow-incomplete --output=release/alpha-review-1 --sidecar=windows-x64=/path/to/gkos-agent.exe --sidecar-manifest=windows-x64=/path/to/sidecar-release.json
+node scripts/package-release.mjs --portable --allow-incomplete --output=release/alpha-review-1 --sidecar=windows-x64=/path/to/gkos-agent.exe --sidecar-manifest=windows-x64=/path/to/sidecar-release.json --sidecar-inventory=windows-x64=/path/to/gkos-agent.exe.build-inputs.json
 ```
 
 Supported target names are debian-x64, windows-x64, macos-arm64, and macos-x64.
-Supply both options for each target. No artifact is discovered implicitly.
+Supply all three sidecar options for each target. No artifact is discovered implicitly.
 Without --allow-incomplete, missing targets produce exit code 2 after writing
 an explicit incomplete-target report. With that flag, partial staging can exit 0.
 Neither status asserts production readiness.
@@ -59,6 +59,17 @@ The script checks regular files, target, byte length, and SHA-256 before staging
 It copies the exact checked bytes and writes BUILD-INFO.json and SHA256SUMS.
 The manifest is a supplied binding, not a signature or trusted release admission.
 An authorized release process must independently establish its commit and build provenance.
+
+The SEA inventory is the exact `*.build-inputs.json` emitted by Engine's SEA builder.
+Staging requires canonical two-space JSON with a final LF, schema version 1,
+the matching target triple, matching final executable size and SHA-256,
+a nonempty observed-input list, and the producer's explicit incomplete-SBOM scope.
+It refuses absent, stale, duplicate-key, wrong-target or unsupported-scope inventories
+before creating output. It does not independently authenticate or re-open the
+inventory's internal input files. A supplied inventory is an artifact binding,
+not proof of its claimed build observations or complete component/license coverage.
+Each target carries the exact bytes as `sidecar-build-inputs.json`; BUILD-INFO.json,
+SHA256SUMS and the target entry in SBOM-INPUT.json bind that file's digest.
 
 The top-level report lists all four target states.
 SBOM-INPUT.json records the npm lock digest and staged artifacts.

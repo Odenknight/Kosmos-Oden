@@ -8,6 +8,10 @@ const TARGETS = {
   "macos-arm64": ["macos", "aarch64", "gkos-agent"],
   "macos-x64": ["macos", "x86_64", "gkos-agent"],
 };
+const SEA_TARGETS = {
+  "debian-x64": "x86_64-unknown-linux-gnu", "windows-x64": "x86_64-pc-windows-msvc",
+  "macos-arm64": "aarch64-apple-darwin", "macos-x64": "x86_64-apple-darwin",
+};
 const sha = bytes => createHash("sha256").update(bytes).digest("hex");
 const reject = message => { throw Object.assign(new Error(message), { exitCode: 2 }); };
 function regular(path, maximum) {
@@ -19,7 +23,7 @@ function regular(path, maximum) {
 }
 
 export function stagePortable(root, argv) {
-  const sidecars = new Map(), manifests = new Map(), flags = new Set();
+  const sidecars = new Map(), manifests = new Map(), inventories = new Map(), flags = new Set();
   let output = resolve(root, "release/portable-alpha");
   for (const arg of argv) {
     if (["--portable", "--allow-incomplete"].includes(arg)) {
@@ -29,17 +33,17 @@ export function stagePortable(root, argv) {
       if (flags.has("output") || !arg.slice(9)) reject("invalid portable output");
       flags.add("output"); output = resolve(root, arg.slice(9));
     } else {
-      const match = /^(--sidecar|--sidecar-manifest)=([^=]+)=(.+)$/.exec(arg);
+      const match = /^(--sidecar|--sidecar-manifest|--sidecar-inventory)=([^=]+)=(.+)$/.exec(arg);
       if (!match || !Object.hasOwn(TARGETS, match[2])) reject("unknown portable argument or target");
-      const map = match[1] === "--sidecar" ? sidecars : manifests;
+      const map = match[1] === "--sidecar" ? sidecars : match[1] === "--sidecar-manifest" ? manifests : inventories;
       if (map.has(match[2])) reject("duplicate portable target binding");
       map.set(match[2], resolve(root, match[3]));
     }
   }
   if (!flags.has("--portable")) reject("portable mode required");
   if (existsSync(output)) reject("portable output already exists; choose a new --output directory");
-  for (const target of new Set([...sidecars.keys(), ...manifests.keys()])) {
-    if (!sidecars.has(target) || !manifests.has(target)) reject("sidecar and sidecar-manifest must be supplied together");
+  for (const target of new Set([...sidecars.keys(), ...manifests.keys(), ...inventories.keys()])) {
+    if (!sidecars.has(target) || !manifests.has(target) || !inventories.has(target)) reject("sidecar, sidecar-manifest and sidecar-inventory must be supplied together");
   }
   const inputs = new Map();
   for (const [target, path] of sidecars) {
@@ -58,7 +62,17 @@ export function stagePortable(root, argv) {
     if (manifestBytes.toString("utf8") !== JSON.stringify(manifest, null, 2) + "\n") reject("sidecar manifest must be canonical two-space JSON with a final LF");
     const bytes = regular(path, 1_073_741_824);
     if (bytes.length !== manifest.bytes || sha(bytes) !== manifest.sha256) reject("sidecar bytes do not match the supplied manifest");
-    inputs.set(target, { bytes, manifest, manifestBytes });
+    const inventoryBytes = regular(inventories.get(target), 16 * 1024 * 1024);
+    const inventory = JSON.parse(inventoryBytes.toString("utf8"));
+    if (inventoryBytes.toString("utf8") !== JSON.stringify(inventory, null, 2) + "\n"
+      || inventory?.schemaVersion !== 1 || inventory.completeSbom !== false
+      || inventory.scope !== "SEA build composition only; Node internals and license completeness are not established"
+      || inventory.target !== SEA_TARGETS[target]
+      || inventory.finalExecutable?.bytes !== bytes.length || inventory.finalExecutable?.sha256 !== manifest.sha256
+      || !Array.isArray(inventory.observedInputs) || inventory.observedInputs.length === 0) {
+      reject("SEA input inventory does not match the supplied sidecar or supported scope");
+    }
+    inputs.set(target, { bytes, manifest, manifestBytes, inventoryBytes });
   }
   const common = new Map([
     ["kosmos-oden-stand-alone.html", regular(resolve(root, "kosmos-oden-stand-alone.html"), 128 * 1024 * 1024)],
@@ -92,11 +106,13 @@ export function stagePortable(root, argv) {
     const payload = new Map(common);
     payload.set(binary, input.bytes);
     payload.set("sidecar-release.json", input.manifestBytes);
+    payload.set("sidecar-build-inputs.json", input.inventoryBytes);
     payload.set("START.md", Buffer.from(`# Kosmos-Oden Standalone: internal alpha\n\nOpen kosmos-oden-stand-alone.html for offline folder mode.\nThe supplied sidecar bytes match their manifest. Runtime behavior is not qualified by this package.\nDo not place credentials in URLs or process arguments.\n`));
     payload.set("BUILD-INFO.json", Buffer.from(JSON.stringify({ schemaVersion: 1,
       version: pkg.version, target, releaseStatus: "internal-alpha", productionReady: false,
       runtimeQualified: false, sidecar: input.manifest, viewerSha256: sha(common.get("kosmos-oden-stand-alone.html")),
       sidecarManifestSha256: sha(input.manifestBytes), lockfileSha256: sha(lock),
+      sidecarInventorySha256: sha(input.inventoryBytes),
       standaloneInventorySha256: sha(inventoryBytes) }, null, 2) + "\n"));
     for (const [name, bytes] of payload) {
       const destination = resolve(folder, name);
@@ -107,7 +123,8 @@ export function stagePortable(root, argv) {
     const sums = [...payload].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
       .map(([name, bytes]) => `${sha(bytes)}  ${name}`).join("\n") + "\n";
     writeFileSync(resolve(folder, "SHA256SUMS"), sums, { flag: "wx" });
-    targets.push({ target, status: "staged-internal-alpha", directory, sidecarSha256: sha(input.bytes) });
+    targets.push({ target, status: "staged-internal-alpha", directory, sidecarSha256: sha(input.bytes),
+      sidecarInventorySha256: sha(input.inventoryBytes) });
   }
   writeFileSync(resolve(output, "SBOM-INPUT.json"), JSON.stringify({ schemaVersion: 1,
     completeSbom: false, npmLockSha256: sha(lock), standaloneInventorySha256: sha(inventoryBytes),

@@ -41,7 +41,7 @@ jobs:
           npm run check:renderer-provenance
           npm run check:invariants
       - name: Generate SBOM (CycloneDX)
-        run: npm sbom --sbom-format cyclonedx > sbom.cdx.json || echo "npm sbom unavailable on this npm version"
+        run: npm sbom --sbom-format cyclonedx > sbom.cdx.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
