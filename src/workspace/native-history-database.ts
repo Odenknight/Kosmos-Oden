@@ -1,6 +1,7 @@
 import {DatabaseSync} from "node:sqlite";
-import {lstatSync, readFileSync, realpathSync} from "node:fs";
-import {basename, dirname, join, resolve} from "node:path";
+import {closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, statfsSync} from "node:fs";
+import {homedir} from "node:os";
+import {basename, dirname, isAbsolute, join, relative, resolve} from "node:path";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 
@@ -93,6 +94,42 @@ function nativePermissions(helper: Readonly<HistoryAclHelper>, identity: string,
   return result;
 }
 
+const EXT_FAMILY_MAGIC = 0xef53n;
+function linuxObject(path: string, kind: "directory" | "file", uid: bigint, mode: bigint): string {
+  const stat = lstatSync(path,{bigint:true});
+  if ((kind === "directory" ? !stat.isDirectory() : !stat.isFile()) || stat.isSymbolicLink() ||
+      stat.uid !== uid || (stat.mode & 0o7777n) !== mode || kind === "file" && stat.nlink !== 1n ||
+      realpathSync(path) !== path || statfsSync(path,{bigint:true}).type !== EXT_FAMILY_MAGIC)
+    throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  return `${path}:${stat.dev}:${stat.ino}:${stat.uid}:${stat.mode & 0o7777n}`;
+}
+
+function linuxPermissions(directory: string, file?: string): string {
+  if (!process.geteuid) throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  const uid = BigInt(process.geteuid()), home = resolve(homedir()), beneathHome = relative(home,directory);
+  if (!beneathHome || beneathHome.startsWith("../") || isAbsolute(beneathHome) || realpathSync(home) !== home)
+    throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  const identity = [linuxObject(directory,"directory",uid,0o700n)];
+  let ancestor = dirname(directory);
+  while (true) {
+    const stat = lstatSync(ancestor,{bigint:true});
+    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== 0n && stat.uid !== uid ||
+        (stat.mode & 0o022n) !== 0n || realpathSync(ancestor) !== ancestor)
+      throw Error("HISTORY_STORAGE_UNAVAILABLE");
+    identity.push(`${ancestor}:${stat.dev}:${stat.ino}:${stat.uid}:${stat.mode & 0o7777n}`);
+    const parent = dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  if (file) {
+    identity.push(linuxObject(file,"file",uid,0o600n));
+    const journal = file + "-journal";
+    try { linuxObject(journal,"file",uid,0o600n); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  }
+  return identity.join("\n");
+}
+
 function permissions(directory: string, file?: string, helper?: Readonly<HistoryAclHelper>): string {
   if (process.platform === "win32") {
     if (helper) {
@@ -107,18 +144,31 @@ function permissions(directory: string, file?: string, helper?: Readonly<History
       {encoding:"utf8",windowsHide:true,timeout:5000,maxBuffer:16384,stdio:["ignore","pipe","pipe"],
         env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_DIRECTORY:directory,KOSMOS_HISTORY_FILE:file ?? ""}}).trim();
   }
+  if (process.platform === "linux" && !helper) return linuxPermissions(directory,file);
   throw Error("HISTORY_STORAGE_UNAVAILABLE");
 }
 
 function createPrivateFile(path: string): void {
-  if (process.platform !== "win32" || !process.env.SystemRoot) throw Error("HISTORY_STORAGE_UNAVAILABLE");
-  execFileSync(join(process.env.SystemRoot,"System32","WindowsPowerShell","v1.0","powershell.exe"),
-    ["-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(WINDOWS_CREATE_PRIVATE,"utf16le").toString("base64")],
-    {windowsHide:true,timeout:5000,maxBuffer:16384,stdio:["ignore","ignore","pipe"],
-      env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_FILE:path}});
+  if (process.platform === "win32" && process.env.SystemRoot) {
+    execFileSync(join(process.env.SystemRoot,"System32","WindowsPowerShell","v1.0","powershell.exe"),
+      ["-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(WINDOWS_CREATE_PRIVATE,"utf16le").toString("base64")],
+      {windowsHide:true,timeout:5000,maxBuffer:16384,stdio:["ignore","ignore","pipe"],
+        env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_FILE:path}});
+    return;
+  }
+  if (process.platform === "linux" && process.geteuid && constants.O_NOFOLLOW !== undefined) {
+    const descriptor = openSync(path,constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,0o600);
+    try {
+      const stat = fstatSync(descriptor,{bigint:true});
+      if (!stat.isFile() || stat.uid !== BigInt(process.geteuid()) || stat.nlink !== 1n || (stat.mode & 0o7777n) !== 0o600n)
+        throw Error("HISTORY_STORAGE_UNAVAILABLE");
+    } finally { closeSync(descriptor); }
+    return;
+  }
+  throw Error("HISTORY_STORAGE_UNAVAILABLE");
 }
 
-/** Windows native-only local file capability. Other platforms remain unavailable. Never derive directory or ownerCurrent
+/** Windows and ext-family Linux native-only local file capability. Other platforms remain unavailable. Never derive directory or ownerCurrent
  * from renderer input. Does not select a retention policy or initialize a schema.
  */
 export function openNativeHistoryDatabase(directory: string, name: "observations.sqlite" | "denials.sqlite",

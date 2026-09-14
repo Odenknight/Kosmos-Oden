@@ -1,6 +1,6 @@
 # Native history storage candidate
 
-Status: Windows component evidence. Production retention remains disabled.
+Status: Windows component evidence and an unqualified Debian implementation candidate. Production retention remains disabled.
 This does not complete native history ownership, recovery, or performance qualification.
 
 `openNativeHistoryDatabase` accepts an existing native-owned directory, a fixed database name,
@@ -30,7 +30,24 @@ These checks are not protection against the same user or a machine administrator
 
 Source history and deletion authority still need separate operational storage and backup scopes.
 This file guard does not establish that separation or approve retention.
-Other platforms currently return unavailable; their native ownership qualification remains open.
+Linux admits only a canonical existing storage directory beneath the current native home on an
+ext2/ext3/ext4-family filesystem. The directory must be owned by the current effective user with
+mode 0700. Its ancestors must be owned by root or that user and must not be group/other writable.
+Database and rollback-journal files must be canonical, singly linked, current-user-owned regular
+files with mode 0600. Initialization uses exclusive no-follow creation with mode 0600 and verifies
+the opened descriptor before closing it; it never repairs, replaces, or removes a failed file.
+The complete directory, ancestor, file, permission, and filesystem identity is checked again on
+every capability use. Linux refuses Windows helper profiles rather than ignoring them.
+
+Linux mode checks enforce absence of effective access by other ordinary users, including POSIX ACL
+entries because their effective mask is represented by the group mode bits. They do not prove that
+ACL metadata is absent. The ext-family allowlist rejects other filesystem implementations; it is
+not proof of physical locality, persistence, encryption, or backup behavior. The deployment must
+qualify the actual persistent native Debian home separately. As on Windows, these checks do not
+protect against deliberate replacement by the same user or root. Node path APIs cannot provide
+descriptor-relative `openat2` protection for that stronger threat model.
+
+macOS and other platforms currently return unavailable; their native ownership qualification remains open.
 No browser bundle or renderer receives this Node-only capability.
 
 ## Evidence and limits
@@ -192,3 +209,56 @@ live publication readback, final latency distributions, and the complete build g
 
 Full repository verification passed 595 tests with no failures or skips.
 The executable variant also passed its separate storage regression run.
+
+## Debian implementation review and native evidence — 2026-09-14
+
+The Linux implementation is a component candidate; production history remains disabled.
+Independent review found no blocker within the documented trusted-user/root and effective-access contract.
+The Windows permission and atomic creation paths retain their existing behavior.
+
+On native Debian 13.5, Node 24.21.0, and the existing ext4 home, full `npm run verify`
+completed successfully: 639 tests, 626 passed, zero failures, 13 explicit skips (12 Windows-only
+and one unavailable non-ext mount). A subsequent focused run with a temporary private tmpfs
+mount exercised all six Linux tests: six passed, zero failures or skips. The mount was removed.
+The positive SQLite creation test fails with `HISTORY_STORAGE_UNAVAILABLE` on the unchanged
+231b996 baseline. Tests cover create/write/reopen, exclusive preservation, authority withdrawal,
+file identity/link/mode changes, live ancestor mode changes, canonical-path refusal, live
+rollback-journal permissions, WAL refusal, and non-ext filesystem refusal.
+
+Evidence SHA-256 values:
+
+- Tested implementation bytes: `bd75ecdfe3e62cc10ae8e1d4161930cce4bc153874e91064abe5c9abd5d553c9`.
+- Full Debian verification log: `746a32c97a7fd0e0eaec9abff34eefaecdd30407a656f1fd78a856c03c41feea`.
+- Six-test Debian non-ext fixture run: `0b06c79705cd6775755da6579a24e0ad66b0f13427b199e951fddfa36afa3293`.
+
+The Windows full verification attempt passed 632 tests, failed one reopen test, and skipped
+six Linux-only tests. Its log hash is `c54e0fa4d73e733eb65734cc8d722665f607cf146992bb164545a39e52c8a220`.
+A later focused run passed all 12 Windows tests; log hash
+`565910f650df9baf4b875fbd3f81c60c8e8f38dcd87f75c13a09f1b768091a3c`.
+The later pass does not erase the full-run failure or establish its cause.
+Cross-platform qualification remains open. These component results do not complete
+production ownership, retention, backup/recovery, performance, or macOS qualification.
+
+### Final component follow-up
+
+A controlled Windows harness probe reproduced an explicit `CodexSandboxUsers` Allow rule
+(rights 1179817) being added to the same protected synthetic directory after one normal
+sandboxed tool invocation. Owner, creation time, and protected-ACL status stayed unchanged.
+The before/after receipt hash is `080e8b409a3c54211d75d755fe3ec86d3956d9928832e8bbb2a104c1c3713219`.
+This demonstrates harness interference that the production guard must reject; it does not
+retroactively identify every earlier failure. No production permission check was weakened.
+With normal sandboxed tool invocations paused, complete Windows `npm run verify` passed:
+640 tests, 633 passed, zero failures, seven Linux-only skips. Log SHA-256:
+`e4384c87f51eaf0b3fd34b5f7db87d8f1d8e133233374042b5d0603565ac9a07`.
+
+The final Linux test revision adds real POSIX ACL coverage using Debian's standard
+`acl` package (2.3.2-2+b1). Masked named-user entries remain effectively private; granting
+file or directory mask access invalidates the capability permanently, including after
+mask restoration. All seven focused tests passed with zero skips on native Debian,
+including the temporary tmpfs refusal. The temporary mount was removed.
+Final Linux test bytes SHA-256: `a70737741cb2684a1670c0971b4a56df77ea2f31bf3df9d029d211dda68bb3f4`.
+Final focused log SHA-256: `b3a57b4c4c7d4bbcfa7838c3d1cd43733b4444ffa388c7f0042f786be612c385`.
+The full Debian run above predates only this additional test and the evidence documentation;
+implementation bytes are unchanged. These are Windows/Debian component checks, not release
+qualification or approval to enable production history. Physical storage, ownership wiring,
+retention, backup/recovery, performance, and deferred native macOS gates remain open.
