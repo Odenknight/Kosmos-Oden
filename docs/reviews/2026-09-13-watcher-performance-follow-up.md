@@ -101,3 +101,42 @@ profile if needed to separate current costs. Preserve hostile-input validation a
 The previous validated-clone experiment changed only three pretty-print round trips;
 its negative result does not measure replacement of all recovery-record canonical clones.
 Engine source, Kosmos's dependency pin, and the installed plugin remain unchanged by these experiments.
+
+
+## Edit-only CPU profile and canonical sort-key improvement
+
+An edit-only CPU profile on unchanged `ba2e65d` measured a 12,478.85 ms edit.
+Sampling attributed 4,330.4 ms to `stableJsonValue` and 1,931.3 ms to its property callback.
+Those are sampled self times, not independent wall-clock phases.
+The largest attributed serialization caller was graph normalization, at about 1,413.9 ms.
+Recovery-record detachment accounted for about 710.7 ms and artifact coordinates for 597.0 ms.
+The profile includes profiler overhead. It is diagnostic evidence, not a latency distribution.
+
+Two additional private experiments were not adopted:
+
+- Direct strict cloning at recovery-record boundaries matched 6,969 differential cases,
+  but the full edit took 12,300.81 ms and used 923.84 MiB RSS.
+- Reusing internally validated, deeply frozen recovery records passed 19 recovery-contract
+  tests and matched 4,185 fixture records. Caller-frozen inputs still detached, and hostile
+  getters/proxies had no observed side effects. The edit still took 11,769.22 ms and used
+  804.50 MiB RSS. This does not justify the added mechanism or qualify all reuse semantics.
+
+The adopted change is smaller and targets the measured graph-normalization caller.
+Previously, assessment and diagnostic sorting serialized both records on every comparison.
+Engine `eafdfc9` computes each record's canonical sort key once per sort.
+The same canonical bytes determine ordering. Equal keys retain their original order.
+Empty and singleton arrays retain their previous behavior.
+No key, record, or authorization result is retained after the call.
+Both raw-graph and already-canonical graph normalization use the same helper.
+
+The private workload took 10,695.55 ms with 653.61 MiB RSS.
+The committed, uninstrumented build took 10,770.04 ms with 652.51 MiB RSS.
+It performed one `apply_changes`, reparsed one source, and produced the same synthetic source snapshot digest.
+The run still ended in `FAIL_BUDGET`: the required two-second gate remains open.
+These two diagnostics are not the required five-run distribution or 24-hour soak.
+
+All 32 recovery-contract and coordinator tests passed.
+The new fixture checks ordering over permutations, Unicode, duplicates, nested values,
+empty/singleton inputs, deep freezing, and preservation of the input graph.
+Type checking, build, current source-inventory validation, package validation, and whitespace checks passed.
+The change is pushed on Engine PR 73. Kosmos's dependency pin and the installed plugin remain unchanged.

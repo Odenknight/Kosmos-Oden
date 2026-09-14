@@ -31,7 +31,8 @@ That prevents a differently spelled deletion from exposing an older version.
 Production installation and owner controls remain unfinished.
 
 Indexing also misses its performance target.
-Recent 2,000-note diagnostics still take about 12 seconds against a two-second target.
+A sort-key improvement reduced the latest 2,000-note edit to about 10.77 seconds.
+The required target is still two seconds.
 Synchronous filesystem calls account for only a small part of the measured delay.
 Repeated serialization remains the main performance investigation.
 The comet trails and real agent names still need final installed visual checks.
@@ -50,7 +51,7 @@ Kosmos work is on `codex/build-plan-completion-20260913`.
 The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `ba2e65d`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `eafdfc9`.
 Engine PR 73 builds on PR 72.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
