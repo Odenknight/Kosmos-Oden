@@ -44,13 +44,14 @@ export class KosmosReadableView extends ItemView {
     this.app?.workspace?.requestSaveLayout();
   }
   async onOpen() {
+    const ownerDocument = this.contentEl.ownerDocument;
     this.contentEl.replaceChildren();
     this.contentEl.classList.add("kosmos-oden-root");
     this.contentEl.style.display = "flex"; this.contentEl.style.flexDirection = "column";
-    this.status = document.createElement("p"); this.status.setAttribute("role", "status");
-    const back = document.createElement("button"); back.type = "button"; back.textContent = "Return to Notes";
+    this.status = ownerDocument.createElement("p"); this.status.setAttribute("role", "status");
+    const back = ownerDocument.createElement("button"); back.type = "button"; back.textContent = "Return to Notes";
     back.addEventListener("click", () => void this.returnToNotes()); this.contentEl.append(back);
-    const frame = document.createElement("iframe"); this.frame = frame;
+    const frame = ownerDocument.createElement("iframe"); this.frame = frame;
     frame.style.flex = "1"; frame.style.minHeight = "0"; frame.style.height = "0";
     frame.title = "Kosmos-Oden readable notes";
     frame.setAttribute("sandbox", "allow-scripts allow-pointer-lock allow-downloads");
@@ -67,7 +68,8 @@ export class KosmosReadableView extends ItemView {
       this.refresh();
     }));
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.syncVisibility()));
-    this.registerDomEvent(window, "message", event => {
+    this.registerDomEvent(ownerDocument, "visibilitychange", () => this.syncVisibility());
+    this.registerDomEvent(ownerDocument.defaultView || window, "message", event => {
       if (event.source !== this.frame?.contentWindow || !this.snapshot) return;
       const message = validateRendererOpenMessage(event.data);
       if (message.ok && message.message?.type === "readable-selection") {
@@ -111,7 +113,7 @@ export class KosmosReadableView extends ItemView {
     } catch { this.status!.textContent = "Note or scope changed. Select it again."; }
   }
   private post(message: unknown) { this.frame?.contentWindow?.postMessage(message, "*"); }
-  syncVisibility() { this.post(wrap("visibility", { visible: !!this.containerEl.offsetParent })); }
+  syncVisibility() { this.post(wrap("visibility", { visible: this.containerEl.ownerDocument?.visibilityState !== "hidden" && !!this.containerEl.offsetParent })); }
   locate(path: string, uid?: string) {
     if (uid !== undefined && !isValidGkxAuthoredUid(uid)) throw new Error("WORKSPACE_UID_INVALID");
     this.path = path; this.uid = uid;

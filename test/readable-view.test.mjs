@@ -19,6 +19,31 @@ function fixture(){
   view.snapshot={value:{nodes:[{id:'file:A.md',path:'A.md'},{id:'file:B.md',path:'B.md'}]},publish:async function(apply,current){if(!current())return false;apply(this.value);return true;}};
   return {view,messages,graphReads:()=>graphReads,refreshes:()=>refreshes};
 }
+
+test('readable pop-out owns its elements, message listener, and visibility', async () => {
+  const f=fixture(), listeners=[], elements=[], messages=[];
+  const ownerWindow={};
+  const ownerDocument={visibilityState:'visible',defaultView:ownerWindow,createElement(tag){
+    elements.push(tag);
+    return {style:{},setAttribute(){},addEventListener(){},contentWindow:{postMessage:m=>messages.push(m)}};
+  }};
+  f.view.contentEl={ownerDocument,offsetParent:{},style:{},classList:{add(){}},replaceChildren(){},append(){}};
+  f.view.containerEl=f.view.contentEl;
+  f.view.app={vault:{on(){return {};}},workspace:{on(){return {};}}};
+  f.view.registerEvent=()=>{};
+  f.view.registerDomEvent=(...args)=>listeners.push(args);
+  await f.view.onOpen();
+  assert.deepEqual(elements,['p','button','iframe']);
+  assert.equal(listeners.find(([,event])=>event==='message')[0],ownerWindow);
+  const visibility=listeners.find(([,event])=>event==='visibilitychange');
+  assert.equal(visibility[0],ownerDocument);
+  ownerDocument.visibilityState='hidden';visibility[2]();
+  assert.equal(messages.at(-1).payload.visible,false);
+  ownerDocument.visibilityState='visible';visibility[2]();
+  assert.equal(messages.at(-1).payload.visible,true);
+  f.view.containerEl.offsetParent=null;visibility[2]();
+  assert.equal(messages.at(-1).payload.visible,false);
+});
 test('native locate reuses authorized snapshot without rebuilding the graph',async()=>{
   const f=fixture();await f.view.locate('A.md');await f.view.locate('B.md');
   assert.deepEqual(f.messages.map(m=>m.payload),[{generation:4,id:'file:A.md'},{generation:4,id:'file:B.md'}]);
