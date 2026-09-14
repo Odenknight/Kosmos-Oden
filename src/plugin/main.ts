@@ -122,6 +122,10 @@ export class KosmosView extends ItemView {
     this.frame = frame;
     // open-note / open-folder requests coming back from the 3D view (right-click)
     this.registerDomEvent(root.ownerDocument.defaultView || window, "message", (ev: MessageEvent) => this.onMessage(ev));
+    this.registerDomEvent(root.ownerDocument, "visibilitychange", () => {
+      this.syncVisibility();
+      if (this.isVisible()) this.flushIfDeferred();
+    });
   }
 
   private onMessage(ev: MessageEvent): void {

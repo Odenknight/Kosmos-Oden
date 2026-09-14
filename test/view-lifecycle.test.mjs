@@ -49,9 +49,23 @@ test("pop-out frame and message listener belong to the view window", async () =>
   const listeners = [];
   view.registerDomEvent = (...args) => listeners.push(args);
   await view.onOpen();
-  assert.equal(listeners.length, 1);
+  assert.equal(listeners.length, 2);
   assert.equal(listeners[0][0], ownerWindow);
   assert.equal(listeners[0][1], "message");
+  const visibility = listeners.find(([, event]) => event === "visibilitychange");
+  assert.equal(visibility[0], view.contentEl.ownerDocument);
+  const messages = [];
+  frame.contentWindow = { postMessage: message => messages.push(message) };
+  let resumed = 0;
+  view.flushIfDeferred = () => resumed++;
+  view.contentEl.ownerDocument.visibilityState = "hidden";
+  visibility[2]();
+  assert.equal(messages.at(-1).payload.visible, false);
+  assert.equal(resumed, 0);
+  view.contentEl.ownerDocument.visibilityState = "visible";
+  visibility[2]();
+  assert.equal(messages.at(-1).payload.visible, true);
+  assert.equal(resumed, 1);
 });
 function deferred() { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j; }); return { promise, resolve, reject }; }
 function note(path, content) { return { path, name: path.split("/").at(-1), extension: "md", stat: { size: content.length, mtime: 1, ctime: 1 }, content }; }
