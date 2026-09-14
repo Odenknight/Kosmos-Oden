@@ -106,6 +106,11 @@ into `<vault>/.obsidian/plugins/kosmos-oden/`, enable the plugin, and run
 **Open Kosmos-Oden**. The view follows Obsidian create, modify, rename, and
 delete events without rebuilding the whole vault for an ordinary note edit.
 
+The optional desktop **Inspect Navigation Effects Recovery** action also needs
+`effects-inspection-host.cjs` beside `main.js`. Standard Community Plugins and
+BRAT installation fetch only the normal plugin files, so the action reports
+unavailable there unless that release asset is installed manually.
+
 The same renderer works on desktop and mobile. It pauses its render loop while
 hidden, adapts geometry and pixel ratio for lower-power devices, and provides
 touch controls alongside keyboard and mouse navigation.

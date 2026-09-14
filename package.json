@@ -11,6 +11,7 @@
     "versions.json",
     "kosmos-oden-stand-alone.html",
     "kosmos-mcp-stdio.mjs",
+    "effects-inspection-host.cjs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

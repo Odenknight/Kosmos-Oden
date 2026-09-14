@@ -17,6 +17,7 @@ release/
 kosmos-oden-stand-alone.html
 dist/
 main.js
+effects-inspection-host.cjs
 
 # Obsidian plugin runtime data (contains the local Agent API token — never commit)
 data.json

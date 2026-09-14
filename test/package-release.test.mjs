@@ -27,7 +27,7 @@ test("unsupported packaging requests and missing artifacts preserve the previous
       assert.deepEqual(readFileSync(marker), bytes);
     }
     const artifacts = ["manifest.json", "main.js", "styles.css", "versions.json",
-      "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md",
+      "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "effects-inspection-host.cjs", "docs/REVIEW-0.8.3.md",
       "LICENSE", "THIRD-PARTY-NOTICES.md"];
     for (const name of artifacts) {
       mkdirSync(dirname(resolve(root, name)), { recursive: true });
