@@ -161,3 +161,44 @@ Private receipts are retained under `watcher-validation-only-run-20260913`
 and `watcher-validation-only-expanded-run-20260913` in the task evidence directory.
 Their UTC start times are 2026-09-14T01:47:35.861Z and 2026-09-14T01:49:45.322Z.
 The Engine source remains unchanged by these experiments.
+
+
+## Current Engine edit-only profile, September 14
+
+An edit-only CPU profile now covers exact Engine
+`13ff119bbe7a1d9dd686d75267a4eb8f2cc65504` on Windows Node 24.18.0.
+The loaded watcher bundle hash matches both the run receipt and build inventory.
+The private runner now resolves the artifact from its explicit Engine argument.
+
+One edit across 2,000 synthetic notes took 13,138.37 ms with profiling enabled.
+It used 661.37 MiB RSS, reparsed one source, and performed one `apply_changes`.
+The result was `FAIL_BUDGET`. It is not a five-run distribution or soak result.
+Another Engine qualification was running concurrently. These timings therefore
+must not be treated as an isolated performance distribution or proof of regression
+against the older, uninstrumented 10,770.04 ms diagnostic.
+
+Sampled self time attributed 4,196.18 ms to `stableJsonValue` and 1,722.64 ms
+to its object-property callback. The leading attributed canonical callers were
+record detachment (856.40 ms), artifact coordinates (720.12 ms), and recovery
+record sealing (492.95 ms). These are sampled CPU attributions, not independent
+wall-clock phases. The profile excludes startup and includes profiler overhead.
+
+A private experiment replaced the serializer's object-entry map callback with
+an ordinary loop. It kept property descriptors, proxy refusal, Unicode checks,
+key ordering, cycle checks, and recursive validation. A differential check matched
+exact bytes and rejection messages in 5,037 cases. No tested getter or proxy trap
+ran. That check is bounded test evidence, not proof over every JavaScript value.
+
+The experimental edit took 12,989.78 ms and also ended in `FAIL_BUDGET`.
+The difference between these two single profiled runs does not justify adoption.
+The experiment remains in private evidence. Engine source and consumer artifacts
+were not changed. Do not repeat this loop-only experiment without new evidence.
+The next investigation should address repeated whole-graph processing at activation
+callers while preserving detached-input, authority, and recovery validation.
+
+The raw receipts and sample hashes were checked. Receipt SHA-256 values:
+
+| Private diagnostic receipt | SHA-256 |
+| --- | --- |
+| `watcher-13ff119-edit-profile-20260914/receipt.json` | `8b0f5eeaab487901f718db458d2d0a0ebf74db02767a2cdc5858ee81105f86b6` |
+| `watcher-loop-profile-20260914/receipt.json` | `d1d07e3b8a72ef72661eb7458fb869dfd0afa129f87adc35f41c3e438fea6aae` |

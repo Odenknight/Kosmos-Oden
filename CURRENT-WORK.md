@@ -28,6 +28,9 @@ Production history and automatic source writes remain disabled.
 Indexing also misses its speed target.
 One edit took about 10.77 seconds across 2,000 notes.
 The target is two seconds.
+A newer profiled run took 13.14 seconds.
+A small serializer experiment did not establish a useful improvement.
+The next target is repeated whole-graph processing during activation.
 
 The same Engine revision is now undergoing full Node 22 qualification.
 Terra is scheduled to check long-running results every six hours.
