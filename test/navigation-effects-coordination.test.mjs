@@ -182,3 +182,16 @@ test("reconciliation refuses corrupt persisted state and never clears forcing co
   }
   assert.throws(() => createReconciliationIntent("unknown"));
 });
+
+test("reconciliation blocks noncanonical target bindings even when both snapshots agree", () => {
+  const intent = clearReconciliationIntent(createReconciliationIntent("manual"));
+  for (const path of ["./Maps/Index.md", "Maps\\Index.md", "Maps/Cafe\u0301.md", "../outside.md"]) {
+    const invalid = snapshot({ targetDigests: { "Maps/Index.md": digest("a"), [path]: digest("b") } });
+    for (const [expected, current] of [[invalid, invalid], [invalid, snapshot()], [snapshot(), invalid]]) {
+      const result = evaluateReconciliation({ expected, current, intent, dependencySetComplete: true,
+        journalValid: true, checkpointValid: true, unresolvedRecovery: false });
+      assert.equal(result.classification, "block", path);
+      assert.ok(result.blockingReasons.some(reason => reason.includes("invalid binding")));
+    }
+  }
+});

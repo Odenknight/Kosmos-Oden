@@ -605,3 +605,16 @@ Stop and report if implementation would require any of the following:
 - [Capability matrix](CAPABILITY-MATRIX.md)
 - [Qualification plan](QUALIFICATION-PLAN.md)
 - [Engine reconciliation record](https://github.com/Odenknight/GKOS-Engine/blob/e4f00b3a9289c1d35d1a02e50dcdc266945fe015/docs/navigation-effects/RECONCILIATION-20260827.md)
+
+
+## September 14 reconciliation correction
+
+Persisted target-digest keys must already use canonical relative paths.
+The reconciliation gate rejects dot prefixes, backslash aliases, decomposed Unicode,
+and escaping paths. Matching invalid expected and current snapshots cannot report safe.
+The regression reproduced the old false-safe decision before the correction.
+All eleven coordination tests pass after the correction.
+Full Kosmos verification passes 614 tests with no failures or skips.
+This result includes the ordinary release-preservation changes.
+It does not qualify a source-writing host adapter, prepared intents, or recovery.
+The implementation order and remaining host requirements above still apply.

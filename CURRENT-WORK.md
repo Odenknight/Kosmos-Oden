@@ -23,7 +23,7 @@ Production history remains disabled.
 The candidate refreshes agent names when a heartbeat arrives.
 The comet trails and names still need final checks in the installed interface.
 Pop-out windows now use their own visibility and message handling.
-The latest full Kosmos verification passed 613 tests.
+The latest full Kosmos verification passed 614 tests.
 The separate browser run had three visual failures and two skips.
 Those failures remain open.
 
@@ -69,7 +69,7 @@ Kosmos work is on `codex/build-plan-completion-20260913`.
 The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
-This update describes Kosmos code through `c26af0d`.
+This update includes release preservation through `274dbdb` and the reconciliation path correction.
 Engine work is on `codex/graphiti-product-binding-20260913`, at `ab38572`.
 Engine PR 73 builds on PR 72.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
@@ -144,11 +144,11 @@ These inventories are incomplete software inventories. They are not signed relea
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 613 tests.
-That full run covers the code through `7256981`.
-The later packaging change at `c26af0d` passed two focused tests.
-It also staged the real viewer with a synthetic, non-executable sidecar.
-The full suite was not repeated for that packaging change.
+The latest full Kosmos verification passed 614 tests.
+That full run includes the release preservation and reconciliation path corrections.
+Earlier portable staging also used the real viewer with a synthetic, non-executable sidecar.
+Reconciliation now rejects noncanonical target paths instead of declaring matching invalid snapshots safe.
+The regression failed before the correction and passed afterward.
 The older Engine qualification at `a7b52b3` passed 1,140 tests with no failures or skips.
 Its receipt explicitly says that the release is not qualified.
 The newer Engine candidate at `ab38572` has started its full qualification run.

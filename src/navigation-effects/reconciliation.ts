@@ -114,7 +114,7 @@ function validateSnapshot(snapshot: unknown, label: string): string[] {
   }
   if (!snapshot.targetDigests || typeof snapshot.targetDigests !== "object" || Array.isArray(snapshot.targetDigests)) failures.push(`${label}.targetDigests is invalid`);
   else for (const [path, digest] of Object.entries(snapshot.targetDigests)) {
-    if (!normalizeScope(path) || !validDigest(digest)) failures.push(`${label}.targetDigests contains an invalid binding`);
+    if (normalizeScope(path) !== path || !validDigest(digest)) failures.push(`${label}.targetDigests contains an invalid binding`);
   }
   return failures;
 }
