@@ -22,10 +22,11 @@ Production history remains disabled.
 The current problem is speed.
 History reads repeatedly launch a Windows permission-checking program.
 One retained read launched it 80 times and took about 1.5 seconds.
-A prototype now runs the same checks inside Obsidian.
-The synthetic retained read fell to about 97 milliseconds.
-All 80 permission checks still ran.
-Trusted module loading and production integration remain unfinished.
+The new adapter now runs the same checks inside Obsidian.
+It verifies the module and its private installation before use.
+A synthetic retained read took about 101 milliseconds.
+Permission checks remain live.
+Production installation and owner controls remain unfinished.
 
 Indexing also misses its performance target.
 A 2,000-note edit takes about 12.38 seconds against a two-second target.
@@ -42,7 +43,8 @@ The upgrade is on review branches. It has not been merged to main.
 | GKOS-Engine qualification base | Broader Engine qualification | [PR 72](https://github.com/Odenknight/GKOS-Engine/pull/72) |
 
 Kosmos work is on `codex/build-plan-completion-20260913`.
-Its latest implementation checkpoint is `785aecd`.
+The executable helper was introduced at `785aecd`.
+The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
 Engine work is on `codex/graphiti-product-binding-20260913`, at `ba2e65d`.
 Engine PR 73 builds on PR 72.
@@ -69,13 +71,15 @@ Branch changes must not be described as installed.
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 591 tests.
-All seven Windows storage tests also passed with the native helper.
+The latest full Kosmos verification passed 595 tests.
+The in-process adapter passes all eleven dedicated Windows storage tests.
+The executable variant also passes its storage regression run.
 The combined history workflow passed in an isolated Obsidian vault.
 It used synthetic data and a recorded publication receipt.
 It did not qualify live publication readback or production retention controls.
 The permission helper reduced individual checks to about 18–23 milliseconds.
-Repeated launches still make complete history operations too slow.
+The new in-process adapter removes those repeated launches.
+The final workload budget still needs qualification.
 
 Live synthetic search requests passed service checks.
 The native Notes baseline works.
@@ -85,7 +89,7 @@ Credentials and private deployment receipts are not stored in this repository.
 
 ## What comes next
 
-Reduce history permission-check overhead while preserving live revocation checks.
+Qualify production installation and the full history workload for the new adapter.
 Qualify native search, citations, permission changes, and outage recovery.
 Fix indexing latency and finish the required repeated runs and soak.
 Complete workspace acceptance, history owner controls, and recovery tests.

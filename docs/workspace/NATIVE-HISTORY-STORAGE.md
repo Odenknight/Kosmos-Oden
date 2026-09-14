@@ -144,3 +144,51 @@ The result supports implementing an in-process helper without removing live ACL 
 Next work must establish trusted loading and artifact identity, run the full storage regression suite,
 and repeat the actual native workflow through the implemented adapter.
 The prototype is not shipped, and production history remains disabled.
+
+
+## Implemented Node-API adapter
+
+The Windows helper build now also produces a Node-API module.
+Both forms compile the same `history-acl.cpp` permission logic.
+The wrapper targets Node-API 8 using the vendored official Node 22.22.1 headers.
+The build verifies the header hashes and records source, wrapper, and artifact hashes.
+The upstream license and provenance are retained beside the headers.
+
+`dist/native/history-acl-addon.json` describes the optional adapter.
+Its profile contains `kind: "node-api"`, an absolute path, and `sha256`.
+The filename must be `history-acl-<64 hexadecimal SHA-256 characters>.node`.
+Different builds therefore use different paths and cannot silently reuse older mapped code.
+A trusted native installer must copy the artifact into a private, current-user-owned directory,
+preserve its content-addressed filename, and supply the resulting path and hash.
+The build directory itself is not an approved installation directory.
+No installer or production history setting is enabled by this change.
+
+Before first load, the adapter independently checks installation permissions with the existing
+PowerShell checker. It verifies the artifact hash and file identity before and after loading.
+It bypasses JavaScript `require.cache` when loading the native module.
+It retains the native function identity, but never caches an ACL result or permission grant.
+Every permission call verifies artifact bytes and identity before and after the native check.
+Changed files, invalid exports, incorrect names or hashes, and failed checks refuse access.
+An observed failure invalidates the owning database capability permanently.
+The default PowerShell path and optional executable path remain supported.
+There is no fallback after a configured module fails.
+
+The dedicated adapter run passed all eleven storage tests.
+It covers changed ACLs, replaced databases, hard links, owner withdrawal, invalid arguments,
+profile mutation, loaded-module replacement, and refusal of a shared installation.
+The direct native result also matches the executable for the synthetic fixture.
+To run that variant, set `KOSMOS_HISTORY_ACL_HELPER_PROFILE` to the trusted installed
+adapter profile, then run `node --test test/native-history-database.test.mjs`.
+Ordinary verification retains the PowerShell path; adapter-specific branches require this separate run.
+
+The implemented adapter also passed the combined synthetic workflow in actual Obsidian.
+This run used a new protected qualification installation, not the earlier call-substitution prototype.
+Initial preparation took about 653 ms, including the independent installation permission check.
+Source append took 110 ms, projection append 127 ms, retained read 101 ms, and purge 67 ms.
+The workflow again refused reads after an independent denial and an old history-only restore.
+Holds, purge, reopen, and retry assertions passed.
+These remain single-run synthetic diagnostics. Production installation, owner controls,
+live publication readback, final latency distributions, and the complete build gates remain open.
+
+Full repository verification passed 595 tests with no failures or skips.
+The executable variant also passed its separate storage regression run.

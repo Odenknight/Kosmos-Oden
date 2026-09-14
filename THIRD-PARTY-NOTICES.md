@@ -251,3 +251,12 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+
+## Node-API build headers
+
+The optional Windows history ACL module builds against unmodified Node.js v22.22.1
+Node-API headers. They are vendored in `native/windows/node-api-v22.22.1`.
+That directory includes the upstream LICENSE and exact source URLs and SHA-256 hashes
+in `sources.json`. The helper build verifies those hashes. No Node runtime is bundled.
+Upstream: https://github.com/nodejs/node/tree/v22.22.1

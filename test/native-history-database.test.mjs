@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {mkdtempSync,rmSync,renameSync,writeFileSync,unlinkSync,linkSync,existsSync,readFileSync,copyFileSync,appendFileSync} from 'node:fs';
 import {homedir} from 'node:os';
-import {join,dirname} from 'node:path';
+import {join,dirname,basename} from 'node:path';
 import {execFileSync} from 'node:child_process';
 const bundle=await build({entryPoints:['src/workspace/native-history-database.ts'],bundle:true,platform:'node',format:'esm',write:false});
 const {openNativeHistoryDatabase:openDatabase}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
@@ -64,10 +64,65 @@ test('Windows storage verifies helper bytes before creation and refuses a change
  const f=fixture(t),path=join(f.directory,'checker.exe');writeFileSync(path,'synthetic non-executable');
  assert.throws(()=>openDatabase(f.directory,'observations.sqlite',()=>true,true,{path,sha256:'sha256:'+'0'.repeat(64)}),/UNAVAILABLE/);
  assert.equal(existsSync(f.path),false);
- if(helper){
+ if(helper && helper.kind!=='node-api'){
   copyFileSync(helper.path,path);const profile={path,sha256:helper.sha256};
   const cap=openDatabase(f.directory,'observations.sqlite',()=>true,true,profile);
   profile.sha256='sha256:'+'0'.repeat(64);assert.equal(cap.current(),true);
   appendFileSync(path,'changed');assert.equal(cap.current(),false);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);
  }
+});
+
+
+test('Windows Node-API helper binds its profile and refuses untrusted module kinds',windows,t=>{
+ const f=fixture(t);
+ assert.throws(()=>openDatabase(f.directory,'observations.sqlite',()=>true,true,{path:join(f.directory,'missing.node'),sha256:'sha256:'+'0'.repeat(64),kind:'unknown'}),/UNAVAILABLE/);
+ assert.equal(existsSync(f.path),false);
+ if(helper?.kind==='node-api'){
+  const profile={...helper},cap=openDatabase(f.directory,'observations.sqlite',()=>true,true,profile);
+  profile.kind=undefined;profile.sha256='sha256:'+'0'.repeat(64);profile.path='changed';
+  assert.equal(cap.current(),true);cap.close();assert.equal(cap.current(),false);
+ }
+});
+
+
+test('Windows Node-API module replacement invalidates the live capability',windows,t=>{
+ if(helper?.kind!=='node-api')return;
+ const f=fixture(t),modulePath=join(f.directory,basename(helper.path)),storage=join(f.directory,'storage.mjs'),runner=join(f.directory,'check.mjs');
+ copyFileSync(helper.path,modulePath);writeFileSync(storage,bundle.outputFiles[0].text);
+ writeFileSync(runner,`
+  import assert from 'node:assert/strict';
+  import {renameSync,writeFileSync,unlinkSync,existsSync} from 'node:fs';
+  import {join} from 'node:path';
+  import {openNativeHistoryDatabase} from './storage.mjs';
+  const profile=JSON.parse(process.argv[2]),directory=process.argv[3];
+  const cap=openNativeHistoryDatabase(directory,'observations.sqlite',()=>true,true,profile);
+  assert.equal(cap.current(),true);
+  renameSync(profile.path,profile.path+'.old');writeFileSync(profile.path,'changed');
+  assert.equal(cap.current(),false);
+  assert.throws(()=>openNativeHistoryDatabase(directory,'denials.sqlite',()=>true,true,profile),/UNAVAILABLE/);
+  assert.equal(existsSync(join(directory,'denials.sqlite')),false);
+  unlinkSync(profile.path);renameSync(profile.path+'.old',profile.path);
+  assert.equal(cap.current(),false);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);
+ `);
+ execFileSync(process.execPath,[runner,JSON.stringify({...helper,path:modulePath}),f.directory],{windowsHide:true,timeout:15000,stdio:['ignore','pipe','pipe']});
+});
+
+
+test('Windows Node-API checker refuses malformed arguments and matches the executable',windows,t=>{
+ if(helper?.kind!=='node-api')return;
+ const f=fixture(t);writeFileSync(f.path,'synthetic');
+ const module={exports:{}};process.dlopen(module,helper.path);const check=module.exports.check;
+ for(const args of [[],[f.directory],[f.directory,f.path,'extra'],[null,f.path],[7,f.path],[f.directory+String.fromCharCode(0),f.path],['x'.repeat(32768),f.path],['',f.path],[f.directory,join(f.directory,'absent')]])assert.throws(()=>check(...args),/UNAVAILABLE/);
+ const executable=JSON.parse(readFileSync('dist/native/history-acl.json','utf8'));
+ const expected=execFileSync(executable.path,[],{encoding:'utf8',windowsHide:true,env:{...process.env,KOSMOS_HISTORY_DIRECTORY:f.directory,KOSMOS_HISTORY_FILE:f.path}}).trim();
+ assert.equal(check(f.directory,f.path),expected);
+});
+
+
+test('Windows Node-API loader refuses a shared installation before creating storage',windows,t=>{
+ if(helper?.kind!=='node-api')return;
+ const f=fixture(t),storage=fixture(t),path=join(f.directory,basename(helper.path));copyFileSync(helper.path,path);
+ powershell(f.directory,`$ErrorActionPreference='Stop';$acl=Get-Acl -LiteralPath $env:KOSMOS_HISTORY_TEST_DIRECTORY;$rule=[System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow');$acl.AddAccessRule($rule);[System.IO.Directory]::SetAccessControl($env:KOSMOS_HISTORY_TEST_DIRECTORY,$acl)`);
+ assert.throws(()=>openDatabase(storage.directory,'observations.sqlite',()=>true,true,{...helper,path}),/UNAVAILABLE/);
+ assert.equal(existsSync(storage.path),false);
 });

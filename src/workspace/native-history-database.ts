@@ -1,6 +1,6 @@
 import {DatabaseSync} from "node:sqlite";
 import {closeSync, lstatSync, openSync, readFileSync, realpathSync} from "node:fs";
-import {join, resolve} from "node:path";
+import {basename, dirname, join, resolve} from "node:path";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 
@@ -45,15 +45,45 @@ foreach($path in $checked) {
 ConvertTo-Json -Compress -InputObject $result
 `;
 
-export interface HistoryAclHelper {path: string; sha256: string;}
+export interface HistoryAclHelper {path: string; sha256: string; kind?: "node-api";}
+
+// Hold native function identities, never permission results. A different artifact at a loaded path
+// is refused. Content-addressed filenames keep new builds separate from old mapped machine code.
+const loadedHelpers = new Map<string, {identity: string; check: (directory: string, file: string) => unknown}>();
+function helperIdentity(helper: Readonly<HistoryAclHelper>): string {
+  const stat = lstatSync(helper.path,{bigint:true});
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n || stat.size > 4n * 1024n * 1024n ||
+      realpathSync(helper.path) !== helper.path || "sha256:" + createHash("sha256").update(readFileSync(helper.path)).digest("hex") !== helper.sha256)
+    throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  return `${helper.sha256}:${stat.dev}:${stat.ino}:${stat.birthtimeNs}`;
+}
+function nativePermissions(helper: Readonly<HistoryAclHelper>, identity: string, directory: string, file: string): string {
+  let loaded = loadedHelpers.get(helper.path);
+  if (!loaded) {
+    // Establish private installation permissions before executing any new machine code.
+    // This one-time check uses the existing independent Windows checker.
+    permissions(dirname(helper.path),helper.path);
+    if (helperIdentity(helper) !== identity) throw Error("HISTORY_STORAGE_UNAVAILABLE");
+    // Bypass require.cache so unrelated JavaScript exports cannot stand in for native code.
+    const module = {exports: {}} as NodeModule;
+    process.dlopen(module,helper.path);
+    const check = (module.exports as {check?: unknown}).check;
+    if (helperIdentity(helper) !== identity || typeof check !== "function") throw Error("HISTORY_STORAGE_UNAVAILABLE");
+    loaded = {identity,check:check as (directory: string, file: string) => unknown};
+    loadedHelpers.set(helper.path,loaded);
+  }
+  if (loaded.identity !== identity) throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  const result = loaded.check(directory,file);
+  if (typeof result !== "string" || Buffer.byteLength(result,"utf8") > 16384 || helperIdentity(helper) !== identity)
+    throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  return result;
+}
 
 function permissions(directory: string, file?: string, helper?: Readonly<HistoryAclHelper>): string {
   if (process.platform === "win32") {
     if (helper) {
-      const stat = lstatSync(helper.path);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > 4 * 1024 * 1024 ||
-          realpathSync(helper.path) !== helper.path || "sha256:" + createHash("sha256").update(readFileSync(helper.path)).digest("hex") !== helper.sha256)
-        throw Error("HISTORY_STORAGE_UNAVAILABLE");
+      const identity = helperIdentity(helper);
+      if (helper.kind === "node-api") return nativePermissions(helper,identity,directory,file ?? "");
       return execFileSync(helper.path,[],{encoding:"utf8",windowsHide:true,timeout:5000,maxBuffer:16384,stdio:["ignore","pipe","pipe"],
         env:{...process.env,KOSMOS_HISTORY_DIRECTORY:directory,KOSMOS_HISTORY_FILE:file ?? ""}}).trim();
     }
@@ -75,9 +105,9 @@ export function openNativeHistoryDatabase(directory: string, name: "observations
   try {
     if (typeof directory !== "string" || !["observations.sqlite","denials.sqlite"].includes(name) ||
         typeof ownerCurrent !== "function" || ownerCurrent() !== true) throw Error();
-    const helper = aclHelper ? Object.freeze({path:aclHelper.path,sha256:aclHelper.sha256}) : undefined;
-    if (helper && (typeof helper.path !== "string" || resolve(helper.path) !== helper.path ||
-        typeof helper.sha256 !== "string" || !/^sha256:[0-9a-f]{64}$/.test(helper.sha256))) throw Error();
+    const helper = aclHelper ? Object.freeze({path:aclHelper.path,sha256:aclHelper.sha256,kind:aclHelper.kind}) : undefined;
+    if (helper && (helper.kind !== undefined && helper.kind !== "node-api" || typeof helper.path !== "string" || resolve(helper.path) !== helper.path ||
+        typeof helper.sha256 !== "string" || !/^sha256:[0-9a-f]{64}$/.test(helper.sha256) || helper.kind === "node-api" && basename(helper.path) !== `history-acl-${helper.sha256.slice(7)}.node`)) throw Error();
     const root = resolve(directory), path = join(root,name);
     const rootStat = lstatSync(root,{bigint:true});
     if (root.startsWith("\\\\") || !rootStat.isDirectory() || rootStat.isSymbolicLink() || realpathSync(root) !== root) throw Error();

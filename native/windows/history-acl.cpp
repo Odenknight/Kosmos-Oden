@@ -13,7 +13,9 @@
 static void need(bool yes) { if (!yes) throw std::runtime_error("unavailable"); }
 struct Local { void* p=nullptr; ~Local(){if(p)LocalFree(p);} };
 static std::wstring sidText(PSID sid) { LPWSTR value=nullptr; need(ConvertSidToStringSidW(sid,&value)!=0); Local holder;holder.p=value;return value; }
+#ifndef KOSMOS_HISTORY_NODE
 static std::wstring env(const wchar_t* key) { DWORD n=GetEnvironmentVariableW(key,nullptr,0);if(!n)return L"";std::vector<wchar_t> value(n);need(GetEnvironmentVariableW(key,value.data(),n)<n);return value.data(); }
+#endif
 static std::wstring user() {
  HANDLE token=nullptr;need(OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)!=0);
  DWORD n=0;GetTokenInformation(token,TokenUser,nullptr,0,&n);std::vector<BYTE> bytes(n);
@@ -52,9 +54,8 @@ static std::string json(const std::wstring& value) {
  std::string utf8(static_cast<size_t>(n),'\0');need(WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,value.data(),static_cast<int>(value.size()),&utf8[0],n,nullptr,nullptr)==n);
  std::string out="\"";for(unsigned char c:utf8){if(c=='\\'||c=='\"'){out+='\\';out+=static_cast<char>(c);}else {need(c>=32);out+=static_cast<char>(c);}}return out+'\"';
 }
-int main() {
- try {
-  const auto root=env(L"KOSMOS_HISTORY_DIRECTORY"),file=env(L"KOSMOS_HISTORY_FILE"),own=user();need(!root.empty());
+static std::string permissions(const std::wstring& root,const std::wstring& file) {
+  const auto own=user();need(!root.empty());
   std::vector<wchar_t> volume(32768);need(GetVolumePathNameW(root.c_str(),volume.data(),static_cast<DWORD>(volume.size()))!=0 && GetDriveTypeW(volume.data())==DRIVE_FIXED);
   std::vector<std::wstring> result;
   auto parent=std::filesystem::path(root).parent_path();while(!parent.empty()){result.push_back(inspect(parent.wstring(),own,true));auto next=parent.parent_path();if(next==parent)break;parent=next;}
@@ -63,6 +64,12 @@ int main() {
    if(GetFileAttributesW(journal.c_str())!=INVALID_FILE_ATTRIBUTES)inspect(journal,own,false);
    else {DWORD error=GetLastError();need(error==ERROR_FILE_NOT_FOUND || error==ERROR_PATH_NOT_FOUND);}
   }
-  std::cout<<'[';for(size_t i=0;i<result.size();i++){if(i)std::cout<<',';std::cout<<json(result[i]);}std::cout<<"]\n";return 0;
- }catch(...){return 1;}
+  std::string output="[";for(size_t i=0;i<result.size();i++){if(i)output+=',';output+=json(result[i]);}return output+"]";
 }
+
+#ifndef KOSMOS_HISTORY_NODE
+int main() {
+ try {std::cout<<permissions(env(L"KOSMOS_HISTORY_DIRECTORY"),env(L"KOSMOS_HISTORY_FILE"))<<"\n";return 0;}
+ catch(...){return 1;}
+}
+#endif
