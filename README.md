@@ -1,5 +1,7 @@
 # Kosmos-Oden — v0.8.3 candidate
 
+[Current work — short read-aloud handoff for people and agents](CURRENT-WORK.md)
+
 [Current Engine Unicode correction](docs/reviews/2026-09-13-graphiti-unicode-consumer.md) · [Earlier Engine development-pin qualification](docs/reviews/2026-09-13-engine-777ba17.md)
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)

@@ -9,41 +9,37 @@ Earlier checkpoints remain in Git history and the linked reports.
 
 ## Read aloud
 
-We are upgrading Kosmos-Oden and GKOS-Engine together.
-We want useful search with correct permissions and clear source references.
-The search service works with synthetic test documents.
-The complete search experience inside Obsidian still needs qualification.
+We are upgrading Kosmos-Oden and its supporting engines.
+Kosmos-Oden is the Obsidian interface.
+GKOS-Engine handles search, indexing, and source checks.
+GKOS-standard defines their shared rules.
+GKOS-Engine-Rust is a separate implementation under construction.
 
-We are also building a safe source-history store.
-It preserves exact observations and their original times.
-A separate record keeps deletion decisions safe from old backup restores.
-An isolated Obsidian test passed capture, restore, denial, and purge checks.
+Search works with synthetic documents.
+The complete search experience inside Obsidian still needs testing.
+We are also building source history with permission checks and deletion protection.
 Production history remains disabled.
 
-The current problem is speed.
-History reads repeatedly launch a Windows permission-checking program.
-One retained read launched it 80 times and took about 1.5 seconds.
-The new adapter now runs the same checks inside Obsidian.
-It verifies the module and its private installation before use.
-A synthetic retained read took about 101 milliseconds.
-Permission checks remain live.
-History selection also now recognizes different letter cases of the same UUID.
-That prevents a differently spelled deletion from exposing an older version.
-Production installation and owner controls remain unfinished.
+The candidate refreshes agent names when a heartbeat arrives.
+The comet trails and names still need final checks in the installed interface.
+Pop-out windows now use their own visibility and message handling.
+The latest full Kosmos verification passed 601 tests.
+The separate browser run had three visual failures and two skips.
+Those failures remain open.
 
-Indexing also misses its performance target.
-A sort-key improvement reduced the latest 2,000-note edit to about 10.77 seconds.
-The required target is still two seconds.
-Synchronous filesystem calls account for only a small part of the measured delay.
-Repeated serialization remains the main performance investigation.
-The comet trails and real agent names still need final installed visual checks.
-An agent heartbeat now refreshes its displayed name without moving its marker.
-All sixteen identity and trail browser checks passed on four browser targets.
-The latest browser run passed 231 tests.
-Three visual comparisons failed. Two tests were skipped.
-The failed images need review before their references can change.
+Indexing is still too slow.
+One measured edit took about 10.77 seconds across 2,000 notes.
+The target is two seconds.
+
+The Rust baseline passed 400 Windows tests with its required tools.
+Its command-line product is still unfinished.
+New work adds validation fixtures and an exact output comparator.
+Passing component tests does not prove the complete product works.
+
 Terra is scheduled to check long-running qualification every six hours.
-The upgrade is on review branches. It has not been merged to main.
+The upgrade remains on review branches.
+It has not been merged to main.
+We still need the remaining build work, final debug checks, and release qualification.
 
 ## Repositories and revisions
 
@@ -63,7 +59,7 @@ Kosmos work is on `codex/build-plan-completion-20260913`.
 The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `eafdfc9`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `70b6a75`.
 Engine PR 73 builds on PR 72.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
@@ -71,6 +67,26 @@ The normal installed plugin remains the earlier `59a61ca` candidate.
 Branch changes must not be described as installed.
 The separate synthetic Obsidian vault now runs candidate `27309b2`.
 Its installation and plugin load passed. Visible native acceptance remains open.
+
+## Rust work another agent can inspect
+
+Repository: [GKOS-Engine-Rust](https://github.com/Odenknight/GKOS-Engine-Rust).
+Branch: `codex/rust-differential-core-20260913`.
+Verified branch revision: `2a29fef`.
+This branch builds on `integration/m0`.
+
+Read `conformance/differential/README.md` for the handoff.
+Read `compat/fixtures/m0/manifest.json` for the 22 source files and 18 cases.
+Read `compat/oracle-observations/validate-windows-node24-724ab12/README.md` for recorded TypeScript outputs.
+These outputs are observations. They are not approved reference results.
+Run `node tools/verify-validation-observations.mjs` to check their integrity.
+
+Read `rust/crates/gkos-conformance/src/lib.rs` for the comparator.
+It compares exit codes and exact output bytes.
+It also records which difference classes need review or must block.
+Its five unit tests and Clippy check passed.
+The executable runner, approved reference results, and working Rust validation command remain unfinished.
+The earlier 400-test result applies to the tested main baseline, not this entire new branch.
 
 ## Where to look in the code
 
@@ -90,8 +106,10 @@ Its installation and plugin load passed. Visible native acceptance remains open.
 | [Browser qualification](docs/reviews/2026-09-13-browser-candidate-qualification.md) | Records the full browser result and repeatable visual failures. |
 
 In GKOS-Engine, inspect `src/watcher/contracts.ts` on the branch listed above.
-The latest change computes each canonical sort key once.
+One change computes each canonical sort key once.
 It avoids repeating serialization inside the sort comparison.
+The latest change rejects unsafe artifact inputs before reading their digest.
+That prevents getters or proxies from running during validation.
 The performance report links the measured result and its limits.
 
 ## Evidence and limits
