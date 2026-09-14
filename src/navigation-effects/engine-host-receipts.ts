@@ -7,17 +7,34 @@ const CLASSIFICATIONS = new Set(["effect-absent-retryable", "effect-present-veri
 
 function record(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) ||
-      ![Object.prototype, null].includes(Object.getPrototypeOf(value)) ||
-      Object.values(Object.getOwnPropertyDescriptors(value)).some(property => !("value" in property)) ||
-      Object.keys(value).some(key => !keys.includes(key))) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
-  return value as Record<string, unknown>;
+      ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
+  const descriptors: Record<string, PropertyDescriptor> = Object.getOwnPropertyDescriptors(value as object);
+  if (Reflect.ownKeys(descriptors).some(key => typeof key !== "string" || !keys.includes(key) ||
+      !("value" in descriptors[key]))) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
+  return Object.fromEntries(Object.entries(descriptors).map(([key, property]) => [key, property.value]));
+}
+
+function array(value: unknown, maximum: number): unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
+  const descriptors: Record<string, PropertyDescriptor> = Object.getOwnPropertyDescriptors(value as object);
+  const length = descriptors.length.value;
+  if (!Number.isInteger(length) || length < 0 || length > maximum ||
+      Reflect.ownKeys(descriptors).length !== length + 1) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
+  const copy: unknown[] = [];
+  for (let index = 0; index < length; index++) {
+    const property = descriptors[String(index)];
+    if (!property || !("value" in property)) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
+    copy.push(property.value);
+  }
+  return copy;
 }
 
 function reasons(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length > 128 || Array.from(value).some(code => typeof code !== "string" || !/^[A-Z][A-Z0-9_]{0,127}$/.test(code))) {
+  const copy = array(value, 128);
+  if (copy.some(code => typeof code !== "string" || !/^[A-Z][A-Z0-9_]{0,127}$/.test(code))) {
     throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
   }
-  return [...value];
+  return copy as string[];
 }
 
 function recoveryResult(value: unknown): RecoveryResult {
@@ -46,7 +63,7 @@ export async function mapEngineRecoveryInspection(profile: EffectHostProfile, va
       ![row.journalDigest, row.checkpointDigest].every(value => value === null || typeof value === "string" && DIGEST.test(value)) ||
       !Array.isArray(row.results) || row.results.length > 100_000 ||
       typeof row.inspectionDigest !== "string" || !DIGEST.test(row.inspectionDigest)) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
-  const results = Array.from(row.results, recoveryResult);
+  const results = array(row.results, 100_000).map(recoveryResult);
   const expectedEngineDigest = row.inspectionDigest;
   if (new Set(results.map(result => result.effectId)).size !== results.length) throw new Error("ENGINE_HOST_EVIDENCE_INVALID");
   const evidence = { artifactKind: row.artifactKind, effectsContract: row.effectsContract,

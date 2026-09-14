@@ -71,3 +71,26 @@ test('shutdown receipts preserve truthful completion and deadline evidence', asy
     { status: 'blocked', admissionStopped: true, checkpointVerified: false, leaseReleased: false, reasonCodes: [] },
   ]) await assert.rejects(api.mapEngineShutdownResult('obsidian', source), /ENGINE_HOST_EVIDENCE_INVALID/);
 });
+
+
+test('receipt evidence refuses hidden fields and array accessors without reading them', async () => {
+  let calls = 0;
+  const hidden = inspection();
+  Object.defineProperty(hidden, 'sourceBytes', { value: 'private', enumerable: false });
+  const symbol = inspection();
+  symbol[Symbol('sourceBytes')] = 'private';
+  const rows = [result()];
+  Object.defineProperty(rows, '0', { get() { calls++; return result(); } });
+  const codes = ['SAFE'];
+  Object.defineProperty(codes, '0', { get() { calls++; return 'SAFE'; } });
+  const iterable = [];
+  iterable[Symbol.iterator] = function* () { calls++; };
+  for (const value of [hidden, symbol, { ...inspection(), results: rows },
+    { ...inspection(), results: iterable }, { ...inspection([result()]), results: [{ ...result(), reasonCodes: codes }] }]) {
+    await assert.rejects(api.mapEngineRecoveryInspection('obsidian', value), /ENGINE_HOST_EVIDENCE_INVALID/);
+  }
+  await assert.rejects(api.mapEngineShutdownResult('obsidian', {
+    status: 'blocked', admissionStopped: true, checkpointVerified: false, leaseReleased: false, reasonCodes: codes,
+  }), /ENGINE_HOST_EVIDENCE_INVALID/);
+  assert.equal(calls, 0);
+});

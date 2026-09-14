@@ -38,7 +38,7 @@ The Kosmos host connection and recovery controls are still unfinished.
 The candidate refreshes agent names when a heartbeat arrives.
 The comet trails and names still need final checks in the installed interface.
 Pop-out windows now use their own visibility and message handling.
-The latest full Kosmos verification passed 617 tests.
+The latest full Kosmos verification passed 618 tests.
 The separate browser run had three visual failures and two skips.
 Those failures remain open.
 
@@ -168,9 +168,10 @@ These inventories are incomplete software inventories. They are not signed relea
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 617 tests.
+The latest full Kosmos verification passed 618 tests.
 That full run includes release preservation, reconciliation path corrections, and Engine host receipt mapping.
 Kosmos now validates and maps Engine recovery-inspection and shutdown evidence.
+It also rejects hidden fields and array getters before using those receipts.
 The production adapters still need to be connected.
 Read [host receipt mapping](docs/navigation-effects/ENGINE-HOST-RECEIPTS.md) for the exact limits.
 Earlier portable staging also used the real viewer with a synthetic, non-executable sidecar.

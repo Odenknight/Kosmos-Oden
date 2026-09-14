@@ -26,6 +26,10 @@ The receipt digest covers all receipt fields except itself.
 Both mappings reject unknown fields, malformed digests, source-bearing payloads,
 invalid reason codes, and contradictory states. Recovery mapping also rejects
 duplicate effect identities and inspection results that claim write authority.
+Hidden and symbol-keyed fields are also rejected. Arrays must be ordinary,
+dense data arrays without custom fields or iterators. The reader copies property
+descriptors before validation and never invokes record or array getters. This is
+a data-schema boundary, not a sandbox for arbitrary JavaScript proxies.
 Returned evidence is copied and frozen. The functions reuse the existing
 canonical JSON and Web Crypto digest implementation.
 
