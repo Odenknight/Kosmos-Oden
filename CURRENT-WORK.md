@@ -77,8 +77,10 @@ passed. All 705 source files and raw logs were verified; Node 26 is informative.
 Two complete local npm packages reproduced byte for byte after a rebuild.
 See the [current Engine report](docs/reviews/2026-09-14-engine-native-repro-qualification.md)
 and [Engine PR 81](https://github.com/Odenknight/GKOS-Engine/pull/81).
-The consumer pin update needs its own integration verification; earlier consumer
-receipts remain bound to their original revisions.
+Consumer `a031b777` passed full Windows and fresh native Debian verification,
+plus all four browser projects with the declared platform skips. All 652 installed
+Engine files match the verified package exactly. Earlier receipts remain bound
+to their original revisions; installed acceptance and release gates stay open.
 The earlier failed `13ff119` Node 22 result remains historical evidence in the
 [Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
 
