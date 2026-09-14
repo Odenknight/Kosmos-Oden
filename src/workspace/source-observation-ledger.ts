@@ -232,15 +232,15 @@ export class SourceObservationLedger {
       if (!isValidGkxAuthoredUid(source) || !positive(sequence, 10000) || this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
       const { rows } = this.scan();
       const row = rows[sequence - 1];
-      if (!row || row.parsed.kind !== "source_version" || row.parsed.source !== source) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
-      if (this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      if (!row || row.parsed.kind !== "source_version" || row.parsed.source.toLowerCase() !== source.toLowerCase()) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      if (this.host.canRead(source) !== true || this.host.canRead(row.parsed.source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
       this.retainedReference(row, rows);
       const payload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(sequence) as any)?.payload;
       this.validate(row.parsed, payload);
       this.retainedReference(row, rows);
-      if (this.host.canRead(source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
+      if (this.host.canRead(source) !== true || this.host.canRead(row.parsed.source) !== true) throw Error("OBSERVATION_REFERENCE_UNAVAILABLE");
       this.current();
-      return Object.freeze({ sequence, source, sourceDigest: row.parsed.sourceDigest, receiptDigest: row.receipt_digest });
+      return Object.freeze({ sequence, source: row.parsed.source as string, sourceDigest: row.parsed.sourceDigest, receiptDigest: row.receipt_digest });
     });
   }
 
@@ -293,7 +293,7 @@ export class SourceObservationLedger {
     const captured = this.transaction(() => {
       if (this.host.canRead(source) !== true) return { selected: null, watermark: null };
       const { rows, watermark } = this.scan();
-      const selected = rows.slice().reverse().find(row => row.parsed.source === source && row.known_at <= cutoff) ?? null;
+      const selected = rows.slice().reverse().find(row => row.parsed.source?.toLowerCase() === source.toLowerCase() && row.known_at <= cutoff) ?? null;
       return { selected, watermark };
     });
     let available = true;
@@ -308,13 +308,15 @@ export class SourceObservationLedger {
         if (watermark !== captured.watermark) throw Error("OBSERVATION_SNAPSHOT_STALE");
         if (rows.length && now < rows.at(-1).known_at) throw Error("OBSERVATION_CLOCK_REGRESSED");
         const row = captured.selected;
+        // UUID spelling is provenance, not another identity or an alternative grant.
+        const readable = () => this.host.canRead(source) === true && (!row || this.host.canRead(row.parsed.source) === true);
         if (row && rows[row.seq - 1]?.receipt_digest !== row.receipt_digest) throw Error("OBSERVATION_SNAPSHOT_STALE");
         this.current();
-        if (this.host.canRead(source) !== true) { apply(null); return; }
+        if (!readable()) { apply(null); return; }
         if (!row || row.parsed.kind !== "source_version" || Date.parse(now) - Date.parse(row.known_at) > this.retention.maxAgeMs) { apply(null); return; }
         const payload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(row.seq) as any)?.payload;
         this.validate(row.parsed, payload);
-        if (this.host.canRead(source) !== true) { apply(null); return; }
+        if (!readable()) { apply(null); return; }
         this.current();
         apply({ sequence: row.seq, knownAt: row.known_at, input: JSON.parse(row.input), bytes: new Uint8Array(payload) });
       });

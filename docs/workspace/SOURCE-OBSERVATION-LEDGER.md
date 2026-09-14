@@ -221,3 +221,22 @@ These remaining gates stay open.
 A [Windows native file guard](NATIVE-HISTORY-STORAGE.md) now verifies ownership, ACLs, file identity and journal safety.
 Its actual Obsidian probe passed, but permission-check latency remains unqualified.
 The guard is not wired into production storage. Other platforms and operational backup separation remain open.
+
+
+## Case-insensitive UUID selection
+
+History reads now select observations by UUID identity across letter-case variants.
+A later uppercase deletion therefore prevents a lowercase query from returning an older version.
+An earlier cutoff can still return the version actually retained before that deletion.
+Source references accept equivalent UUID spelling but return the exact committed spelling and receipt.
+Current authorization must allow both the requested spelling and the selected retained spelling.
+An inconsistent host grant cannot use an alias to expose a denied retained version.
+
+Three regression fixtures failed before this change and pass afterward.
+They cover deletion and restart, newer-version selection, receipt identity, and current read denial.
+The 61 history, deletion-authority, and native-publication fixtures pass together.
+No stored envelopes, digests, original times, sequences, or parent receipts are rewritten.
+Existing version-1 parent chains remain as recorded; a canonical parent-chain migration is not supplied here.
+This fixes read selection. It does not complete migration, owner controls, or T1–T3 qualification.
+
+Full repository verification after the selection fix passed 598 tests with no failures or skips.

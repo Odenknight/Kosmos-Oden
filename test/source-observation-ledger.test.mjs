@@ -202,3 +202,28 @@ test('distinct UUIDs remain valid projection references regardless of letter cas
  const event={...projection(f),sources:[f.ledger.sourceReference(source,1),f.ledger.sourceReference(distinct,2)]};
  assert.equal(f.ledger.append(event,null).sequence,3);f.reopen();assert.equal(f.ledger.sourceReference(distinct,2).source,distinct);
 });
+
+
+test('known-by selection treats UUID case variants as one identity across deletion and restart',t=>{
+ const f=fixture(t);f.ledger.append(input(),bytes);
+ f.state.time='2026-09-13T01:00:00.000Z';f.ledger.append({...input('upper-delete'),source:source.toUpperCase(),kind:'source_deleted',sourceDigest:null},null);
+ f.reopen();assert.equal(read(f.ledger),null);
+ let old;f.ledger.knownBy(source.toUpperCase(),'2026-09-13T00:00:00.000Z').publish(value=>old=value);
+ assert.equal(old.sequence,1);assert.equal(old.input.source,source);
+});
+
+test('case-insensitive history selection preserves exact committed source receipts',t=>{
+ const f=fixture(t);f.ledger.append(input(),bytes);
+ const newer=Buffer.from('Uppercase identity, newer observation.');f.state.time='2026-09-13T01:00:00.000Z';
+ f.ledger.append({...input('upper-edit',newer),source:source.toUpperCase()},newer);
+ const selected=read(f.ledger);assert.equal(selected.sequence,2);assert.equal(selected.input.source,source.toUpperCase());assert.deepEqual(Buffer.from(selected.bytes),newer);
+ const ref=f.ledger.sourceReference(source,2);assert.equal(ref.source,source.toUpperCase());assert.equal(ref.sourceDigest,digest(newer));
+ f.reopen();assert.deepEqual(f.ledger.sourceReference(source.toUpperCase(),1),f.ledger.sourceReference(source,1));
+});
+
+test('history aliases do not bypass the current authorization of the retained spelling',t=>{
+ const f=fixture(t);f.ledger.append(input(),bytes);f.state.time='2026-09-13T01:00:00.000Z';
+ f.ledger.append({...input('upper-edit'),source:source.toUpperCase()},bytes);f.ledger.close();
+ const ledger=SourceObservationLedger.open(config,()=>new DatabaseSync(f.path),{...f.host,canRead:value=>value===source});
+ try {assert.equal(read(ledger),null);assert.throws(()=>ledger.sourceReference(source,2),/REFERENCE_UNAVAILABLE/);}finally{ledger.close();}
+});

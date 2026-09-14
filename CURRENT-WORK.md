@@ -26,6 +26,8 @@ The new adapter now runs the same checks inside Obsidian.
 It verifies the module and its private installation before use.
 A synthetic retained read took about 101 milliseconds.
 Permission checks remain live.
+History selection also now recognizes different letter cases of the same UUID.
+That prevents a differently spelled deletion from exposing an older version.
 Production installation and owner controls remain unfinished.
 
 Indexing also misses its performance target.
@@ -71,7 +73,7 @@ Branch changes must not be described as installed.
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 595 tests.
+The latest full Kosmos verification passed 598 tests.
 The in-process adapter passes all eleven dedicated Windows storage tests.
 The executable variant also passes its storage regression run.
 The combined history workflow passed in an isolated Obsidian vault.
