@@ -92,7 +92,7 @@ async function buildNodeBundles() {
   writeFileSync(resolve(root, "dist/kosmos-workspace-selection.mjs"), workspaceSelection);
   const operationalPaths = await bundle("src/operational-paths.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-operational-paths.mjs"), operationalPaths);
-  const navigationEffects = await bundle("src/navigation-effects/engine-adapter.ts", { format: "esm", platform: "browser", extra: { minify: false } });
+  const navigationEffects = await bundle("src/navigation-effects/test-entry.ts", { format: "esm", platform: "browser", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-navigation-effects.mjs"), navigationEffects);
   // dist/kosmos-core.mjs — self-contained re-bundle of the gkos-engine core,
   // consumed by kosmos-build.mjs, the benchmarks and the Node test suite.

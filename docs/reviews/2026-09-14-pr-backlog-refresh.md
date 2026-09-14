@@ -37,3 +37,39 @@ Full `npm run verify` passed: 601 tests, zero failures, zero skips.
 Type checking, build, version, lockfile, artifact, invariant, renderer-provenance,
 and branding checks all completed successfully.
 This run does not close the separate native or visual acceptance gates.
+
+## PR38 and PR41 component recovery
+
+A comparison against candidate 2e22292 found 13 changed paths absent from PR38
+and 16 absent from PR41. These counts include documents and tests.
+Identical file counts were 130 and 131 respectively. File equality alone does
+not prove that all remaining changed behavior has been reconciled.
+
+Three absent pure Effects components were recovered from PR41 head
+65e9354f220b19a16c67504ff228e58caf8128ca:
+
+- `event-debouncer.ts` coalesces deliveries with quiet/max delays and bounded queues.
+- `self-write-suppression.ts` matches completed receipt references by effect, path, digest, and generation.
+- `reconciliation.ts` classifies snapshot and pending-intent differences.
+
+Their historical nine-test suite was restored through the existing test bundle.
+These modules own no runtime timers, filesystem writes, or host registration.
+Reconciliation intents are serializable values; the modules do not persist them.
+The self-write lookup expects already verified durable receipts from a trusted host.
+It cannot authenticate an arbitrary caller-supplied receipt or grant write authority.
+
+Review exposed unsafe historical reconciliation cases. Truthy non-booleans could
+satisfy journal/checkpoint flags. Missing recovery state could pass. An empty
+queue could be classified safe despite incomplete dependencies or a forced full
+reconciliation. Intent mutation could discard corrupt scopes/reasons or overflow
+its revision. A new regression test failed before the corrections.
+
+The recovered version requires exact safety booleans, preserves forcing conditions,
+rejects corrupt intent mutation, and uses the existing portable watcher path rules.
+All ten focused tests and type checking pass after the corrections.
+Full suite results are recorded after the run completes.
+
+The actual host coordinator, durable recovery integration, and source-write gates
+remain unfinished. This restoration does not activate Effects or close PR38/41.
+Their remaining desktop, service, packaging, exclusion, and documentation changes
+still need a behavior-by-behavior disposition.
