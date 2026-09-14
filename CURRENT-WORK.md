@@ -94,7 +94,9 @@ The performance report links the measured result and its limits.
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 598 tests.
+The latest full Kosmos verification passed 600 tests.
+Pop-out views now use their own document for visibility and their own window for frame messages.
+Component tests cover this correction. Actual visible pop-out acceptance remains open.
 The separate browser matrix finished with 231 passes, three failures, and two skips.
 All three failures concern the desktop star-focus reference image.
 The generated mobile reference images remain untracked and unapproved.

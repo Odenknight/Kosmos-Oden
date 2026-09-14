@@ -108,7 +108,7 @@ export class KosmosView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("kosmos-oden-root");
-    const frame = document.createElement("iframe");
+    const frame = root.ownerDocument.createElement("iframe");
     frame.setAttribute("title", "Kosmos-Oden");
     // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
     // context. It needs scripts (WebGL/Three.js), pointer lock (fly mode) and
@@ -121,7 +121,7 @@ export class KosmosView extends ItemView {
     root.appendChild(frame);
     this.frame = frame;
     // open-note / open-folder requests coming back from the 3D view (right-click)
-    this.registerDomEvent(window, "message", (ev: MessageEvent) => this.onMessage(ev));
+    this.registerDomEvent(root.ownerDocument.defaultView || window, "message", (ev: MessageEvent) => this.onMessage(ev));
   }
 
   private onMessage(ev: MessageEvent): void {
@@ -245,8 +245,8 @@ export class KosmosView extends ItemView {
   }
 
   private isVisible(): boolean {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
     const el = this.containerEl as HTMLElement;
+    if (el?.ownerDocument?.visibilityState === "hidden") return false;
     return !!el && !!el.offsetParent;          // background tabs have no offsetParent
   }
   /** Called when a view becomes active/visible again. */

@@ -11,6 +11,7 @@ const bundled = await build({
   entryPoints: ["src/plugin/main.ts"], bundle: true, platform: "node", format: "esm", write: false,
   loader: { ".html": "text" },
   plugins: [{ name: "obsidian-stub", setup(p) {
+    p.onLoad({ filter: /kosmos-embed\.html$/ }, () => ({ contents: Buffer.from("<!doctype html><title>Lifecycle fixture</title>").toString("base64"), loader: "text" }));
     p.onResolve({ filter: /^obsidian$/ }, () => ({ path: "obsidian-stub", namespace: "stub" }));
     p.onLoad({ filter: /.*/, namespace: "stub" }, () => ({ contents: obsidianStub, loader: "js" }));
   } }],
@@ -19,6 +20,39 @@ const { KosmosView } = await import(`data:text/javascript;base64,${Buffer.from(b
 globalThis.window = { setTimeout, clearTimeout };
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test("pop-out visibility follows the view document instead of the main window", () => {
+  const previous = globalThis.document;
+  const view = new KosmosView({ app: {} }, () => true);
+  try {
+    globalThis.document = { visibilityState: "hidden" };
+    view.containerEl.ownerDocument = { visibilityState: "visible" };
+    assert.equal(view.isVisible(), true);
+    globalThis.document.visibilityState = "visible";
+    view.containerEl.ownerDocument.visibilityState = "hidden";
+    assert.equal(view.isVisible(), false);
+    view.containerEl.ownerDocument.visibilityState = "visible";
+    view.containerEl.offsetParent = null;
+    assert.equal(view.isVisible(), false);
+  } finally {
+    if (previous === undefined) delete globalThis.document;
+    else globalThis.document = previous;
+  }
+});
+
+test("pop-out frame and message listener belong to the view window", async () => {
+  const view = new KosmosView({ app: {} }, () => true);
+  const ownerWindow = {};
+  const frame = { setAttribute() {}, addEventListener() {} };
+  view.contentEl.ownerDocument = { defaultView: ownerWindow, createElement: () => frame };
+  view.contentEl.appendChild = element => assert.equal(element, frame);
+  const listeners = [];
+  view.registerDomEvent = (...args) => listeners.push(args);
+  await view.onOpen();
+  assert.equal(listeners.length, 1);
+  assert.equal(listeners[0][0], ownerWindow);
+  assert.equal(listeners[0][1], "message");
+});
 function deferred() { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j; }); return { promise, resolve, reject }; }
 function note(path, content) { return { path, name: path.split("/").at(-1), extension: "md", stat: { size: content.length, mtime: 1, ctime: 1 }, content }; }
 
