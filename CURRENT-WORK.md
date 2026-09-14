@@ -164,8 +164,11 @@ Reconciliation now rejects noncanonical target paths instead of declaring matchi
 The regression failed before the correction and passed afterward.
 The older Engine qualification at `a7b52b3` passed 1,140 tests with no failures or skips.
 Its receipt explicitly says that the release is not qualified.
-The newer Engine candidate at `ab38572` has started its full qualification run.
-No passing result is claimed until its final receipt is inspected.
+The newer Engine candidate at `ab38572` failed full qualification.
+It passed 1,162 of 1,163 tests, with no skips.
+A Windows directory swap-and-restore escaped detection.
+Stress testing reproduced the problem. A proposed timestamp check was insufficient and removed.
+Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
 Window visibility events now pause rendering and resume deferred updates when the view is visible again.
@@ -192,7 +195,7 @@ Credentials and private deployment receipts are not stored in this repository.
 
 ## What comes next
 
-Qualify the current Engine candidate before changing the Kosmos dependency pin.
+Fix the Windows retained-directory authority failure and requalify Engine before changing the Kosmos dependency pin.
 Qualify production installation and the full history workload for the new adapter.
 Qualify native search, citations, permission changes, and outage recovery.
 Fix indexing latency and finish the required repeated runs and soak.
