@@ -59,22 +59,34 @@ test('stable identity survives the versioned embed request-to-render adapter', a
   expect(diagnostics.agentTraversalAgents).toBe(2);
 });
 
-test('heartbeat updates a registered agent name without moving its marker', async ({ page }) => {
+test('embed heartbeat updates an idle registered agent name without moving its marker', async ({ page }) => {
   await page.goto('/dist/kosmos-embed.html?capture=1&seed=1907&time=0&animation=off');
   await page.evaluate(() => window.postMessage({
     protocol: 'kosmos-oden', version: 1, type: 'vault-snapshot',
     payload: { files: [{ relativePath: 'A/one.md', content: '# one' }], folders: ['A'], attachments: [], label: 'Identity rename' }
   }, '*'));
   await page.waitForFunction(() => (window as any).__kosmos?.ok);
-  await page.evaluate(() => (window as any).__kosmos.notifyAgentTraversal(['A/one.md'], 'get_note', 'Unnamed agent', false, 'agent:jeffrey'));
+  await page.evaluate(() => {
+    const original = performance.now.bind(performance);
+    (window as any).agentTimeOffset = 0;
+    performance.now = () => original() + (window as any).agentTimeOffset;
+    window.postMessage({ protocol: 'kosmos-oden', version: 1, type: 'agent-traversal',
+      payload: { paths: ['A/one.md'], tool: 'get_note', agent: 'Unnamed agent', agentId: 'agent:jeffrey' } }, '*');
+  });
   const marker = page.locator('.agent-marker[aria-hidden="false"]');
   await expect(marker).toHaveCount(1);
   const location = await marker.getAttribute('data-location');
-  await page.evaluate(() => (window as any).__kosmos.notifyAgentTraversal([], 'ping', 'JEFFREY', false, 'agent:jeffrey'));
+  await page.evaluate(() => { (window as any).agentTimeOffset = 130000; });
+  await expect(marker).toHaveAttribute('data-state', 'idle');
+  await expect.poll(() => marker.evaluate(el => Number((el as HTMLElement).style.opacity))).toBeLessThan(0.8);
+  await page.evaluate(() => window.postMessage({ protocol: 'kosmos-oden', version: 1, type: 'agent-traversal',
+    payload: { paths: [], tool: 'ping', agent: 'JEFFREY', agentId: 'agent:jeffrey' } }, '*'));
   await expect(marker.locator('.agent-name > span').first()).toHaveText('JEFFREY');
   await expect(marker).toHaveAttribute('data-location', location!);
   await expect(marker).toHaveCount(1);
-  expect(await page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops)).toBe(1);
+  await expect(marker).toHaveAttribute('data-state', 'active');
+  await expect.poll(() => marker.evaluate(el => Number((el as HTMLElement).style.opacity))).toBe(1);
+  expect(await page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops)).toBe(0);
 });
 
 test('busy trails retain route dust for two minutes and idle agents fade with heartbeat recovery', async ({ page }) => {

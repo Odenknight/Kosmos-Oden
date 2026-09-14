@@ -42,3 +42,21 @@ No private vault data was used in these synthetic captures.
 Remaining work includes review of desktop and mobile references, any necessary renderer fixes,
 and final installed acceptance of durable comet routes and registered agent names.
 This browser result does not close the other build gates.
+
+## Heartbeat name correction
+
+Code revision `6632998` refreshes the portrayed name on a heartbeat.
+Previously the marker kept its old label until another note traversal.
+The regression now exercises the versioned embed message interface.
+It advances the synthetic clock until the existing marker is idle and fading.
+A heartbeat with the same agent ID and the name JEFFREY restores the marker.
+Its name changes, its last location stays the same, and no traversal is invented.
+
+All 16 identity/trail checks passed across Chromium, Firefox, WebKit, and mobile Chromium.
+The final `npm run verify` also passed: 598 tests, no failures, no skips.
+Type, build, version, lockfile, artifact, invariant, and renderer-provenance checks passed.
+The local browser log is `heartbeat-adapter.log`, SHA256
+`c8e3677f04501980306c724109b04045ea1ab741adfd38ebd17b1b9130ef1ee2`.
+These checks cover the candidate and synthetic embed transport.
+They do not prove the active Hermes profile or normally installed plugin uses these bytes.
+The earlier visual-baseline failures remain open.
