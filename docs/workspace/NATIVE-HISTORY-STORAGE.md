@@ -53,3 +53,37 @@ The default temporary directory on the tested workstation has additional account
 Its name is not proof of privacy. The fixtures instead explicitly protect new directories under the user profile.
 Windows PowerShell must load its own module paths; inheriting PowerShell 7 paths prevented ACL commands from loading.
 The test ACL changes use the .NET directory access-control API and require no audit-privilege escalation.
+
+## Optional native ACL helper
+
+A small Windows C++ helper now performs the live ownership and ACL reads without starting PowerShell.
+Build it with `npm run build:history-acl` on a Windows host with Visual Studio C++ Build Tools and a Windows SDK.
+The build uses the installed compiler and Windows libraries. It downloads no dependencies.
+It produces `dist/native/history-acl.exe` and a manifest with the executable and source hashes.
+The executable is not automatically installed or included in the plugin by this step.
+
+A trusted native installer may pass `{path, sha256}` as the fifth database-capability argument.
+The host must establish the helper's installation authority; renderer input cannot supply that profile.
+The guard captures the profile and verifies the actual executable bytes before every execution.
+A changed executable invalidates the capability. There is no automatic fallback after helper failure.
+When no helper is configured, the original PowerShell checker remains available.
+
+The helper reads current Windows security descriptors on every call.
+It preserves raw ACE order, whereas the .NET path normalizes some equivalent allow entries.
+The comparison fixture matched the simple ACE multisets and owner/group/control fields.
+Both paths refused a shared-directory fixture.
+The helper deliberately refuses unknown ACE forms instead of guessing their meaning.
+It currently supports standard filesystem allow/deny ACEs.
+
+All seven storage tests pass with the helper, including changed ACLs, file replacement,
+hard-linked journals, owner withdrawal, and a changed hash-pinned executable.
+The same suite also runs against the PowerShell path in ordinary repository verification.
+
+Five standalone native-helper samples took about 22–25 ms, compared with 601–628 ms for PowerShell.
+An actual Obsidian probe measured about 62 ms to prepare the capability and
+18.3, 18.5, 18.6, 18.7 and 22.7 ms for its five current checks.
+The native probe verified private storage, a SQLite write, and capability invalidation on close.
+It reloaded the rebuilt private test module; an earlier cached-module run was discarded as a helper measurement.
+These are small synthetic samples. They do not qualify the complete history workload,
+production helper packaging, other operating systems, or the separate indexing budget.
+Production retention and the remaining native owner/backup workflows stay disabled or unqualified.

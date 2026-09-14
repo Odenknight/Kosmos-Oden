@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
-import {mkdtempSync,rmSync,renameSync,writeFileSync,unlinkSync,linkSync,existsSync} from 'node:fs';
+import {mkdtempSync,rmSync,renameSync,writeFileSync,unlinkSync,linkSync,existsSync,readFileSync,copyFileSync,appendFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {join,dirname} from 'node:path';
 import {execFileSync} from 'node:child_process';
 const bundle=await build({entryPoints:['src/workspace/native-history-database.ts'],bundle:true,platform:'node',format:'esm',write:false});
-const {openNativeHistoryDatabase}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const {openNativeHistoryDatabase:openDatabase}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const helper=process.env.KOSMOS_HISTORY_ACL_HELPER_PROFILE?JSON.parse(readFileSync(process.env.KOSMOS_HISTORY_ACL_HELPER_PROFILE,'utf8')):undefined;
+const openNativeHistoryDatabase=(...args)=>openDatabase(args[0],args[1],args[2],args[3],helper);
 const windows={skip:process.platform!=='win32'};
 function powershell(directory,script){return execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_TEST_DIRECTORY:directory},stdio:['ignore','pipe','pipe']});}
 function fixture(t){
@@ -55,4 +57,17 @@ test('Windows storage refuses linked journals before opening the database',windo
  const f=fixture(t),cap=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true);
  const target=join(f.directory,'sentinel');writeFileSync(target,'synthetic');linkSync(target,f.path+'-journal');
  assert.equal(cap.current(),false);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);
+});
+
+
+test('Windows storage verifies helper bytes before creation and refuses a changed executable',windows,t=>{
+ const f=fixture(t),path=join(f.directory,'checker.exe');writeFileSync(path,'synthetic non-executable');
+ assert.throws(()=>openDatabase(f.directory,'observations.sqlite',()=>true,true,{path,sha256:'sha256:'+'0'.repeat(64)}),/UNAVAILABLE/);
+ assert.equal(existsSync(f.path),false);
+ if(helper){
+  copyFileSync(helper.path,path);const profile={path,sha256:helper.sha256};
+  const cap=openDatabase(f.directory,'observations.sqlite',()=>true,true,profile);
+  profile.sha256='sha256:'+'0'.repeat(64);assert.equal(cap.current(),true);
+  appendFileSync(path,'changed');assert.equal(cap.current(),false);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);
+ }
 });

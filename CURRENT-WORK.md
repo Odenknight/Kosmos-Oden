@@ -104,7 +104,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 590 tests.
+The latest completed Kosmos verification passed 591 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -202,7 +202,9 @@ It rejects replacement files and linked journals.
 It passed the isolated Obsidian check and six new automated fixtures.
 The full verification passes 590 tests.
 A permission check took about 612 milliseconds in one native measurement.
-That cost must improve before frequent history reads use it.
+A hash-pinned native helper now reduces isolated Obsidian checks to about 18–23 milliseconds.
+All seven storage fixtures pass with it.
+Production packaging and the complete history workload still need qualification.
 See the [native storage report](docs/workspace/NATIVE-HISTORY-STORAGE.md).
 
 ## What still needs work

@@ -39,7 +39,8 @@
     "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/consumer-identity.spec.ts test/browser/standalone-flows.spec.ts",
     "test:visual": "playwright test test/browser/visual.spec.ts --project=chromium",
     "test:renderer": "npm run test:browser && npm run test:visual",
-    "package:release": "node scripts/package-release.mjs"
+    "package:release": "node scripts/package-release.mjs",
+    "build:history-acl": "node scripts/build-history-acl.mjs"
   },
   "license": "Apache-2.0",
   "devDependencies": {
