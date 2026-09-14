@@ -86,16 +86,16 @@ The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
 This update includes release preservation through `274dbdb` and the reconciliation path correction.
 Engine work is on `codex/graphiti-product-binding-20260913`, at `6f1486f`.
-Its last full qualification tested the earlier `ab38572` revision and failed.
+Its full qualification at `6f1486f` finished with 1,168 passes and one runner-packaging failure.
 Engine PR 73 builds on PR 72.
-Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `46f38a7`.
+Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `c8a6348`.
 Read its [host API progress](https://github.com/Odenknight/GKOS-Engine/blob/codex/effects-host-api-20260914/docs/EFFECTS-HOST-API-PROGRESS.md).
 This branch now includes the watcher candidate through `6f1486f`.
 Its combined build and all 178 focused tests passed.
 Source reads now reject linked files and detected changes during reading.
 Complete path-safety receipts and production host wiring remain unfinished.
 [Engine PR 74](https://github.com/Odenknight/GKOS-Engine/pull/74) is a draft for these Effects changes.
-Full qualification of the combined candidate is still required.
+Full qualification of the combined `c8a6348` candidate is now running.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
 The normal installed plugin remains the earlier `59a61ca` candidate.
@@ -189,7 +189,8 @@ A separate process attempted 800 retained-file and parent mutations. All were re
 The shared watcher transition now holds these guards through its final authority check.
 All 12 pointer tests passed. The original attack was rejected in all 200 repeated attempts.
 The loader refuses missing or altered native binaries before creating a file.
-Six native tests passed. The new full qualification run is active.
+Six native tests passed. The `6f1486f` full run then exposed one separate runner-packaging failure.
+The combined candidate fixes its native binding and process cleanup. Its full run is active.
 Production installation and the remaining publication paths still need qualification.
 Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
