@@ -10,7 +10,7 @@ import { stagePortable } from "../scripts/portable-package.mjs";
 test("portable alpha stages exact bound bytes and preserves prior output on refusal", () => {
   const parent = resolve(tmpdir()), root = mkdtempSync(resolve(parent, "kosmos-portable-"));
   try {
-    for (const name of ["kosmos-oden-stand-alone.html", "LICENSE", "THIRD-PARTY-NOTICES.md"])
+    for (const name of ["kosmos-oden-stand-alone.html", "LICENSE", "THIRD-PARTY-NOTICES.md", "ACKNOWLEDGMENTS.md"])
       writeFileSync(resolve(root, name), `synthetic:${name}\n`);
     writeFileSync(resolve(root, "package.json"), '{"version":"0.0.0"}');
     writeFileSync(resolve(root, "package-lock.json"), '{}');
@@ -81,6 +81,9 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     assert.equal(parsed.targets.filter(t => t.status === "missing-sidecar").length, 3);
     const target = resolve(output, "windows-x64/Kosmos-Oden-Standalone");
     assert.deepEqual(readFileSync(resolve(target, "gkos-agent.exe")), bytes);
+    const acknowledgments = readFileSync(resolve(root, "ACKNOWLEDGMENTS.md"));
+    assert.deepEqual(readFileSync(resolve(target, "ACKNOWLEDGMENTS.md")), acknowledgments);
+    assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${hash(acknowledgments)}  ACKNOWLEDGMENTS.md\n`));
     assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${digest}  gkos-agent.exe\n`));
     assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).runtimeQualified, false);
     assert.deepEqual(readFileSync(resolve(target, "sidecar-build-inputs.json")), canonicalSea);

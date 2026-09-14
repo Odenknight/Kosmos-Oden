@@ -28,11 +28,17 @@ test("unsupported packaging requests and missing artifacts preserve the previous
     }
     const artifacts = ["manifest.json", "main.js", "styles.css", "versions.json",
       "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "effects-inspection-host.cjs", "docs/REVIEW-0.8.3.md",
-      "LICENSE", "THIRD-PARTY-NOTICES.md"];
-    for (const name of artifacts) {
+      "LICENSE", "THIRD-PARTY-NOTICES.md", "ACKNOWLEDGMENTS.md"];
+    for (const name of artifacts.filter(name => name !== "ACKNOWLEDGMENTS.md")) {
       mkdirSync(dirname(resolve(root, name)), { recursive: true });
       writeFileSync(resolve(root, name), `synthetic:${name}\n`);
     }
+    const missingAcknowledgment = spawnSync(process.execPath, [resolve(root, "scripts/package-release.mjs")],
+      { cwd: root, windowsHide: true, timeout: 10_000 });
+    assert.equal(missingAcknowledgment.status, 1);
+    assert.match(missingAcknowledgment.stderr.toString(), /ACKNOWLEDGMENTS.md/);
+    assert.deepEqual(readFileSync(marker), bytes);
+    writeFileSync(resolve(root, "ACKNOWLEDGMENTS.md"), "synthetic:ACKNOWLEDGMENTS.md\n");
     mkdirSync(resolve(root, "release/portable-alpha"));
     writeFileSync(resolve(root, "release/portable-alpha/receipt.json"), bytes);
     // Inject filesystem failures in the real child process, without adding

@@ -78,6 +78,7 @@ export function stagePortable(root, argv) {
     ["kosmos-oden-stand-alone.html", regular(resolve(root, "kosmos-oden-stand-alone.html"), 128 * 1024 * 1024)],
     ["LICENSES/Apache-2.0.txt", regular(resolve(root, "LICENSE"), 1024 * 1024)],
     ["THIRD-PARTY-NOTICES.md", regular(resolve(root, "THIRD-PARTY-NOTICES.md"), 1024 * 1024)],
+    ["ACKNOWLEDGMENTS.md", regular(resolve(root, "ACKNOWLEDGMENTS.md"), 1024 * 1024)],
   ]);
   const pkg = JSON.parse(regular(resolve(root, "package.json"), 1024 * 1024));
   const lock = regular(resolve(root, "package-lock.json"), 16 * 1024 * 1024);
