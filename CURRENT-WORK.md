@@ -1,249 +1,100 @@
 # Current work: Kosmos-Oden and GKOS-Engine
 
 Updated: September 13, 2026.
+Owner of this implementation task: Astra-Oden.
+This is a short reading guide for the owner and other agents.
+It describes work in progress. It is not a release certificate.
+Earlier checkpoints remain in Git history and the linked reports.
 
-This is a handoff for the owner and other agents.
-Read it aloud if the owner asks for a short progress report.
-It records progress. It does not certify a finished release.
+## Read aloud
 
-## Short version to read aloud
+We are upgrading Kosmos-Oden and GKOS-Engine together.
+We want useful search with correct permissions and clear source references.
+The search service works with synthetic test documents.
+The complete search experience inside Obsidian still needs qualification.
 
-We are upgrading Kosmos-Oden and its GKOS-Engine dependency.
-The aim is useful search with reliable permissions and source references.
-The search service works in isolated tests.
-The complete connection through Obsidian still needs testing.
-The current indexing speed is too slow for the required target.
-We are also building a history store that preserves records safely.
-Deletion decisions already survive a restore of an old history backup.
-Local removal of retained content now passes isolated tests.
-External cleanup and native integration remain unfinished.
-This code is not installed or qualified for production.
-The comet trails and displayed agent names still need a final visual check.
-Terra checks long-running qualification every six hours.
-The changes are on review branches. The full upgrade is not on main.
+We are also building a safe source-history store.
+It preserves exact observations and their original times.
+A separate record keeps deletion decisions safe from old backup restores.
+An isolated Obsidian test passed capture, restore, denial, and purge checks.
+Production history remains disabled.
 
-## Where the active work lives
+The current problem is speed.
+History reads repeatedly launch a Windows permission-checking program.
+One retained read launched it 80 times and took about 1.5 seconds.
+We are investigating running the same checks inside the application.
+That approach is not implemented or qualified yet.
 
-- [Kosmos native connection](src/workspace/native-semantic.ts): connects the workspace to governed search. See the [connection guide](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md) for the current integration.
-- [Source history](src/workspace/source-observation-ledger.ts): stores observations and validates retained reads.
-- [Deletion authority](src/workspace/history-deletion-authority.ts): preserves deletion decisions independently of history backups.
-- [History tests](test/history-deletion-authority.test.mjs): check denial, restored backups, and permission changes.
-- [Engine PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73): contains the related search service and Engine changes.
-- [Remaining build gates](docs/reviews/2026-09-13-remaining-build-gates.md): lists the work still required before release.
+Indexing also misses its performance target.
+A 2,000-note edit takes about 12.38 seconds against a two-second target.
+The comet trails and real agent names still need final installed visual checks.
+Terra is scheduled to check long-running qualification every six hours.
+The upgrade is on review branches. It has not been merged to main.
 
-The last fully verified Kosmos source checkpoint is `1d47ac0`.
-It passed 565 tests and the repository verification checks.
-The newer local purge candidate passes 52 history tests.
-Full repository verification passes 572 tests.
-Those results cover the component, not the complete native deletion workflow.
+## Repositories and revisions
 
-## What we are doing
-
-We are completing the Kosmos-Oden build plans.
-We are connecting its workspace to governed semantic search.
-Graphiti supplies related facts and source references.
-GKOS-Engine checks which sources the caller may use.
-Kosmos-Oden presents the results in the workspace.
-Ordinary search must remain available when semantic search fails.
-
-The owner also requested brighter comet trails and real agent names.
-Those changes belong to the wider upgrade.
-Their final installed behavior still needs to be checked with the final build.
-An MCP connection type must not replace the agent's declared name.
-
-## Repositories being changed
-
-| Repository | Working branch | Review |
+| Repository | Active work | Review |
 | --- | --- | --- |
-| Kosmos-Oden | `codex/build-plan-completion-20260913` | [PR 80](https://github.com/Odenknight/Kosmos-Oden/pull/80) |
-| GKOS-Engine | `codex/graphiti-product-binding-20260913` | [PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73) |
-| GKOS-Engine qualification base | `codex/scoped-lineage-inspection-20260913` | [PR 72](https://github.com/Odenknight/GKOS-Engine/pull/72) |
+| Kosmos-Oden | Native search, history, permissions, and workspace behavior | [PR 80](https://github.com/Odenknight/Kosmos-Oden/pull/80) |
+| GKOS-Engine | Search service, source verification, and indexing performance | [PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73) |
+| GKOS-Engine qualification base | Broader Engine qualification | [PR 72](https://github.com/Odenknight/GKOS-Engine/pull/72) |
 
+Kosmos work is on `codex/build-plan-completion-20260913`.
+Its latest implementation checkpoint is `785aecd`.
+The combined native test report was recorded at `c251a77`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `ba2e65d`.
 Engine PR 73 builds on PR 72.
-These are separate review branches.
-They have not been merged to main as part of this work.
+Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
+The pin and the Engine working branch are different revisions.
+The normal installed plugin remains the earlier `59a61ca` candidate.
+Branch changes must not be described as installed.
 
-An earlier handoff recorded Kosmos at `c4a3ee3`.
-The Engine implementation is now at `ba2e65d`.
-Kosmos now pins Engine `885b0b3`.
-The Engine now exports its existing pure manifest helpers for native consumers.
-Their package API, compatibility, source inventory, and package checks passed.
-Kosmos now prepares native manifests through that package API.
-It reads only authorized sources and retains a live revision check.
-Source edits or observed configuration changes invalidate prepared state.
-The Engine now shares publication reconciliation between service and native hosts.
-Its Python-ledger, authenticated HTTP, compatibility, and package checks passed.
-Kosmos now composes native manifest preparation, receipt validation, and the query client.
-It rejects stale host authority and source revisions before showing results.
-The plugin now owns the connection lifecycle and passes it into the Notes view.
-It reads an optional private profile bound to the native vault identity.
-Reconnection invalidates old clients and cannot replace newer work with a late result.
-Deployed-profile and visible native acceptance checks remain open.
-See the [native connection handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md).
-The installed plugin is an earlier candidate, `59a61ca`.
-Do not describe branch changes as already installed.
+## Where to look in the code
 
-## What now works
+| File or report | What it explains |
+| --- | --- |
+| [Native search connection](src/workspace/native-semantic.ts) | Verifies publication evidence and prepares the native search client. |
+| [Agent server](src/plugin/agent-server.ts) | Captures authorized source bytes and prepares native manifests. |
+| [History ledger](src/workspace/source-observation-ledger.ts) | Stores observations, checks retained reads, and performs local purge. |
+| [Deletion authority](src/workspace/history-deletion-authority.ts) | Keeps denials independent of history backups. |
+| [History publication adapter](src/workspace/native-history.ts) | Connects verified publications to exact retained source receipts. |
+| [Windows storage guard](src/workspace/native-history-database.ts) | Checks ownership, permissions, and database file identity. |
+| [Native permission helper](native/windows/history-acl.cpp) | Performs Windows access-control checks. |
+| [Storage report](docs/workspace/NATIVE-HISTORY-STORAGE.md) | Records native evidence, limitations, and permission-check costs. |
+| [Search handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md) | Explains the native search integration. |
+| [History handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md) | Explains storage contracts and recovery behavior. |
+| [Performance report](docs/reviews/2026-09-13-watcher-performance-follow-up.md) | Records the indexing failure and tested experiments. |
 
-The Engine can build a manifest from authorized source bytes.
-It checks the published Graphiti record against those sources.
-It rejects stale source, scope, policy, and generation information.
-It exposes authenticated query and readiness routes.
+## Evidence and limits
 
-An isolated synthetic service is running on Observatory.
-It uses test material rather than vault documents.
-Its reader preserves the published search state across restarts.
-Its Engine gateway rejects changed source material.
-Five gateway queries completed in about 392 to 403 milliseconds.
-Restart checks passed.
+The latest full Kosmos verification passed 591 tests.
+All seven Windows storage tests also passed with the native helper.
+The combined history workflow passed in an isolated Obsidian vault.
+It used synthetic data and a recorded publication receipt.
+It did not qualify live publication readback or production retention controls.
+The permission helper reduced individual checks to about 18–23 milliseconds.
+Repeated launches still make complete history operations too slow.
 
-The actual Kosmos semantic client also queried that service successfully.
-Five client queries completed in about 430 to 448 milliseconds.
-Cancellation and changed-source checks passed.
-Wrong credentials and an unavailable gateway returned the fallback result.
-The client recovered after the gateway restarted.
-This was a client-module test. Native Obsidian acceptance is still open.
+Live synthetic search requests passed service checks.
+The native Notes baseline works.
+The live service connection through that view remains unfinished.
+An SSH forwarding configuration decision is pending.
+Credentials and private deployment receipts are not stored in this repository.
 
-The latest completed Kosmos verification passed 591 tests.
-The persistent reader passed 53 Python tests on Windows and Linux.
-Each result applies to its tested revision.
-Later changes still need their affected checks.
+## What comes next
 
-## The latest bug fixed
+Reduce history permission-check overhead while preserving live revocation checks.
+Qualify native search, citations, permission changes, and outage recovery.
+Fix indexing latency and finish the required repeated runs and soak.
+Complete workspace acceptance, history owner controls, and recovery tests.
+Complete adoption authority before enabling writes.
+Finish mailbox, agent identity, duplicate-ID, and older-PR reconciliation.
+Establish independent Rust implementation evidence.
+Verify final artifacts, migration, rollback, comet trails, and agent labels.
+Run the final debug sweep, then merge only after the required gates pass.
 
-A new test reproduced a client deadline bug.
-Synchronous authority checks can consume the entire time budget.
-The client can then start a network request after its deadline.
-The fix checks elapsed time before starting transport.
-The regression test now passes.
-All four client tests and full repository verification passed after the fix.
-See `src/workspace/semantic-client.ts` and its matching test file.
-
-The export path also had a source-binding gap.
-Vault identity or Graphiti settings could change during an export.
-The export now rejects those changes before returning results.
-Ten new regression cases failed before the fix and passed afterward.
-See `src/plugin/agent-server.ts` and `test/source-evidence.test.mjs`.
-
-Native profiles now retain the published projection time.
-This fixes a reproduced mismatch after restarting an unchanged source provider.
-The deployed service and native export use different projection envelopes.
-A separate native synthetic publication now exists.
-A recreated native provider reproduced its manifest and accepted its real receipt.
-The clean plugin package is staged in an isolated synthetic vault.
-The new native HTTP route passed five live queries with published citations.
-The isolated vault is open in Obsidian and its loaded plugin reproduced the manifest.
-The visible Notes baseline works. Connecting it to the live service remains open.
-See the [synthetic publication report](docs/reviews/2026-09-13-native-synthetic-publication.md).
-
-The workspace now has an Open cited source button.
-The host checks the citation against the accepted result.
-It requires a unique readable note UID and matching original source bytes.
-Changed or hidden sources remain unavailable.
-Changing the search discards a pending source resolution.
-All 31 Chromium workspace tests passed.
-The native plugin is wired to the connection owner; its deployed profile still needs qualification.
-
-The latest indexing check still fails the two-second gate.
-Engine now reuses a validated delta digest within each activation check.
-The affected 31 tests pass, but the full edit still takes about 12.38 seconds.
-A follow-up byte-cache experiment passed correctness checks but showed no speed benefit.
-It was removed. Engine remains at `ba2e65d`.
-See the [performance follow-up](docs/reviews/2026-09-13-watcher-performance-follow-up.md).
-
-The first durable source-history component now exists.
-It stores source observations in SQLite and preserves retry identity across process restarts.
-It checks current read authority before publishing retained bytes.
-An observed authority failure permanently invalidates that history connection.
-Pending reads also refuse changes to the full committed-record watermark.
-Projection publications now reference exact committed source observations.
-They keep their own observation time and preserve the original source times.
-Projection references now reject duplicate UUID identities written with different letter case.
-Existing source records are preserved.
-The native publication-witness adapter now exists. Its production owner wiring still needs to be connected.
-An independent deny authority now keeps deletion decisions outside history backups.
-A synthetic restore test confirms that an old history backup cannot undo a current denial.
-A shared host binding now checks corpus identity and combines native permission with the deny authority.
-It refuses stale grants and cannot treat the absence of a denial as permission.
-The committed component records a denial; it does not physically purge data.
-The local purge candidate removes retained content and dependent projection records.
-They require a durable denial and check retention holds before committing.
-Synthetic tests prove rollback during cleanup and persistence after commit.
-External cleanup and native purge qualification remain unfinished.
-Storage remains off in the plugin. Migration and native integration remain unfinished.
-See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
-
-Native identity checks now recognize UUID letter-case variants.
-The manifest refuses a hidden note that duplicates a readable UUID in another case.
-Notes UID selection, citation resolution and saved spatial selection use the same identity meaning.
-The source UID spelling and source bytes remain unchanged.
-Three regression tests failed before the fix and pass afterward.
-The full repository verification now passes 575 tests.
-This does not resolve the existing vault's duplicate-UID records.
-
-Native history source preparation now captures exact indexed bytes and Engine provenance.
-It refuses stale sources before handing them to a history transaction.
-An isolated Obsidian test confirmed rollback after a source revision changed during insertion.
-A fresh capture then committed successfully.
-The full verification passes 578 tests.
-Production history is still disabled. Owner controls and private storage integration remain open.
-
-The native projection-history witness now shares the semantic publication verifier.
-It connects a verified published index to exact retained source receipts.
-The ledger independently rejects fabricated retained receipts.
-Six new fixtures pass. Full verification passes 584 tests.
-An isolated Obsidian test also matched the recorded publication to current sources.
-It proved rollback after authority withdrawal and commit with a fresh witness.
-The original source observation time stayed unchanged.
-Live publication readback and production owner controls remain unfinished.
-
-A Windows storage guard now checks database ownership, permissions and file identity.
-It rejects replacement files and linked journals.
-It passed the isolated Obsidian check and six new automated fixtures.
-The full verification passes 590 tests.
-A permission check took about 612 milliseconds in one native measurement.
-A hash-pinned native helper now reduces isolated Obsidian checks to about 18–23 milliseconds.
-All seven storage fixtures pass with it.
-Production packaging and the complete history workload still need qualification.
-See the [native storage report](docs/workspace/NATIVE-HISTORY-STORAGE.md).
-
-The combined history workflow now passes in the isolated Obsidian vault.
-Restoring an old history database cannot undo the independent denial.
-Holds block purge, and committed purge survives reopening and retry.
-The combination revealed another performance problem.
-A retained read invoked the ACL helper 80 times and took about 1.5 seconds.
-A projection append invoked it 98 times.
-The next change must reduce that repeated execution cost while preserving revocation checks.
-
-## What still needs work
-
-- Qualify the deployed semantic profile through the actual native Notes view.
-- Verify real vault permissions and source changes through that view.
-- Qualify source resolution and the visible user experience in the native plugin.
-- Fix indexing latency and complete the required performance runs and soak.
-- Complete workspace acceptance and durable observation history.
-- Complete adoption authority, prepared operations, and recovery before enabling writes.
-- Finish mailbox, service identity, duplicate-ID, and older-PR reconciliation.
-- Establish the required independent Rust implementation evidence.
-- Test final artifacts, migration, and rollback.
-- Run the final debug sweep before merging qualified changes to main.
-
-The complete requirements remain in the [remaining build gates](docs/reviews/2026-09-13-remaining-build-gates.md).
-That file links the original plans and historical evidence.
-Preserve those records when updating status.
-
-## How another agent should continue
-
-Read this file first.
-Then read the remaining build gates and the relevant source files.
-Check the current branch and dependency pin before making claims.
-Keep synthetic service success separate from native vault acceptance.
-Keep credentials and private deployment receipts out of GitHub.
-
-A Terra monitor is scheduled to check long-running qualification every six hours.
-It should report meaningful changes, completion, failure, or a needed decision.
-Repeated unchanged polling is unnecessary.
-Continue independent build work while qualification runs.
-
-The owner's requested outcome is a completed, tested upgrade on main.
-That outcome has not yet been reached.
+The [remaining build gates](docs/reviews/2026-09-13-remaining-build-gates.md) are the complete checklist.
+They link the original plans and historical evidence.
+This short guide does not replace or reduce that scope.
+Another agent should read that checklist before continuing implementation.
+It should check the current branch and test revision before reporting progress.
