@@ -106,3 +106,14 @@ They link the original plans and historical evidence.
 This short guide does not replace or reduce that scope.
 Another agent should read that checklist before continuing implementation.
 It should check the current branch and test revision before reporting progress.
+
+
+## Earlier document-search request
+
+The Titans document search was already completed in an earlier native test session.
+Its private report records six matching documents and the search limits.
+A local Markdown recheck confirmed those six matches.
+The reading index and content hashes remain in the local task evidence directory.
+Private document titles, paths, and contents are not published here.
+This closes the document-finding follow-up within its recorded search scope.
+It does not qualify the final upgraded plugin or attachment search.
