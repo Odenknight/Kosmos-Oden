@@ -46,5 +46,8 @@ jobs:
         if: always()
         with:
           name: sbom-${{ github.sha }}
-          path: sbom.cdx.json
+          path: |
+            sbom.cdx.json
+            dist/standalone.cdx.json
+            dist/standalone-build-inputs.json
           retention-days: 30

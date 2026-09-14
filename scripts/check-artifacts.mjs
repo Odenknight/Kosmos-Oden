@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { observeStandaloneInputs } from "./standalone-component-inputs.mjs";
+import { standaloneSbom } from "./standalone-sbom.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const problems = [];
@@ -87,6 +88,9 @@ try {
   must(inventory.lockfileSha256 === digest("package-lock.json"), "standalone input inventory lockfile is stale");
   must(inventory.buildScriptSha256 === digest("scripts/build.mjs"), "standalone input inventory build script is stale");
   must(inventory.componentObserverSha256 === digest("scripts/standalone-component-inputs.mjs"), "standalone component observer is stale");
+  must(inventory.sbomGeneratorSha256 === digest("scripts/standalone-sbom.mjs"), "standalone SBOM generator is stale");
+  must(readFileSync(resolve(root, "dist/standalone.cdx.json")).equals(standaloneSbom(readFileSync(resolve(root, "dist/standalone-build-inputs.json")))),
+    "standalone SBOM differs from its artifact input inventory");
   must(JSON.stringify(inventory.componentInputs) === JSON.stringify(observeStandaloneInputs(root, inventory.metafile)),
     "standalone component observations are stale or incomplete");
   must(inventory.esbuildVersion === pkg.devDependencies.esbuild, "standalone input inventory uses a different bundler version");

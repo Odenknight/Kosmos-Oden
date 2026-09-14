@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { stagePortable } from "../scripts/portable-package.mjs";
+import { standaloneSbom } from "../scripts/standalone-sbom.mjs";
 
 test("portable alpha stages exact bound bytes and preserves prior output on refusal", () => {
   const parent = resolve(tmpdir()), root = mkdtempSync(resolve(parent, "kosmos-portable-"));
@@ -20,9 +21,14 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     const inventory = { schemaVersion: 1, artifact: "kosmos-oden-stand-alone.html",
       artifactSha256: hash(viewer), artifactBytes: viewer.length, lockfileSha256: hash(Buffer.from('{}')),
       completeSbom: false, pageInputObservation: "post-build",
+      componentInputs: { completeSbom: false, observation: "post-build",
+        components: [{ packagePath: "", name: "synthetic", version: "0.0.0", declaredLicense: null, packageManifestSha256: "a".repeat(64), documents: [] }],
+        inputs: [{ path: "src/synthetic.js", packagePath: "", bytes: 1, bytesInOutput: 1, sha256: "b".repeat(64) }] },
       metafile: { inputs: { "synthetic.js": { bytes: 1 } }, outputs: { "synthetic.js": { bytes: 1 } } } };
-    const saveInventory = value => writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(value) + "\n");
+    const saveInventory = value => writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(value, null, 2) + "\n");
     saveInventory(inventory);
+    const sbomBytes = standaloneSbom(readFileSync(resolve(root, "dist/standalone-build-inputs.json")));
+    writeFileSync(resolve(root, "dist/standalone.cdx.json"), sbomBytes);
     const bytes = Buffer.from("synthetic non-executable sidecar\n");
     const digest = createHash("sha256").update(bytes).digest("hex");
     writeFileSync(resolve(root, "candidate.exe"), bytes);
@@ -73,6 +79,10 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
       assert.throws(() => stagePortable(root, invalid));
       assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
     }
+    writeFileSync(resolve(root, "dist/standalone.cdx.json"), "{}\n");
+    assert.throws(() => stagePortable(root, args), /standalone SBOM does not match/);
+    assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    writeFileSync(resolve(root, "dist/standalone.cdx.json"), sbomBytes);
     assert.equal(stagePortable(root, args), 2, "strict mode reports incomplete target coverage");
     const output = resolve(root, "release/portable-alpha");
     const report = readFileSync(resolve(output, "PORTABLE-ALPHA-MANIFEST.json"));
@@ -80,6 +90,9 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     assert.equal(parsed.productionReady, false);
     assert.equal(parsed.targets.filter(t => t.status === "missing-sidecar").length, 3);
     const target = resolve(output, "windows-x64/Kosmos-Oden-Standalone");
+    assert.deepEqual(readFileSync(resolve(target, "standalone.cdx.json")), sbomBytes);
+    assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).standaloneSbomSha256, hash(sbomBytes));
+    assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${hash(sbomBytes)}  standalone.cdx.json\n`));
     assert.deepEqual(readFileSync(resolve(target, "gkos-agent.exe")), bytes);
     const acknowledgments = readFileSync(resolve(root, "ACKNOWLEDGMENTS.md"));
     assert.deepEqual(readFileSync(resolve(target, "ACKNOWLEDGMENTS.md")), acknowledgments);
@@ -98,7 +111,7 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     assert.deepEqual(readFileSync(resolve(output, "PORTABLE-ALPHA-MANIFEST.json")), report);
     assert.equal(stagePortable(root, [...args, "--allow-incomplete", "--output=second-alpha"]), 0);
     mkdirSync(resolve(root, "scripts"));
-    for (const name of ["package-release.mjs", "portable-package.mjs"])
+    for (const name of ["package-release.mjs", "portable-package.mjs", "standalone-sbom.mjs"])
       copyFileSync(new URL(`../scripts/${name}`, import.meta.url), resolve(root, "scripts", name));
     const cli = spawnSync(process.execPath, [resolve(root, "scripts/package-release.mjs"), ...args,
       "--allow-incomplete", "--output=cli-alpha"], { cwd: root, windowsHide: true, timeout: 10_000 });
