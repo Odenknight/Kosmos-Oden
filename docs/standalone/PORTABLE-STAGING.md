@@ -114,3 +114,18 @@ copied inventory, build-info digest, checksum entry, and CLI dispatch.
 A separate local staging check used the real built viewer and inventory with a
 synthetic non-executable sidecar. Both viewer and inventory matched byte-for-byte.
 No sidecar runtime qualification was performed by that check.
+# Viewer component observations
+
+The standalone build inventory records SHA-256 hashes of direct files with
+positive byte contributions in the actual bundler output. Each file is assigned
+to the source package or its nearest installed dependency, including nested and
+scoped packages. Package names, versions, declared license strings, manifest
+hashes, and available root license/notice document hashes are retained. The
+artifact check rejects changed observations and a changed observer script.
+
+These are post-build observations. A same-length change during compilation is
+not ruled out, and package license declarations are not license adjudication.
+An Engine pre-bundle still needs its own nested source/component closure. Missing
+notice files are not invented or treated as evidence of no notice requirement.
+The inventory therefore retains `completeSbom: false`; it does not qualify a
+release or replace the complete artifact SBOM gate.

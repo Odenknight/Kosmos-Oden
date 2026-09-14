@@ -3,6 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { observeStandaloneInputs } from "./standalone-component-inputs.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const problems = [];
@@ -79,6 +80,9 @@ try {
   must(inventory.artifactBytes === statSync(standalonePath).size, "standalone input inventory artifact size is stale");
   must(inventory.lockfileSha256 === digest("package-lock.json"), "standalone input inventory lockfile is stale");
   must(inventory.buildScriptSha256 === digest("scripts/build.mjs"), "standalone input inventory build script is stale");
+  must(inventory.componentObserverSha256 === digest("scripts/standalone-component-inputs.mjs"), "standalone component observer is stale");
+  must(JSON.stringify(inventory.componentInputs) === JSON.stringify(observeStandaloneInputs(root, inventory.metafile)),
+    "standalone component observations are stale or incomplete");
   must(inventory.esbuildVersion === pkg.devDependencies.esbuild, "standalone input inventory uses a different bundler version");
   must(inventory.completeSbom === false && inventory.pageInputObservation === "post-build", "standalone input inventory overstates its evidence scope");
   const expectedInputs = ["src/renderer/kosmos.css", "src/renderer/kosmos-body.html", "renderer-provenance.json", "package.json"];

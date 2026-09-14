@@ -26,6 +26,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { observeStandaloneInputs } from "./standalone-component-inputs.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Set(process.argv.slice(2));
@@ -177,6 +178,8 @@ async function buildStandalone() {
     pageInputs: pageInputs.map(path => ({ path, sha256: sha256(readFileSync(resolve(root, path))) })),
     pageInputObservation: "post-build",
     completeSbom: false,
+    componentInputs: observeStandaloneInputs(root, metafile),
+    componentObserverSha256: sha256(readFileSync(resolve(root, "scripts/standalone-component-inputs.mjs"))),
     metafile,
   };
   writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(inventory, null, 2) + "\n");
