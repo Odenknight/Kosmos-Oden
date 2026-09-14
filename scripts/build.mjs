@@ -22,6 +22,7 @@
  *   node scripts/build.mjs --dev            full build, unminified with sourcemaps disabled
  */
 import esbuild from "esbuild";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,6 +47,7 @@ const escapeInline = (js) => js.replace(/<\/script/gi, "<\\/script");
 
 async function bundle(entry, opts = {}) {
   const res = await esbuild.build({
+    absWorkingDir: root,
     entryPoints: [resolve(root, entry)],
     bundle: true,
     write: false,
@@ -55,8 +57,10 @@ async function bundle(entry, opts = {}) {
     minify: production,
     sourcemap: false,
     logLevel: "silent",
+    metafile: Boolean(opts.captureMetafile),
     ...opts.extra,
   });
+  if (opts.captureMetafile) opts.captureMetafile(res.metafile);
   return res.outputFiles[0].text;
 }
 
@@ -151,9 +155,29 @@ ${escapeInline(appJs)}
 }
 
 async function buildStandalone() {
-  const app = await bundle("src/standalone/standalone.ts");
+  let metafile;
+  const app = await bundle("src/standalone/standalone.ts", { captureMetafile: value => { metafile = value; } });
   const html = composePage(`Kosmos-Oden ${VERSION} — Standalone`, app);
   writeFileSync(resolve(root, "kosmos-oden-stand-alone.html"), html);
+  const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+  const pageInputs = ["src/renderer/kosmos.css", "src/renderer/kosmos-body.html", "renderer-provenance.json", "package.json"];
+  const inventory = {
+    schemaVersion: 1,
+    artifact: "kosmos-oden-stand-alone.html",
+    artifactSha256: sha256(Buffer.from(html)),
+    artifactBytes: Buffer.byteLength(html),
+    esbuildVersion: esbuild.version,
+    minified: production,
+    lockfileSha256: sha256(readFileSync(resolve(root, "package-lock.json"))),
+    buildScriptSha256: sha256(readFileSync(fileURLToPath(import.meta.url))),
+    // Metafile paths and byte contributions come from the actual bundler run.
+    // Page-input hashes are post-build observations, not a signed source receipt.
+    pageInputs: pageInputs.map(path => ({ path, sha256: sha256(readFileSync(resolve(root, path))) })),
+    pageInputObservation: "post-build",
+    completeSbom: false,
+    metafile,
+  };
+  writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(inventory, null, 2) + "\n");
   console.log(`built kosmos-oden-stand-alone.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
 }
 

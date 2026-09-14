@@ -49,3 +49,21 @@ Portable staging does not change that loader or enable automatic discovery.
 A failed write can leave a new incomplete directory. The completion manifest is
 written last. Inspect or retain failed output as evidence; use a fresh path for retry.
 Prior output is preserved. No credentials are needed or copied by this command.
+
+## Standalone build inputs
+
+`npm run build` and `npm run build:standalone` now produce
+`dist/standalone-build-inputs.json` alongside the viewer.
+This records the actual esbuild input/output graph, final HTML size and SHA-256,
+bundler version, lockfile hash, build-script hash, and page-composition input hashes.
+Paths are relative to the build root. Page-input hashes are explicitly post-build
+observations. They are not an atomic source snapshot or authenticated source receipt.
+The manifest is deterministic and contains no build timestamp or absolute host path.
+
+`npm run check:artifacts` rejects a missing manifest or stale artifact, lockfile,
+build script, bundler version, or page input binding.
+The new inventory did not change the standalone HTML bytes in the qualification run.
+It is not yet a complete SBOM. In particular, the pre-bundled Engine dependency
+needs its own internal component evidence, and a sidecar needs its own build inventory.
+The installed npm tool can generate a lockfile SPDX inventory, but that inventory
+alone does not prove what is contained in either generated executable artifact.
