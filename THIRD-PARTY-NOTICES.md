@@ -64,7 +64,7 @@ or standalone artifacts. Exact versions are pinned in `package.json` and
 ## GKOS-Engine
 
 Kosmos-Oden bundles the **GKOS-Engine 2.2.0 development candidate**, © OdenKnight contributors, under
-the Apache License 2.0. The exact commit (`851239a32a81ed794addd1ab6ecf3f02904b60fc`) is recorded in
+the Apache License 2.0. The exact commit (`e114d09a628f81c3dddee22abd8fe8218d596caa`) is recorded in
 `package.json` and `package-lock.json`. Navigation is consumed only through
 the source-content-read-only Engine surface; Kosmos-Oden does not configure a
 Governance Store or expose source-content write capabilities through it.

@@ -1,5 +1,19 @@
 # Current work: Kosmos-Oden
 
+## September 14 qualified Engine adoption candidate
+
+This isolated candidate updates the consumer dependency to exact Engine
+`e114d09a628f81c3dddee22abd8fe8218d596caa`. It supersedes the older active pin
+statements below; historical receipts retain their original revisions. Engine
+runtime run 34875741679 passed all six Windows/Ubuntu Node 22/24/26 lanes,
+with exact source and raw-log verification (1,223 Windows and 1,225 Ubuntu
+tests per lane, zero skips). Node 26 is informational. Consumer qualification
+for this adoption passed on Windows: 641 tests passed with seven platform skips,
+and all build/artifact/invariant checks passed. Installed Engine verification
+matched 160 shipped source files, five governance documents and 23 bundle
+artifact hashes; hosted consumer checks remain pending. Earlier hosted timing failures remain preserved;
+this result does not establish their causes or close release gates.
+
 ## September 14 portable packaging and qualification update
 
 This update supersedes older active-branch pointers below; earlier results keep
