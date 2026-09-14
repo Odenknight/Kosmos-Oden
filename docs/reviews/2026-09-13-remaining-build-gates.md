@@ -35,9 +35,12 @@ Neither failed run qualifies the Engine or the consumer pin.
 
 The combined Effects and watcher candidate is `c8a6348` in Engine draft PR74.
 It fixes the runner's native module packaging and child-process cleanup.
-Its full qualification was still running at this audit refresh.
-Terra monitors that exact run. Do not start a duplicate because a poll expires.
-A terminal receipt and verified log hashes are required before updating this status.
+Its full qualification finished on September 14 at 06:13:30 UTC.
+All 1,213 tests passed, with no failures, skips or cancellations.
+The receipt binds exact `c8a6348`; both command-log hashes were verified.
+Terra has recorded the terminal result while preserving both earlier failures.
+The receipt still has `release_qualified: false`. New SEA packaging changes
+on `codex/sea-native-guard-20260914` require their own qualification.
 Read [CURRENT-WORK.md](../../CURRENT-WORK.md) for the current branch handoff.
 The final consumer pin, native installation, other publication paths, and remaining
 release gates still require their own evidence even if that suite passes.

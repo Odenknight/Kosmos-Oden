@@ -54,7 +54,9 @@ Passing component tests does not prove the complete product works.
 Terra is scheduled to check long-running qualification every six hours.
 The earlier Engine qualification has finished.
 It passed 1,140 tests on revision `a7b52b3`.
-That result does not qualify the newer Engine candidate.
+The combined Engine candidate `c8a6348` later passed all 1,213 tests.
+The newer executable-packaging candidate `13ff119` is now under full qualification.
+No full-suite result alone certifies the release.
 Portable alpha staging now checks supplied sidecar bytes against their manifests.
 It preserves prior packages and reports missing targets.
 Ordinary release packaging now stages the replacement before moving the old package.
@@ -98,7 +100,13 @@ Its combined build and all 178 focused tests passed.
 Source reads now reject linked files and detected changes during reading.
 Complete path-safety receipts and production host wiring remain unfinished.
 [Engine PR 74](https://github.com/Odenknight/GKOS-Engine/pull/74) is a draft for these Effects changes.
-Full qualification of the combined `c8a6348` candidate is now running.
+Full qualification of the combined `c8a6348` candidate passed 1,213 tests with no failures or skips.
+Both command-log hashes were verified. Its receipt still says the release is not qualified.
+Windows executable packaging is now on Engine `13ff119`, branch `codex/sea-native-guard-20260914`.
+[Engine PR 75](https://github.com/Odenknight/GKOS-Engine/pull/75) contains that change.
+Eight focused native/assets tests passed, including real executable loading and corrupted-asset refusal.
+Full qualification of that exact revision is running.
+That newer work is not covered by the `c8a6348` full-suite result.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
 The normal installed plugin remains the earlier `59a61ca` candidate.
@@ -194,7 +202,7 @@ The shared watcher transition now holds these guards through its final authority
 All 12 pointer tests passed. The original attack was rejected in all 200 repeated attempts.
 The loader refuses missing or altered native binaries before creating a file.
 Six native tests passed. The `6f1486f` full run then exposed one separate runner-packaging failure.
-The combined candidate fixes its native binding and process cleanup. Its full run is active.
+The combined candidate fixes its native binding and process cleanup. Its full run passed all 1,213 tests.
 Production installation and the remaining publication paths still need qualification.
 Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
