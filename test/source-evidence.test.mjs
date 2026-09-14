@@ -270,3 +270,44 @@ test('native manifest rejects a hidden UUID case alias before reading source byt
  await assert.rejects(f.server.prepareManagedGraphitiManifest(new AbortController().signal),e=>e.reason==='provider_unavailable');
  assert.deepEqual(f.reads,[]);
 });
+
+test('native history capture keeps exact bytes and Engine provenance in a one-use capability',async()=>{
+ const uid='019b2d14-4230-7db7-87d4-7d81cfaec932',f=fixture(`uid: "${uid}"\r\n`);
+ const capture=await f.server.prepareHistorySource(uid.toUpperCase(),new AbortController().signal,100000);
+ assert.deepEqual(Object.keys(capture).sort(),['current','publish']);assert.equal(capture.current(),true);
+ const graph=await f.provider.getGraph();
+ const result=capture.publish(value=>value);
+ assert.equal(result.source,uid);assert.equal(result.path,'note.md');assert.equal(result.corpus,f.provider.vaultIdentity());
+ assert.equal(Buffer.from(result.bytes).toString(),f.raw);
+ assert.equal(result.sourceDigest,'sha256:'+createHash('sha256').update(Buffer.from(f.raw)).digest('hex'));
+ assert.deepEqual(result.projection,graph.nodes.find(node=>node.path==='note.md').gkx.projection);
+ assert.equal(Object.hasOwn(result,'knownAt'),false);assert.equal(Object.hasOwn(result,'validAt'),false);
+ assert.throws(()=>capture.publish(()=>assert.fail('second use')),e=>e.reason==='provider_unavailable');
+ f.provider.markChanged('note.md');assert.equal(result.current(),false);
+});
+
+test('native history capture refuses hidden or duplicate identities and invalid budgets before byte reads',async()=>{
+ const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+ for(const [frontmatter,hidden] of [['',uid],[`uid: "${uid}"\r\n`,uid.toUpperCase()]]){
+  const f=fixture(frontmatter,hidden);
+  await assert.rejects(f.server.prepareHistorySource(uid,new AbortController().signal,100000),e=>e.reason==='provider_unavailable');
+  assert.deepEqual(f.reads,[]);
+ }
+ for(const budget of [0,-1,Infinity,64*1024*1024+1]){
+  const f=fixture(`uid: "${uid}"\r\n`);
+  await assert.rejects(f.server.prepareHistorySource(uid,new AbortController().signal,budget),e=>e.reason==='provider_unavailable');
+  assert.deepEqual(f.reads,[]);
+ }
+});
+
+test('native history capture rejects changes during reads and before publication',async()=>{
+ const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+ for(const phase of ['read','publish'])for(const change of ['source','policy','corpus','abort']){
+  const f=fixture(`uid: "${uid}"\r\n`),controller=new AbortController();
+  const mutate=()=>{if(change==='source')f.provider.markChanged('note.md');if(change==='policy')f.settings.agentSensitivityCeiling='public';if(change==='corpus')f.provider.vaultIdentity=()=> 'another-corpus';if(change==='abort')controller.abort();};
+  if(phase==='read')f.onRead(mutate);
+  const prepare=()=>f.server.prepareHistorySource(uid,controller.signal,100000);
+  if(phase==='read')await assert.rejects(prepare(),e=>e.reason==='provider_unavailable');
+  else{const capture=await prepare();mutate();assert.throws(()=>capture.publish(()=>assert.fail('stale bytes')),e=>e.reason==='provider_unavailable');assert.equal(capture.current(),false);}
+ }
+});

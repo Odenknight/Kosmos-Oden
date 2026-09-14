@@ -151,3 +151,29 @@ The remaining native integration, recovery and migration gates still apply.
 The earlier reader at `1d47ac0` refuses the new purge marker without modifying the store.
 The current reader reopens the same synthetic store and returns no purged content.
 This compatibility refusal check does not qualify migration or rollback.
+
+## Native source preparation
+
+`KosmosAgentServer.prepareHistorySource` uses the native provider's committed graph and exact indexed source bytes.
+It requires one readable UUID across the complete graph, including hidden case aliases.
+It checks the caller's byte limit before publication and reuses the provider's bounded source read.
+The returned capability holds bytes privately until one synchronous `publish` call.
+That call includes corpus, original UID spelling, path, exact source digest, and the actual Engine projection.
+It includes a live `current` function for the owning history transaction.
+Source changes, cancellation, corpus changes and observed policy changes invalidate the capability permanently.
+No MCP method exposes it. It does not enable storage or choose retention policy.
+
+The history owner must combine that current function with its independent denial and retention authority.
+The projection is parsing provenance, not a current read grant or owner approval.
+Preparation does not invent known-at or valid-at values from index or file timestamps.
+Three new automated fixtures cover exact bytes/provenance, one-use publication, hidden or duplicate IDs,
+invalid budgets, and changes during reads or before publication.
+Full verification passes 578 tests.
+
+An additional synthetic probe ran the candidate API and ledger inside Obsidian.
+It used the actual isolated vault provider and native SQLite, on Node 22.22.1 / Electron 39.8.3.
+A revision change after the actual INSERT caused rollback and left zero observations.
+A fresh source capture then committed one observation that survived closing and reopening the database.
+Temporary storage was removed afterward. The installed plugin was not replaced.
+The probe used synthetic owner bindings. It does not qualify private-directory ownership,
+production retention approval, independent authority wiring, or the full native history workflow.

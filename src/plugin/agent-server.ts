@@ -1209,6 +1209,52 @@ export class KosmosAgentServer {
     return () => this.provider === provider && values().every((value, index) => value === captured[index]);
   }
 
+  /** Native history preparation. No storage is enabled and no wire method exposes
+   * this one-use capability. The history owner must bind current into its final
+   * database transaction checks; the projection is provenance, never a read grant.
+   */
+  async prepareHistorySource(uid: string, signal: AbortSignal, maxBytes: number) {
+    if (!isValidGkxAuthoredUid(uid) || !Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 64 * 1024 * 1024)
+      throw new ProviderError("provider_unavailable");
+    const provider = this.provider, projectionCurrent = this.captureGraphitiProjection();
+    if (!provider.getIndexedSourceBytes || !provider.captureGraphCurrent || !provider.vaultIdentity)
+      throw new ProviderError("provider_unavailable");
+    const corpus = provider.vaultIdentity();
+    if (!corpus) throw new ProviderError("provider_unavailable");
+    const graph = await provider.getGraph(), graphCurrent = provider.captureGraphCurrent(graph);
+    let invalidated = false, used = false;
+    const current = () => {
+      try { if (signal.aborted || !projectionCurrent() || !graphCurrent() || provider.vaultIdentity!() !== corpus) invalidated = true; }
+      catch { invalidated = true; }
+      return !invalidated;
+    };
+    const check = () => { if (!current()) throw new ProviderError("provider_unavailable"); };
+    check();
+    const matches = (value: unknown) => typeof value === "string" && value.toLowerCase() === uid.toLowerCase();
+    const nodes = graph.nodes.filter(node => node.kind === "file" &&
+      (matches(node.gkx?.projection?.authored.uid) || matches(node.gkx?.uid)));
+    const node = nodes[0];
+    if (nodes.length !== 1 || !this.fileNodes(graph).includes(node) || !node.gkx?.projection ||
+        !isValidGkxAuthoredUid(node.gkx.uid) || !matches(node.gkx.uid) || !matches(node.gkx.projection.authored.uid))
+      throw new ProviderError("provider_unavailable");
+    const raw = await provider.getIndexedSourceBytes(node.path, graph, maxBytes);
+    check();
+    if (!raw || raw.byteLength > maxBytes) throw new ProviderError("provider_unavailable");
+    const bytes = new Uint8Array(raw), projection = structuredClone(node.gkx.projection);
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    check();
+    const sourceDigest = `sha256:${Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("")}`;
+    const source = node.gkx.uid, path = node.path;
+    return Object.freeze({current, publish: <T>(apply: (observation: {
+      corpus: string; source: string; path: string; sourceDigest: string;
+      bytes: Uint8Array; projection: typeof projection; current: () => boolean;
+    }) => T): T => {
+      if (used) throw new ProviderError("provider_unavailable");
+      used = true; check();
+      return apply({corpus,source,path,sourceDigest,bytes:new Uint8Array(bytes),projection:structuredClone(projection),current});
+    }});
+  }
+
   /** Native host preparation only. No MCP method exposes this authority closure. */
   async prepareManagedGraphitiManifest(signal: AbortSignal, projectionTime?: string) {
     const projectionCurrent = this.captureGraphitiProjection(), provider = this.provider;

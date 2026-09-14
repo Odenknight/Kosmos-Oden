@@ -104,7 +104,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 575 tests.
+The latest completed Kosmos verification passed 578 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -180,6 +180,13 @@ The source UID spelling and source bytes remain unchanged.
 Three regression tests failed before the fix and pass afterward.
 The full repository verification now passes 575 tests.
 This does not resolve the existing vault's duplicate-UID records.
+
+Native history source preparation now captures exact indexed bytes and Engine provenance.
+It refuses stale sources before handing them to a history transaction.
+An isolated Obsidian test confirmed rollback after a source revision changed during insertion.
+A fresh capture then committed successfully.
+The full verification passes 578 tests.
+Production history is still disabled. Owner controls and private storage integration remain open.
 
 ## What still needs work
 
