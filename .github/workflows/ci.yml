@@ -100,6 +100,8 @@ jobs:
       # This pass exercises the default Windows PowerShell ACL path. The
       # Node-API-only branches in this file are conditional no-ops here.
       - name: Native history storage (default PowerShell ACL path)
+        env:
+          KOSMOS_HISTORY_ACL_DIAGNOSTIC: reason-v1
         run: node --test test/native-history-database.test.mjs
 
       - name: Build Windows ACL executable and Node-API helper

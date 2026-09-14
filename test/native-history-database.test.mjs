@@ -10,6 +10,20 @@ const {openNativeHistoryDatabase:openDatabase}=await import('data:text/javascrip
 const helper=process.env.KOSMOS_HISTORY_ACL_HELPER_PROFILE?JSON.parse(readFileSync(process.env.KOSMOS_HISTORY_ACL_HELPER_PROFILE,'utf8')):undefined;
 const openNativeHistoryDatabase=(...args)=>openDatabase(args[0],args[1],args[2],args[3],helper);
 const windows={skip:process.platform!=='win32'};
+function reportAclRefusal(directory){
+ if(process.env.KOSMOS_HISTORY_ACL_DIAGNOSTIC!=='reason-v1')return;
+ let reason='diagnostic-error';
+ try{
+  // Reuse the actual checker in a read-only diagnostic; never print its ACL output.
+  const source=readFileSync('src/workspace/native-history-database.ts','utf8');
+  const checker=source.match(/const WINDOWS_PRIVATE = `([^`]+)`;/)?.[1];
+  assert(checker && !checker.includes('${'));
+  const script=`$env:KOSMOS_HISTORY_DIRECTORY=$env:KOSMOS_HISTORY_TEST_DIRECTORY;$env:KOSMOS_HISTORY_FILE='';try { & {${checker}} | Out-Null; 'ok' } catch { $known=@('remote','parent-owner','parent-access','owner','acl','shared','access');if($_.Exception.Message -cin $known){$_.Exception.Message}else{'diagnostic-error'} }`;
+  const result=execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,timeout:5000,maxBuffer:1024,stdio:['ignore','pipe','pipe'],env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=='psmodulepath')),KOSMOS_HISTORY_TEST_DIRECTORY:directory}}).trim();
+  if(['ok','remote','parent-owner','parent-access','owner','acl','shared','access'].includes(result))reason=result;
+ }catch{}
+ console.error('# history-acl-diagnostic '+JSON.stringify({schema:1,scope:'directory-and-ancestors',reason}));
+}
 function powershell(directory,script){return execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_TEST_DIRECTORY:directory},stdio:['ignore','pipe','pipe']});}
 function fixture(t){
  const directory=mkdtempSync(join(homedir(),'.kosmos-history-test-'));
@@ -19,7 +33,8 @@ function fixture(t){
 }
 
 test('Windows private database capability opens once and refuses implicit recreation',windows,t=>{
- const f=fixture(t),cap=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true);
+ const f=fixture(t);let cap;
+ try{cap=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true);}catch(error){reportAclRefusal(f.directory);throw error;}
  const db=cap.openDatabase();try{db.exec('CREATE TABLE evidence (value TEXT); INSERT INTO evidence VALUES (\'synthetic\')');assert.equal(cap.current(),true);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);}finally{db.close();cap.close();}
  assert.equal(cap.current(),false);assert.throws(()=>openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true),/UNAVAILABLE/);
  const reopened=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true);const reader=reopened.openDatabase();try{assert.equal(reader.prepare('SELECT value FROM evidence').get().value,'synthetic');}finally{reader.close();reopened.close();}
