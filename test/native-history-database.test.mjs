@@ -38,9 +38,17 @@ function fixture(t){
 test('Windows private database capability opens once and refuses implicit recreation',windows,t=>{
  const f=fixture(t);let cap;
  try{cap=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true);}catch(error){reportAclRefusal(f.directory);throw error;}
+ const privateAcl=JSON.parse(powershell(f.directory,`$acl=Get-Acl -LiteralPath (Join-Path $env:KOSMOS_HISTORY_TEST_DIRECTORY 'observations.sqlite');[pscustomobject]@{ownerIsCurrent=$acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value;protected=$acl.AreAccessRulesProtected}|ConvertTo-Json -Compress`));
+ assert.equal(privateAcl.ownerIsCurrent,true);assert.equal(privateAcl.protected,true);
  const db=cap.openDatabase();try{db.exec('CREATE TABLE evidence (value TEXT); INSERT INTO evidence VALUES (\'synthetic\')');assert.equal(cap.current(),true);assert.throws(()=>cap.openDatabase(),/UNAVAILABLE/);}finally{db.close();cap.close();}
  assert.equal(cap.current(),false);assert.throws(()=>openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true),/UNAVAILABLE/);
  const reopened=openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true);const reader=reopened.openDatabase();try{assert.equal(reader.prepare('SELECT value FROM evidence').get().value,'synthetic');}finally{reader.close();reopened.close();}
+});
+
+test('Windows private creation is exclusive and preserves an existing file',windows,t=>{
+ const f=fixture(t),original=Buffer.from('existing evidence');writeFileSync(f.path,original);
+ assert.throws(()=>openNativeHistoryDatabase(f.directory,'observations.sqlite',()=>true,true),/UNAVAILABLE/);
+ assert.deepEqual(readFileSync(f.path),original);
 });
 
 test('Windows storage refuses absent authority, missing databases and invalid filenames before creation',windows,t=>{

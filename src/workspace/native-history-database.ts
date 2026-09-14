@@ -1,5 +1,5 @@
 import {DatabaseSync} from "node:sqlite";
-import {closeSync, lstatSync, openSync, readFileSync, realpathSync} from "node:fs";
+import {lstatSync, readFileSync, realpathSync} from "node:fs";
 import {basename, dirname, join, resolve} from "node:path";
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
@@ -43,6 +43,20 @@ foreach($path in $checked) {
   if($path -ne $journal){$result+=$acl.GetSecurityDescriptorSddlForm($sections)}
 }
 ConvertTo-Json -Compress -InputObject $result
+`;
+
+const WINDOWS_CREATE_PRIVATE = `
+$ErrorActionPreference='Stop'
+$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl=[System.Security.AccessControl.FileSecurity]::new()
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true,$false)
+foreach($id in @($sid.Value,'S-1-5-18','S-1-5-32-544')) {
+  $rule=[System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new($id),'FullControl','Allow')
+  $acl.AddAccessRule($rule)
+}
+$stream=[System.IO.FileStream]::new($env:KOSMOS_HISTORY_FILE,[System.IO.FileMode]::CreateNew,[System.Security.AccessControl.FileSystemRights]::FullControl,[System.IO.FileShare]::None,4096,[System.IO.FileOptions]::None,$acl)
+$stream.Dispose()
 `;
 
 export interface HistoryAclHelper {path: string; sha256: string; kind?: "node-api";}
@@ -96,6 +110,14 @@ function permissions(directory: string, file?: string, helper?: Readonly<History
   throw Error("HISTORY_STORAGE_UNAVAILABLE");
 }
 
+function createPrivateFile(path: string): void {
+  if (process.platform !== "win32" || !process.env.SystemRoot) throw Error("HISTORY_STORAGE_UNAVAILABLE");
+  execFileSync(join(process.env.SystemRoot,"System32","WindowsPowerShell","v1.0","powershell.exe"),
+    ["-NoProfile","-NonInteractive","-EncodedCommand",Buffer.from(WINDOWS_CREATE_PRIVATE,"utf16le").toString("base64")],
+    {windowsHide:true,timeout:5000,maxBuffer:16384,stdio:["ignore","ignore","pipe"],
+      env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_FILE:path}});
+}
+
 /** Windows native-only local file capability. Other platforms remain unavailable. Never derive directory or ownerCurrent
  * from renderer input. Does not select a retention policy or initialize a schema.
  */
@@ -114,7 +136,7 @@ export function openNativeHistoryDatabase(directory: string, name: "observations
     permissions(root,undefined,helper);
     if (initialize) {
       if (ownerCurrent() !== true) throw Error();
-      closeSync(openSync(path,"wx",0o600));
+      createPrivateFile(path);
     }
     const fileStat = lstatSync(path,{bigint:true});
     if (!fileStat.isFile() || fileStat.isSymbolicLink() || fileStat.nlink !== 1n ||
