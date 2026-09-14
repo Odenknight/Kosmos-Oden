@@ -15,7 +15,8 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "THIRD-PARTY-NOTICES.md"
+    "THIRD-PARTY-NOTICES.md",
+    "ACKNOWLEDGMENTS.md"
   ],
   "engines": {
     "node": ">=22 <23 || >=24 <25",

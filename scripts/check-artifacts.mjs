@@ -8,6 +8,12 @@ import { observeStandaloneInputs } from "./standalone-component-inputs.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const problems = [];
 
+// Retain the exact license notice of the pinned renderer in shipped notices.
+const normalizeNotice = text => text.replace(/\r\n/g, "\n").trim();
+const threeLicense = normalizeNotice(readFileSync(resolve(root, "node_modules/three/LICENSE"), "utf8"));
+const thirdPartyNotices = normalizeNotice(readFileSync(resolve(root, "THIRD-PARTY-NOTICES.md"), "utf8"));
+must(threeLicense.length > 0 && thirdPartyNotices.includes(threeLicense), "shipped notices omit the installed Three.js license text");
+
 function must(cond, msg) { if (!cond) problems.push(msg); }
 
 // main.js exists and is a plausible plugin bundle
