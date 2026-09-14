@@ -217,3 +217,7 @@ This used the previously recorded publication receipt.
 It did not query the live publication service or qualify current service readback.
 Synthetic owner authority and temporary storage also do not establish production ownership or retention approval.
 These remaining gates stay open.
+
+A [Windows native file guard](NATIVE-HISTORY-STORAGE.md) now verifies ownership, ACLs, file identity and journal safety.
+Its actual Obsidian probe passed, but permission-check latency remains unqualified.
+The guard is not wired into production storage. Other platforms and operational backup separation remain open.
