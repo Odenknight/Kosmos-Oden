@@ -684,7 +684,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (_p.z > 1) return null;
     return { x: (_p.x * 0.5 + 0.5) * window.innerWidth, y: (-_p.y * 0.5 + 0.5) * window.innerHeight, depth: _p.z };
   }
-  let labelScanT = 0;
+  let labelScanT = -Infinity; // Run the first layout even when capture freezes time at zero.
   let placedLabels: any[] = [];
   let _lastSel: any = null, _lastHov: any = null;
   function rescanLabels() {

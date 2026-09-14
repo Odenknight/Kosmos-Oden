@@ -7,6 +7,22 @@ import { test, expect } from "@playwright/test";
  */
 const CAPTURE = "/kosmos-oden-stand-alone.html?capture=1&seed=1907&time=0&dpr=1&quality=high&camera=overview&animation=off";
 
+for (const quality of ["high", "lite"]) {
+  test(`frozen ${quality} overview positions visible labels on its first layout`, async ({ page }) => {
+    await page.goto(CAPTURE.replace("quality=high", `quality=${quality}`));
+    await page.waitForFunction(() => document.getElementById("boot")?.classList.contains("gone") &&
+      (window as any).__kosmosRenderStats.frames > 3);
+    await page.locator(".lbl").evaluateAll(async elements => {
+      await Promise.all(elements.flatMap(element => element.getAnimations()).map(animation => animation.finished));
+    });
+    const visible = await page.locator(".lbl").evaluateAll(elements => elements
+      .filter(element => Number(getComputedStyle(element).opacity) > 0.02)
+      .map(element => ({ text: element.textContent, transform: (element as HTMLElement).style.transform })));
+    expect(visible.length).toBeGreaterThan(0);
+    expect(visible.filter(label => !label.transform)).toEqual([]);
+  });
+}
+
 test("All links gates connection drawing without stopping animation", async ({ page }) => {
   await page.addInitScript(() => {
     (window as any).__lineDraws = 0;

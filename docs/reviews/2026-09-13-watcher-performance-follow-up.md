@@ -202,3 +202,37 @@ The raw receipts and sample hashes were checked. Receipt SHA-256 values:
 | --- | --- |
 | `watcher-13ff119-edit-profile-20260914/receipt.json` | `8b0f5eeaab487901f718db458d2d0a0ebf74db02767a2cdc5858ee81105f86b6` |
 | `watcher-loop-profile-20260914/receipt.json` | `d1d07e3b8a72ef72661eb7458fb869dfd0afa129f87adc35f41c3e438fea6aae` |
+
+## Reboot-resume paired comparison
+
+Five alternating pairs completed on September 14 using Windows Node 24.18.0,
+2,000 synthetic notes, and identical soak-runner bytes. Base was exact Engine
+`13ff119bbe7a1d9dd686d75267a4eb8f2cc65504`; candidate was PR 77
+`f65535f44db92fc71b2c44709ffb7f834be7a47b`. Both source worktrees stayed clean.
+No competing qualification workload was active when the comparison started.
+These ten single-edit runs are synthetic diagnostics, not a 24-hour soak.
+
+| Measurement | Base median (range) | Candidate median (range) |
+| --- | --- | --- |
+| Edit latency, ms | 12,023.50 (11,221.71–12,365.94) | 11,624.08 (11,152.40–12,824.29) |
+| RSS, MiB | 650.72 (646.43–664.76) | 869.75 (867.54–871.86) |
+
+The candidate was faster in four pairs and slower in one. Its median paired
+latency difference was -425.78 ms. RSS increased in every pair, with a median
+paired increase of 217.40 MiB. All ten runs returned FAIL_BUDGET against the
+unchanged 2,000 ms edit target. Five pairs do not establish statistical significance.
+
+Decision: do not adopt PR 77 into Kosmos from this evidence. The small mixed
+latency benefit does not justify its consistent memory increase. Keep the
+experiment and its receipts for review; the consumer pin remains `13ff119`.
+
+All ten receipt hashes and sample hashes were verified. The new private record
+`watcher-publication-encoding-comparison-resume-20260914/comparison.json` has
+SHA-256 `b3464ff0bfb0e5c1d5974a3d5c94036381e03743a3bb274a5be81f3bb248d62c`.
+The interrupted original comparison remains unchanged at
+`f6377201d30c35022613e49726e2bc5b996145c5fa6f960ab9fc37111e5e286b`.
+
+A proposed prepared-activation shortcut was rejected during source review:
+derivation does not establish every invariant independently checked by the
+publication sealer. A frozen internal identity is not sufficient evidence to
+skip those checks. No such implementation was adopted.

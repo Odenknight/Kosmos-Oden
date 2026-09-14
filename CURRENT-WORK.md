@@ -20,22 +20,33 @@ They should not show the connection type, such as MCP.
 The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
-The latest Kosmos verification passed 628 tests.
+The latest Kosmos verification passed 632 tests and the full verification chain.
+The complete four-browser run passed 246 checks with two declared platform skips.
+All twelve reference images have independent approval. Its earlier full
+run failed the Windows private history database check; that intermittent failure
+remains under diagnosis and is not erased by the newer pass.
 Its pinned Engine passed 1,215 tests on Node 24.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
 Production history and automatic source writes remain disabled.
+The owner deferred native macOS qualification on September 14.
+That gate remains open and is not waived for the final merge.
 Indexing also misses its speed target.
 One edit took about 10.77 seconds across 2,000 notes.
 The target is two seconds.
 A newer profiled run took 13.14 seconds.
-A small serializer experiment did not establish a useful improvement.
+A five-pair encoding comparison did not justify adopting Engine PR 77.
+Median edits were 12.02 seconds for the base and 11.62 seconds for the candidate;
+candidate memory increased in every pair. All ten edits failed the speed target.
 The next target is repeated whole-graph processing during activation.
 
 The full Node 22 qualification ended in failure at 07:15 UTC on September 14.
 It recorded 1,212 passes, two failures, and one skip across 1,215 tests.
 Both failing cases later passed in focused runs; the full gate remains failed.
-The reboot resume is diagnosing the failures before another full run.
+The witness-rename fix at Engine `3cab7a2` subsequently passed all 1,216 tests
+in a full Windows Node 22.22.1 run. Draft Engine PR 78 preserves that candidate.
+Its updated Node 24 qualification and consumer adoption remain open;
+the consumer still pins `13ff119`, whose earlier Node 22 failure is preserved.
 The upgrade remains on review branches.
 It has not been merged to main.
 
@@ -97,6 +108,10 @@ In the Rust branch, start with `conformance/differential/README.md`.
 Its recorded TypeScript outputs are observations, not approved reference results.
 The earlier Rust baseline passed 400 Windows tests.
 The new branch still needs a working validation product and independent qualification.
+The owner approved a one-fixture directory for WP-13 to match the frozen CLI.
+Rust commit `c0d5537` records that invocation amendment on
+`wp/13-directory-skeleton-20260914`; the original plan remains unchanged.
+The real candidate runner design is explicitly unapproved and unimplemented.
 
 ## Remaining acceptance work
 
