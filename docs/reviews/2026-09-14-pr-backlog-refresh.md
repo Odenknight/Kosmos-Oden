@@ -153,3 +153,51 @@ The guard checks source and provenance markers. It does not independently audit
 the upstream patch or qualify native Linux runtime memory safety.
 No dependency, vendor source, installed package, or release artifact was changed.
 PR38/41 remain open pending their other unique behaviors and release gates.
+
+
+## Sidecar behavior comparison
+
+Compared `src-tauri/src/lib.rs` and `src-tauri/src/sidecar.rs` at PR41's recorded
+head with candidate `4802da1`. The current implementation preserves the eight
+historical commands: corpus selection, start, stop, reconnect, status, token
+read, version and redacted diagnostic export. It keeps the loopback service
+and does not add a source-writing command.
+
+The historical source guards are accounted for as follows:
+
+- Process arguments still contain corpus, status-file path and port. A token is
+  not passed as an argument. Credential delivery remains a separate IPC read.
+- Five restart delays remain 250, 500, 1,000, 2,000 and 4,000 milliseconds.
+  Current code additionally revalidates the embedded sidecar release before spawn.
+- Both application exit events invoke supervisor shutdown. Shutdown also cleans
+  up when the state mutex is poisoned and refuses later admitted starts.
+- Blocking operations now retain separate admission guards for controls,
+  credentials and dialogs. A stalled credential read cannot occupy the control slot.
+- Diagnostic publication uses an exclusive temporary file and preserves the old
+  destination on a failed replacement. Redaction excludes raw error details.
+- Current Windows state and log access use retained permission/identity checks.
+  These are changes beyond the historical source-only guards.
+
+This is a source disposition, not proof of a fully running desktop distribution.
+Native tests, visible controls, supplied sidecar packaging and final installation
+must retain their own exact-candidate evidence. The null source-tree release
+manifest intentionally prevents unqualified sidecar discovery and execution.
+
+
+Native validation of candidate `4802da1` used Windows x64, Rust/Cargo 1.98.1:
+
+```text
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
+19 passed; 0 failed; 1 ignored
+```
+
+The ignored case is `real_engine_recovers_through_supervisor`. It requires an
+explicit verified Engine manifest and qualification executable, and binds the
+loopback service port. It was not run with substituted or unverified bytes.
+The passing cases include actual child cleanup, denied late starts, stopped
+monitor behavior, credential/control admission separation, exact binary hashing,
+Windows ACL/link refusal and diagnostic replacement failure preservation.
+The complete retained command log has SHA-256
+`9c7333fbf4993b263ecce92e7548e94f9ea0280c0619818a9dbf783754b6f691`.
+This is component-level Windows evidence. The ignored real-Engine case, Linux
+runtime, visible application behavior and complete installer acceptance remain open.

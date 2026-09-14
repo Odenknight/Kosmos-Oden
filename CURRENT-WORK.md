@@ -62,6 +62,9 @@ The old package is retained in a separate history directory.
 Tests cover a failed write and a failed replacement.
 It also includes a verified inventory of the viewer build inputs.
 Native execution and complete software inventories still need qualification.
+The desktop shell passed 19 native Windows tests on candidate `4802da1`.
+One real-Engine recovery test was ignored because it needs a verified executable.
+That test remains required.
 The upgrade remains on review branches.
 It has not been merged to main.
 We still need the remaining build work, final debug checks, and release qualification.
