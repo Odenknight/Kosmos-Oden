@@ -15,9 +15,9 @@ The complete connection through Obsidian still needs testing.
 The current indexing speed is too slow for the required target.
 We are also building a history store that preserves records safely.
 Deletion decisions already survive a restore of an old history backup.
-The next step is to test removal of retained content after an approved deletion.
-That removal code is local work in progress.
-It is not installed or qualified.
+Local removal of retained content now passes isolated tests.
+External cleanup and native integration remain unfinished.
+This code is not installed or qualified for production.
 The comet trails and displayed agent names still need a final visual check.
 Terra checks long-running qualification every six hours.
 The changes are on review branches. The full upgrade is not on main.
@@ -33,10 +33,9 @@ The changes are on review branches. The full upgrade is not on main.
 
 The last fully verified Kosmos source checkpoint is `1d47ac0`.
 It passed 565 tests and the repository verification checks.
-Local purge edits were started after that checkpoint.
-The existing 45 history tests pass with those edits.
-Dedicated purge tests and full verification are still required.
-Do not count those existing tests as proof that purge works.
+The newer local purge candidate passes 52 history tests.
+Full repository verification passes 572 tests.
+Those results cover the component, not the complete native deletion workflow.
 
 ## What we are doing
 
@@ -105,7 +104,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 565 tests.
+The latest completed Kosmos verification passed 572 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -167,9 +166,10 @@ A synthetic restore test confirms that an old history backup cannot undo a curre
 A shared host binding now checks corpus identity and combines native permission with the deny authority.
 It refuses stale grants and cannot treat the absence of a denial as permission.
 The committed component records a denial; it does not physically purge data.
-Local edits now attempt to remove retained content and dependent projection records.
+The local purge candidate removes retained content and dependent projection records.
 They require a durable denial and check retention holds before committing.
-Dedicated purge qualification remains unfinished.
+Synthetic tests prove rollback during cleanup and persistence after commit.
+External cleanup and native purge qualification remain unfinished.
 Storage remains off in the plugin. Migration and native integration remain unfinished.
 See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
 

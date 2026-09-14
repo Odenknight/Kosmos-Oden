@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { HistoryDeletionAuthority, HistoryDenialReceipt } from "./history-deletion-authority";
 import { stableJson, retrievalSha256 } from "gkos-engine/retrieval";
 import { isValidGkxAuthoredUid } from "gkos-engine";
 import { validateVaultRelativePath } from "gkos-engine/navigation-effects";
@@ -52,7 +53,17 @@ export interface SourceObservationHost {
   supports: (parser: string, schema: string) => boolean;
   projectionCurrent?: (input: ProjectionObservation) => boolean;
 }
-type Observation = SourceObservation | ProjectionObservation;
+interface PurgedObservation {
+  version: 1;
+  operation: string;
+  corpus: string;
+  kind: "purged";
+  source: string;
+  denialSequence: number;
+  denialDigest: string;
+  purgedAt: string;
+}
+type Observation = SourceObservation | ProjectionObservation | PurgedObservation;
 const PROJECTION_KEYS = ["version", "operation", "corpus", "kind", "projectionId", "configurationDigest", "publicationDigest", "authorityDigest", "policyDigest", "sources"].sort();
 const recordLimit = (input: Observation) => input.kind === "projection_published" ? 1024 * 1024 : 16384;
 const INPUT_KEYS = ["operation", "corpus", "source", "path", "kind", "sourceDigest", "validAt", "authorityDigest", "policyDigest", "parserVersion", "schemaVersion"].sort();
@@ -76,7 +87,7 @@ function assertDatabase(db: DatabaseSync, retention: Readonly<ObservationRetenti
 
 /** Isolated native component. The host owns the private database capability and
  * authenticated retention action. No plugin hook opens or enables this ledger.
- * Purge, import and migration are deliberately unavailable.
+ * External derived-data cleanup, import and migration remain unavailable.
  */
 export class SourceObservationLedger {
   private closed = false;
@@ -131,6 +142,14 @@ export class SourceObservationLedger {
     } finally { this.busy = false; }
   }
   private validate(input: Observation, payload: Uint8Array | null, checkPayload = true) {
+    if (input.kind === "purged") {
+      if (Object.keys(input).sort().join() !== "corpus,denialDigest,denialSequence,kind,operation,purgedAt,source,version" ||
+          input.version !== 1 || input.corpus !== this.retention.corpus || typeof input.operation !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.operation) || !isValidGkxAuthoredUid(input.source) ||
+          input.source !== input.source.toLowerCase() || !positive(input.denialSequence, 10000) ||
+          !DIGEST.test(input.denialDigest) || !instant(input.purgedAt) || payload !== null) throw Error("OBSERVATION_PURGE_RECORD_INVALID");
+      return;
+    }
     if (input.kind === "projection_published") {
       if (Object.keys(input).sort().join() !== PROJECTION_KEYS.join() || input.version !== 1 || input.corpus !== this.retention.corpus ||
           typeof input.operation !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(input.operation) ||
@@ -177,12 +196,15 @@ export class SourceObservationLedger {
       if (input.kind !== "source_version" ? row.payload_length !== null : row.payload_length === null) throw Error("OBSERVATION_PAYLOAD_INVALID");
       if (row.receipt_digest !== retrievalSha256(stableJson({ sequence: row.seq, operation: row.operation, knownAt: row.known_at, parent: row.parent, input }))) throw Error("OBSERVATION_STORE_INVALID");
       if (stableJson(input) !== row.input || row.seq !== i + 1 || row.operation !== input.operation ||
-          !instant(row.known_at) || row.known_at < lastTime || row.parent !== (input.kind === "projection_published" ? null : parents.get(input.source) ?? null)) throw Error("OBSERVATION_STORE_INVALID");
+          !instant(row.known_at) || row.known_at < lastTime || row.parent !== (input.kind === "projection_published" || input.kind === "purged" ? null : parents.get(input.source) ?? null)) throw Error("OBSERVATION_STORE_INVALID");
       if (input.kind === "projection_published") this.references(input, rows.slice(0, i));
+      else if (input.kind === "purged") { if (input.purgedAt < row.known_at) throw Error("OBSERVATION_PURGE_RECORD_INVALID"); }
       else parents.set(input.source, row.seq);
       lastTime = row.known_at;
       row.parsed = input;
     }
+    const purged = new Set(rows.filter(row => row.parsed.kind === "purged").map(row => row.parsed.source));
+    if (rows.some(row => ["source_version", "source_deleted"].includes(row.parsed.kind) && purged.has(row.parsed.source.toLowerCase()))) throw Error("OBSERVATION_SOURCE_PURGED");
     return { rows, bytes: count.bytes as number, watermark: retrievalSha256(stableJson(rows.map(row => [row.seq, row.receipt_digest]))) };
   }
   private references(input: ProjectionObservation, rows: any[]) {
@@ -222,14 +244,16 @@ export class SourceObservationLedger {
     });
   }
 
-  append(value: Observation, bytes: Uint8Array | null) {
+  append(value: SourceObservation | ProjectionObservation, bytes: Uint8Array | null) {
     const text = stableJson(value);
     if (Buffer.byteLength(text) > recordLimit(value) || bytes !== null && bytes.byteLength > this.retention.maxBytes) throw Error("OBSERVATION_CAPACITY");
     const input = JSON.parse(text), payload = bytes === null ? null : Buffer.from(bytes);
+    if (input.kind === "purged") throw Error("OBSERVATION_PURGE_INPUT_FORBIDDEN");
     this.validate(input, payload);
     return this.transaction(() => {
       this.authorize(input);
       const { rows, bytes: retained } = this.scan();
+      if (input.kind !== "projection_published" && rows.some(row => row.parsed.kind === "purged" && row.parsed.source === input.source.toLowerCase())) throw Error("OBSERVATION_SOURCE_PURGED");
       if (input.kind === "projection_published") {
         this.references(input, rows);
         for (const ref of input.sources) {
@@ -287,7 +311,7 @@ export class SourceObservationLedger {
         if (row && rows[row.seq - 1]?.receipt_digest !== row.receipt_digest) throw Error("OBSERVATION_SNAPSHOT_STALE");
         this.current();
         if (this.host.canRead(source) !== true) { apply(null); return; }
-        if (!row || row.parsed.kind === "source_deleted" || Date.parse(now) - Date.parse(row.known_at) > this.retention.maxAgeMs) { apply(null); return; }
+        if (!row || row.parsed.kind !== "source_version" || Date.parse(now) - Date.parse(row.known_at) > this.retention.maxAgeMs) { apply(null); return; }
         const payload = (this.db.prepare("SELECT payload FROM observations WHERE seq=?").get(row.seq) as any)?.payload;
         this.validate(row.parsed, payload);
         if (this.host.canRead(source) !== true) { apply(null); return; }
@@ -296,5 +320,52 @@ export class SourceObservationLedger {
       });
     } });
   }
+  /** Local retained-data purge only. A durable independent denial precedes this
+   * transaction; the host action must bind that receipt and the retention-hold revision.
+   */
+  purge(authority: HistoryDeletionAuthority, operation: string,
+    actionCurrent: (receipt: Readonly<HistoryDenialReceipt>) => boolean, held: (source: string) => boolean) {
+    if (typeof actionCurrent !== "function" || typeof held !== "function") throw Error("OBSERVATION_PURGE_ACTION_INVALID");
+    const denial = authority.receipt(operation), deletion = authority.capture();
+    if (!denial || denial.corpus !== this.retention.corpus || deletion.corpus !== this.retention.corpus || !deletion.isDenied(denial.source)) throw Error("OBSERVATION_PURGE_DENIAL_REQUIRED");
+    const check = () => {
+      if (!deletion.current() || !deletion.isDenied(denial.source) || actionCurrent(denial) !== true) throw Error("OBSERVATION_PURGE_AUTHORITY_STALE");
+      this.current();
+    };
+    const unheld = () => { if (held(denial.source) !== false) throw Error("OBSERVATION_PURGE_HELD"); };
+    try {
+      return this.transaction(() => {
+        check();
+        const {rows} = this.scan();
+        const previous = rows.filter(row => row.parsed.kind === "purged" && row.parsed.denialDigest === denial.digest);
+        if (previous.length) {
+          const first = previous[0].parsed;
+          if (previous.some(row => row.parsed.source !== denial.source || row.parsed.denialSequence !== denial.sequence || row.parsed.purgedAt !== first.purgedAt)) throw Error("OBSERVATION_PURGE_RECORD_INVALID");
+          check();
+          return Object.freeze({status:"purged" as const, source:denial.source, operation, denialDigest:denial.digest, purgedAt:first.purgedAt as string, erasedRecords:previous.length});
+        }
+        unheld(); check();
+        const targets = rows.filter(row => row.parsed.kind === "projection_published"
+          ? row.parsed.sources.some((ref: SourceObservationReference) => ref.source.toLowerCase() === denial.source)
+          : row.parsed.kind !== "purged" && row.parsed.source.toLowerCase() === denial.source);
+        if (!targets.length) return Object.freeze({status:"nothing_retained" as const, source:denial.source, operation});
+        const purgedAt = this.host.now();
+        if (!instant(purgedAt) || purgedAt < denial.deniedAt || rows.length && purgedAt < rows.at(-1).known_at) throw Error("OBSERVATION_CLOCK_REGRESSED");
+        this.db.exec("PRAGMA secure_delete=ON;");
+        unheld(); check();
+        for (const row of targets) {
+          const input: PurgedObservation = {version:1,operation:row.operation,corpus:this.retention.corpus,kind:"purged",source:denial.source,denialSequence:denial.sequence,denialDigest:denial.digest,purgedAt};
+          const digest = retrievalSha256(stableJson({sequence:row.seq,operation:row.operation,knownAt:row.known_at,parent:null,input}));
+          this.db.prepare("UPDATE observations SET parent=NULL,input=?,payload=NULL,receipt_digest=? WHERE seq=?").run(stableJson(input),digest,row.seq);
+        }
+        this.scan(); unheld(); check();
+        return Object.freeze({status:"purged" as const, source:denial.source, operation, denialDigest:denial.digest, purgedAt, erasedRecords:targets.length});
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "OBSERVATION_PURGE_HELD") return Object.freeze({status:"blocked" as const, reason:"retention_hold" as const, source:denial.source, operation});
+      throw error;
+    }
+  }
+
   close() { if (this.busy) throw Error("OBSERVATION_BUSY"); if (!this.closed) { this.closed = true; this.db.close(); } }
 }

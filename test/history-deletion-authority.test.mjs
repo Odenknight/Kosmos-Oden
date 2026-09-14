@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {DatabaseSync} from 'node:sqlite';
-import {mkdtempSync,rmSync,copyFileSync,writeFileSync} from 'node:fs';
+import {mkdtempSync,rmSync,copyFileSync,writeFileSync,readFileSync} from 'node:fs';
 import {join,dirname} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -11,14 +11,15 @@ import {spawnSync} from 'node:child_process';
 async function compile(file){return (await build({entryPoints:[fileURLToPath(new URL('../src/workspace/'+file,import.meta.url))],bundle:true,platform:'node',format:'esm',write:false})).outputFiles[0].text;}
 const authorityText=await compile('history-deletion-authority.ts');
 const {HistoryDeletionAuthority}=await import('data:text/javascript;base64,'+Buffer.from(authorityText).toString('base64'));
-const {SourceObservationLedger}=await import('data:text/javascript;base64,'+Buffer.from(await compile('source-observation-ledger.ts')).toString('base64'));
+const historyText=await compile('source-observation-ledger.ts');
+const {SourceObservationLedger}=await import('data:text/javascript;base64,'+Buffer.from(historyText).toString('base64'));
 const uid='550e8400-e29b-41d4-a716-446655440001',other='550e8400-e29b-41d4-a716-446655440002';
 const options={enabled:true,corpus:'synthetic-history',maxReceipts:10};
 function fixture(t,changes={}){
  const directory=mkdtempSync(join(tmpdir(),'kosmos-deletion-')),path=join(directory,'deletion.sqlite'),config={...options,...changes};
  const state={current:true,now:'2026-09-13T00:00:00.000Z'};const host={current:()=>state.current,now:()=>state.now};
  let authority=HistoryDeletionAuthority.open(config,()=>new DatabaseSync(path),host,true);
- t.after(()=>{try{authority.close();}finally{assert.equal(dirname(directory),tmpdir());rmSync(directory,{recursive:true,force:true});}});
+ t.after(()=>{try{state.beforeClose?.();authority.close();}finally{assert.equal(dirname(directory),tmpdir());rmSync(directory,{recursive:true,force:true});}});
  return {directory,path,state,host,config,get authority(){return authority;},reopen(){authority.close();authority=HistoryDeletionAuthority.open(config,()=>new DatabaseSync(path),host);return authority;}};
 }
 test('deletion authority defaults off and requires explicit bounds and current owner authority',()=>{
@@ -113,4 +114,86 @@ test('binding captures native function identities and preserves parser, clock an
  const f=fixture(t);const host=nativeHost({canRead:()=>false,supports:(p,s)=>p==='parser'&&s==='schema',projectionCurrent:p=>p.version===1});const bound=f.authority.bindHistoryHost(options.corpus,host);
  host.canRead=()=>true;host.current=()=>false;assert.equal(bound.current(),true);assert.equal(bound.canRead(uid),false);assert.equal(bound.now(),'2026-09-13T00:00:00.000Z');
  assert.equal(bound.supports('parser','schema'),true);assert.equal(bound.supports('other','schema'),false);assert.equal(bound.projectionCurrent({version:1}),true);assert.equal(Object.isFrozen(bound),true);
+});
+
+const historyRetention={enabled:true,corpus:options.corpus,maxAgeMs:86400000,maxBytes:100000,maxObservations:20};
+const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex');
+function purgeFixture(t){
+ const f=fixture(t),path=join(f.directory,'purge.sqlite');
+ const bytes=Buffer.from('PURGE-PAYLOAD-SENTINEL-'+ 'dust'.repeat(2000));
+ const input={operation:'retain-one',corpus:options.corpus,source:uid,path:'PURGE-PATH-SENTINEL.md',kind:'source_version',sourceDigest:hash(bytes),validAt:null,authorityDigest:hash('a'),policyDigest:hash('p'),parserVersion:'test',schemaVersion:'test'};
+ const host=()=>f.authority.bindHistoryHost(options.corpus,nativeHost({now:()=>f.state.now,projectionCurrent:()=>true}));
+ let ledger=SourceObservationLedger.open(historyRetention,()=>new DatabaseSync(path),host(),true);
+ ledger.append(input,bytes);
+ const otherBytes=Buffer.from('Keep this unrelated note.');
+ ledger.append({...input,operation:'retain-other',source:other,path:'Keep.md',sourceDigest:hash(otherBytes)},otherBytes);
+ ledger.append({version:1,operation:'publish-one',corpus:options.corpus,kind:'projection_published',projectionId:'PURGE-PROJECTION-SENTINEL',configurationDigest:hash('c'),publicationDigest:hash('pub'),authorityDigest:hash('a'),policyDigest:hash('p'),sources:[ledger.sourceReference(uid,1),ledger.sourceReference(other,2)]},null);
+ f.state.beforeClose=()=>ledger.close();
+ return {...f,path,bytes,input,get ledger(){return ledger;},deny(){f.authority.deny('purge-one',uid,()=>true);this.reopen();},reopen(afterUpdate){ledger.close();ledger=SourceObservationLedger.open(historyRetention,()=>{const raw=new DatabaseSync(path);if(!afterUpdate)return raw;return {exec:sql=>raw.exec(sql),close:()=>raw.close(),prepare:sql=>{const stmt=raw.prepare(sql);return sql.startsWith('UPDATE observations SET')?{run(...args){const result=stmt.run(...args);afterUpdate();return result;}}:stmt;}};},host());},rows(){const db=new DatabaseSync(path);try{return db.prepare('SELECT * FROM observations ORDER BY seq').all();}finally{db.close();}}};
+}
+
+test('purge needs a durable denial and current action; a hold preserves every row',t=>{
+ const f=purgeFixture(t),before=f.rows();
+ assert.throws(()=>f.ledger.purge(f.authority,'missing',()=>true,()=>false),/DENIAL_REQUIRED/);
+ f.deny();assert.throws(()=>f.ledger.purge(f.authority,'purge-one',()=>false,()=>false),/AUTHORITY_STALE/);
+ assert.equal(f.ledger.purge(f.authority,'purge-one',()=>true,()=>true).reason,'retention_hold');
+ assert.deepEqual(f.rows(),before);
+});
+
+test('purge removes source and dependent projection content, preserves unrelated rows, and retries after reopen',t=>{
+ const f=purgeFixture(t),before=f.rows();f.deny();
+ const receipt=f.ledger.purge(f.authority,'purge-one',()=>true,()=>false);
+ assert.equal(receipt.erasedRecords,2);const rows=f.rows();assert.deepEqual(rows[1],before[1]);
+ for(const row of [rows[0],rows[2]]){const input=JSON.parse(row.input);assert.equal(input.kind,'purged');assert.equal(row.payload,null);assert.equal(row.parent,null);assert.equal(input.path,undefined);assert.equal(input.sourceDigest,undefined);assert.equal(input.sources,undefined);}
+ f.reopen();assert.deepEqual(f.ledger.purge(f.authority,'purge-one',()=>true,()=>true),receipt);
+ let visible='unset';f.ledger.knownBy(uid,f.state.now).publish(value=>visible=value);assert.equal(visible,null);
+ assert.throws(()=>f.ledger.append({...f.input,operation:'resurrect',source:uid.toUpperCase()},f.bytes),/HOST_STALE|SOURCE_PURGED/);
+});
+
+for(const boundary of ['hold','action'])test('purge rolls back actual updates when '+boundary+' changes before commit',t=>{
+ const f=purgeFixture(t);f.deny();const before=f.rows();let changed=false;
+ f.reopen(()=>{changed=true;});
+ const run=()=>f.ledger.purge(f.authority,'purge-one',()=>boundary!=='action'||!changed,()=>boundary==='hold'&&changed);
+ if(boundary==='hold')assert.equal(run().reason,'retention_hold');else assert.throws(run,/AUTHORITY_STALE/);
+ assert.equal(changed,true);assert.deepEqual(f.rows(),before);f.reopen();
+ assert.equal(f.ledger.purge(f.authority,'purge-one',()=>true,()=>false).erasedRecords,2);
+});
+
+
+test('closed SQLite file no longer contains purged payload, path, or projection sentinels',t=>{
+ const f=purgeFixture(t);f.ledger.close();
+ const before=readFileSync(f.path);for(const marker of ['PURGE-PAYLOAD-SENTINEL','PURGE-PATH-SENTINEL','PURGE-PROJECTION-SENTINEL'])assert.equal(before.includes(Buffer.from(marker)),true);
+ f.reopen();f.deny();f.ledger.purge(f.authority,'purge-one',()=>true,()=>false);f.ledger.close();
+ const after=readFileSync(f.path);for(const marker of ['PURGE-PAYLOAD-SENTINEL','PURGE-PATH-SENTINEL','PURGE-PROJECTION-SENTINEL'])assert.equal(after.includes(Buffer.from(marker)),false,marker);
+ assert.equal(after.includes(Buffer.from('Keep this unrelated note.')),true);
+});
+
+test('process death during purge rolls back updates; death after commit preserves retry receipt',t=>{
+ const f=purgeFixture(t);f.deny();const before=f.rows();f.ledger.close();f.authority.close();
+ const historyModule=join(f.directory,'history.mjs'),authorityModule=join(f.directory,'authority.mjs');writeFileSync(historyModule,historyText);writeFileSync(authorityModule,authorityText);
+ const authorityPath=join(f.directory,'deletion.sqlite');
+ for(const stage of ['before','after']){
+  const code=`import {DatabaseSync} from 'node:sqlite';import {SourceObservationLedger} from ${JSON.stringify(pathToFileURL(historyModule).href)};import {HistoryDeletionAuthority} from ${JSON.stringify(pathToFileURL(authorityModule).href)};
+  const now=()=> '2026-09-13T00:00:00.000Z';const authority=HistoryDeletionAuthority.open(${JSON.stringify(options)},()=>new DatabaseSync(${JSON.stringify(authorityPath)}),{current:()=>true,now});
+  const raw=new DatabaseSync(${JSON.stringify(f.path)});const db={exec:sql=>raw.exec(sql),close:()=>raw.close(),prepare:sql=>{const stmt=raw.prepare(sql);return sql.startsWith('UPDATE observations SET')?{run(...args){const result=stmt.run(...args);if(${JSON.stringify(stage)}==='before')process.exit(77);return result;}}:stmt;}};
+  const host=authority.bindHistoryHost(${JSON.stringify(options.corpus)},{current:()=>true,now,canRead:()=>true,supports:()=>true});const ledger=SourceObservationLedger.open(${JSON.stringify(historyRetention)},()=>db,host);
+  ledger.purge(authority,'purge-one',()=>true,()=>false);process.exit(78);`;
+  const child=spawnSync(process.execPath,['--input-type=module','-e',code],{encoding:'utf8'});assert.equal(child.status,stage==='before'?77:78,child.stderr.slice(0,1000));
+  if(stage==='before')assert.deepEqual(f.rows(),before);
+  else{const authority=HistoryDeletionAuthority.open(options,()=>new DatabaseSync(authorityPath),f.host);const ledger=SourceObservationLedger.open(historyRetention,()=>new DatabaseSync(f.path),authority.bindHistoryHost(options.corpus,nativeHost()));try{assert.equal(ledger.purge(authority,'purge-one',()=>true,()=>false).erasedRecords,2);}finally{ledger.close();authority.close();}}
+ }
+});
+
+test('purge removes case-variant versions and corrupt retained bytes without allowing unbound resurrection',t=>{
+ const f=purgeFixture(t);
+ f.ledger.append({...f.input,operation:'retain-alias',source:uid.toUpperCase()},f.bytes);
+ f.ledger.append({...f.input,operation:'retain-delete',kind:'source_deleted',sourceDigest:null},null);
+ f.ledger.close();const db=new DatabaseSync(f.path);db.prepare('UPDATE observations SET payload=? WHERE seq=1').run(Buffer.from('corrupt retained payload'));db.close();
+ f.reopen();f.deny();assert.equal(f.ledger.purge(f.authority,'purge-one',()=>true,()=>false).erasedRecords,4);f.ledger.close();
+ const unbound=SourceObservationLedger.open(historyRetention,()=>new DatabaseSync(f.path),nativeHost());
+ try{
+  assert.throws(()=>unbound.append({...f.input,operation:'resurrect',source:uid.toUpperCase()},f.bytes),/SOURCE_PURGED/);
+  const marker=JSON.parse(f.rows()[0].input);assert.throws(()=>unbound.append(marker,null),/PURGE_INPUT_FORBIDDEN/);
+  let visible='unset';unbound.knownBy(uid,f.state.now).publish(value=>visible=value);assert.equal(visible,null);
+ }finally{unbound.close();}
 });

@@ -126,6 +126,11 @@ export class HistoryDeletionAuthority {
     });
   }
 
+  receipt(operation: string): Readonly<HistoryDenialReceipt> | null {
+    if (typeof operation !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(operation)) throw Error("HISTORY_DELETION_ACTION_INVALID");
+    return this.transaction(() => this.scan().receipts.find(receipt => receipt.operation === operation) ?? null);
+  }
+
   /** The entire returned capability stays in the native host, never a renderer. */
   capture() {
     const captured = this.transaction(() => this.scan());

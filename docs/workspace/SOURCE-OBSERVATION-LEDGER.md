@@ -99,24 +99,55 @@ explicit limits, byte accounting, hidden-source isolation, path reuse, final-bou
 missing payloads, corrupt metadata, unexpected schemas and triggers, and default-off behavior.
 Child processes terminate before commit and after commit without orderly close.
 Reopening proves rollback in the first case and durable retry recovery in the second.
-All 30 component tests pass. Full repository verification passes all 565 tests.
+All 30 component tests pass. The earlier source-only checkpoint passed all 565 repository tests.
 The two added regression tests failed before the authority and watermark fixes.
 These are Windows component tests, not native Obsidian acceptance.
 
 An [independent deletion-authority component](HISTORY-DELETION-AUTHORITY.md) now provides durable deny receipts.
 An isolated two-database test proves that restoring source history alone cannot undo those denials.
 The shared `bindHistoryHost` adapter now checks corpus equality and combines native read authority with independent denial state.
-Actual plugin integration, native private-database qualification and physical purge remain unfinished.
+Actual plugin integration and native private-database qualification remain unfinished.
 
 ## Remaining work
 
 - Bind the ledger to a qualified private native database capability and actual source-capture receipts.
 - Accept the retention contract and owner controls before production activation.
 - Bind projection recording to actual native Graphiti publication readback and qualify projection-history queries.
-- Implement explicit purge, retention holds, durable deny receipts, and derived-data cleanup.
+- Connect owner controls and retention holds to local purge, then implement external derived-data cleanup.
 - Add independent deletion-watermark reconciliation so backup restoration cannot resurrect purged records.
 - Complete replay, import provenance, migration, backup and rollback qualification.
 - Add the required valid-at interpretation, cursor binding and complete temporal query interface.
 - Complete native durability, startup/rendering budgets, and the accepted T2/T3 fixture matrix.
 
 No production history storage or temporal workspace feature is enabled by this component.
+
+## Local retained-content purge candidate
+
+`purge` requires an operation receipt from the independent deletion authority.
+The host must bind its action capability to that receipt and the current hold revision.
+A retention hold returns a blocked outcome without committing changes.
+The operation removes all retained versions of the denied UID, including case variants.
+It also removes each retained projection record that references that UID.
+Unrelated source records stay unchanged.
+
+Each affected observation slot becomes a version-one `purged` marker.
+The marker retains the original operation ID, corpus, denied UID, denial witness and purge time.
+The original sequence and observation time remain reserved for integrity and retry handling.
+They do not claim that the purge happened at the original observation time.
+Source bytes, paths, content digests, parser receipts and projection references are removed.
+Markers still count toward the observation limit. The ledger does not renumber history.
+Public append cannot submit a purge marker or resurrect a purged UID.
+
+SQLite secure deletion is enabled for the transaction.
+A hold or authority failure after an actual update rolls the transaction back.
+A committed retry returns the original purge receipt, even if a later hold exists.
+Seven additional tests cover denial requirements, holds, withdrawal after updates,
+unchanged unrelated records, restart retry, process death, and raw SQLite sentinels.
+All 52 history tests and all 572 repository tests pass on Windows.
+This is not forensic erasure or native product qualification.
+External Graphiti data, source notes, backups and storage-device remnants are outside this operation.
+The remaining native integration, recovery and migration gates still apply.
+
+The earlier reader at `1d47ac0` refuses the new purge marker without modifying the store.
+The current reader reopens the same synthetic store and returns no purged content.
+This compatibility refusal check does not qualify migration or rollback.

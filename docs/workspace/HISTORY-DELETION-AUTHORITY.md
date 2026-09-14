@@ -58,8 +58,8 @@ That authority needs its own independently verified recovery procedure.
 
 ## Verified component behavior
 
-All 15 deletion-authority/binding tests and all 30 source-history tests pass.
-Full repository verification passes all 565 tests.
+All 22 deletion-authority, binding and local purge tests and all 30 source-history tests pass.
+Full repository verification passes all 572 tests.
 The tests use actual synthetic SQLite databases.
 They cover default-off behavior, current owner/action checks, bounded capacity, retry conflicts,
 clock regression, UUID case variants, missing authority, corrupt chains and unknown schemas.
@@ -76,10 +76,13 @@ This proves the isolated restore-denial invariant, not a complete production mig
 
 - Bind this authority to the qualified native private-directory capability and operational ownership.
 - Complete the owner deletion flow and exact operation/source approval binding.
-- Check retention holds before destructive purge and expose a blocked outcome when they conflict.
-- Purge retained payloads, source references and derived outputs after durable denial.
-- Record and qualify purge recovery, including crashes during cleanup.
+- Connect native owner controls and retention holds to the tested local purge boundary.
+- Complete external derived-output cleanup after the local retained-content purge.
+- Extend the tested local purge crash recovery to native and external cleanup workflows.
 - Reconcile import and migration with this independent current authority.
 - Qualify actual native restoration, authority recovery, and startup/rendering costs.
 
 Both this authority and production source-history retention remain unwired and disabled.
+
+`receipt(operation)` retrieves a validated durable denial for the local history purge.
+See the [local purge scope and evidence](SOURCE-OBSERVATION-LEDGER.md#local-retained-content-purge-candidate).
