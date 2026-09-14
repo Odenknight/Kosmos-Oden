@@ -82,3 +82,27 @@ and the frozen worktree remains clean. The receipt retains
 This pass does not rewrite the failed `13ff119` run. Updated Node 24
 qualification, consumer pin adoption and the remaining product/native release
 gates remain open. The consumer still pins `13ff119`.
+
+## Same witness candidate: full Windows Node 24 result
+
+The exact frozen Engine `3cab7a28b3b34045e92eca48003720e2d3dd2405`
+subsequently passed full Windows Node 24.18.0 qualification. The run started
+2026-09-14T08:59:07.104Z and finished 09:20:05.045Z. All 1,216 tests passed,
+with no failed, cancelled, skipped or todo cases; both commands exited zero.
+The source revision and both command-log hashes were independently checked.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Node 24 `current-runtime.json` | `b42fe24adec6a36839d2e236bd811f21864fe2ac4dbdbd86ff4dfb0e30b76c75` |
+| Node 24 build log | `e0af3c9d29a96d73df7cd9c0b3df1829625e805428667c1b123c388d157d4794` |
+| Node 24 full test log | `88c37addf7e0043e0b649e15c9b5c3777ae3ecb89ac57d0aca377216e1c95d6c` |
+
+The receipt still says `release_qualified: false`. Hosted Linux qualification
+on the same source tree reported incomplete platform coverage: 1,218 passed,
+zero failed and one Windows-specific skip. Separately, CI build jobs lacked
+the pinned Graphiti HTTP dependency. [Engine PR 79](https://github.com/Odenknight/GKOS-Engine/pull/79)
+adds that install step and a real non-Windows immediate-refusal assertion.
+Its focused Windows and Debian rename checks passed with zero skips, and all
+54 Graphiti Python tests passed locally. Its full hosted qualification remains
+pending. Those results do not reassign this receipt to the newer commit or
+change the Kosmos consumer pin.

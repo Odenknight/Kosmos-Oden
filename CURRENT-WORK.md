@@ -45,7 +45,9 @@ It recorded 1,212 passes, two failures, and one skip across 1,215 tests.
 Both failing cases later passed in focused runs; the full gate remains failed.
 The witness-rename fix at Engine `3cab7a2` subsequently passed all 1,216 tests
 in a full Windows Node 22.22.1 run. Draft Engine PR 78 preserves that candidate.
-Its updated Node 24 qualification and consumer adoption remain open;
+The same commit also passed all 1,216 tests on Windows Node 24.18.0.
+Draft Engine PR 79 fixes CI dependency setup and adds actual Linux rename-refusal
+coverage. Its full hosted checks and consumer adoption remain open;
 the consumer still pins `13ff119`, whose earlier Node 22 failure is preserved.
 The upgrade remains on review branches.
 It has not been merged to main.
@@ -105,12 +107,17 @@ Also inspect `src/watcher/windows-retained-guard.ts`.
 Preserve that exact candidate and its terminal qualification receipts.
 
 In the Rust branch, start with `conformance/differential/README.md`.
-Its recorded TypeScript outputs are observations, not approved reference results.
+The original TypeScript observations remain unchanged. A separate 18-case raw
+validation golden subset is now approved and hash-bound in Rust draft PR 17.
+Its verifier passed from fresh Windows and native Debian checkouts.
+Other golden surfaces and required filesystem-attack fixtures remain open.
 The earlier Rust baseline passed 400 Windows tests.
 The new branch still needs a working validation product and independent qualification.
 The owner approved a one-fixture directory for WP-13 to match the frozen CLI.
 Rust commit `c0d5537` records that invocation amendment on
 `wp/13-directory-skeleton-20260914`; the original plan remains unchanged.
+The later `a45f62e` commit adds the sealed raw subset and checkout evidence
+in [Rust PR 17](https://github.com/Odenknight/GKOS-Engine-Rust/pull/17).
 The real candidate runner design is explicitly unapproved and unimplemented.
 
 ## Remaining acceptance work
@@ -118,7 +125,8 @@ The real candidate runner design is explicitly unapproved and unimplemented.
 Native search needs citation, permission-change, outage, and restart checks.
 History needs owner controls and live publication checks.
 Indexing needs a speed fix, repeated workloads, and a soak test.
-The browser run still has three visual failures and two skips.
+The latest browser run passed 246 checks with two declared context-loss platform skips.
+All twelve reference images have independent visual approval; native acceptance remains open.
 The desktop shell passed 19 native Windows tests on candidate `4802da1`.
 The real-Engine supervisor recovery test now passes on Node 22.
 It recovered from five forced crashes and refused a sixth restart.
