@@ -1692,7 +1692,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const now = performance.now(); let touched = false;
     if (!paths.length && tool === "ping") {
       const head = agentHeads.get(who);
-      if (head) { head.t = now; updateAgentMarkers(); }
+      if (head) { head.t = now; head.label = displayLabel; updateAgentMarkers(); }
       return;
     }
     for (const p of paths) {

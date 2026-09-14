@@ -37,6 +37,8 @@ The required target is still two seconds.
 Synchronous filesystem calls account for only a small part of the measured delay.
 Repeated serialization remains the main performance investigation.
 The comet trails and real agent names still need final installed visual checks.
+An agent heartbeat now refreshes its displayed name without moving its marker.
+All sixteen identity and trail browser checks passed on four browser targets.
 The latest browser run passed 231 tests.
 Three visual comparisons failed. Two tests were skipped.
 The failed images need review before their references can change.
