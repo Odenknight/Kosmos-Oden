@@ -53,7 +53,42 @@ export function observeStandaloneInputs(root, metafile) {
         packageManifestSha256: hash(manifestBytes), documents,
       });
     }
-    inputs.push({ path, packagePath, bytes: bytes.length, sha256: hash(bytes), bytesInOutput: contribution.bytesInOutput });
+    const input = { path, packagePath, bytes: bytes.length, sha256: hash(bytes), bytesInOutput: contribution.bytesInOutput };
+    if (components.get(packagePath).name === "gkos-engine") {
+      const inventoryPath = packagePath + "/dist/bundle-inputs.json";
+      const inventoryBytes = read(inventoryPath);
+      const inventory = JSON.parse(inventoryBytes.toString("utf8"));
+      if (inventory.schemaVersion !== 1 || inventory.scope !== "javascript-bundles-only"
+        || inventory.completeSbom !== false || !Array.isArray(inventory.artifacts)
+        || !Array.isArray(inventory.compilations)
+        || inventory.packageManifestSha256 !== components.get(packagePath).packageManifestSha256) fail();
+      const matches = inventory.artifacts.filter(artifact => packagePath + "/" + artifact.path === path);
+      if (matches.length !== 1) fail();
+      const artifact = matches[0];
+      if (artifact.bytes !== bytes.length || artifact.sha256 !== input.sha256
+        || !Array.isArray(artifact.compilations) || artifact.compilations.length !== 1) fail();
+      const index = artifact.compilations[0];
+      if (!Number.isSafeInteger(index) || index < 0) fail();
+      const compilation = inventory.compilations[index];
+      if (!compilation || compilation.sha256 !== input.sha256 || compilation.bytes !== bytes.length) fail();
+      const outputs = Object.values(compilation.metafile.outputs);
+      if (outputs.length !== 1 || outputs[0].imports.length !== 0) fail();
+      const sourceInputs = [];
+      for (const [sourcePath, metadata] of Object.entries(compilation.metafile.inputs)) {
+        // This producer currently bundles its own sources only. Refuse an unknown owner.
+        if (!sourcePath.startsWith("src/")) fail();
+        const source = read(packagePath + "/" + sourcePath);
+        if (source.length !== metadata.bytes) fail();
+        sourceInputs.push({ path: sourcePath, bytes: source.length, sha256: hash(source) });
+      }
+      if (!sourceInputs.length) fail();
+      input.prebundle = {
+        observation: "post-build", inventoryPath, inventorySha256: hash(inventoryBytes),
+        scope: "Producer compilation inputs; survival after viewer tree-shaking is not established",
+        sourceInputs,
+      };
+    }
+    inputs.push(input);
   }
   if (!inputs.length) fail();
   return {
