@@ -11,9 +11,13 @@ import { GkxIndex, type IndexChanges } from "gkos-engine";
 import type { SourceFile } from "gkos-engine";
 import { createKosmosApp } from "../renderer/renderer";
 import { validateHostMessage, wrap } from "./protocol";
+import { readableSpatialGraph } from "../workspace/spatial";
 
 const app = createKosmosApp({
   autoStart: "wait",
+  onSelectNote: id => {
+    if (projectionGeneration > 0) window.parent.postMessage(wrap("readable-selection", { generation: projectionGeneration, id }), "*");
+  },
   onOpenNote: (path, label) => {
     try { window.parent.postMessage(wrap("open-note", { path, label }), "*"); } catch (_) { /* sandboxed */ }
   },
@@ -45,6 +49,7 @@ interface UpdateMessage {
 }
 
 let navigationEnabled = false;
+let projectionGeneration = 0;
 
 function toSourceFiles(files: Array<{ relativePath: string; content: string }>): SourceFile[] {
   return (files || []).map((f) => ({ relativePath: f.relativePath, content: f.content, kind: "note" as const }));
@@ -77,6 +82,7 @@ function applyDelta(msg: UpdateMessage): void {
 }
 
 window.addEventListener("message", (ev: MessageEvent) => {
+  if (ev.source !== window.parent) return;
   const raw: any = ev && ev.data;
   if (!raw || typeof raw !== "object") return;
   try {
@@ -85,6 +91,26 @@ window.addEventListener("message", (ev: MessageEvent) => {
       const v = validateHostMessage(raw);
       if (!v.ok) { if (v.reason) console.warn("Kosmos-Oden: rejected host message —", v.reason); return; }
       const msg = v.message!;
+      if (msg.type === "select-readable-note") {
+        if (msg.payload.generation !== projectionGeneration) return;
+        const focused = app.focusNode(msg.payload.id);
+        if (!focused) app.showHint("This note is unavailable in the current view.");
+        window.parent.postMessage(wrap("readable-state", { generation: projectionGeneration, selectedId: focused ? msg.payload.id : null, error: focused ? null : "selection" }), "*");
+        return;
+      }
+      if (msg.type === "readable-graph") {
+        if (msg.payload.generation <= projectionGeneration) return;
+        const graph = readableSpatialGraph(msg.payload.graph);
+        app.clearSelection();
+        app.clearTraversalObservability();
+        app.setAttachments([]);
+        index.setFiles([], [], []);
+        const rendered = app.renderGraph(graph, "Readable notes");
+        if (rendered) projectionGeneration = msg.payload.generation;
+        window.parent.postMessage(wrap("readable-state", { generation: msg.payload.generation, selectedId: null, error: rendered ? null : "render" }), "*");
+        return;
+      }
+      if (projectionGeneration && (msg.type === "vault-snapshot" || msg.type === "vault-delta" || msg.type === "agent-traversal")) return;
       if (msg.type === "vault-snapshot") applySnapshot(msg.payload as FilesMessage);
       else if (msg.type === "vault-delta") applyDelta(msg.payload as UpdateMessage);
       else if (msg.type === "agent-traversal") app.notifyAgentTraversal((msg.payload as any).paths, (msg.payload as any).tool, (msg.payload as any).agent, false, (msg.payload as any).agentId);
@@ -93,6 +119,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       return;
     }
     // Backward-compatible path: legacy flat messages (older host builds).
+    if (projectionGeneration) return;
     if (raw.type === "kosmos:files") applySnapshot(raw as FilesMessage);
     else if (raw.type === "kosmos:update") applyDelta(raw as UpdateMessage);
     else if (raw.type === "kosmos:graph") app.renderGraph(raw.graph, raw.label);
@@ -108,4 +135,5 @@ window.addEventListener("message", (ev: MessageEvent) => {
 /* Test/diagnostic hook (no effect on normal use). */
 (window as any).__kosmosEmbed = {
   getIndexInfo: () => ({ notes: index.noteCount, parseCount: index.parseCount, diagnostics: index.getDiagnostics() }),
+  getProjectionGeneration: () => projectionGeneration,
 };

@@ -44,6 +44,7 @@ function hasWebGL2(): boolean {
 }
 
 export interface KosmosAppOptions {
+  onSelectNote?: (id: string | null) => void;
   /** Called when the user picks "Go to Note" (embed posts to the plugin). */
   onOpenNote?: (path: string, label?: string) => void;
   /** Called when the user picks "Expand Folder" on a folder-only galaxy/cluster
@@ -57,7 +58,9 @@ export interface KosmosAppOptions {
 
 export interface KosmosApp {
   ok: boolean;
-  renderGraph(graph: any, label?: string): void;
+  renderGraph(graph: any, label?: string): boolean;
+  focusNode(id: string): boolean;
+  clearSelection(): void;
   showDemo(): any;
   setConn(label: string, live: boolean): void;
   /** Live vault-connectivity signal: green dot + "connected" tooltip when the
@@ -85,7 +88,9 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const boot = document.getElementById("boot"), bootMsg = document.getElementById("bootMsg"), bootRing = document.getElementById("bootRing");
   const noopApp: KosmosApp = {
     ok: false,
-    renderGraph() {}, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
+    focusNode() { return false; },
+    clearSelection() {},
+    renderGraph() { return false; }, showDemo() {}, setConn() {}, setVaultStatus() {}, setAttachments() {}, notifyLiveEvent() {}, notifyAgentTraversal() {}, clearTraversalObservability() {}, setTrafficHeatmapEnabled() {}, clearTrafficHeatmap() {}, setHostVisible() {},
     getDiagnostics() { return null; }, getRenderStats() { return { frames: 0, running: false, drawCalls: 0 }; },
     showError() {}, showHint() {}, applyI18n() {}, dispose() {},
   };
@@ -679,7 +684,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (_p.z > 1) return null;
     return { x: (_p.x * 0.5 + 0.5) * window.innerWidth, y: (-_p.y * 0.5 + 0.5) * window.innerHeight, depth: _p.z };
   }
-  let labelScanT = 0;
+  let labelScanT = -Infinity; // Run the first layout even when capture freezes time at zero.
   let placedLabels: any[] = [];
   let _lastSel: any = null, _lastHov: any = null;
   function rescanLabels() {
@@ -1048,11 +1053,13 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     glow.mesh.instanceMatrix.needsUpdate = true;
     glow.attrs.aVisible.needsUpdate = true; glow.attrs.aColor.needsUpdate = true; glow.attrs.aSize.needsUpdate = true; glow.attrs.aLive.needsUpdate = true; glow.attrs.aSeed.needsUpdate = true;
   }
-  function selectNode(id: string, fly?: boolean) {
+  function selectNode(id: string, fly?: boolean, notify = true) {
+    const selected = G.nodeById.get(id);
+    if (notify) opts.onSelectNote?.(selected?.kind === "file" && !isHidden(id) ? id : null);
     selectedId = id; cam.autoRotate = false; applyHighlight(); showInspector(id);
     if (fly !== false && navMode !== "fly") startFlight(navMode === "overview" ? "focus" : navMode);
   }
-  function clearFocus() { selectedId = null; applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
+  function clearFocus(notify = true) { if (notify) opts.onSelectNote?.(null); selectedId = null; applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
 
   /* ---- UI wiring ---- */
   function updateStats() {
@@ -1134,7 +1141,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   window.addEventListener("resize", placeMobileInspector);
   window.addEventListener("orientationchange", () => setTimeout(placeMobileInspector, 120));
   if ((window as any).visualViewport) (window as any).visualViewport.addEventListener("resize", placeMobileInspector);
-  document.getElementById("insX") && document.getElementById("insX").addEventListener("click", clearFocus);
+  document.getElementById("insX") && document.getElementById("insX").addEventListener("click", () => clearFocus());
 
   let labelsEnabled = true;
   function toggleLabels() {
@@ -1685,7 +1692,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const now = performance.now(); let touched = false;
     if (!paths.length && tool === "ping") {
       const head = agentHeads.get(who);
-      if (head) { head.t = now; updateAgentMarkers(); }
+      if (head) { head.t = now; head.label = displayLabel; updateAgentMarkers(); }
       return;
     }
     for (const p of paths) {
@@ -2127,7 +2134,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const n of graph.nodes) {
       nodes.add(n.id);
       visual.set(n.id, (n.area || "") + "" + (n.color || "") + "" + (n.kind || ""));
-      meta.set(n.id, (n.label || "") + "" + (n.status || "") + "" + (n.type || "") + "" + ((n.tags || []).join(",")) + "" + ((n.aliases || []).join(",")) + "" + (n.updatedAt || 0) + "" + (n.validAt || "") + "" + ((n.gkx && n.gkx.invalidAt) || "") + "" + ((n.gkx && n.gkx.head) ? 1 : 0));
+      meta.set(n.id, JSON.stringify([n.label, n.status, n.type, n.tags, n.aliases, n.updatedAt, n.validAt, n.gkx]));
     }
     for (const l of graph.links) links.add(l.source + "" + l.target + "" + (l.kind || ""));
     return { nodes, links, visual, meta };
@@ -2148,13 +2155,14 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     for (const r of nodeRender) {
       const m: any = byId.get(r.node.id); if (!m) continue;
       r.node.tags = m.tags; r.node.status = m.status; r.node.type = m.type; r.node.label = m.label; r.node.aliases = m.aliases;
-      if (m.updatedAt != null) r.node.updatedAt = m.updatedAt;
-      if (m.validAt != null) { r.node.validAt = m.validAt; r.node.__vt = Date.parse(m.validAt); }
-      if (m.gkx) { r.node.gkx = m.gkx; r.node.__it = m.gkx.invalidAt ? Date.parse(m.gkx.invalidAt) : null; }
+      r.node.updatedAt = m.updatedAt;
+      r.node.validAt = m.validAt; r.node.__vt = m.validAt ? Date.parse(m.validAt) : null;
+      r.node.gkx = m.gkx; r.node.__it = m.gkx?.invalidAt ? Date.parse(m.gkx.invalidAt) : null;
     }
     if (graph.areas) G.areas = graph.areas;
     buildFilterUI();
     applyFilters();
+    if (selectedId) showInspector(selectedId);
     if (chronoT != null) setChronoTint();
   }
   function renderGraph(graph: any, label?: string) {
@@ -2167,9 +2175,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       } // else: identical — nothing to do
       __prevSig = sig;
       if (label) setConn(label, true);
+      return true;
     } catch (e) {
       console.error("Kosmos-Oden: failed to render graph", e);
       showFatal("Could not render this vault.");
+      return false;
     }
   }
 
@@ -2185,6 +2195,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
 
   const api: KosmosApp = {
     ok: true,
+    clearSelection: () => clearFocus(false),
+    focusNode(id) {
+      if (!G?.nodes.some((node: any) => node.id === id && node.kind === "file") || isHidden(id)) return false;
+      selectNode(id, true, false); return true;
+    },
     renderGraph,
     showDemo() {
       try { buildDemo(); ensureFrame(); return G; } catch (e) { console.error("Kosmos-Oden: demo failed", e); showFatal("The demo could not be built."); return null; }

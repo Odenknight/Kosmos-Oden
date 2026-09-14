@@ -298,3 +298,20 @@ User-Agent. Only the LAN request-rate limit exempts loopback. See
 
 Request bodies are byte-capped at 4 MiB, note/episode content is capped, every
 response is `Cache-Control: no-store`, and the server exposes no write tool.
+
+
+### Long-note continuation
+
+Ordinary `get_note` retains its existing capped response. For committed body pages,
+call `get_note` with a selector and `page_size` (2 to 200000 UTF-16 code units).
+Use the returned `continuation.next_offset` and `continuation.revision` for the
+next request. Stop at `next_offset: null`; `complete` then becomes true. Never
+invent offsets or concatenate pages with different revision tokens.
+
+The revision binds the vault, note path, current sensitivity policy and committed
+body. Changed content or scope returns `NOTE_REVISION_CHANGED`; restart at zero.
+The token is a read-continuation binding, not a full-source evidence digest.
+Pages never split a surrogate pair. Missing committed-body support is explicit,
+and notes exceeding 8000000 code units return `NOTE_READ_BUDGET_EXCEEDED`.
+Only authorized notes expose content, lengths or revision tokens. Pages return
+source summary plus content; ordinary calls still return full metadata and links.

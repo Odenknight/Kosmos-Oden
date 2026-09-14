@@ -127,3 +127,15 @@ suffices. For resilience, the renderer also still accepts the legacy flat
 shapes (`kosmos:files` / `kosmos:update` / `kosmos:open`) from older host
 builds; these will be removed in a future breaking release once no mixed
 host/renderer combinations remain.
+
+### Host open-request hardening (September 13)
+
+Legacy `kosmos:open` and `kosmos:folder` requests are normalized into current
+messages and pass the same path validation. A message carrying a protocol or
+version cannot fall back to legacy handling after envelope rejection. Both
+formats reject absolute paths, parent traversal, URL schemes, drive-relative
+paths and control characters. The host still requires the sender to be its own
+iframe window. Missing files produce an unavailable-note notice; opening a
+stale renderer target no longer invokes link resolution that could create a note.
+
+Full verification passes 445 tests and all build checks for this follow-up.

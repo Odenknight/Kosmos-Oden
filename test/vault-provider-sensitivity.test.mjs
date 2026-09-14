@@ -54,3 +54,20 @@ test("incremental provider updates retain the configured projection policy", asy
   provider.markChanged("unlabeled.md");
   assert.equal(sensitivity(await provider.getGraph(), "unlabeled.md"), "internal");
 });
+
+
+test("vault provider retains adapter-owned lineage receipts through initial and incremental graphs", async () => {
+  const { provider, contents } = fixture("internal");
+  contents.set("public.md", "---\nsensitivity: public\nsupersedes: [unlabeled, missing]\n---\nPublic");
+  const graph = await provider.getGraph();
+  const readable = new Set(["file:public.md"]);
+  const first = provider.inspectLineage(graph, "file:public.md", readable);
+  assert.equal(first.available, true);
+  assert.deepEqual(first.declarations.map(item => item.status), ["unresolved", "unresolved"]);
+  assert.equal(JSON.stringify(first).includes("unlabeled"), false);
+  contents.set("public.md", "---\nsensitivity: public\nsupersedes: [public]\n---\nPublic edited");
+  provider.markChanged("public.md");
+  const next = await provider.getGraph();
+  assert.deepEqual(provider.inspectLineage(next, "file:public.md", readable).declarations.map(item => item.status), ["self"]);
+  assert.equal(provider.inspectLineage(structuredClone(next), "file:public.md", readable).available, false);
+});

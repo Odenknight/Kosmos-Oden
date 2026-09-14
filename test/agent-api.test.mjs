@@ -1067,6 +1067,9 @@ test("settings migration: v1 (no schema) turns query tokens OFF (Doc1 §3.7)", (
   // defaults fill in for a null load
   const fresh = migrateAgentSettings(null);
   assert.equal(fresh.agentEnabled, DEFAULT_AGENT_SETTINGS.agentEnabled);
+  assert.equal(fresh.notesWorkspaceEnabled, false);
+  assert.equal(migrateAgentSettings({notesWorkspaceEnabled:true}).notesWorkspaceEnabled,true);
+  for(const value of ['true',1,{},null]) assert.equal(migrateAgentSettings({notesWorkspaceEnabled:value}).notesWorkspaceEnabled,false);
 });
 
 test("duplicate readable UIDs require an exact path across note queries", async () => {
@@ -1105,4 +1108,56 @@ test("duplicate names and aliases reject ambiguity while exact paths still work"
   for (const title of ["Shared", "common"])
     await assert.rejects(server.qNote({ title }), /Ambiguous note name/);
   assert.equal((await server.qNote({ path: "B/Shared.md" })).path, "B/Shared.md");
+});
+
+
+test("committed note continuation reconstructs Unicode content and rejects stale revisions", async () => {
+  const provider = fixtureProvider();
+  let body = "ab😀cd🚀ef", corpus = "fixture-vault";
+  provider.getIndexedBody = () => body;
+  provider.vaultIdentity = () => corpus;
+  const server = new KosmosAgentServer(http, settings(), provider);
+  let offset = 0, revision, text = "", pages = 0;
+  do {
+    const page = await server.callTool("get_note", {path:"Ideas/Engine v2.md",page_size:3,offset,...(revision?{revision}:{})});
+    assert.ok(!page.error, JSON.stringify(page)); assert.ok(!/[\uD800-\uDBFF]$/.test(page.content));
+    assert.ok(!/^[\uDC00-\uDFFF]/.test(page.content));
+    text += page.content; revision = page.continuation.revision; offset = page.continuation.next_offset; pages++;
+  } while (offset !== null);
+  assert.equal(text,body); assert.ok(pages>1);
+  await assert.rejects(server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:3,offset:3,revision}), /splits a Unicode/);
+  body += "changed";
+  assert.equal((await server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:3,offset:2,revision})).code,"NOTE_REVISION_CHANGED");
+  body = "ab😀cd🚀ef"; corpus = "different-vault";
+  assert.equal((await server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:3,offset:2,revision})).code,"NOTE_REVISION_CHANGED");
+  assert.equal((await server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:3,offset:2})).code,"NOTE_REVISION_CHANGED");
+  body = "x".repeat(8_000_001);
+  assert.equal((await server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:3})).code,"NOTE_READ_BUDGET_EXCEEDED");
+});
+
+test("note continuation checks authorization before body access and again after hashing", async () => {
+  const provider=fixtureProvider(); let reads=0;
+  provider.vaultIdentity=()=>"fixture-vault";
+  provider.getIndexedBody=()=>{reads++;return "synthetic body";};
+  const server=new KosmosAgentServer(http,settings({agentSensitivityCeiling:"public"}),provider);
+  assert.deepEqual(await server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:4}),{error:"note not found"});
+  assert.equal(reads,0);
+  server.settings.agentSensitivityCeiling="internal";
+  const graph=await provider.getGraph();let calls=0;
+  provider.getGraph=async()=>{if(++calls===2)server.settings.agentSensitivityCeiling="public";return graph;};
+  await assert.rejects(server.callTool("get_note",{path:"Ideas/Engine v2.md",page_size:4}),/Vault provider unavailable/);
+});
+
+
+test("note continuation refuses a provider replaced during final graph refresh", async () => {
+  const provider = fixtureProvider();
+  provider.vaultIdentity = () => "fixture-vault";
+  provider.getIndexedBody = () => "synthetic body";
+  const server = new KosmosAgentServer(http, settings(), provider);
+  const graph = await provider.getGraph(); let calls = 0;
+  provider.getGraph = async () => {
+    if (++calls === 2) server.provider = fixtureProvider();
+    return graph;
+  };
+  await assert.rejects(server.callTool("get_note", {path:"Ideas/Engine v2.md", page_size:4}), /Vault provider unavailable/);
 });

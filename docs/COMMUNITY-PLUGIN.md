@@ -8,14 +8,16 @@ viewer** stay cleanly separated, and how to publish and submit it.
 | Kind | Files | Where it lives | How a user gets it |
 |---|---|---|---|
 | **Plugin** | `manifest.json`, `styles.css`, `versions.json` (committed) + `main.js` (build output, gitignored) | source at repo root; all four attached to each release | Obsidian **Community plugins** browser / BRAT — Obsidian downloads only these files from the release |
+| **Desktop Effects inspection host** | `effects-inspection-host.cjs` (build output, gitignored) | attached to each release as an optional asset | manual installation beside `main.js`; Community plugins and BRAT do not fetch it |
 | **Standalone** | `kosmos-oden-stand-alone.html` (one self-contained file) | **not** committed (build output); attached to each release as its own asset | download the single file from the **Releases** page and open it in a browser |
 
 The standalone is **never** part of the plugin download — Obsidian only fetches
 `manifest.json` / `main.js` / `styles.css`. `kosmos-oden-stand-alone.html` is a separate,
 independently downloadable asset on the same release. Build outputs
-(`main.js`, `kosmos-oden-stand-alone.html`, `dist/`) are gitignored so the tracked tree
+(`main.js`, `effects-inspection-host.cjs`, `kosmos-oden-stand-alone.html`, `dist/`) are gitignored so the tracked tree
 shows only source + `manifest.json`/`styles.css`/`versions.json`; CI rebuilds
-`main.js` fresh on every push and attaches it to tagged releases.
+`main.js` and the optional host fresh on every push and attaches them to tagged
+releases.
 
 ## Cutting a release
 
@@ -36,7 +38,7 @@ Pre-releases use a semver suffix and are auto-marked as GitHub pre-releases
 
 The workflow runs `npm run verify`, checks the tag matches the manifest,
 assembles `release/` via `npm run package:release` (plugin files + standalone +
-`BUILD-INFO.json` + `SHA256SUMS`), verifies checksums, and creates the release
+optional desktop Effects inspection host + `BUILD-INFO.json` + `SHA256SUMS`), verifies checksums, and creates the release
 with each file as an individual asset.
 
 > Legacy `v*` tags still trigger the workflow, but new releases should use the
@@ -76,3 +78,5 @@ Browse**. Subsequent releases are picked up automatically from new tags.
   r185 renderer line.
 - **Manual**: copy `manifest.json` + `main.js` + `styles.css` into
   `<vault>/.obsidian/plugins/kosmos-oden/` and enable it.
+  Copy `effects-inspection-host.cjs` there too only when the desktop read-only
+  Effects inspection action is wanted.

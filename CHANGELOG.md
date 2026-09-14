@@ -1,5 +1,53 @@
 # Changelog
 
+## Renderer metadata refresh - 2026-09-13
+
+- Detect projection-only metadata changes, clear removed timestamps and GKX
+  values, and refresh the selected inspector when metadata changes in place.
+
+## Embedded host message boundary - 2026-09-13
+
+- Accept renderer control messages only from the embedding parent window, for
+  both current and legacy envelopes. Sandbox browser checks verify parent-driven
+  rendering and rejection of non-parent graph replacement in all four targets.
+
+## Renderer open-request validation - 2026-09-13
+
+- Apply current path validation to legacy renderer open messages. Reject URL
+  schemes and control characters in either format, and report missing targets
+  without invoking note-creating link resolution.
+
+## Notes workspace implementation candidate - 2026-09-13
+
+- Cancel pending search debounce when refreshing immediately, preventing a
+  delayed duplicate search from clearing a newly selected note.
+
+- Save Notes search, filters and selected path through the Obsidian layout API;
+  restore with fresh reads and policy checks, without saving preview content.
+
+- Retain the selected note through refresh and file/folder renames, with a new
+  authorized read. Clear deleted or unreadable selections.
+
+- Display Engine documentation assessment and diagnostics in the inspector,
+  with explicit unavailable values and a clarification that scores do not
+  establish truth or approval.
+
+- Add native search continuation beyond the first 100 matches, bound to the
+  original corpus, committed graph and policy, with explicit page ranges.
+
+- Add a separate native Notes command and ribbon entry, reusing MCP read policy
+  without starting a listener. Search and paged previews reject stale selections
+  and recheck corpus, committed graph, and policy before display or source opening.
+- Render resource-free Markdown and display five Engine provenance origins
+  separately. Editing opens the canonical file in Obsidian. Native qualification
+  and changing the default workspace remain pending.
+
+## Committed note continuation - 2026-09-13
+
+- Add opt-in `get_note` pages bound to the committed body, corpus and policy.
+  Reject stale revisions and provider replacement; preserve Unicode boundaries
+  and explicit page/read budgets. Existing full-note calls remain compatible.
+
 ## Graphiti recovery consumer - 2026-09-13
 
 - Pin the Engine query-contract/recovery source and consume its packaged
