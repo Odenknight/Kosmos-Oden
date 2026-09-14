@@ -81,6 +81,48 @@ jobs:
       - name: Compare
         run: diff -u first.sha256 second.sha256
 
+  native-history-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+
+      - name: Lockfile SHA guard (git deps must pin to a commit SHA)
+        run: npm run check:lockfile
+
+      - name: Install (clean, from lockfile)
+        run: npm ci
+
+      # This pass exercises the default Windows PowerShell ACL path. The
+      # Node-API-only branches in this file are conditional no-ops here.
+      - name: Native history storage (default PowerShell ACL path)
+        run: node --test test/native-history-database.test.mjs
+
+      - name: Build Windows ACL executable and Node-API helper
+        run: npm run build:history-acl
+
+      - name: Native history storage (executable ACL helper)
+        shell: pwsh
+        run: |
+          $env:KOSMOS_HISTORY_ACL_HELPER_PROFILE = (Resolve-Path 'dist/native/history-acl.json').Path
+          node --test test/native-history-database.test.mjs
+
+      # Supplying and checking the generated node-api profile makes every
+      # Node-API-specific branch in the focused test file active in this pass.
+      - name: Native history storage (Node-API ACL helper)
+        shell: pwsh
+        run: |
+          $profilePath = (Resolve-Path 'dist/native/history-acl-addon.json').Path
+          $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+          if ($profile.kind -ne 'node-api') { throw 'Expected the built Node-API ACL helper profile.' }
+          if (-not (Test-Path -LiteralPath $profile.path -PathType Leaf)) { throw 'Built Node-API ACL helper is missing.' }
+          $env:KOSMOS_HISTORY_ACL_HELPER_PROFILE = $profilePath
+          node --test test/native-history-database.test.mjs
+
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
