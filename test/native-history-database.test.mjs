@@ -27,7 +27,11 @@ function reportAclRefusal(directory){
  }catch{}
  console.error('# history-acl-diagnostic '+JSON.stringify({schema:2,scope:'existing-fixture-and-ancestors',reason,directoryCanonical,filePresent,fileCanonical,fileSingleLink}));
 }
-function powershell(directory,script){return execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_TEST_DIRECTORY:directory},stdio:['ignore','pipe','pipe']});}
+function powershell(directory,script,env={}){return execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_TEST_DIRECTORY:directory,...env},stdio:['ignore','pipe','pipe']});}
+function privatizeFixtureFile(directory,path){
+ assert.equal(dirname(path),directory);const stat=lstatSync(path);assert(stat.isFile()&&!stat.isSymbolicLink()&&stat.nlink===1);assert.equal(realpathSync(path),path);
+ powershell(directory,`$ErrorActionPreference='Stop';$path=$env:KOSMOS_HISTORY_TEST_FILE;$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User;$acl=[System.Security.AccessControl.FileSecurity]::new();$acl.SetOwner($sid);$acl.SetAccessRuleProtection($true,$false);foreach($id in @($sid.Value,'S-1-5-18','S-1-5-32-544')){$rule=[System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new($id),'FullControl','Allow');$acl.AddAccessRule($rule)};[System.IO.File]::SetAccessControl($path,$acl)`,{KOSMOS_HISTORY_TEST_FILE:path});
+}
 function fixture(t){
  const directory=mkdtempSync(join(homedir(),'.kosmos-history-test-'));
  t.after(()=>{assert.equal(dirname(directory),homedir());rmSync(directory,{recursive:true,force:true});});
@@ -114,7 +118,7 @@ test('Windows Node-API helper binds its profile and refuses untrusted module kin
 test('Windows Node-API module replacement invalidates the live capability',windows,t=>{
  if(helper?.kind!=='node-api')return;
  const f=fixture(t),modulePath=join(f.directory,basename(helper.path)),storage=join(f.directory,'storage.mjs'),runner=join(f.directory,'check.mjs');
- copyFileSync(helper.path,modulePath);writeFileSync(storage,bundle.outputFiles[0].text);
+ copyFileSync(helper.path,modulePath);privatizeFixtureFile(f.directory,modulePath);writeFileSync(storage,bundle.outputFiles[0].text);
  writeFileSync(runner,`
   import assert from 'node:assert/strict';
   import {renameSync,writeFileSync,unlinkSync,existsSync} from 'node:fs';
@@ -136,7 +140,7 @@ test('Windows Node-API module replacement invalidates the live capability',windo
 
 test('Windows Node-API checker refuses malformed arguments and matches the executable',windows,t=>{
  if(helper?.kind!=='node-api')return;
- const f=fixture(t);writeFileSync(f.path,'synthetic');
+ const f=fixture(t);writeFileSync(f.path,'synthetic');privatizeFixtureFile(f.directory,f.path);
  const module={exports:{}};process.dlopen(module,helper.path);const check=module.exports.check;
  for(const args of [[],[f.directory],[f.directory,f.path,'extra'],[null,f.path],[7,f.path],[f.directory+String.fromCharCode(0),f.path],['x'.repeat(32768),f.path],['',f.path],[f.directory,join(f.directory,'absent')]])assert.throws(()=>check(...args),/UNAVAILABLE/);
  const executable=JSON.parse(readFileSync('dist/native/history-acl.json','utf8'));
@@ -147,7 +151,7 @@ test('Windows Node-API checker refuses malformed arguments and matches the execu
 
 test('Windows Node-API loader refuses a shared installation before creating storage',windows,t=>{
  if(helper?.kind!=='node-api')return;
- const f=fixture(t),storage=fixture(t),path=join(f.directory,basename(helper.path));copyFileSync(helper.path,path);
+ const f=fixture(t),storage=fixture(t),path=join(f.directory,basename(helper.path));copyFileSync(helper.path,path);privatizeFixtureFile(f.directory,path);
  powershell(f.directory,`$ErrorActionPreference='Stop';$acl=Get-Acl -LiteralPath $env:KOSMOS_HISTORY_TEST_DIRECTORY;$rule=[System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.SecurityIdentifier]::new('S-1-1-0'),'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow');$acl.AddAccessRule($rule);[System.IO.Directory]::SetAccessControl($env:KOSMOS_HISTORY_TEST_DIRECTORY,$acl)`);
  assert.throws(()=>openDatabase(storage.directory,'observations.sqlite',()=>true,true,{...helper,path}),/UNAVAILABLE/);
  assert.equal(existsSync(storage.path),false);
