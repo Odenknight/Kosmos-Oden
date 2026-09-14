@@ -1,6 +1,6 @@
 # Current work: Kosmos-Oden and GKOS-Engine
 
-Updated: September 13, 2026.
+Updated: September 14, 2026.
 Owner of this implementation task: Astra-Oden.
 This is a short reading guide for the owner and other agents.
 Start with the “Read aloud” section when explaining this work to the owner.
@@ -37,8 +37,12 @@ New work adds validation fixtures and an exact output comparator.
 Passing component tests does not prove the complete product works.
 
 Terra is scheduled to check long-running qualification every six hours.
+The earlier Engine qualification has finished.
+It passed 1,140 tests on revision `a7b52b3`.
+That result does not qualify the newer Engine candidate.
 Portable alpha staging now checks supplied sidecar bytes against their manifests.
 It preserves prior packages and reports missing targets.
+It also includes a verified inventory of the viewer build inputs.
 Native execution and complete software inventories still need qualification.
 The upgrade remains on review branches.
 It has not been merged to main.
@@ -62,7 +66,8 @@ Kosmos work is on `codex/build-plan-completion-20260913`.
 The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `70b6a75`.
+This update describes Kosmos code through `c26af0d`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `ab38572`.
 Engine PR 73 builds on PR 72.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
 The pin and the Engine working branch are different revisions.
@@ -120,13 +125,31 @@ The earlier 400-test result applies to the tested main baseline, not this entire
 In GKOS-Engine, inspect `src/watcher/contracts.ts` on the branch listed above.
 One change computes each canonical sort key once.
 It avoids repeating serialization inside the sort comparison.
-The latest change rejects unsafe artifact inputs before reading their digest.
+Another change rejects unsafe artifact inputs before reading their digest.
 That prevents getters or proxies from running during validation.
 The performance report links the measured result and its limits.
+The latest Engine change records the build inputs for all 23 JavaScript bundles.
+All 23 bundle hashes stayed unchanged when that inventory was added.
+Read `docs/BUNDLE-INPUT-INVENTORY.md` in the Engine repository for its scope.
+
+In Kosmos, inspect `scripts/build.mjs` and `scripts/check-artifacts.mjs`.
+They create and verify the standalone viewer inventory.
+Inspect `scripts/portable-package.mjs` for portable package staging.
+It checks the viewer, its inventory, and each supplied sidecar before packaging.
+Read [portable staging](docs/standalone/PORTABLE-STAGING.md) for the commands and limits.
+These inventories are incomplete software inventories. They are not signed release approvals.
 
 ## Evidence and limits
 
 The latest full Kosmos verification passed 613 tests.
+That full run covers the code through `7256981`.
+The later packaging change at `c26af0d` passed two focused tests.
+It also staged the real viewer with a synthetic, non-executable sidecar.
+The full suite was not repeated for that packaging change.
+The older Engine qualification at `a7b52b3` passed 1,140 tests with no failures or skips.
+Its receipt explicitly says that the release is not qualified.
+The newer Engine candidate at `ab38572` still needs its full qualification run.
+Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
 Window visibility events now pause rendering and resume deferred updates when the view is visible again.
 Component tests cover this correction. Actual visible pop-out acceptance remains open.
@@ -152,6 +175,7 @@ Credentials and private deployment receipts are not stored in this repository.
 
 ## What comes next
 
+Qualify the current Engine candidate before changing the Kosmos dependency pin.
 Qualify production installation and the full history workload for the new adapter.
 Qualify native search, citations, permission changes, and outage recovery.
 Fix indexing latency and finish the required repeated runs and soak.
