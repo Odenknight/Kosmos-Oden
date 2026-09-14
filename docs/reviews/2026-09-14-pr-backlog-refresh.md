@@ -125,3 +125,31 @@ Complete SBOM generation and native distribution qualification remain open.
 
 Full `npm run verify` passed 613 tests, zero failures and zero skips, with all ancillary checks passing.
 The package tests use synthetic non-executable bytes; no native sidecar execution is claimed.
+
+
+## Desktop comparison and recovered backport guard
+
+GitHub still reports PR38 and PR41 open at the exact heads in the table.
+Comparison against candidate `33d454d` used each PR's changed paths from common
+base `3aab1e337a8442d6bc2463cab43cb9b4191291a2`, then compared Git tree entries.
+PR38 has 175 changed paths, with 132 entries identical to the candidate.
+PR41 has 182 changed paths, with 133 entries identical to the candidate.
+The remaining 43 and 49 paths all lie outside the vendored GLib tree.
+These counts establish source equality only, not complete behavior equivalence.
+
+The old desktop test file contained four checks. Their current disposition is:
+
+| Historical check | Current disposition |
+| --- | --- |
+| Generated viewer and IPC bridge | Current `desktop-bridge.test.mjs` executes the generated bridge. Start and Reconnect wait for readiness; Stop and later controls invalidate stale completions. The old immediate-navigation behavior is superseded. |
+| Sidecar authority, arguments, restart and shutdown source guards | Source is present but has changed. Complete behavior reconciliation and native acceptance remain open. |
+| GLib backport and provenance markers | Restored as `desktop-backport.test.mjs`. It checks the patch selection, crate metadata, mutable output pointer and retained provenance markers. |
+| Portable alpha packaging | Replaced by the current isolated manifest-bound packaging tests described above. The historical test's deletion of checkout release output was not restored. |
+
+All eight selected desktop/backport/readiness tests pass. An isolated fixture
+changed the corrected mutable output pointer back to its old form; the restored
+guard failed by its intended assertion. Repository source stayed unchanged.
+The guard checks source and provenance markers. It does not independently audit
+the upstream patch or qualify native Linux runtime memory safety.
+No dependency, vendor source, installed package, or release artifact was changed.
+PR38/41 remain open pending their other unique behaviors and release gates.
