@@ -37,3 +37,49 @@ test("component observations bind contributing files and nearest package declara
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+
+test("Engine pre-bundle observations require matching producer bytes and confined source inputs", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-prebundle-"));
+  try {
+    const put = (path, data) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), data); };
+    const hash = value => createHash("sha256").update(value).digest("hex");
+    const prefix = "node_modules/gkos-engine/";
+    const manifest = JSON.stringify({ name: "gkos-engine", version: "2.2.0" });
+    put(prefix + "package.json", manifest);
+    put(prefix + "dist/engine.mjs", "bundle");
+    put(prefix + "src/index.ts", "source");
+    const inventory = {
+      schemaVersion: 1, scope: "javascript-bundles-only", completeSbom: false,
+      packageManifestSha256: hash(manifest),
+      artifacts: [{ path: "dist/engine.mjs", bytes: 6, sha256: hash("bundle"), compilations: [0] }],
+      compilations: [{ bytes: 6, sha256: hash("bundle"), metafile: {
+        inputs: { "src/index.ts": { bytes: 6 } }, outputs: { "index.js": { imports: [] } },
+      } }],
+    };
+    const metadata = { inputs: { [prefix + "dist/engine.mjs"]: { bytes: 6 } },
+      outputs: { "out.js": { imports: [], inputs: { [prefix + "dist/engine.mjs"]: { bytesInOutput: 2 } } } } };
+    const save = () => put(prefix + "dist/bundle-inputs.json", JSON.stringify(inventory));
+    save();
+    const observed = observeStandaloneInputs(root, metadata);
+    assert.equal(observed.inputs[0].prebundle.sourceInputs[0].sha256, hash("source"));
+    assert.equal(observed.completeSbom, false);
+    inventory.artifacts[0].sha256 = hash("stale"); save();
+    assert.throws(() => observeStandaloneInputs(root, metadata));
+    inventory.artifacts[0].sha256 = hash("bundle");
+    inventory.artifacts.push(inventory.artifacts[0]); save();
+    assert.throws(() => observeStandaloneInputs(root, metadata));
+    inventory.artifacts.pop();
+    inventory.compilations[0].metafile.inputs = { "src/../../escape": { bytes: 6 } }; save();
+    assert.throws(() => observeStandaloneInputs(root, metadata));
+    inventory.compilations[0].metafile.inputs = { "src/index.ts": { bytes: 6 } };
+    inventory.compilations[0].metafile.outputs["index.js"].imports.push({ path: "external" }); save();
+    assert.throws(() => observeStandaloneInputs(root, metadata));
+    inventory.compilations[0].metafile.outputs["index.js"].imports = []; save();
+    put(prefix + "src/index.ts", "longer source");
+    assert.throws(() => observeStandaloneInputs(root, metadata));
+  } finally {
+    assert.equal(dirname(resolve(root)), resolve(tmpdir()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -143,3 +143,17 @@ An Engine pre-bundle still needs its own nested source/component closure. Missin
 notice files are not invented or treated as evidence of no notice requirement.
 The inventory therefore retains `completeSbom: false`; it does not qualify a
 release or replace the complete artifact SBOM gate.
+
+## Engine pre-bundle observations
+
+For each contributing Engine bundle, the observer now checks its producer inventory
+against the actual bundle size/hash and package manifest. It records the inventory
+hash and the producer compilation source paths, sizes and current SHA-256 hashes.
+Unknown source owners, path traversal, duplicate artifact matches, external output
+imports and stale bundle/source-size bindings are refused. These observations are
+carried in the existing viewer inventory and CycloneDX observed-input property.
+
+These are post-build source observations, not producer source-hash attestations.
+They do not prove which producer inputs survive the viewer tree-shaking step, rule
+out same-length changes during compilation, or close license/component coverage.
+The composition remains incomplete.
