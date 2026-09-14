@@ -20,11 +20,11 @@ They should not show the connection type, such as MCP.
 The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
-The latest Kosmos verification passed 632 tests and the full verification chain.
+The latest full local Kosmos verification passed 633 tests and the verification chain.
 The complete four-browser run passed 246 checks with two declared platform skips.
-All twelve reference images have independent approval. Its earlier full
-run failed the Windows private history database check; that intermittent failure
-remains under diagnosis and is not erased by the newer pass.
+All twelve reference images have independent approval. Earlier Windows history
+failures remain preserved. Explicit private file creation and correct helper
+installation now pass all three hosted storage backends, 12 tests each.
 Its pinned Engine passed 1,215 tests on Node 24.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
