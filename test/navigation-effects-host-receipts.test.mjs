@@ -123,3 +123,79 @@ test('installed Engine package produces usable host inspection and shutdown rece
     rmSync(vault, { recursive: true, force: true });
   }
 });
+
+
+test('installed Engine interrupted inspections preserve every file and require host action', async t => {
+  const { planMocApply } = await import('gkos-engine/navigation-effects');
+  const { NodeNavigationEffectsExecutor, SimulatedEffectCrash } = await import('gkos-engine/navigation-effects/node');
+  const { mkdir, mkdtemp, readFile, readdir, rm, writeFile } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { dirname, join, resolve } = await import('node:path');
+  const parent = resolve(tmpdir());
+  async function snapshot(root) {
+    const entries = [];
+    async function visit(directory, prefix = '') {
+      for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+        const relative = `${prefix}${entry.name}`;
+        if (entry.isDirectory()) { entries.push([relative, 'directory']); await visit(join(directory, entry.name), `${relative}/`); }
+        else { assert.ok(entry.isFile()); entries.push([relative, (await readFile(join(directory, entry.name))).toString('base64')]); }
+      }
+    }
+    await visit(root);
+    return entries;
+  }
+  for (const point of ['after-prepared', 'after-temporary-write', 'after-replace']) await t.test(point, async () => {
+    const vault = await mkdtemp(join(parent, 'kosmos-pending-effects-'));
+    const before = 'Synthetic original source';
+    const actor = { actorId: 'human:fixture', actorType: 'human' };
+    const policyRef = { id: 'effects', version: '1', digest: D };
+    let authorityCalls = 0;
+    const writer = new NodeNavigationEffectsExecutor({ vaultRoot: vault, pathThreatModel: 'cooperative-vault',
+      preconditionValidator: () => [],
+      faultInjector: observed => { if (observed === point) throw new SimulatedEffectCrash(point); } });
+    const reader = new NodeNavigationEffectsExecutor({ vaultRoot: vault, pathThreatModel: 'cooperative-vault',
+      preconditionValidator: () => { authorityCalls++; return ['AUTHORITY_REVOKED']; } });
+    try {
+      await mkdir(join(vault, 'topics'));
+      await writeFile(join(vault, 'topics/index.md'), before);
+      const planned = await planMocApply({
+        candidate: { artifactKind: 'engine.moc-candidate', candidateId: 'candidate:fixture', directory: 'topics',
+          targetPath: 'topics/index.md', candidateBytes: '# Synthetic topics\n', digest: 'candidate-digest',
+          sourceSnapshotDigest: D, configRef: { id: 'config', version: 1, digest: D }, policy: policyRef, sourceRefs: [] },
+        currentBytes: before,
+        ownership: { targetPath: 'topics/index.md', ownership: 'fully-managed',
+          adoptedDigest: `sha256:${createHash('sha256').update(before).digest('hex')}`,
+          adoptedBy: actor, adoptedAt: '2026-09-14T00:00:00Z', adoptionReceiptId: 'receipt:fixture' },
+        vaultId: 'vault:fixture', corpusDigest: D, policyRef,
+        authority: { actor, grantId: 'grant:moc:apply', allowedRoot: 'topics', capability: 'moc:apply',
+          sensitivityCeiling: 'secret', policyRef },
+        authorityEvaluatedAt: '2026-09-14T00:00:00Z', archiveDate: '2026-09-14', runId: `run-${point}`,
+      });
+      assert.equal(planned.status, 'planned');
+      await assert.rejects(writer.execute({ plan: planned.plan, proposedBytes: planned.proposedBytes }),
+        new RegExp(`SIMULATED_EFFECT_CRASH:${point}`));
+      await writer.releaseVaultLease();
+      const tree = await snapshot(vault);
+      const observed = await reader.inspectRecovery();
+      assert.equal(observed.results.length, 1);
+      assert.equal(observed.results[0].effectId, planned.plan.effectId);
+      for (const profile of ['obsidian', 'standalone-native']) {
+        const mapped = await api.mapEngineRecoveryInspection(profile, observed);
+        assert.equal(mapped.inspection.status, 'action-required');
+        assert.equal(mapped.engineInspectionDigest, observed.inspectionDigest);
+        assert.equal(mapped.inspection.engineWriteCapabilityMayEnable, false);
+        assert.equal(mapped.inspection.automaticWriteEnabled, false);
+      }
+      assert.equal(authorityCalls, 0, 'inspection must not call the recovery authority provider');
+      assert.deepEqual(await snapshot(vault), tree, 'inspection and receipt mapping must preserve all entries and bytes');
+      assert.equal(await readFile(join(vault, 'topics/index.md'), 'utf8'), point === 'after-replace' ? planned.proposedBytes : before);
+      assert.equal((await reader.inspectRecovery()).inspectionDigest, observed.inspectionDigest);
+    } finally {
+      await writer.releaseVaultLease();
+      await reader.releaseVaultLease();
+      assert.equal(dirname(vault), parent);
+      assert.ok(vault.startsWith(join(parent, 'kosmos-pending-effects-')));
+      await rm(vault, { recursive: true, force: true });
+    }
+  });
+});

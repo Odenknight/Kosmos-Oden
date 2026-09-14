@@ -52,3 +52,14 @@ Engine checkout remain historical evidence. The native adapter now identifies
 missing host bindings instead of claiming that the new Engine APIs are absent.
 Its capabilities and every production operation remain unavailable until the
 complete host authority, path-safety and durability contract is implemented.
+
+
+The installed-package integration now also covers injected interruptions after
+preparation, temporary-file writing, and source replacement. Each case maps the
+actual Engine inspection for both Obsidian and standalone hosts. All report
+that action is required and keep both write flags false. The check compares
+all directory entries and file bytes before and after inspection and mapping.
+It also verifies that inspection does not call the recovery authority provider.
+Repeated inspection returns the same digest while the evidence is unchanged.
+These are synthetic exception boundaries, not hard process termination tests.
+They do not qualify production recovery controls or grant source-write authority.

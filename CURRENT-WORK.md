@@ -20,7 +20,7 @@ They should not show the connection type, such as MCP.
 The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
-The latest Kosmos verification passed 621 tests.
+The latest Kosmos verification passed 625 tests.
 Its pinned Engine passed 1,213 tests.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
@@ -72,9 +72,11 @@ Changes on the review branch are not automatically installed.
 
 ## Immediate work
 
-The installed Engine test covers an empty recovery journal and completed shutdown.
-The next check should cover interrupted operations with pending journal entries.
-Inspection must preserve source files and journal bytes.
+The installed Engine tests cover empty journals, shutdown, and three interrupted states.
+The interruption checks cover preparation, temporary writing, and source replacement.
+Inspection preserves all directory entries, source files, and journal bytes.
+Both host profiles require action and keep writes disabled.
+These synthetic checks do not yet prove production recovery.
 An inspection result must never grant permission to write.
 The host must resolve the actor and current authority separately.
 Then the recovery controls can be connected to the Engine API.
