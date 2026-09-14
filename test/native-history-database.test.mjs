@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
-import {mkdtempSync,rmSync,renameSync,writeFileSync,unlinkSync,linkSync,existsSync,readFileSync,copyFileSync,appendFileSync} from 'node:fs';
+import {mkdtempSync,rmSync,renameSync,writeFileSync,unlinkSync,linkSync,existsSync,readFileSync,copyFileSync,appendFileSync,realpathSync,lstatSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {join,dirname,basename} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -12,17 +12,20 @@ const openNativeHistoryDatabase=(...args)=>openDatabase(args[0],args[1],args[2],
 const windows={skip:process.platform!=='win32'};
 function reportAclRefusal(directory){
  if(process.env.KOSMOS_HISTORY_ACL_DIAGNOSTIC!=='reason-v1')return;
- let reason='diagnostic-error';
+ let reason='diagnostic-error',directoryCanonical=null,filePresent=null,fileCanonical=null,fileSingleLink=null;
  try{
+  directoryCanonical=realpathSync(directory)===directory;
+  const file=join(directory,'observations.sqlite');filePresent=existsSync(file);
+  if(filePresent){fileCanonical=realpathSync(file)===file;fileSingleLink=lstatSync(file).nlink===1;}
   // Reuse the actual checker in a read-only diagnostic; never print its ACL output.
   const source=readFileSync('src/workspace/native-history-database.ts','utf8');
   const checker=source.match(/const WINDOWS_PRIVATE = `([^`]+)`;/)?.[1];
   assert(checker && !checker.includes('${'));
-  const script=`$env:KOSMOS_HISTORY_DIRECTORY=$env:KOSMOS_HISTORY_TEST_DIRECTORY;$env:KOSMOS_HISTORY_FILE='';try { & {${checker}} | Out-Null; 'ok' } catch { $known=@('remote','parent-owner','parent-access','owner','acl','shared','access');if($_.Exception.Message -cin $known){$_.Exception.Message}else{'diagnostic-error'} }`;
+  const script=`$env:KOSMOS_HISTORY_DIRECTORY=$env:KOSMOS_HISTORY_TEST_DIRECTORY;$file=Join-Path $env:KOSMOS_HISTORY_DIRECTORY 'observations.sqlite';$env:KOSMOS_HISTORY_FILE=if(Test-Path -LiteralPath $file){$file}else{''};try { & {${checker}} | Out-Null; 'ok' } catch { $known=@('remote','parent-owner','parent-access','owner','acl','shared','access');if($_.Exception.Message -cin $known){$_.Exception.Message}else{'diagnostic-error'} }`;
   const result=execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,timeout:5000,maxBuffer:1024,stdio:['ignore','pipe','pipe'],env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=='psmodulepath')),KOSMOS_HISTORY_TEST_DIRECTORY:directory}}).trim();
   if(['ok','remote','parent-owner','parent-access','owner','acl','shared','access'].includes(result))reason=result;
  }catch{}
- console.error('# history-acl-diagnostic '+JSON.stringify({schema:1,scope:'directory-and-ancestors',reason}));
+ console.error('# history-acl-diagnostic '+JSON.stringify({schema:2,scope:'existing-fixture-and-ancestors',reason,directoryCanonical,filePresent,fileCanonical,fileSingleLink}));
 }
 function powershell(directory,script){return execFileSync(join(process.env.SystemRoot,'System32/WindowsPowerShell/v1.0/powershell.exe'),['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{encoding:'utf8',windowsHide:true,env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>key.toLowerCase()!=="psmodulepath")),KOSMOS_HISTORY_TEST_DIRECTORY:directory},stdio:['ignore','pipe','pipe']});}
 function fixture(t){
