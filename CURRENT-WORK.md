@@ -53,8 +53,8 @@ in a full Windows Node 22.22.1 run. Draft Engine PR 78 preserves that candidate.
 The same commit also passed all 1,216 tests on Windows Node 24.18.0.
 Draft Engine PR 79 fixes CI dependency setup and adds actual Linux rename-refusal
 coverage. Its final hosted matrix passed on Node 22, 24 and 26 on Windows
-and Ubuntu. The consumer now pins `3ed9127`; all 633 local tests and required
-verification checks passed. The older `13ff119` failure remains preserved.
+and Ubuntu. At that stage the consumer pinned `3ed9127`; all 633 local tests
+and required verification checks passed. The older `13ff119` failure remains preserved.
 The upgrade remains on review branches.
 It has not been merged to main.
 
@@ -68,11 +68,13 @@ It has not been merged to main.
 | GKOS-Engine-Rust | `codex/rust-differential-core-20260913` | Validation fixtures and the output comparator. |
 | GKOS-standard | Shared specification repository | Contract definitions used by the implementations. |
 
-Kosmos currently pins Engine `3ed9127fa01685c113470e79f013bde56f1a8441`.
-The complete hosted matrix passed 1,216 tests per Windows lane and 1,219 per
-Ubuntu lane, with no failures or skips. All six receipts, source bindings and
-raw logs were verified. Node 26 remains informative. See the
-[hosted qualification report](docs/reviews/2026-09-14-engine-hosted-runtime-qualification.md).
+Kosmos currently pins Engine `a6ab4764ba858a1af07333311337230f3a1d4f29`.
+Its complete hosted matrix passed 1,217 tests per Windows lane and 1,220 per
+Ubuntu lane, with no failures or skips. Native Windows and Debian runs also
+passed. All source bindings and raw logs were verified; Node 26 is informative.
+See the [current Engine report](docs/reviews/2026-09-14-engine-native-string-qualification.md).
+The separate native build reproducibility candidate is in
+[Engine PR 81](https://github.com/Odenknight/GKOS-Engine/pull/81); it is not the consumer pin.
 The earlier failed `13ff119` Node 22 result remains historical evidence in the
 [Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
 
@@ -155,3 +157,12 @@ Keep successful tests, installed behavior, and release approval distinct.
 Signed implementation a9fc58cdc11bcd8b1b2fe5d04fdb4aad6c8ebdbd adds the bounded native Linux/ext-family history file guard. It does not enable production history. Independent review and real Debian checks cover SQLite creation/reopen, ownership/modes, ACL masks, permanent invalidation, journal privacy, and non-ext filesystem refusal. All seven focused Debian cases passed without skips. Full Debian verification passed 626 tests with 13 platform/environment skips before the final additional ACL test; full Windows verification passed 633 tests with seven Linux skips after isolating the tool-harness ACL mutation reproduced by a controlled probe. Historical failures remain recorded. Exact source/log hashes and scope are in `docs/workspace/NATIVE-HISTORY-STORAGE.md`.
 
 This does not close production owner integration, persistent storage deployment, retention/backup/recovery, performance, installed acceptance, or deferred macOS gates. The installed plugin candidates and Engine 3ed9127 pin are unchanged. Hosted checks for this new component must be assessed against its new source, separately from the successful 231b996 run.
+
+## Hosted combined-consumer evidence
+
+At `422ccdc43f2b35b385c13af32959fa5a89b13206`, hosted CI, Chromium and security
+checks passed. CI recorded 633 Ubuntu passes with 13 declared skips and all
+36 Windows history checks across three backends. Chromium recorded 46 passes.
+The two-build artifact comparison includes the optional Effects host. These
+results supplement the four-browser and native consumer evidence; installed
+acceptance and all remaining release gates stay open.

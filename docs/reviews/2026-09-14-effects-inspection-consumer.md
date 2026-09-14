@@ -45,3 +45,24 @@ This does not qualify visible installed inspection, source execution, authorized
 recovery, persistent reconciliation, native macOS, watcher performance or soak.
 The standard Community/BRAT installation does not fetch the optional host.
 Source effects remain unavailable; no release or main merge is authorized.
+
+## Hosted verification at published head
+
+[CI run 34847565073](https://github.com/Odenknight/Kosmos-Oden/actions/runs/34847565073),
+[Chromium run 34847565003](https://github.com/Odenknight/Kosmos-Oden/actions/runs/34847565003)
+and [security run 34847565139](https://github.com/Odenknight/Kosmos-Oden/actions/runs/34847565139)
+completed successfully at `422ccdc43f2b35b385c13af32959fa5a89b13206`.
+The source change from the locally qualified commit is evidence documentation.
+
+Ubuntu recorded 646 tests: 633 passed, zero failed, 13 skipped. All three
+Windows history backends passed their 12 tests without skips. Hosted Chromium
+passed 46 tests. The reproducibility job rebuilt and compared main.js, the
+optional Effects host, standalone and embed artifacts; all four matched.
+Their individual digest values are not printed in that log.
+
+The coordinator independently checked the delegated report, exact head metadata,
+raw log hashes and recorded counts. Raw CI log SHA-256:
+`f7783672229122da8a84e0f8ed0c46a76347f3466562f1638f70a8b2c1ff64fb`;
+Chromium: `91a25b38367ac1c2ddd91dd01c614ff931fac67cfc29aa806e6f0dc45bc0f728`;
+security: `cad907fd3c25bcea8af62b7cbedea87d802f087086f835180cc1722446d13c35`.
+These hosted checks do not close the installed-host or release limits above.
