@@ -104,7 +104,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 578 tests.
+The latest completed Kosmos verification passed 584 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -160,7 +160,7 @@ Projection publications now reference exact committed source observations.
 They keep their own observation time and preserve the original source times.
 Projection references now reject duplicate UUID identities written with different letter case.
 Existing source records are preserved.
-An actual native publication-witness adapter still needs to be connected.
+The native publication-witness adapter now exists. Its production owner wiring still needs to be connected.
 An independent deny authority now keeps deletion decisions outside history backups.
 A synthetic restore test confirms that an old history backup cannot undo a current denial.
 A shared host binding now checks corpus identity and combines native permission with the deny authority.
@@ -187,6 +187,12 @@ An isolated Obsidian test confirmed rollback after a source revision changed dur
 A fresh capture then committed successfully.
 The full verification passes 578 tests.
 Production history is still disabled. Owner controls and private storage integration remain open.
+
+The native projection-history witness now shares the semantic publication verifier.
+It connects a verified published index to exact retained source receipts.
+The ledger independently rejects fabricated retained receipts.
+Six new fixtures pass. Full verification passes 584 tests.
+Production publication readback and owner controls remain unfinished.
 
 ## What still needs work
 

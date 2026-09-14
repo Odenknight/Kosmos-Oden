@@ -40,10 +40,31 @@ export async function prepareNativeSemanticClient(options: {
   transportBudget?: {active: number};
 }, signal: AbortSignal): Promise<ReturnType<typeof createSemanticQueryClient> | null> {
   try {
-    const {api, endpoint, token, current: hostCurrent, fetcher, transportBudget, projectionTime} = options;
+    const {endpoint, token, fetcher, transportBudget} = options;
+    const prepared = await prepareNativePublication(options, signal);
+    if (!prepared) return null;
+    const {verified, current} = prepared;
+    return createSemanticQueryClient({endpoint, token, fetcher, transportBudget, current: () => {
+      if (!current()) throw new Error("NATIVE_SEMANTIC_UNAVAILABLE");
+      return {status:{contract_version:GRAPHITI_QUERY_CONTRACT_VERSION,mode:"managed",searchable:true,binding:{...verified.binding}},
+        decision:"allow",complete_dependency_scope:true,authorized_episodes:structuredClone(verified.episodes)};
+    }});
+  } catch { return null; }
+}
+
+/** Shared native publication witness for queries and retained projection history. */
+export async function prepareNativePublication(options: Pick<Parameters<typeof prepareNativeSemanticClient>[0],
+  "api" | "authority" | "publication" | "projectionTime" | "current">, signal: AbortSignal) {
+  try {
+    const {api, current:hostCurrent, projectionTime} = options;
+    // Use one detached plain-data receipt for both verification and its digest.
+    const publication = structuredClone(options.publication) as any;
+    if (JSON.stringify(publication).length > 16 * 1024 * 1024) return null;
+    const publicationDigest = publication?.observation;
     let manifestCurrent: (() => boolean) | undefined, invalidated = false;
     const current = () => {
-      if (signal.aborted || hostCurrent() !== true || manifestCurrent && manifestCurrent() !== true) invalidated = true;
+      try { if (signal.aborted || hostCurrent() !== true || manifestCurrent && manifestCurrent() !== true) invalidated = true; }
+      catch { invalidated = true; }
       return !invalidated;
     };
     if (!current()) return null;
@@ -53,13 +74,9 @@ export async function prepareNativeSemanticClient(options: {
       manifestCurrent = manifest.current;
       if (!current()) throw new Error("NATIVE_SEMANTIC_UNAVAILABLE");
       return manifest;
-    }, {...options.authority}, options.publication);
-    if (!verified || !manifestCurrent || !current()) return null;
-    return createSemanticQueryClient({endpoint, token, fetcher, transportBudget, current: () => {
-      if (!current()) throw new Error("NATIVE_SEMANTIC_UNAVAILABLE");
-      return {status:{contract_version:GRAPHITI_QUERY_CONTRACT_VERSION,mode:"managed",searchable:true,binding:{...verified.binding}},
-        decision:"allow",complete_dependency_scope:true,authorized_episodes:structuredClone(verified.episodes)};
-    }});
+    }, {...options.authority}, publication);
+    if (!verified || !manifestCurrent || !current() || typeof publicationDigest !== "string") return null;
+    return {verified, current, publicationDigest};
   } catch { return null; }
 }
 

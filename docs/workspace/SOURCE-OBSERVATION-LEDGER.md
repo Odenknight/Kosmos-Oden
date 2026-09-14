@@ -77,7 +77,7 @@ It must attest the exact observed publication, configuration, generation, and re
 A caller-provided string or remote readiness claim alone is not a witness.
 The ledger passes the callback a detached copy and checks the witness again before commit.
 Current source read access and retained source bytes are also checked.
-The native Graphiti-to-history witness adapter is not implemented yet.
+A native Graphiti-to-history witness adapter now exists. Its production owner wiring remains unfinished.
 
 Projection append uses the same atomic transaction, retry, capacity and clock rules.
 It does not change original source bytes, source observation times, or authored validity.
@@ -177,3 +177,26 @@ A fresh source capture then committed one observation that survived closing and 
 Temporary storage was removed afterward. The installed plugin was not replaced.
 The probe used synthetic owner bindings. It does not qualify private-directory ownership,
 production retention approval, independent authority wiring, or the full native history workflow.
+
+## Native publication witness
+
+`prepareNativeHistoryProjection` reuses the publication verifier used by native semantic queries.
+It reconciles the retained publication receipt against a fresh authorized source manifest.
+It requires an exact retained reference for every distinct published source.
+Missing sources, extra references, wrong digests and duplicate UUID identities are refused.
+The history corpus must match the native provider identity.
+The Graphiti namespace remains a separate identity inside the verified publication binding.
+
+The prepared input records the verified projection ID, configuration, scope and policy digests,
+and the exact observation digest from the same detached receipt that was verified.
+The immutable source references retain their original observation receipts and times.
+`projectionCurrent` attests only that exact input while the native publication remains current.
+The owner must wire this callback into its history host before append.
+The ledger independently revalidates all source receipts and bytes at append.
+A fabricated retained receipt therefore fails even when its source digest matches the publication.
+
+Six synthetic fixtures cover successful append/retry, invalid source coverage, forged retained receipts,
+revocation, input mutation during preparation, corpus changes, and a changing publication property.
+Full verification passes 584 tests, including existing semantic query behavior.
+This native component is not yet connected to production owner controls or publication readback.
+The earlier actual Obsidian source-capture probe does not qualify this new publication witness end to end.
