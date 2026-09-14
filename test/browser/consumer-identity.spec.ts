@@ -79,6 +79,9 @@ test('embed heartbeat updates an idle registered agent name without moving its m
   await page.evaluate(() => { (window as any).agentTimeOffset = 130000; });
   await expect(marker).toHaveAttribute('data-state', 'idle');
   await expect.poll(() => marker.evaluate(el => Number((el as HTMLElement).style.opacity))).toBeLessThan(0.8);
+  // Marker refresh and trail expiry run on different render frames. Establish
+  // an empty trail before asserting that a heartbeat creates no traversal.
+  await expect.poll(() => page.evaluate(() => (window as any).__kosmos.getDiagnostics().agentTraversalHops)).toBe(0);
   await page.evaluate(() => window.postMessage({ protocol: 'kosmos-oden', version: 1, type: 'agent-traversal',
     payload: { paths: [], tool: 'ping', agent: 'JEFFREY', agentId: 'agent:jeffrey' } }, '*'));
   await expect(marker.locator('.agent-name > span').first()).toHaveText('JEFFREY');
