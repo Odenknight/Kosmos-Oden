@@ -80,7 +80,7 @@ The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
 This update includes release preservation through `274dbdb` and the reconciliation path correction.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `5449461`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `6f1486f`.
 Its last full qualification tested the earlier `ab38572` revision and failed.
 Engine PR 73 builds on PR 72.
 Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `09857b1`.
@@ -170,10 +170,14 @@ It passed 1,162 of 1,163 tests, with no skips.
 A Windows directory swap-and-restore escaped detection.
 Stress testing reproduced the problem. A proposed timestamp check was insufficient and removed.
 An isolated Windows handle probe blocked all 200 rename attempts, including from Node.
-A native Node-API guard now builds and passes five dedicated Windows tests.
+A native Node-API guard now builds and passes six dedicated Windows tests.
 Directory guards now allow the intended child-file changes while blocking directory replacement.
 A separate process attempted 800 retained-file and parent mutations. All were refused.
-It still needs to be integrated into the watcher and pass full qualification.
+The shared watcher transition now holds these guards through its final authority check.
+All 12 pointer tests passed. The original attack was rejected in all 200 repeated attempts.
+The loader refuses missing or altered native binaries before creating a file.
+Six native tests passed. The new full qualification run is active.
+Production installation and the remaining publication paths still need qualification.
 Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
