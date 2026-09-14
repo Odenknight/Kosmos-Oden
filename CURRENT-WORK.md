@@ -42,6 +42,9 @@ It passed 1,140 tests on revision `a7b52b3`.
 That result does not qualify the newer Engine candidate.
 Portable alpha staging now checks supplied sidecar bytes against their manifests.
 It preserves prior packages and reports missing targets.
+Ordinary release packaging now stages the replacement before moving the old package.
+The old package is retained in a separate history directory.
+Tests cover a failed write and a failed replacement.
 It also includes a verified inventory of the viewer build inputs.
 Native execution and complete software inventories still need qualification.
 The upgrade remains on review branches.
@@ -148,7 +151,8 @@ It also staged the real viewer with a synthetic, non-executable sidecar.
 The full suite was not repeated for that packaging change.
 The older Engine qualification at `a7b52b3` passed 1,140 tests with no failures or skips.
 Its receipt explicitly says that the release is not qualified.
-The newer Engine candidate at `ab38572` still needs its full qualification run.
+The newer Engine candidate at `ab38572` has started its full qualification run.
+No passing result is claimed until its final receipt is inspected.
 Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
 Window visibility events now pause rendering and resume deferred updates when the view is visible again.

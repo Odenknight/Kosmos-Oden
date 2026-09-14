@@ -1,5 +1,26 @@
 # Portable internal-alpha staging
 
+## Preserving ordinary releases
+
+The ordinary plugin packager also preserves earlier packages.
+It writes the complete new package into a unique `.release-stage-*` directory.
+It then moves the existing `release` directory into `.release-history-*/release`.
+The complete staged package takes its place.
+The history copy includes any portable artifacts inside the old release.
+Both staging and history directories are ignored by Git.
+They are retained for inspection rather than automatically deleted.
+
+A failed write leaves the old release in place.
+A handled promotion failure restores the old location when that location is free.
+A process crash between the two renames can leave `release` absent.
+The old package remains under `.release-history-*/release` in that case.
+Inspect the history and staging directories before manually restoring a package.
+Run only one packager against a checkout at a time.
+This is not a crash-atomic directory exchange or a power-loss durability guarantee.
+Injected write and promotion failures are covered by `test/package-release.test.mjs`.
+
+## Portable targets
+
 The release packager can stage an offline viewer with explicitly supplied sidecars.
 It does not build, execute, sign, or qualify those sidecars.
 Every package reports productionReady=false and runtimeQualified=false.

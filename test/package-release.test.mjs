@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 test("unsupported packaging requests and missing artifacts preserve the previous release", () => {
@@ -32,10 +33,44 @@ test("unsupported packaging requests and missing artifacts preserve the previous
       mkdirSync(dirname(resolve(root, name)), { recursive: true });
       writeFileSync(resolve(root, name), `synthetic:${name}\n`);
     }
+    mkdirSync(resolve(root, "release/portable-alpha"));
+    writeFileSync(resolve(root, "release/portable-alpha/receipt.json"), bytes);
+    // Inject filesystem failures in the real child process, without adding
+    // test switches or alternate production packaging paths.
+    for (const failure of ["write", "promote"]) {
+      const hook = resolve(root, `fail-${failure}.mjs`);
+      writeFileSync(hook, `
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { basename } from 'node:path';
+const write = fs.writeFileSync, rename = fs.renameSync;
+fs.writeFileSync = function(path, ...args) {
+  if (${JSON.stringify(failure)} === 'write' && String(path).includes('.release-stage-') && basename(path) === 'styles.css') throw new Error('synthetic staging failure');
+  return write.call(this, path, ...args);
+};
+fs.renameSync = function(from, to) {
+  if (${JSON.stringify(failure)} === 'promote' && basename(from).startsWith('.release-stage-') && basename(to) === 'release') throw new Error('synthetic promotion failure');
+  return rename.call(this, from, to);
+};
+syncBuiltinESMExports();
+`);
+      const failed = spawnSync(process.execPath, ["--import", pathToFileURL(hook).href, resolve(root, "scripts/package-release.mjs")],
+        { cwd: root, windowsHide: true, timeout: 10_000 });
+      assert.ifError(failed.error);
+      assert.equal(failed.status, 1);
+      assert.match(failed.stderr.toString(), /synthetic (staging|promotion) failure/);
+      assert.deepEqual(readFileSync(marker), bytes);
+      assert.deepEqual(readFileSync(resolve(root, "release/portable-alpha/receipt.json")), bytes);
+    }
     const packaged = spawnSync(process.execPath, [resolve(root, "scripts/package-release.mjs")],
       { cwd: root, windowsHide: true, timeout: 10_000 });
     assert.ifError(packaged.error);
     assert.equal(packaged.status, 0);
+    const backups = readdirSync(root).filter(name => name.startsWith(".release-history-")
+      && existsSync(resolve(root, name, "release/existing-receipt.json")));
+    assert.equal(backups.length, 1);
+    assert.deepEqual(readFileSync(resolve(root, backups[0], "release/existing-receipt.json")), bytes);
+    assert.deepEqual(readFileSync(resolve(root, backups[0], "release/portable-alpha/receipt.json")), bytes);
     const sums = readFileSync(resolve(root, "release/SHA256SUMS"), "utf8");
     for (const name of artifacts) {
       const expected = readFileSync(resolve(root, name));

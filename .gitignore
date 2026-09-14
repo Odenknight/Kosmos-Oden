@@ -3,6 +3,8 @@ node_modules/
 *.tgz
 .DS_Store
 release/
+.release-stage-*/
+.release-history-*/
 
 # Generated build outputs — rebuilt by `npm run build`, attached to GitHub
 # Releases by CI (not committed). The committed plugin components are only

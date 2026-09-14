@@ -13,7 +13,7 @@
  */
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,12 +56,19 @@ for (const f of ARTIFACTS) {
   catch { console.error(`package-release: missing or unreadable artifact ${f} — run npm run build first`); process.exit(1); }
 }
 
-rmSync(rel, { recursive: true, force: true });
-mkdirSync(rel, { recursive: true });
+// Build beside the destination. Never erase the previous package, including
+// portable artifacts that may have been staged inside it.
+let previous = null;
+try { previous = lstatSync(rel); }
+catch (error) { if (error.code !== "ENOENT") throw error; }
+if (previous && (!previous.isDirectory() || previous.isSymbolicLink())) {
+  throw new Error("release must be a regular directory, not a link or file");
+}
+const staged = mkdtempSync(resolve(root, ".release-stage-"));
 
 for (const f of ARTIFACTS) {
-  mkdirSync(dirname(resolve(rel, f)), { recursive: true });
-  writeFileSync(resolve(rel, f), artifactBytes.get(f));
+  mkdirSync(dirname(resolve(staged, f)), { recursive: true });
+  writeFileSync(resolve(staged, f), artifactBytes.get(f));
 }
 
 const lockHash = (() => {
@@ -82,12 +89,26 @@ const buildInfo = {
   sourceTreeDirty: git("status --porcelain") !== "",
   buildTimeUtc: new Date().toISOString(),
 };
-writeFileSync(resolve(rel, "BUILD-INFO.json"), JSON.stringify(buildInfo, null, 2) + "\n");
+writeFileSync(resolve(staged, "BUILD-INFO.json"), JSON.stringify(buildInfo, null, 2) + "\n");
 
 // SHA256SUMS over every file EXCEPT the sums file itself, sorted for determinism.
 const sumFiles = [...ARTIFACTS, "BUILD-INFO.json"].sort();
-const sums = sumFiles.map((f) => `${sha256(resolve(rel, f))}  ${f}`).join("\n") + "\n";
-writeFileSync(resolve(rel, "SHA256SUMS"), sums);
+const sums = sumFiles.map((f) => `${sha256(resolve(staged, f))}  ${f}`).join("\n") + "\n";
+writeFileSync(resolve(staged, "SHA256SUMS"), sums);
+
+let backup = null;
+if (previous) {
+  backup = resolve(mkdtempSync(resolve(root, ".release-history-")), "release");
+  renameSync(rel, backup);
+  console.log(`package-release: previous package retained at ${backup}`);
+}
+try { renameSync(staged, rel); }
+catch (error) {
+  // A handled promotion failure restores the prior location. A process crash
+  // between renames leaves the complete old package in the printed backup.
+  if (backup && !existsSync(rel)) renameSync(backup, rel);
+  throw error;
+}
 
 console.log(`package-release: staged ${sumFiles.length} files in release/`);
 console.log(`  commit ${buildInfo.gitCommit || "(unknown)"}${buildInfo.sourceTreeDirty ? " (dirty tree)" : ""}`);
