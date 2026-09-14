@@ -50,6 +50,7 @@ source/header hashes match and every installed bundle digest was checked.
 This is evidence of the observed difference, not byte-for-byte reproducibility.
 Native reproducible-build qualification remains open.
 
-The changed Kosmos consumer still requires its own integration checks. This
+The [changed consumer's integration checks](2026-09-14-effects-inspection-consumer.md)
+are recorded separately against its exact signed commit. This
 development pin does not alter installed plugin bytes, enable source effects,
 close deferred macOS or other release gates, or authorize a main merge.

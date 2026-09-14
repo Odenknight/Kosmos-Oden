@@ -20,7 +20,8 @@ They should not show the connection type, such as MCP.
 The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
-The latest full local Kosmos verification passed 633 tests and the verification chain.
+The current signed consumer passed 639 Windows tests and the verification chain,
+and 633 tests from a fresh native Debian checkout, with declared platform skips.
 The complete four-browser run passed 246 checks with two declared platform skips.
 All twelve reference images have independent approval. Earlier Windows history
 failures remain preserved. Explicit private file creation and correct helper
@@ -28,7 +29,8 @@ installation now pass all three hosted storage backends, 12 tests each.
 The earlier Engine pin passed 1,216 tests on each hosted Windows runtime lane.
 The new development pin and its separate runtime evidence are recorded in the
 [native UTF-16 candidate report](docs/reviews/2026-09-14-engine-native-string-qualification.md).
-The changed consumer requires fresh integration verification.
+The [combined consumer verification](docs/reviews/2026-09-14-effects-inspection-consumer.md)
+records its exact tested commit, raw logs and remaining installed-host limits.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
 Production history and automatic source writes remain disabled.
