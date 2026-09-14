@@ -22,8 +22,10 @@ Production history remains disabled.
 The current problem is speed.
 History reads repeatedly launch a Windows permission-checking program.
 One retained read launched it 80 times and took about 1.5 seconds.
-We are investigating running the same checks inside the application.
-That approach is not implemented or qualified yet.
+A prototype now runs the same checks inside Obsidian.
+The synthetic retained read fell to about 97 milliseconds.
+All 80 permission checks still ran.
+Trusted module loading and production integration remain unfinished.
 
 Indexing also misses its performance target.
 A 2,000-note edit takes about 12.38 seconds against a two-second target.

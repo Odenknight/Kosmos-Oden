@@ -112,3 +112,35 @@ The next optimization must reduce that execution overhead without dropping live 
 This proves the tested single-source native composition and restoration-denial behavior.
 It does not establish production owner approval, a full backup/import workflow, live service readback,
 complete temporal coverage, or the final history workload budget.
+
+
+## In-process experiment (September 13, 2026)
+
+A private Node-API prototype reused the executable's Windows ACL inspection logic.
+It compiled against the official Node 22.22.1 headers, targeting Node-API version 8.
+It resolved the required Node-API functions from the current Windows process.
+The same binary loaded in Node 24.18.0 and actual Obsidian (Node 22.22.1, Electron 39.8.3).
+For the synthetic protected directory and file, its returned JSON exactly matched the executable.
+Missing, extra, wrongly typed, NUL-containing, and unavailable-path arguments were refused.
+Ten isolated Obsidian samples took about 0.3–1.0 ms each.
+
+A second private probe substituted this in-process call for the executable launch in the combined workflow.
+It retained the existing guard, executable hash checks, and all nested permission calls.
+It did not implement or qualify an addon installation authority or addon hash binding.
+The substitution was confined to the synthetic test directories and restored in `finally`.
+Production code and the installed plugin were unchanged.
+
+| Operation | Executable repeat (ms) | In-process experiment (ms) | Permission calls in both |
+| --- | ---: | ---: | ---: |
+| Source append | 1,511.1 | 103.7 | 80 |
+| Projection append | 1,838.6 | 123.4 | 98 |
+| Retained read | 1,507.1 | 97.3 | 80 |
+| Purge commit | 892.0 | 67.5 | 46 |
+
+The combined experiment passed source capture, publication append, retained read, durable denial,
+old-history restore refusal, retention hold, purge, reopen, and retry assertions.
+These are separate single-run diagnostics, not a latency distribution or release qualification.
+The result supports implementing an in-process helper without removing live ACL checks.
+Next work must establish trusted loading and artifact identity, run the full storage regression suite,
+and repeat the actual native workflow through the implemented adapter.
+The prototype is not shipped, and production history remains disabled.
