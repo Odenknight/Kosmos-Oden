@@ -1,6 +1,6 @@
 name: Security
 
-# Security + provenance (CI/CD directive Â§7.7): CodeQL static analysis, an
+# Security + provenance (CI/CD directive §7.7): CodeQL static analysis, an
 # SBOM, and the renderer-provenance / invariant policy checks. Dependency
 # review + Dependabot are configured separately (ci.yml + dependabot.yml).
 
