@@ -1,5 +1,45 @@
 # Current work: Kosmos-Oden
 
+## September 14 portable packaging and qualification update
+
+This update supersedes older active-branch pointers below; earlier results keep
+their original revision and installation scope.
+
+Kosmos [draft PR82](https://github.com/Odenknight/Kosmos-Oden/pull/82), stacked
+on PR80, requires the supplied SEA build-input inventory when staging a sidecar.
+It checks target and final executable size/hash, preserves exact inventory bytes,
+and binds them in package checksums. The inventory remains incomplete component
+evidence and does not authenticate the supplied build claims. See
+[portable staging](docs/standalone/PORTABLE-STAGING.md).
+
+At `52da5fba9d12fd4aef9f7c9638be91f5143fdccb`, hosted CI, browser and security
+checks passed. The browser run passed 46 tests without retries; CI recorded 633
+passes with 13 platform skips and all three Windows history backends passed
+12/12. The dependency CycloneDX generator now propagates failures. Its successful
+28-component inventory is not a complete portable executable SBOM.
+The earlier heartbeat test retry remains recorded in PR82; the follow-up waits
+for old trail expiry before asserting that a heartbeat creates no traversal.
+
+Engine [draft PR83](https://github.com/Odenknight/GKOS-Engine/pull/83) records
+SEA composition inputs and preserves native guard coverage. Exact `c7de783`
+passed native Windows 1,223/1,223 and Debian 1,225/1,225 with zero skips; all 708
+source-file hashes and raw logs were independently verified. Its original
+`769d795` Windows fixture failure remains historical evidence. Hosted Ubuntu
+Node 22/24/26 receipts passed and were verified; hosted Windows qualification
+was still running at this update. Check current terminal receipts before adoption.
+
+Engine [draft PR84](https://github.com/Odenknight/GKOS-Engine/pull/84), stacked
+on PR83, preserves the existing NOTICE and referenced governance documents in
+npm packages. Its actual archive contains all five checked governance documents
+byte-for-byte. Full runtime qualification for `843460f` remains separate from
+parent receipts and was still running at this update.
+
+The consumer Engine pin remains `851239a`; these packaging changes do not
+install a plugin, adopt a newer Engine dependency, enable production history or
+source writes, close native macOS acceptance, or qualify a release. Keep all
+drafts open until the complete remaining-gates audit has direct evidence.
+
+
 Updated: September 14, 2026.
 Implementation owner: Astra-Oden.
 This is a reading guide for the owner and other agents.
