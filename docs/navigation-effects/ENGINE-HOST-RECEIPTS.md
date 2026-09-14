@@ -45,7 +45,7 @@ Source snapshots, path-safety receipts, prepared handles, and durability gates
 must also be supplied before the native adapter can report execution available.
 
 
-The consumer pin now includes Engine `c8a6348`. The repository test imports the
+The earlier consumer pin included Engine `c8a6348`. The repository test imports the
 installed `gkos-engine/navigation-effects/node` package and maps its actual
 empty-vault inspection and completed shutdown. Earlier checks against a sibling
 Engine checkout remain historical evidence. The native adapter now identifies
@@ -75,3 +75,10 @@ or custom arrays, cycles, and excessive nesting are rejected. Getters are not
 invoked. This is not isolation from arbitrary JavaScript proxy traps or a
 compromised host process. The host still must resolve current authority for
 every recovery operation and recheck all other current preconditions.
+
+
+The current consumer pin advances to Engine `13ff119` after its exact full
+Windows Node 24 qualification passed 1,215 tests. This includes the same Effects
+APIs plus native executable asset loading. Its full Node 22 qualification is
+separate and remains pending. The installed-package integration checks continue
+to exercise the pinned dependency. Production host capabilities remain unavailable.

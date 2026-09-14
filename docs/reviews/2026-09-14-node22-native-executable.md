@@ -97,3 +97,14 @@ Five desktop contract checks also passed.
 `kosmos-separated-log-contract-20260914.log`: `a5300e7d6735c77d0cec23ed538059423789701d050cbea36732afd29bc93932`.
 
 `kosmos-separated-log-startup-20260914.log`: `2723156446f8430e3577061361dca8edbc464bdd70d4e780def29da5404cd62d`.
+
+
+Separately, the exact Engine revision completed full Windows Node 24.18.0
+qualification with 1,215 passes and no failures, skips, or cancellations.
+The run ended at 06:42:29.961 UTC on September 14. The tested source revision
+and both log hashes were verified. The build log SHA-256 is
+`e0af3c9d29a96d73df7cd9c0b3df1829625e805428667c1b123c388d157d4794`.
+The test log SHA-256 is
+`7c8a222812e63522605c9714937db6c70c36f820ffd3e8fd3e6c0b892c0851dc`.
+A new isolated full Node 22.22.1 run is in progress. These two full-suite results
+must remain distinct. The Node 24 receipt explicitly keeps release qualification false.

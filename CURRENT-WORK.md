@@ -21,7 +21,7 @@ The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
 The latest Kosmos verification passed 628 tests.
-Its pinned Engine passed 1,213 tests.
+Its pinned Engine passed 1,215 tests on Node 24.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
 Production history and automatic source writes remain disabled.
@@ -29,7 +29,7 @@ Indexing also misses its speed target.
 One edit took about 10.77 seconds across 2,000 notes.
 The target is two seconds.
 
-A newer Engine executable is undergoing qualification.
+The same Engine revision is now undergoing full Node 22 qualification.
 Terra is scheduled to check long-running results every six hours.
 The last recorded check found the run still active.
 We can continue independent work while it runs.
@@ -46,12 +46,13 @@ It has not been merged to main.
 | GKOS-Engine-Rust | `codex/rust-differential-core-20260913` | Validation fixtures and the output comparator. |
 | GKOS-standard | Shared specification repository | Contract definitions used by the implementations. |
 
-Kosmos currently pins Engine `c8a6348fccd37ad2034435105dc966795e18719d`.
-That exact Engine revision passed all 1,213 tests.
-Engine `13ff119bbe7a1d9dd686d75267a4eb8f2cc65504` is the newer executable candidate.
-Its eight focused native and asset tests passed.
-Its full run was active at the last recorded check, at 06:19 UTC on September 14.
-Do not report that run as passed without its terminal receipt.
+Kosmos currently pins Engine `13ff119bbe7a1d9dd686d75267a4eb8f2cc65504`.
+That exact revision passed all 1,215 tests on Windows Node 24.
+The full run finished at 06:42 UTC on September 14.
+Both log hashes and the tested source revision were verified.
+Its eight focused Node 22 native and asset tests also passed.
+A separate full Node 22 run is active under Terra monitoring.
+Do not report that newer run as passed without its terminal receipt.
 
 The normal installed plugin remains candidate `59a61ca`.
 The isolated Obsidian test vault runs candidate `27309b2`.
