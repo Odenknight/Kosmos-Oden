@@ -30,3 +30,29 @@ Do not replace the requirement with a retry, sleep, test skip, or passing spot c
 The candidate must pass the retained-authority requirement and full qualification
 before its success can be reported or the consumer pin advanced on that basis.
 The separate Effects API component results do not override this failure.
+
+## Native prevention probe
+
+A subsequent Windows probe tested `CreateFileW` with `GENERIC_READ`,
+`FILE_SHARE_READ`, `OPEN_EXISTING`, and `FILE_FLAG_OPEN_REPARSE_POINT`.
+It retained the handle during attempted mutation and closed it afterward.
+The probe used synthetic files and made no machine configuration changes.
+
+All 200 rename attempts were blocked while the handle was held.
+All 200 requests for write access were also blocked.
+All 200 rename attempts after releasing the handle succeeded.
+All 200 guard acquisitions against an already-open writer were refused.
+A separate Node process made 200 rename attempts against a file held by the probe.
+All were blocked, and the original bytes remained intact.
+
+This matches Microsoft's documented rule that omitted sharing permissions
+prevent conflicting opens until the handle closes, including rename through
+delete access. See [CreateFileW sharing rules](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew).
+
+This is native primitive evidence, not a repaired Engine candidate.
+The next implementation must hold and release native handles around the complete
+retained-authority boundary, bind them to the inspected file identities, and
+handle partial acquisition, exceptions and resource limits safely.
+It must cover directory ancestry and retained descendants where required.
+It also needs supported loading, artifact provenance and native qualification.
+The original failing test and full qualification remain required.

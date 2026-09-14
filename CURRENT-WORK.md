@@ -168,6 +168,8 @@ The newer Engine candidate at `ab38572` failed full qualification.
 It passed 1,162 of 1,163 tests, with no skips.
 A Windows directory swap-and-restore escaped detection.
 Stress testing reproduced the problem. A proposed timestamp check was insufficient and removed.
+An isolated Windows handle probe blocked all 200 rename attempts, including from Node.
+That prevention mechanism still needs to be integrated and qualified in Engine.
 Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
