@@ -67,7 +67,8 @@ its revision. A new regression test failed before the corrections.
 The recovered version requires exact safety booleans, preserves forcing conditions,
 rejects corrupt intent mutation, and uses the existing portable watcher path rules.
 All ten focused tests and type checking pass after the corrections.
-Full suite results are recorded after the run completes.
+Full `npm run verify` passes 611 tests with zero failures or skips.
+All build, type, version, lockfile, artifact, invariant, provenance, and branding checks pass.
 
 The actual host coordinator, durable recovery integration, and source-write gates
 remain unfinished. This restoration does not activate Effects or close PR38/41.
