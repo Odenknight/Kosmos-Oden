@@ -277,11 +277,41 @@ function validateRequest(value: unknown): EffectsAuthorityReasonCode[] {
   return reasons;
 }
 
+/** Capture bounded plain data before invoking host callbacks. This is not a proxy sandbox. */
+function captureAuthorityData(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") return value;
+  if (typeof value === "string" && value.length <= 4_096) return value;
+  if (!value || typeof value !== "object" || depth > 4) throw new Error("AUTHORITY_DATA_INVALID");
+  const isArray = Array.isArray(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (isArray ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) throw new Error("AUTHORITY_DATA_INVALID");
+  const properties = Object.getOwnPropertyDescriptors(value);
+  const keys = Reflect.ownKeys(properties);
+  if (keys.length > 32) throw new Error("AUTHORITY_DATA_INVALID");
+  if (isArray) {
+    const length = properties.length?.value;
+    if (!Number.isInteger(length) || length < 0 || length > 16 || keys.length !== length + 1) throw new Error("AUTHORITY_DATA_INVALID");
+    return Array.from({ length }, (_, index) => {
+      const property = properties[String(index)];
+      if (!property || !("value" in property) || !property.enumerable) throw new Error("AUTHORITY_DATA_INVALID");
+      return captureAuthorityData(property.value, depth + 1);
+    });
+  }
+  return Object.fromEntries(keys.map(key => {
+    if (typeof key !== "string") throw new Error("AUTHORITY_DATA_INVALID");
+    const property = properties[key];
+    if (!("value" in property) || !property.enumerable) throw new Error("AUTHORITY_DATA_INVALID");
+    return [key, captureAuthorityData(property.value, depth + 1)];
+  }));
+}
+
 export function resolveNavigationEffectsAuthority(
   requestValue: unknown,
   provider: EffectsAuthorityProvider,
   clock: EffectsAuthorityClock,
 ): EffectsAuthorityDecision {
+  try { requestValue = captureAuthorityData(requestValue); }
+  catch { return deny(["REQUEST_INVALID"]); }
   const requestReasons = validateRequest(requestValue);
   if (requestReasons.length) return deny(requestReasons);
   const request = requestValue as EffectsAuthorityRequest;
@@ -306,6 +336,8 @@ export function resolveNavigationEffectsAuthority(
     return deny(["PROVIDER_ERROR"], evaluatedAt);
   }
   if (grantValue === null || grantValue === undefined) return deny(["GRANT_NOT_FOUND"], evaluatedAt);
+  try { grantValue = captureAuthorityData(grantValue); }
+  catch { return deny(["GRANT_INVALID"], evaluatedAt); }
   if (!validateGrant(grantValue)) return deny(["GRANT_INVALID"], evaluatedAt);
   const grant = grantValue as EffectsAuthorityGrant;
   const reasons: EffectsAuthorityReasonCode[] = [];

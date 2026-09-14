@@ -63,3 +63,15 @@ It also verifies that inspection does not call the recovery authority provider.
 Repeated inspection returns the same digest while the evidence is unchanged.
 These are synthetic exception boundaries, not hard process termination tests.
 They do not qualify production recovery controls or grant source-write authority.
+
+
+Before wiring recovery, the shared authority resolver was corrected to capture
+bounded plain request data before invoking the host clock or grant provider.
+Previously, either callback could mutate the caller's original actor and path,
+allowing a grant for the substituted request to pass. A regression reproduces
+that acceptance in the earlier resolver. Returned grant data is also captured
+before validation. Accessors, hidden fields, symbols, inherited records, sparse
+or custom arrays, cycles, and excessive nesting are rejected. Getters are not
+invoked. This is not isolation from arbitrary JavaScript proxy traps or a
+compromised host process. The host still must resolve current authority for
+every recovery operation and recheck all other current preconditions.

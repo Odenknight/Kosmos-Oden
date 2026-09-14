@@ -20,7 +20,7 @@ They should not show the connection type, such as MCP.
 The trails should remain visible back toward their original source.
 The installed interface still needs final visual checks.
 
-The latest Kosmos verification passed 625 tests.
+The latest Kosmos verification passed 628 tests.
 Its pinned Engine passed 1,213 tests.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
@@ -79,6 +79,8 @@ Both host profiles require action and keep writes disabled.
 These synthetic checks do not yet prove production recovery.
 An inspection result must never grant permission to write.
 The host must resolve the actor and current authority separately.
+The shared resolver now captures request data before host callbacks run.
+This prevents callbacks from substituting a different actor or target during the check.
 Then the recovery controls can be connected to the Engine API.
 
 In Engine PR 74, inspect `src/navigation-effects/node/executor.ts`.

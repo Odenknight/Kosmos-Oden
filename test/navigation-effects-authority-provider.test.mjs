@@ -160,3 +160,54 @@ test("malformed provider grants fail closed rather than being partially interpre
     assert.deepEqual(resolveNavigationEffectsAuthority(request(), providerFor(candidate), clock).reasonCodes, ["GRANT_INVALID"]);
   }
 });
+
+
+test("provider and clock cannot replace the captured request during authority resolution", () => {
+  for (const stage of ["provider", "clock"]) {
+    const input = request();
+    const replacement = { actorId: "agent:other", actorType: "agent", credentialId: "credential:other" };
+    const mutate = () => { input.actor = replacement; input.targetPath = "Other/source.md"; };
+    const decision = resolveNavigationEffectsAuthority(input, { resolveGrant: () => {
+      if (stage === "provider") mutate();
+      return grant({ actor: replacement, allowedRoot: "Other" });
+    } }, { now: () => { if (stage === "clock") mutate(); return clock.now(); } });
+    assert.equal(decision.authorized, false, stage);
+    assert.ok(decision.reasonCodes.includes("ACTOR_MISMATCH"));
+    assert.ok(decision.reasonCodes.includes("TARGET_OUTSIDE_GRANTED_ROOT"));
+  }
+});
+
+test("authority data accessors are refused without invocation", () => {
+  let reads = 0;
+  const input = request();
+  Object.defineProperty(input.actor, "credentialId", { enumerable: true, get() { reads++; return agent.credentialId; } });
+  const candidate = grant();
+  Object.defineProperty(candidate.operations, "0", { enumerable: true, get() { reads++; return "moc:replace"; } });
+  assert.equal(resolveNavigationEffectsAuthority(input, providerFor(grant()), clock).authorized, false);
+  assert.equal(resolveNavigationEffectsAuthority(request(), providerFor(candidate), clock).authorized, false);
+  assert.equal(reads, 0);
+});
+
+
+test("authority snapshots reject hidden, symbolic, cyclic and custom collection data", () => {
+  const hidden = grant(); Object.defineProperty(hidden, "enabled", { value: true, enumerable: false });
+  const symbolic = grant(); symbolic[Symbol("authority")] = true;
+  const sparse = grant({ operations: Array(1) });
+  const custom = grant(); custom.operations[Symbol.iterator] = function* () { throw new Error("must not run"); };
+  const cycle = grant(); cycle.actor = cycle;
+  const inherited = Object.create(grant());
+  for (const candidate of [hidden, symbolic, sparse, custom, cycle, inherited]) {
+    const decision = resolveNavigationEffectsAuthority(request(), providerFor(candidate), clock);
+    assert.equal(decision.authorized, false);
+    assert.deepEqual(decision.reasonCodes, ["GRANT_INVALID"]);
+  }
+  const original = grant();
+  const decision = resolveNavigationEffectsAuthority(request(), providerFor(original), clock);
+  original.actor.actorId = "agent:changed";
+  original.operations[0] = "moc:create";
+  original.policyRef.digest = digest("b");
+  assert.equal(decision.authorized, true);
+  assert.equal(decision.grant.actor.actorId, agent.actorId);
+  assert.deepEqual(decision.grant.operations, ["moc:replace"]);
+  assert.equal(decision.grant.policyRef.digest, policyRef.digest);
+});
