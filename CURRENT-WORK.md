@@ -80,7 +80,8 @@ The executable helper was introduced at `785aecd`.
 The current branch also implements the in-process helper.
 The combined native test report was recorded at `c251a77`.
 This update includes release preservation through `274dbdb` and the reconciliation path correction.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `ab38572`.
+Engine work is on `codex/graphiti-product-binding-20260913`, at `3e37158`.
+Its last full qualification tested the earlier `ab38572` revision and failed.
 Engine PR 73 builds on PR 72.
 Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `09857b1`.
 Read its [host API progress](https://github.com/Odenknight/GKOS-Engine/blob/codex/effects-host-api-20260914/docs/EFFECTS-HOST-API-PROGRESS.md).
@@ -169,7 +170,8 @@ It passed 1,162 of 1,163 tests, with no skips.
 A Windows directory swap-and-restore escaped detection.
 Stress testing reproduced the problem. A proposed timestamp check was insufficient and removed.
 An isolated Windows handle probe blocked all 200 rename attempts, including from Node.
-That prevention mechanism still needs to be integrated and qualified in Engine.
+A native Node-API guard now builds and passes three dedicated Windows tests.
+It still needs to be integrated into the watcher and pass full qualification.
 Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
 Its build, inventory test, package check, and qualification inventory check passed.
 Pop-out views now use their own document for visibility and their own window for frame messages.
