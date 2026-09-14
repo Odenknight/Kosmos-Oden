@@ -68,3 +68,14 @@ code transfers; neither must be inferred from automatic goal continuations.
 - [Installed Notes evidence](2026-09-13-installed-notes-acceptance.md) and [Engine consumer upgrade](2026-09-13-engine-main-consumer-upgrade.md)
 - [Historical branch disposition](2026-09-12-branch-disposition.md) and [mailbox report](2026-09-12-mailbox-test-candidate.md)
 - Owner-supplied governed workspace plan retained locally under `_Claude-Code/claude-handoff/governed-workspace-implementation-plan.md`.
+
+
+The [Node 22 native executable report](2026-09-14-node22-native-executable.md)
+records eight focused guard checks and the now-passing real Engine supervisor
+crash-recovery test. The first full supervisor run exposed a writable-log and
+retained-status handle conflict. Kosmos now places new diagnostics in a separate
+private directory. Five crash recoveries, bounded restart refusal, initial and
+restarted authenticated graph retrieval, and shutdown passed with synthetic
+notes and a byte-verified local executable. This is specific Windows native
+evidence, not completion of installation, visible acceptance, cross-platform,
+full Engine, or release gates.

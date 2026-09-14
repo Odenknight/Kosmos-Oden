@@ -101,7 +101,10 @@ History needs owner controls and live publication checks.
 Indexing needs a speed fix, repeated workloads, and a soak test.
 The browser run still has three visual failures and two skips.
 The desktop shell passed 19 native Windows tests on candidate `4802da1`.
-One real-Engine recovery test remains unrun because it needs a verified executable.
+The real-Engine supervisor recovery test now passes on Node 22.
+It recovered from five forced crashes and refused a sixth restart.
+This required separating writable logs from protected status files.
+See the [native executable report](docs/reviews/2026-09-14-node22-native-executable.md).
 Agent names, comet trails, and visible pop-out behavior need installed acceptance.
 Mailbox reconciliation and older pull-request reviews also remain open.
 Final artifact, migration, rollback, and debug checks must precede the main merge.
