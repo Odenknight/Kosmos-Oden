@@ -67,6 +67,19 @@ export function stagePortable(root, argv) {
   ]);
   const pkg = JSON.parse(regular(resolve(root, "package.json"), 1024 * 1024));
   const lock = regular(resolve(root, "package-lock.json"), 16 * 1024 * 1024);
+  const inventoryBytes = regular(resolve(root, "dist/standalone-build-inputs.json"), 16 * 1024 * 1024);
+  const inventory = JSON.parse(inventoryBytes.toString("utf8"));
+  const viewer = common.get("kosmos-oden-stand-alone.html");
+  if (inventory?.schemaVersion !== 1 || inventory.artifact !== "kosmos-oden-stand-alone.html"
+    || inventory.artifactSha256 !== sha(viewer) || inventory.artifactBytes !== viewer.length
+    || inventory.lockfileSha256 !== sha(lock) || inventory.completeSbom !== false
+    || inventory.pageInputObservation !== "post-build"
+    || !inventory.metafile?.inputs || !inventory.metafile?.outputs
+    || Array.isArray(inventory.metafile.inputs) || Array.isArray(inventory.metafile.outputs)
+    || Object.keys(inventory.metafile.inputs).length === 0 || Object.keys(inventory.metafile.outputs).length === 0) {
+    reject("standalone input inventory does not match the staged viewer and lockfile");
+  }
+  common.set("standalone-build-inputs.json", inventoryBytes);
   const targets = [];
   // Never remove a previous package. A failure leaves its new directory as
   // incomplete evidence, without a completion manifest.
@@ -83,7 +96,8 @@ export function stagePortable(root, argv) {
     payload.set("BUILD-INFO.json", Buffer.from(JSON.stringify({ schemaVersion: 1,
       version: pkg.version, target, releaseStatus: "internal-alpha", productionReady: false,
       runtimeQualified: false, sidecar: input.manifest, viewerSha256: sha(common.get("kosmos-oden-stand-alone.html")),
-      sidecarManifestSha256: sha(input.manifestBytes), lockfileSha256: sha(lock) }, null, 2) + "\n"));
+      sidecarManifestSha256: sha(input.manifestBytes), lockfileSha256: sha(lock),
+      standaloneInventorySha256: sha(inventoryBytes) }, null, 2) + "\n"));
     for (const [name, bytes] of payload) {
       const destination = resolve(folder, name);
       mkdirSync(dirname(destination), { recursive: true });
@@ -96,7 +110,8 @@ export function stagePortable(root, argv) {
     targets.push({ target, status: "staged-internal-alpha", directory, sidecarSha256: sha(input.bytes) });
   }
   writeFileSync(resolve(output, "SBOM-INPUT.json"), JSON.stringify({ schemaVersion: 1,
-    completeSbom: false, npmLockSha256: sha(lock), artifacts: targets }, null, 2) + "\n", { flag: "wx" });
+    completeSbom: false, npmLockSha256: sha(lock), standaloneInventorySha256: sha(inventoryBytes),
+    artifacts: targets }, null, 2) + "\n", { flag: "wx" });
   const report = { schemaVersion: 1, productionReady: false, releaseStatus: "internal-alpha", targets,
     blockers: ["native runtime qualification remains open", "complete sidecar and viewer SBOM remains open",
       "signed installers and macOS notarization remain open"] };

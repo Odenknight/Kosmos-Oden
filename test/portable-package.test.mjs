@@ -14,6 +14,15 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
       writeFileSync(resolve(root, name), `synthetic:${name}\n`);
     writeFileSync(resolve(root, "package.json"), '{"version":"0.0.0"}');
     writeFileSync(resolve(root, "package-lock.json"), '{}');
+    const hash = bytes => createHash("sha256").update(bytes).digest("hex");
+    mkdirSync(resolve(root, "dist"));
+    const viewer = readFileSync(resolve(root, "kosmos-oden-stand-alone.html"));
+    const inventory = { schemaVersion: 1, artifact: "kosmos-oden-stand-alone.html",
+      artifactSha256: hash(viewer), artifactBytes: viewer.length, lockfileSha256: hash(Buffer.from('{}')),
+      completeSbom: false, pageInputObservation: "post-build",
+      metafile: { inputs: { "synthetic.js": { bytes: 1 } }, outputs: { "synthetic.js": { bytes: 1 } } } };
+    const saveInventory = value => writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(value) + "\n");
+    saveInventory(inventory);
     const bytes = Buffer.from("synthetic non-executable sidecar\n");
     const digest = createHash("sha256").update(bytes).digest("hex");
     writeFileSync(resolve(root, "candidate.exe"), bytes);
@@ -29,6 +38,14 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
       assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
     }
     saveManifest(manifest);
+    for (const change of [{ ...inventory, artifactSha256: "0".repeat(64) },
+      { ...inventory, lockfileSha256: "0".repeat(64) }, { ...inventory, completeSbom: true },
+      { ...inventory, metafile: { inputs: {}, outputs: {} } }]) {
+      saveInventory(change);
+      assert.throws(() => stagePortable(root, args));
+      assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    }
+    saveInventory(inventory);
     for (const invalid of [[...args, "--unknown"], [...args, args[1]], ["--portable", args[1]]]) {
       assert.throws(() => stagePortable(root, invalid));
       assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
@@ -43,6 +60,10 @@ test("portable alpha stages exact bound bytes and preserves prior output on refu
     assert.deepEqual(readFileSync(resolve(target, "gkos-agent.exe")), bytes);
     assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${digest}  gkos-agent.exe\n`));
     assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).runtimeQualified, false);
+    const inventoryBytes = readFileSync(resolve(root, "dist/standalone-build-inputs.json"));
+    assert.deepEqual(readFileSync(resolve(target, "standalone-build-inputs.json")), inventoryBytes);
+    assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).standaloneInventorySha256, hash(inventoryBytes));
+    assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${hash(inventoryBytes)}  standalone-build-inputs.json\n`));
     assert.throws(() => stagePortable(root, [...args, "--allow-incomplete"]));
     assert.deepEqual(readFileSync(resolve(output, "PORTABLE-ALPHA-MANIFEST.json")), report);
     assert.equal(stagePortable(root, [...args, "--allow-incomplete", "--output=second-alpha"]), 0);

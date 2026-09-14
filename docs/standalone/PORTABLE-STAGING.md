@@ -67,3 +67,18 @@ It is not yet a complete SBOM. In particular, the pre-bundled Engine dependency
 needs its own internal component evidence, and a sidecar needs its own build inventory.
 The installed npm tool can generate a lockfile SPDX inventory, but that inventory
 alone does not prove what is contained in either generated executable artifact.
+
+Portable staging now requires this generated inventory. Before creating output,
+it verifies the viewer size/hash and lockfile hash, requires the recorded bundler
+graph, and preserves the incomplete-SBOM and post-build-observation scope.
+Each staged target includes the exact inventory bytes in standalone-build-inputs.json.
+BUILD-INFO.json, SHA256SUMS, and the package SBOM input record bind its digest.
+This proves the inventory accompanies its matching viewer; it does not authenticate
+an externally supplied inventory or prove the contents of pre-bundled dependencies.
+
+Focused packaging tests reject mismatched viewer/lock hashes, an empty bundler graph,
+and an unsupported complete-SBOM claim before creating output. They verify the
+copied inventory, build-info digest, checksum entry, and CLI dispatch.
+A separate local staging check used the real built viewer and inventory with a
+synthetic non-executable sidecar. Both viewer and inventory matched byte-for-byte.
+No sidecar runtime qualification was performed by that check.
