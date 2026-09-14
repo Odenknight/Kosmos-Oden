@@ -192,7 +192,10 @@ The native projection-history witness now shares the semantic publication verifi
 It connects a verified published index to exact retained source receipts.
 The ledger independently rejects fabricated retained receipts.
 Six new fixtures pass. Full verification passes 584 tests.
-Production publication readback and owner controls remain unfinished.
+An isolated Obsidian test also matched the recorded publication to current sources.
+It proved rollback after authority withdrawal and commit with a fresh witness.
+The original source observation time stayed unchanged.
+Live publication readback and production owner controls remain unfinished.
 
 ## What still needs work
 

@@ -199,4 +199,21 @@ Six synthetic fixtures cover successful append/retry, invalid source coverage, f
 revocation, input mutation during preparation, corpus changes, and a changing publication property.
 Full verification passes 584 tests, including existing semantic query behavior.
 This native component is not yet connected to production owner controls or publication readback.
-The earlier actual Obsidian source-capture probe does not qualify this new publication witness end to end.
+The earlier source-capture probe is separate from the publication probe below.
+
+## Obsidian publication-history boundary probe
+
+The candidate publication adapter now also ran inside the actual isolated Obsidian vault.
+It reconciled the recorded synthetic publication with the current native source manifest.
+It used a temporary SQLite history database and an actual retained source observation.
+An injected authority withdrawal after the projection INSERT rolled back that transaction.
+Only the source observation remained.
+A fresh witness then committed the projection observation.
+Reopening the database preserved both records and the original source observation time.
+The projection referenced the original source sequence.
+Temporary storage was removed, and the installed plugin was not replaced.
+
+This used the previously recorded publication receipt.
+It did not query the live publication service or qualify current service readback.
+Synthetic owner authority and temporary storage also do not establish production ownership or retention approval.
+These remaining gates stay open.
