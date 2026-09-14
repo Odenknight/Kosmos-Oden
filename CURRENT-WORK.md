@@ -207,6 +207,14 @@ All seven storage fixtures pass with it.
 Production packaging and the complete history workload still need qualification.
 See the [native storage report](docs/workspace/NATIVE-HISTORY-STORAGE.md).
 
+The combined history workflow now passes in the isolated Obsidian vault.
+Restoring an old history database cannot undo the independent denial.
+Holds block purge, and committed purge survives reopening and retry.
+The combination revealed another performance problem.
+A retained read invoked the ACL helper 80 times and took about 1.5 seconds.
+A projection append invoked it 98 times.
+The next change must reduce that repeated execution cost while preserving revocation checks.
+
 ## What still needs work
 
 - Qualify the deployed semantic profile through the actual native Notes view.

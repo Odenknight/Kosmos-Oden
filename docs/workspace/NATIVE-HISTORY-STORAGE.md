@@ -87,3 +87,28 @@ It reloaded the rebuilt private test module; an earlier cached-module run was di
 These are small synthetic samples. They do not qualify the complete history workload,
 production helper packaging, other operating systems, or the separate indexing budget.
 Production retention and the remaining native owner/backup workflows stay disabled or unqualified.
+
+## Combined native workflow probe
+
+The actual isolated Obsidian vault now ran the components together.
+The probe used separate protected directories for source history and independent denials.
+It retained exact native source bytes, recorded the matched publication, and read the retained bytes.
+It then committed an independent denial and restored only the earlier history database.
+The restored history did not publish the denied source.
+A retention hold blocked cleanup. Releasing the hold allowed source and projection purge.
+Reopening preserved the purge receipt, including retry under a later hold.
+All temporary databases and directories were removed afterward.
+The installed plugin and production storage settings were unchanged.
+
+The composition exposed a remaining cost that isolated ACL measurements did not show.
+A counted repeat invoked the ACL helper 80 times for a source append, 80 times for a retained read,
+and 98 times for a projection append.
+Those operations took about 1,511 ms, 1,507 ms and 1,839 ms respectively in that repeat.
+The first run took about 1,683 ms, 1,665 ms and 2,044 ms.
+These are small synthetic observations, not accepted latency distributions.
+The existing nested authority checks repeatedly start the helper process.
+The next optimization must reduce that execution overhead without dropping live checks or caching away revocation.
+
+This proves the tested single-source native composition and restoration-denial behavior.
+It does not establish production owner approval, a full backup/import workflow, live service readback,
+complete temporal coverage, or the final history workload budget.
