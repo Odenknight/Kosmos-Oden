@@ -107,3 +107,21 @@ a focused rerun. No real release output was removed by these tests.
 Portable packaging, supplied-sidecar verification, SBOM evidence, target reporting,
 and native distribution acceptance remain open. Refusing --portable prevents a
 misleading success; it does not complete the portable feature or close PR38/41.
+
+## Portable staging implementation after the refusal fix
+
+[Portable staging](../standalone/PORTABLE-STAGING.md) now implements the missing
+internal-alpha target packaging path with current manifest-bound sidecar inputs.
+It requires an explicit sidecar and manifest per target, validates exact bytes,
+and preserves prior output. The top-level report lists missing targets and never
+claims production readiness. Supplied metadata is not authenticated release authority.
+The historical automatic conventional-path discovery was not restored because
+it supplies no independent expected build identity.
+
+Focused checks cover wrong architecture, hash and size, missing manifest, duplicate
+and unknown options, strict/allowed incomplete coverage, exact staging/checksums,
+existing-output preservation, and the actual command-line dispatch.
+Complete SBOM generation and native distribution qualification remain open.
+
+Full `npm run verify` passed 613 tests, zero failures and zero skips, with all ancillary checks passing.
+The package tests use synthetic non-executable bytes; no native sidecar execution is claimed.

@@ -17,6 +17,17 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+if (process.argv.includes("--portable")) {
+  try {
+    const { stagePortable } = await import("./portable-package.mjs");
+    process.exitCode = stagePortable(resolve(dirname(fileURLToPath(import.meta.url)), ".."), process.argv.slice(2));
+  } catch (error) {
+    console.error(`package-release: ${error.message}`);
+    process.exitCode = error.exitCode ?? 1;
+  }
+  process.exit();
+}
+
 if (process.argv.length !== 2) {
   console.error("package-release: unsupported arguments; this command currently packages the plugin release only");
   process.exit(2);

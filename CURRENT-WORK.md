@@ -23,7 +23,7 @@ Production history remains disabled.
 The candidate refreshes agent names when a heartbeat arrives.
 The comet trails and names still need final checks in the installed interface.
 Pop-out windows now use their own visibility and message handling.
-The latest full Kosmos verification passed 601 tests.
+The latest full Kosmos verification passed 613 tests.
 The separate browser run had three visual failures and two skips.
 Those failures remain open.
 
@@ -37,6 +37,9 @@ New work adds validation fixtures and an exact output comparator.
 Passing component tests does not prove the complete product works.
 
 Terra is scheduled to check long-running qualification every six hours.
+Portable alpha staging now checks supplied sidecar bytes against their manifests.
+It preserves prior packages and reports missing targets.
+Native execution and complete software inventories still need qualification.
 The upgrade remains on review branches.
 It has not been merged to main.
 We still need the remaining build work, final debug checks, and release qualification.
@@ -123,7 +126,7 @@ The performance report links the measured result and its limits.
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 601 tests.
+The latest full Kosmos verification passed 613 tests.
 Pop-out views now use their own document for visibility and their own window for frame messages.
 Window visibility events now pause rendering and resume deferred updates when the view is visible again.
 Component tests cover this correction. Actual visible pop-out acceptance remains open.

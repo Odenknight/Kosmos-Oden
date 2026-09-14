@@ -1,0 +1,51 @@
+# Portable internal-alpha staging
+
+The release packager can stage an offline viewer with explicitly supplied sidecars.
+It does not build, execute, sign, or qualify those sidecars.
+Every package reports productionReady=false and runtimeQualified=false.
+
+```sh
+node scripts/package-release.mjs --portable --allow-incomplete --output=release/alpha-review-1 --sidecar=windows-x64=/path/to/gkos-agent.exe --sidecar-manifest=windows-x64=/path/to/sidecar-release.json
+```
+
+Supported target names are debian-x64, windows-x64, macos-arm64, and macos-x64.
+Supply both options for each target. No artifact is discovered implicitly.
+Without --allow-incomplete, missing targets produce exit code 2 after writing
+an explicit incomplete-target report. With that flag, partial staging can exit 0.
+Neither status asserts production readiness.
+Unknown/duplicate options and mismatched bindings are refused.
+Existing output directories are never replaced. Choose a new --output path.
+
+The supplied manifest has exactly these fields:
+
+```json
+{
+  "schema": 1,
+  "version": "2.2.0",
+  "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "os": "windows",
+  "arch": "x86_64",
+  "bytes": 123,
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+```
+
+The example values are placeholders, not usable release evidence.
+Use linux/x86_64, windows/x86_64, macos/aarch64, or macos/x86_64 as appropriate.
+Serialize with JSON.stringify(manifest, null, 2) plus one final LF.
+This canonical input requirement rejects duplicate keys and ambiguous encodings.
+The script checks regular files, target, byte length, and SHA-256 before staging.
+It copies the exact checked bytes and writes BUILD-INFO.json and SHA256SUMS.
+The manifest is a supplied binding, not a signature or trusted release admission.
+An authorized release process must independently establish its commit and build provenance.
+
+The top-level report lists all four target states.
+SBOM-INPUT.json records the npm lock digest and staged artifacts.
+It explicitly reports completeSbom=false. Complete viewer/sidecar SBOM generation,
+license validation, signed installers, notarization, and native runtime acceptance
+remain required. The current desktop loader still has no admitted embedded sidecar.
+Portable staging does not change that loader or enable automatic discovery.
+
+A failed write can leave a new incomplete directory. The completion manifest is
+written last. Inspect or retain failed output as evidence; use a fresh path for retry.
+Prior output is preserved. No credentials are needed or copied by this command.

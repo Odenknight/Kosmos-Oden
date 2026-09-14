@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import test from "node:test";
+import { stagePortable } from "../scripts/portable-package.mjs";
+
+test("portable alpha stages exact bound bytes and preserves prior output on refusal", () => {
+  const parent = resolve(tmpdir()), root = mkdtempSync(resolve(parent, "kosmos-portable-"));
+  try {
+    for (const name of ["kosmos-oden-stand-alone.html", "LICENSE", "THIRD-PARTY-NOTICES.md"])
+      writeFileSync(resolve(root, name), `synthetic:${name}\n`);
+    writeFileSync(resolve(root, "package.json"), '{"version":"0.0.0"}');
+    writeFileSync(resolve(root, "package-lock.json"), '{}');
+    const bytes = Buffer.from("synthetic non-executable sidecar\n");
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    writeFileSync(resolve(root, "candidate.exe"), bytes);
+    const manifest = { schema: 1, version: "2.2.0", commit: "a".repeat(40),
+      os: "windows", arch: "x86_64", bytes: bytes.length, sha256: digest };
+    const saveManifest = value => writeFileSync(resolve(root, "candidate.json"), JSON.stringify(value, null, 2) + "\n");
+    saveManifest(manifest);
+    const args = ["--portable", "--sidecar=windows-x64=candidate.exe", "--sidecar-manifest=windows-x64=candidate.json"];
+    for (const change of [{ ...manifest, arch: "aarch64" }, { ...manifest, sha256: "b".repeat(64) },
+      { ...manifest, bytes: bytes.length + 1 }]) {
+      saveManifest(change);
+      assert.throws(() => stagePortable(root, args));
+      assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    }
+    saveManifest(manifest);
+    for (const invalid of [[...args, "--unknown"], [...args, args[1]], ["--portable", args[1]]]) {
+      assert.throws(() => stagePortable(root, invalid));
+      assert.equal(existsSync(resolve(root, "release/portable-alpha")), false);
+    }
+    assert.equal(stagePortable(root, args), 2, "strict mode reports incomplete target coverage");
+    const output = resolve(root, "release/portable-alpha");
+    const report = readFileSync(resolve(output, "PORTABLE-ALPHA-MANIFEST.json"));
+    const parsed = JSON.parse(report);
+    assert.equal(parsed.productionReady, false);
+    assert.equal(parsed.targets.filter(t => t.status === "missing-sidecar").length, 3);
+    const target = resolve(output, "windows-x64/Kosmos-Oden-Standalone");
+    assert.deepEqual(readFileSync(resolve(target, "gkos-agent.exe")), bytes);
+    assert.ok(readFileSync(resolve(target, "SHA256SUMS"), "utf8").includes(`${digest}  gkos-agent.exe\n`));
+    assert.equal(JSON.parse(readFileSync(resolve(target, "BUILD-INFO.json"))).runtimeQualified, false);
+    assert.throws(() => stagePortable(root, [...args, "--allow-incomplete"]));
+    assert.deepEqual(readFileSync(resolve(output, "PORTABLE-ALPHA-MANIFEST.json")), report);
+    assert.equal(stagePortable(root, [...args, "--allow-incomplete", "--output=second-alpha"]), 0);
+    mkdirSync(resolve(root, "scripts"));
+    for (const name of ["package-release.mjs", "portable-package.mjs"])
+      copyFileSync(new URL(`../scripts/${name}`, import.meta.url), resolve(root, "scripts", name));
+    const cli = spawnSync(process.execPath, [resolve(root, "scripts/package-release.mjs"), ...args,
+      "--allow-incomplete", "--output=cli-alpha"], { cwd: root, windowsHide: true, timeout: 10_000 });
+    assert.ifError(cli.error);
+    assert.equal(cli.status, 0, cli.stderr.toString());
+    assert.equal(JSON.parse(readFileSync(resolve(root, "cli-alpha/PORTABLE-ALPHA-MANIFEST.json"))).productionReady, false);
+  } finally {
+    assert.equal(dirname(resolve(root)), parent);
+    assert.ok(root.startsWith(resolve(parent, "kosmos-portable-")));
+    rmSync(root, { recursive: true, force: true });
+  }
+});

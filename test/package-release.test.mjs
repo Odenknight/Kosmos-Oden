@@ -13,10 +13,11 @@ test("unsupported packaging requests and missing artifacts preserve the previous
     mkdirSync(resolve(root, "scripts"));
     mkdirSync(resolve(root, "release"));
     copyFileSync(new URL("../scripts/package-release.mjs", import.meta.url), resolve(root, "scripts/package-release.mjs"));
+    copyFileSync(new URL("../scripts/portable-package.mjs", import.meta.url), resolve(root, "scripts/portable-package.mjs"));
     writeFileSync(resolve(root, "package.json"), JSON.stringify({ name: "synthetic", version: "0.0.0" }));
     const marker = resolve(root, "release", "existing-receipt.json");
     const bytes = Buffer.from('{"retain":"historical evidence"}\n');
-    for (const args of [["--portable"], ["--unknown"], ["--sidecar=windows-x64=synthetic.exe"], []]) {
+    for (const args of [["--portable", "--unknown"], ["--unknown"], ["--sidecar=windows-x64=synthetic.exe"], []]) {
       writeFileSync(marker, bytes);
       const result = spawnSync(process.execPath, [resolve(root, "scripts/package-release.mjs"), ...args],
         { cwd: root, windowsHide: true, timeout: 10_000 });
