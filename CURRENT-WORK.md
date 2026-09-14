@@ -1,263 +1,111 @@
-# Current work: Kosmos-Oden and GKOS-Engine
+# Current work: Kosmos-Oden
 
 Updated: September 14, 2026.
-Owner of this implementation task: Astra-Oden.
-This is a short reading guide for the owner and other agents.
-Start with the “Read aloud” section when explaining this work to the owner.
-It describes work in progress. It is not a release certificate.
-Earlier checkpoints remain in Git history and the linked reports.
+Implementation owner: Astra-Oden.
+This is a reading guide for the owner and other agents.
+Earlier details remain in Git history and the linked reports.
 
 ## Read aloud
 
 We are upgrading Kosmos-Oden and its supporting engines.
-Kosmos-Oden is the Obsidian interface.
+Kosmos-Oden provides the Obsidian interface and desktop viewer.
 GKOS-Engine handles search, indexing, and source checks.
-GKOS-standard defines their shared rules.
-GKOS-Engine-Rust is a separate implementation under construction.
+GKOS-standard defines the shared rules.
+GKOS-Engine-Rust is a separate product under construction.
 
-Search works with synthetic documents.
-The complete search experience inside Obsidian still needs testing.
-We are also building source history with permission checks and deletion protection.
-Production history remains disabled.
+We are improving search, source history, and recovery after interrupted work.
+We are also fixing agent names, comet trails, and pop-out windows.
+Agent labels should show the agent's name, such as JEFFREY.
+They should not show the connection type, such as MCP.
+The trails should remain visible back toward their original source.
+The installed interface still needs final visual checks.
 
-The separate Engine Effects branch now separates preparation from execution.
-Preparation records intent without replacing source notes.
-Execution checks current authority and source bytes again.
-All 159 Effects tests passed on that branch.
-Recovery now checks current authority before changing interrupted work.
-It checks again under the target lock and holds that lock through recovery.
-Missing, revoked, or malformed authority blocks those recovery changes.
-Recovery inspection now reports evidence without changing vault files.
-An Engine recovery action now checks the inspection digest against fresh evidence.
-It reloads the journal under the writer lease.
-Kosmos still needs to connect its authority and recovery receipts to this API.
-Shutdown can now report a deadline expiry while safely draining active work.
-It does not release the writer lease before verifying the checkpoint.
-The Kosmos host connection and recovery controls are still unfinished.
-
-The candidate refreshes agent names when a heartbeat arrives.
-The comet trails and names still need final checks in the installed interface.
-Pop-out windows now use their own visibility and message handling.
-The latest full Kosmos verification passed 621 tests.
-The separate browser run had three visual failures and two skips.
-Those failures remain open.
-
-Indexing is still too slow.
-One measured edit took about 10.77 seconds across 2,000 notes.
+The latest Kosmos verification passed 621 tests.
+Its pinned Engine passed 1,213 tests.
+These results do not prove that the whole upgrade is ready.
+The native search connection and recovery controls remain unfinished.
+Production history and automatic source writes remain disabled.
+Indexing also misses its speed target.
+One edit took about 10.77 seconds across 2,000 notes.
 The target is two seconds.
 
-The Rust baseline passed 400 Windows tests with its required tools.
-Its command-line product is still unfinished.
-New work adds validation fixtures and an exact output comparator.
-Passing component tests does not prove the complete product works.
-
-Terra is scheduled to check long-running qualification every six hours.
-The earlier Engine qualification has finished.
-It passed 1,140 tests on revision `a7b52b3`.
-The combined Engine candidate `c8a6348` later passed all 1,213 tests.
-The newer executable-packaging candidate `13ff119` is now under full qualification.
-No full-suite result alone certifies the release.
-Portable alpha staging now checks supplied sidecar bytes against their manifests.
-It preserves prior packages and reports missing targets.
-Ordinary release packaging now stages the replacement before moving the old package.
-The old package is retained in a separate history directory.
-Tests cover a failed write and a failed replacement.
-It also includes a verified inventory of the viewer build inputs.
-Native execution and complete software inventories still need qualification.
-The desktop shell passed 19 native Windows tests on candidate `4802da1`.
-One real-Engine recovery test was ignored because it needs a verified executable.
-That test remains required.
+A newer Engine executable is undergoing qualification.
+Terra is scheduled to check long-running results every six hours.
+The last recorded check found the run still active.
+We can continue independent work while it runs.
 The upgrade remains on review branches.
 It has not been merged to main.
-We still need the remaining build work, final debug checks, and release qualification.
 
-## Repositories and revisions
+## Active repositories
 
-| Repository | Active work | Review |
+| Repository | Branch or review | What another agent should inspect |
 | --- | --- | --- |
-| Kosmos-Oden | Native search, history, permissions, and workspace behavior | [PR 80](https://github.com/Odenknight/Kosmos-Oden/pull/80) |
-| GKOS-Engine | Search service, source verification, and indexing performance | [PR 73](https://github.com/Odenknight/GKOS-Engine/pull/73) |
-| GKOS-Engine qualification base | Broader Engine qualification | [PR 72](https://github.com/Odenknight/GKOS-Engine/pull/72) |
+| Kosmos-Oden | `codex/build-plan-completion-20260913`; [PR 80](https://github.com/Odenknight/Kosmos-Oden/pull/80) | Search, history, recovery integration, and the interface. |
+| GKOS-Engine | `codex/effects-host-api-20260914`; [PR 74](https://github.com/Odenknight/GKOS-Engine/pull/74) | Prepared operations, recovery, shutdown, and source checks. |
+| GKOS-Engine | `codex/sea-native-guard-20260914`; [PR 75](https://github.com/Odenknight/GKOS-Engine/pull/75) | Embedding and verifying the Windows guard in executables. |
+| GKOS-Engine-Rust | `codex/rust-differential-core-20260913` | Validation fixtures and the output comparator. |
+| GKOS-standard | Shared specification repository | Contract definitions used by the implementations. |
 
-GKOS-standard defines the shared contracts used by these products.
-GKOS-Engine-Rust needs its own working implementation evidence.
-Its pinned Windows workspace suite now passes 400 tests with the exact admitted tools.
-See the [Rust test evidence](docs/reviews/2026-09-13-rust-pinned-suite.md) for scope and remaining gaps.
-A passing TypeScript test does not prove that the Rust product works.
-
-Kosmos work is on `codex/build-plan-completion-20260913`.
-The executable helper was introduced at `785aecd`.
-The current branch also implements the in-process helper.
-The combined native test report was recorded at `c251a77`.
-This update includes release preservation through `274dbdb` and the reconciliation path correction.
-Engine work is on `codex/graphiti-product-binding-20260913`, at `6f1486f`.
-Its full qualification at `6f1486f` finished with 1,168 passes and one runner-packaging failure.
-Engine PR 73 builds on PR 72.
-Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `c8a6348`.
-Read its [host API progress](https://github.com/Odenknight/GKOS-Engine/blob/codex/effects-host-api-20260914/docs/EFFECTS-HOST-API-PROGRESS.md).
-This branch now includes the watcher candidate through `6f1486f`.
-Its combined build and all 178 focused tests passed.
-Source reads now reject linked files and detected changes during reading.
-Complete path-safety receipts and production host wiring remain unfinished.
-[Engine PR 74](https://github.com/Odenknight/GKOS-Engine/pull/74) is a draft for these Effects changes.
-Full qualification of the combined `c8a6348` candidate passed 1,213 tests with no failures or skips.
-Both command-log hashes were verified. Its receipt still says the release is not qualified.
-Windows executable packaging is now on Engine `13ff119`, branch `codex/sea-native-guard-20260914`.
-[Engine PR 75](https://github.com/Odenknight/GKOS-Engine/pull/75) contains that change.
-Eight focused native/assets tests passed, including real executable loading and corrupted-asset refusal.
-Full qualification of that exact revision is running.
-That newer work is not covered by the `c8a6348` full-suite result.
 Kosmos currently pins Engine `c8a6348fccd37ad2034435105dc966795e18719d`.
-This pin matches the tested combined Effects candidate. The newer SEA branch is separate.
-The normal installed plugin remains the earlier `59a61ca` candidate.
-Branch changes must not be described as installed.
-The separate synthetic Obsidian vault now runs candidate `27309b2`.
-Its installation and plugin load passed. Visible native acceptance remains open.
+That exact Engine revision passed all 1,213 tests.
+Engine `13ff119bbe7a1d9dd686d75267a4eb8f2cc65504` is the newer executable candidate.
+Its eight focused native and asset tests passed.
+Its full run was active at the last recorded check, at 06:19 UTC on September 14.
+Do not report that run as passed without its terminal receipt.
 
-## Rust work another agent can inspect
+The normal installed plugin remains candidate `59a61ca`.
+The isolated Obsidian test vault runs candidate `27309b2`.
+Changes on the review branch are not automatically installed.
 
-Repository: [GKOS-Engine-Rust](https://github.com/Odenknight/GKOS-Engine-Rust).
-Branch: `codex/rust-differential-core-20260913`.
-Verified branch revision: `f40bd22`.
-This branch builds on `integration/m0`.
+## Where to look in Kosmos
 
-Read `conformance/differential/README.md` for the handoff.
-Read `compat/fixtures/m0/manifest.json` for the 22 source files and 18 cases.
-Read `compat/oracle-observations/validate-windows-node24-724ab12/README.md` for recorded TypeScript outputs.
-These outputs are observations. They are not approved reference results.
-Run `node tools/verify-validation-observations.mjs` to check their integrity.
-Windows and Debian now reproduce all 18 cases twice on Node 22.
-The retained 72 executions match the Windows Node 24 reference.
-The verifier checks every retained stream and run against that reference.
-It rejects missing evidence, altered bytes, forged hashes, and changed identities.
-This still does not approve goldens or qualify the Rust product.
-
-Read `rust/crates/gkos-conformance/src/lib.rs` for the comparator.
-It compares exit codes and exact output bytes.
-It also records which difference classes need review or must block.
-Its five unit tests and Clippy check passed.
-The mock command now runs eight comparisons through that core.
-From the Rust workspace, run `cargo xtask differential --surface validate --candidate mock`.
-Its two command tests and Clippy check passed.
-The mock report explicitly says that no product or reference results are qualified.
-The real executable runner, approved reference results, and working Rust validation command remain unfinished.
-The earlier 400-test result applies to the tested main baseline, not this entire new branch.
-
-## Where to look in the code
-
-| File or report | What it explains |
+| File | What it does |
 | --- | --- |
-| [Native search connection](src/workspace/native-semantic.ts) | Verifies publication evidence and prepares the native search client. |
-| [Agent server](src/plugin/agent-server.ts) | Captures authorized source bytes and prepares native manifests. |
-| [History ledger](src/workspace/source-observation-ledger.ts) | Stores observations, checks retained reads, and performs local purge. |
-| [Deletion authority](src/workspace/history-deletion-authority.ts) | Keeps denials independent of history backups. |
-| [History publication adapter](src/workspace/native-history.ts) | Connects verified publications to exact retained source receipts. |
-| [Windows storage guard](src/workspace/native-history-database.ts) | Checks ownership, permissions, and database file identity. |
-| [Native permission helper](native/windows/history-acl.cpp) | Performs Windows access-control checks. |
-| [Storage report](docs/workspace/NATIVE-HISTORY-STORAGE.md) | Records native evidence, limitations, and permission-check costs. |
-| [Search handoff](docs/workspace/NATIVE-SEMANTIC-CONNECTION.md) | Explains the native search integration. |
-| [History handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md) | Explains storage contracts and recovery behavior. |
-| [Performance report](docs/reviews/2026-09-13-watcher-performance-follow-up.md) | Records the indexing failure and tested experiments. |
-| [Browser qualification](docs/reviews/2026-09-13-browser-candidate-qualification.md) | Records the full browser result and repeatable visual failures. |
+| [Native search](src/workspace/native-semantic.ts) | Checks publication evidence and prepares the search client. |
+| [Agent server](src/plugin/agent-server.ts) | Handles agent requests and authorized source capture. |
+| [History ledger](src/workspace/source-observation-ledger.ts) | Records source observations and checks retained reads. |
+| [Deletion authority](src/workspace/history-deletion-authority.ts) | Preserves deletion denials independently of history backups. |
+| [Engine receipt mapping](src/navigation-effects/engine-host-receipts.ts) | Validates recovery and shutdown evidence from Engine. |
+| [Receipt integration tests](test/navigation-effects-host-receipts.test.mjs) | Exercises the installed Engine package with synthetic data. |
+| [Recovery integration handoff](docs/navigation-effects/ENGINE-HOST-RECEIPTS.md) | Explains the missing host connections and safety requirements. |
+| [Complete remaining checklist](docs/reviews/2026-09-13-remaining-build-gates.md) | Lists the unfinished work across all original plans. |
 
-In GKOS-Engine, inspect `src/watcher/contracts.ts` on the branch listed above.
-One change computes each canonical sort key once.
-It avoids repeating serialization inside the sort comparison.
-Another change rejects unsafe artifact inputs before reading their digest.
-That prevents getters or proxies from running during validation.
-The performance report links the measured result and its limits.
-The latest Engine change records the build inputs for all 23 JavaScript bundles.
-All 23 bundle hashes stayed unchanged when that inventory was added.
-Read `docs/BUNDLE-INPUT-INVENTORY.md` in the Engine repository for its scope.
+## Immediate work
 
-In Kosmos, inspect `scripts/build.mjs` and `scripts/check-artifacts.mjs`.
-They create and verify the standalone viewer inventory.
-Inspect `scripts/portable-package.mjs` for portable package staging.
-It checks the viewer, its inventory, and each supplied sidecar before packaging.
-Read [portable staging](docs/standalone/PORTABLE-STAGING.md) for the commands and limits.
-These inventories are incomplete software inventories. They are not signed release approvals.
+The installed Engine test covers an empty recovery journal and completed shutdown.
+The next check should cover interrupted operations with pending journal entries.
+Inspection must preserve source files and journal bytes.
+An inspection result must never grant permission to write.
+The host must resolve the actor and current authority separately.
+Then the recovery controls can be connected to the Engine API.
 
-## Evidence and limits
+In Engine PR 74, inspect `src/navigation-effects/node/executor.ts`.
+Also read `docs/EFFECTS-HOST-API-PROGRESS.md`.
+In Engine PR 75, inspect `scripts/sea-native-assets.mjs`.
+Also inspect `src/watcher/windows-retained-guard.ts`.
+Keep that exact candidate unchanged while its qualification runs.
 
-The latest full Kosmos verification passed 621 tests.
-That full run includes release preservation, reconciliation path corrections, and Engine host receipt mapping.
-Kosmos now validates and maps Engine recovery-inspection and shutdown evidence.
-It also rejects hidden fields and array getters before using those receipts.
-A repository test now exercises the installed Engine package, rather than a sibling checkout.
-It maps actual empty-vault inspection and completed shutdown.
-Native capability messages now identify the missing host binding. Writes remain unavailable.
-The production adapters still need to be connected.
-Read [host receipt mapping](docs/navigation-effects/ENGINE-HOST-RECEIPTS.md) for the exact limits.
-Earlier portable staging also used the real viewer with a synthetic, non-executable sidecar.
-Reconciliation now rejects noncanonical target paths instead of declaring matching invalid snapshots safe.
-The regression failed before the correction and passed afterward.
-The older Engine qualification at `a7b52b3` passed 1,140 tests with no failures or skips.
-Its receipt explicitly says that the release is not qualified.
-The newer Engine candidate at `ab38572` failed full qualification.
-It passed 1,162 of 1,163 tests, with no skips.
-A Windows directory swap-and-restore escaped detection.
-Stress testing reproduced the problem. A proposed timestamp check was insufficient and removed.
-An isolated Windows handle probe blocked all 200 rename attempts, including from Node.
-A native Node-API guard now builds and passes six dedicated Windows tests.
-Directory guards now allow the intended child-file changes while blocking directory replacement.
-A separate process attempted 800 retained-file and parent mutations. All were refused.
-The shared watcher transition now holds these guards through its final authority check.
-All 12 pointer tests passed. The original attack was rejected in all 200 repeated attempts.
-The loader refuses missing or altered native binaries before creating a file.
-Six native tests passed. The `6f1486f` full run then exposed one separate runner-packaging failure.
-The combined candidate fixes its native binding and process cleanup. Its full run passed all 1,213 tests.
-Production installation and the remaining publication paths still need qualification.
-Read the [qualification failure](docs/reviews/2026-09-14-engine-qualification-failure.md) for the evidence.
-Its build, inventory test, package check, and qualification inventory check passed.
-Pop-out views now use their own document for visibility and their own window for frame messages.
-Window visibility events now pause rendering and resume deferred updates when the view is visible again.
-Component tests cover this correction. Actual visible pop-out acceptance remains open.
-The readable spatial view now follows the same owner-window rules and pauses when its document is hidden.
-The separate browser matrix finished with 231 passes, three failures, and two skips.
-All three failures concern the desktop star-focus reference image.
-The generated mobile reference images remain untracked and unapproved.
-Their passing comparisons do not establish approved visual acceptance.
-The in-process adapter passes all eleven dedicated Windows storage tests.
-The executable variant also passes its storage regression run.
-The combined history workflow passed in an isolated Obsidian vault.
-It used synthetic data and a recorded publication receipt.
-It did not qualify live publication readback or production retention controls.
-The permission helper reduced individual checks to about 18–23 milliseconds.
-The new in-process adapter removes those repeated launches.
-The final workload budget still needs qualification.
+In the Rust branch, start with `conformance/differential/README.md`.
+Its recorded TypeScript outputs are observations, not approved reference results.
+The earlier Rust baseline passed 400 Windows tests.
+The new branch still needs a working validation product and independent qualification.
 
-Live synthetic search requests passed service checks.
-The native Notes baseline works.
-The live service connection through that view remains unfinished.
-An SSH forwarding configuration decision is pending.
-Credentials and private deployment receipts are not stored in this repository.
+## Remaining acceptance work
 
-## What comes next
+Native search needs citation, permission-change, outage, and restart checks.
+History needs owner controls and live publication checks.
+Indexing needs a speed fix, repeated workloads, and a soak test.
+The browser run still has three visual failures and two skips.
+The desktop shell passed 19 native Windows tests on candidate `4802da1`.
+One real-Engine recovery test remains unrun because it needs a verified executable.
+Agent names, comet trails, and visible pop-out behavior need installed acceptance.
+Mailbox reconciliation and older pull-request reviews also remain open.
+Final artifact, migration, rollback, and debug checks must precede the main merge.
 
-Fix the Windows retained-directory authority failure and requalify Engine before changing the Kosmos dependency pin.
-Qualify production installation and the full history workload for the new adapter.
-Qualify native search, citations, permission changes, and outage recovery.
-Fix indexing latency and finish the required repeated runs and soak.
-Complete workspace acceptance, history owner controls, and recovery tests.
-Complete adoption authority before enabling writes.
-Finish mailbox, agent identity, duplicate-ID, and older-PR reconciliation.
-Establish independent Rust implementation evidence.
-Verify final artifacts, migration, rollback, comet trails, and agent labels.
-Run the final debug sweep, then merge only after the required gates pass.
+The earlier Titans search found six documents within its recorded search scope.
+The private reading index retains their titles, paths, and content hashes.
+Those private details are not published in this repository.
 
-The [remaining build gates](docs/reviews/2026-09-13-remaining-build-gates.md) are the complete checklist.
-They link the original plans and historical evidence.
-This short guide does not replace or reduce that scope.
-Another agent should read that checklist before continuing implementation.
-It should check the current branch and test revision before reporting progress.
-
-
-## Earlier document-search request
-
-The Titans document search was already completed in an earlier native test session.
-Its private report records six matching documents and the search limits.
-A local Markdown recheck confirmed those six matches.
-The reading index and content hashes remain in the local task evidence directory.
-Private document titles, paths, and contents are not published here.
-This closes the document-finding follow-up within its recorded search scope.
-It does not qualify the final upgraded plugin or attachment search.
+Read the complete checklist before continuing implementation.
+Check the branch and exact tested revision before reporting progress.
+Keep successful tests, installed behavior, and release approval distinct.
