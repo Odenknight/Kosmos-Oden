@@ -1,7 +1,9 @@
 # Navigation Effects development pin
 
 Historical ledger for the August integration. The current Kosmos 0.8.3 candidate
-pins Engine `c4940c4efd98e2cab9118b62c25e708737f62bdb` (2.2.0 development candidate).
+now pins Engine `c8a6348fccd37ad2034435105dc966795e18719d` (2.2.0 development candidate).
+That exact Engine revision passed 1,213 Windows Node 24 tests. This is a consumer
+integration coordinate; it is not the normal installed plugin or a release approval.
 The older coordinates below are retained as historical evidence.
 
 Status: exact development-only integration coordinate. This is not a released

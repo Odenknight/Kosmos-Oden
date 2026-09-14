@@ -2,9 +2,9 @@
  * Truthful standalone/native profile boundary.
  *
  * The experimental Engine Node executor is intentionally not imported here:
- * its public API cannot yet satisfy the complete host contract without
- * duplicating security-sensitive behavior or weakening recovery/shutdown
- * semantics.
+ * its prepared/recovery/shutdown APIs still need a configured Kosmos host
+ * binding, exact path-safety evidence, and qualified durability before this
+ * adapter can satisfy the complete host contract.
  */
 import {
   createUnavailableEffectHostAdapter,
@@ -84,11 +84,11 @@ const CAPABILITY_REPORT = normalizeEffectHostCapabilityReport("standalone-native
   configured: false,
   limitationCodes: ["ADAPTER_NOT_IMPLEMENTED", "REQUIRED_PRIMITIVE_UNPROVEN"],
   primitives: {
-    exactByteSnapshot: { proof: "unsupported", mechanism: "read-only-inspection-api-missing", limitationCode: "CAPABILITY_UNPROVEN" },
-    durablePreparedIntent: { proof: "unsupported", mechanism: "split-prepare-api-missing", limitationCode: "CAPABILITY_UNPROVEN" },
+    exactByteSnapshot: { proof: "unsupported", mechanism: "exact-snapshot-host-binding-missing", limitationCode: "CAPABILITY_UNPROVEN" },
+    durablePreparedIntent: { proof: "unsupported", mechanism: "prepared-intent-host-binding-missing", limitationCode: "CAPABILITY_UNPROVEN" },
     directoryFlush: { proof: "unsupported", mechanism: "directory-flush-not-proven", limitationCode: "CAPABILITY_UNPROVEN" },
-    startupRecovery: { proof: "unsupported", mechanism: "authorized-recovery-api-missing", limitationCode: "CAPABILITY_UNPROVEN" },
-    safeShutdown: { proof: "unsupported", mechanism: "deadline-shutdown-api-missing", limitationCode: "CAPABILITY_UNPROVEN" },
+    startupRecovery: { proof: "unsupported", mechanism: "authorized-recovery-host-binding-missing", limitationCode: "CAPABILITY_UNPROVEN" },
+    safeShutdown: { proof: "unsupported", mechanism: "deadline-shutdown-host-binding-missing", limitationCode: "CAPABILITY_UNPROVEN" },
   },
 });
 

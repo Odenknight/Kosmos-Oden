@@ -17,7 +17,7 @@ import {
 import { getNavigationCapabilities, NAVIGATION_CONTRACT_VERSION } from "gkos-engine/navigation";
 
 const ROOT = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
-const ENGINE_COMMIT = "885b0b39ca1f4c20c27623cdb49b625a8be3d52b";
+const ENGINE_COMMIT = "c8a6348fccd37ad2034435105dc966795e18719d";
 
 test("browser adapter exposes Engine managed-MOC seams without enabling writes", () => {
   for (const entry of [planManagedMocBatch, ManagedMocCoordinator, buildDeterministicMocAssistance, buildMocAssistance]) assert.equal(typeof entry, "function");

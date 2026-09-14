@@ -94,3 +94,32 @@ test('receipt evidence refuses hidden fields and array accessors without reading
   }), /ENGINE_HOST_EVIDENCE_INVALID/);
   assert.equal(calls, 0);
 });
+
+
+test('installed Engine package produces usable host inspection and shutdown receipts', async () => {
+  const { NodeNavigationEffectsExecutor } = await import('gkos-engine/navigation-effects/node');
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { dirname, join, resolve } = await import('node:path');
+  const parent = resolve(tmpdir()), vault = mkdtempSync(join(parent, 'kosmos-installed-effects-'));
+  const executor = new NodeNavigationEffectsExecutor({ vaultRoot: vault, pathThreatModel: 'cooperative-vault' });
+  try {
+    const observed = await executor.inspectRecovery();
+    const mapped = await api.mapEngineRecoveryInspection('standalone-native', observed);
+    assert.equal(mapped.engineInspectionDigest, observed.inspectionDigest);
+    assert.equal(mapped.inspection.status, 'safe');
+    assert.equal(mapped.inspection.engineWriteCapabilityMayEnable, false);
+    assert.equal(mapped.inspection.automaticWriteEnabled, false);
+    await executor.shutdown();
+    const receipt = await api.mapEngineShutdownResult('standalone-native',
+      await executor.shutdownByDeadline(new AbortController().signal));
+    assert.equal(receipt.status, 'complete');
+    assert.equal(receipt.checkpointVerified, true);
+    assert.equal(receipt.leaseReleased, true);
+  } finally {
+    await executor.releaseVaultLease();
+    assert.equal(dirname(vault), parent);
+    assert.ok(vault.startsWith(join(parent, 'kosmos-installed-effects-')));
+    rmSync(vault, { recursive: true, force: true });
+  }
+});

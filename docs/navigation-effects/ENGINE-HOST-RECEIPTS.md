@@ -43,3 +43,12 @@ Next, retain the binding in the configured host instance, resolve the actor and
 current grant independently, and connect the inspection-bound Engine operation.
 Source snapshots, path-safety receipts, prepared handles, and durability gates
 must also be supplied before the native adapter can report execution available.
+
+
+The consumer pin now includes Engine `c8a6348`. The repository test imports the
+installed `gkos-engine/navigation-effects/node` package and maps its actual
+empty-vault inspection and completed shutdown. Earlier checks against a sibling
+Engine checkout remain historical evidence. The native adapter now identifies
+missing host bindings instead of claiming that the new Engine APIs are absent.
+Its capabilities and every production operation remain unavailable until the
+complete host authority, path-safety and durability contract is implemented.

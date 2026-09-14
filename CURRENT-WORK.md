@@ -38,7 +38,7 @@ The Kosmos host connection and recovery controls are still unfinished.
 The candidate refreshes agent names when a heartbeat arrives.
 The comet trails and names still need final checks in the installed interface.
 Pop-out windows now use their own visibility and message handling.
-The latest full Kosmos verification passed 618 tests.
+The latest full Kosmos verification passed 621 tests.
 The separate browser run had three visual failures and two skips.
 Those failures remain open.
 
@@ -107,8 +107,8 @@ Windows executable packaging is now on Engine `13ff119`, branch `codex/sea-nativ
 Eight focused native/assets tests passed, including real executable loading and corrupted-asset refusal.
 Full qualification of that exact revision is running.
 That newer work is not covered by the `c8a6348` full-suite result.
-Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
-The pin and the Engine working branch are different revisions.
+Kosmos currently pins Engine `c8a6348fccd37ad2034435105dc966795e18719d`.
+This pin matches the tested combined Effects candidate. The newer SEA branch is separate.
 The normal installed plugin remains the earlier `59a61ca` candidate.
 Branch changes must not be described as installed.
 The separate synthetic Obsidian vault now runs candidate `27309b2`.
@@ -179,10 +179,13 @@ These inventories are incomplete software inventories. They are not signed relea
 
 ## Evidence and limits
 
-The latest full Kosmos verification passed 618 tests.
+The latest full Kosmos verification passed 621 tests.
 That full run includes release preservation, reconciliation path corrections, and Engine host receipt mapping.
 Kosmos now validates and maps Engine recovery-inspection and shutdown evidence.
 It also rejects hidden fields and array getters before using those receipts.
+A repository test now exercises the installed Engine package, rather than a sibling checkout.
+It maps actual empty-vault inspection and completed shutdown.
+Native capability messages now identify the missing host binding. Writes remain unavailable.
 The production adapters still need to be connected.
 Read [host receipt mapping](docs/navigation-effects/ENGINE-HOST-RECEIPTS.md) for the exact limits.
 Earlier portable staging also used the real viewer with a synthetic, non-executable sidecar.
