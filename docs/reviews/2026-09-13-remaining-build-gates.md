@@ -94,3 +94,9 @@ the Node 24 pass completes the remaining product and native acceptance gates.
 ## September 14 qualified dependency update
 
 The candidate now consumes Engine 3ed9127 after all six hosted Windows/Ubuntu runtime lanes passed with zero failures or skips. The updated consumer passed all 633 local tests and the required verification chain, then 246 browser checks with two declared platform skips. See the [exact-source runtime and consumer report](2026-09-14-engine-hosted-runtime-qualification.md). Earlier source coordinates and failed receipts above remain historical. This update does not close the product integration, installed acceptance, performance, soak, Rust, deferred macOS or final release gates.
+
+## 2026-09-14 Debian history component follow-up
+
+Signed implementation a9fc58cdc11bcd8b1b2fe5d04fdb4aad6c8ebdbd adds the bounded native Linux/ext-family history file guard. It does not enable production history. Independent review and real Debian checks cover SQLite creation/reopen, ownership/modes, ACL masks, permanent invalidation, journal privacy, and non-ext filesystem refusal. All seven focused Debian cases passed without skips. Full Debian verification passed 626 tests with 13 platform/environment skips before the final additional ACL test; full Windows verification passed 633 tests with seven Linux skips after isolating the tool-harness ACL mutation reproduced by a controlled probe. Historical failures remain recorded. Exact source/log hashes and scope are in `docs/workspace/NATIVE-HISTORY-STORAGE.md`.
+
+This does not close production owner integration, persistent storage deployment, retention/backup/recovery, performance, installed acceptance, or deferred macOS gates. The installed plugin candidates and Engine 3ed9127 pin are unchanged. Hosted checks for this new component must be assessed against its new source, separately from the successful 231b996 run.
