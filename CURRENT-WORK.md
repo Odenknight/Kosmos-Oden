@@ -72,7 +72,7 @@ Its installation and plugin load passed. Visible native acceptance remains open.
 
 Repository: [GKOS-Engine-Rust](https://github.com/Odenknight/GKOS-Engine-Rust).
 Branch: `codex/rust-differential-core-20260913`.
-Verified branch revision: `2a29fef`.
+Verified branch revision: `0a89135`.
 This branch builds on `integration/m0`.
 
 Read `conformance/differential/README.md` for the handoff.
@@ -85,7 +85,11 @@ Read `rust/crates/gkos-conformance/src/lib.rs` for the comparator.
 It compares exit codes and exact output bytes.
 It also records which difference classes need review or must block.
 Its five unit tests and Clippy check passed.
-The executable runner, approved reference results, and working Rust validation command remain unfinished.
+The mock command now runs eight comparisons through that core.
+From the Rust workspace, run `cargo xtask differential --surface validate --candidate mock`.
+Its two command tests and Clippy check passed.
+The mock report explicitly says that no product or reference results are qualified.
+The real executable runner, approved reference results, and working Rust validation command remain unfinished.
 The earlier 400-test result applies to the tested main baseline, not this entire new branch.
 
 ## Where to look in the code
