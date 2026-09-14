@@ -72,7 +72,7 @@ Its installation and plugin load passed. Visible native acceptance remains open.
 
 Repository: [GKOS-Engine-Rust](https://github.com/Odenknight/GKOS-Engine-Rust).
 Branch: `codex/rust-differential-core-20260913`.
-Verified branch revision: `0a89135`.
+Verified branch revision: `f40bd22`.
 This branch builds on `integration/m0`.
 
 Read `conformance/differential/README.md` for the handoff.
@@ -80,6 +80,11 @@ Read `compat/fixtures/m0/manifest.json` for the 22 source files and 18 cases.
 Read `compat/oracle-observations/validate-windows-node24-724ab12/README.md` for recorded TypeScript outputs.
 These outputs are observations. They are not approved reference results.
 Run `node tools/verify-validation-observations.mjs` to check their integrity.
+Windows and Debian now reproduce all 18 cases twice on Node 22.
+The retained 72 executions match the Windows Node 24 reference.
+The verifier checks every retained stream and run against that reference.
+It rejects missing evidence, altered bytes, forged hashes, and changed identities.
+This still does not approve goldens or qualify the Rust product.
 
 Read `rust/crates/gkos-conformance/src/lib.rs` for the comparator.
 It compares exit codes and exact output bytes.
