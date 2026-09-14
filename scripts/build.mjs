@@ -27,6 +27,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { observeStandaloneInputs } from "./standalone-component-inputs.mjs";
+import { standaloneSbom } from "./standalone-sbom.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Set(process.argv.slice(2));
@@ -180,9 +181,12 @@ async function buildStandalone() {
     completeSbom: false,
     componentInputs: observeStandaloneInputs(root, metafile),
     componentObserverSha256: sha256(readFileSync(resolve(root, "scripts/standalone-component-inputs.mjs"))),
+    sbomGeneratorSha256: sha256(readFileSync(resolve(root, "scripts/standalone-sbom.mjs"))),
     metafile,
   };
-  writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), JSON.stringify(inventory, null, 2) + "\n");
+  const inventoryBytes = Buffer.from(JSON.stringify(inventory, null, 2) + "\n");
+  writeFileSync(resolve(root, "dist/standalone-build-inputs.json"), inventoryBytes);
+  writeFileSync(resolve(root, "dist/standalone.cdx.json"), standaloneSbom(inventoryBytes));
   console.log(`built kosmos-oden-stand-alone.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
 }
 

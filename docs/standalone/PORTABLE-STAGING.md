@@ -116,6 +116,20 @@ synthetic non-executable sidecar. Both viewer and inventory matched byte-for-byt
 No sidecar runtime qualification was performed by that check.
 # Viewer component observations
 
+The build also emits `dist/standalone.cdx.json` in CycloneDX 1.5 format. It binds
+the final viewer hash and exact input-inventory digest to the observed packages,
+source input hashes, and license-document hashes. Known MIT and Apache-2.0 package
+declarations map to SPDX IDs; other declarations remain explicit properties.
+No independent license adjudication is claimed. The composition is marked
+`incomplete`, and unknown transitive dependencies are not represented as empty
+dependency lists. Engine pre-bundle and native sidecar coverage remain open.
+
+Artifact checks reject stale generator code or a BOM differing from the inventory.
+Portable staging requires the matching BOM before creating output, copies its
+exact bytes, and binds its digest in BUILD-INFO, SHA256SUMS and SBOM-INPUT.
+The security workflow retains it alongside the dependency BOM and viewer inputs.
+These records remain incomplete evidence and do not close the full SBOM gate.
+
 The standalone build inventory records SHA-256 hashes of direct files with
 positive byte contributions in the actual bundler output. Each file is assigned
 to the source package or its nearest installed dependency, including nested and

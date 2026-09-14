@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { standaloneSbom } from "./standalone-sbom.mjs";
 
 const TARGETS = {
   "debian-x64": ["linux", "x86_64", "gkos-agent"],
@@ -95,6 +96,9 @@ export function stagePortable(root, argv) {
     reject("standalone input inventory does not match the staged viewer and lockfile");
   }
   common.set("standalone-build-inputs.json", inventoryBytes);
+  const sbomBytes = regular(resolve(root, "dist/standalone.cdx.json"), 16 * 1024 * 1024);
+  if (!sbomBytes.equals(standaloneSbom(inventoryBytes))) reject("standalone SBOM does not match its input inventory");
+  common.set("standalone.cdx.json", sbomBytes);
   const targets = [];
   // Never remove a previous package. A failure leaves its new directory as
   // incomplete evidence, without a completion manifest.
@@ -114,7 +118,7 @@ export function stagePortable(root, argv) {
       runtimeQualified: false, sidecar: input.manifest, viewerSha256: sha(common.get("kosmos-oden-stand-alone.html")),
       sidecarManifestSha256: sha(input.manifestBytes), lockfileSha256: sha(lock),
       sidecarInventorySha256: sha(input.inventoryBytes),
-      standaloneInventorySha256: sha(inventoryBytes) }, null, 2) + "\n"));
+      standaloneInventorySha256: sha(inventoryBytes), standaloneSbomSha256: sha(sbomBytes) }, null, 2) + "\n"));
     for (const [name, bytes] of payload) {
       const destination = resolve(folder, name);
       mkdirSync(dirname(destination), { recursive: true });
@@ -129,6 +133,7 @@ export function stagePortable(root, argv) {
   }
   writeFileSync(resolve(output, "SBOM-INPUT.json"), JSON.stringify({ schemaVersion: 1,
     completeSbom: false, npmLockSha256: sha(lock), standaloneInventorySha256: sha(inventoryBytes),
+    standaloneSbomSha256: sha(sbomBytes),
     artifacts: targets }, null, 2) + "\n", { flag: "wx" });
   const report = { schemaVersion: 1, productionReady: false, releaseStatus: "internal-alpha", targets,
     blockers: ["native runtime qualification remains open", "complete sidecar and viewer SBOM remains open",
