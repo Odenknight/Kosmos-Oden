@@ -25,7 +25,7 @@ The complete four-browser run passed 246 checks with two declared platform skips
 All twelve reference images have independent approval. Earlier Windows history
 failures remain preserved. Explicit private file creation and correct helper
 installation now pass all three hosted storage backends, 12 tests each.
-Its pinned Engine passed 1,215 tests on Node 24.
+Its pinned Engine passed 1,216 tests on each hosted Windows runtime lane.
 These results do not prove that the whole upgrade is ready.
 The native search connection and recovery controls remain unfinished.
 Production history and automatic source writes remain disabled.
@@ -40,15 +40,16 @@ Median edits were 12.02 seconds for the base and 11.62 seconds for the candidate
 candidate memory increased in every pair. All ten edits failed the speed target.
 The next target is repeated whole-graph processing during activation.
 
-The full Node 22 qualification ended in failure at 07:15 UTC on September 14.
+The original `13ff119` Node 22 qualification failed at 07:15 UTC on September 14.
 It recorded 1,212 passes, two failures, and one skip across 1,215 tests.
-Both failing cases later passed in focused runs; the full gate remains failed.
+Both failing cases later passed in focused runs; that historical full run remains failed.
 The witness-rename fix at Engine `3cab7a2` subsequently passed all 1,216 tests
 in a full Windows Node 22.22.1 run. Draft Engine PR 78 preserves that candidate.
 The same commit also passed all 1,216 tests on Windows Node 24.18.0.
 Draft Engine PR 79 fixes CI dependency setup and adds actual Linux rename-refusal
-coverage. Its full hosted checks and consumer adoption remain open;
-the consumer still pins `13ff119`, whose earlier Node 22 failure is preserved.
+coverage. Its final hosted matrix passed on Node 22, 24 and 26 on Windows
+and Ubuntu. The consumer now pins `3ed9127`; all 633 local tests and required
+verification checks passed. The older `13ff119` failure remains preserved.
 The upgrade remains on review branches.
 It has not been merged to main.
 
@@ -62,13 +63,13 @@ It has not been merged to main.
 | GKOS-Engine-Rust | `codex/rust-differential-core-20260913` | Validation fixtures and the output comparator. |
 | GKOS-standard | Shared specification repository | Contract definitions used by the implementations. |
 
-Kosmos currently pins Engine `13ff119bbe7a1d9dd686d75267a4eb8f2cc65504`.
-That exact revision passed all 1,215 tests on Windows Node 24.
-The full run finished at 06:42 UTC on September 14.
-Both log hashes and the tested source revision were verified.
-Its eight focused Node 22 native and asset tests also passed.
-The separate full Node 22 run failed. Its terminal receipt and focused follow-up
-evidence are recorded in the [Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
+Kosmos currently pins Engine `3ed9127fa01685c113470e79f013bde56f1a8441`.
+The complete hosted matrix passed 1,216 tests per Windows lane and 1,219 per
+Ubuntu lane, with no failures or skips. All six receipts, source bindings and
+raw logs were verified. Node 26 remains informative. See the
+[hosted qualification report](docs/reviews/2026-09-14-engine-hosted-runtime-qualification.md).
+The earlier failed `13ff119` Node 22 result remains historical evidence in the
+[Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
 
 The normal installed plugin remains candidate `59a61ca`.
 The isolated Obsidian test vault runs candidate `27309b2`.

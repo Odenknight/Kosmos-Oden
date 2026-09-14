@@ -90,3 +90,7 @@ Its status is FAIL and release_qualified is false. Later focused passes do not
 replace that result; see the [terminal update](2026-09-14-node22-terminal-qualification.md).
 The Kosmos dependency now includes this revision. Neither this pin update nor
 the Node 24 pass completes the remaining product and native acceptance gates.
+
+## September 14 qualified dependency update
+
+The candidate now consumes Engine 3ed9127 after all six hosted Windows/Ubuntu runtime lanes passed with zero failures or skips. The updated consumer passed all 633 local tests and the required verification chain, then 246 browser checks with two declared platform skips. See the [exact-source runtime and consumer report](2026-09-14-engine-hosted-runtime-qualification.md). Earlier source coordinates and failed receipts above remain historical. This update does not close the product integration, installed acceptance, performance, soak, Rust, deferred macOS or final release gates.
