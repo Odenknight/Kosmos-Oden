@@ -27,8 +27,10 @@ All twelve reference images have independent approval. Earlier Windows history
 failures remain preserved. Explicit private file creation and correct helper
 installation now pass all three hosted storage backends, 12 tests each.
 The earlier Engine pin passed 1,216 tests on each hosted Windows runtime lane.
-The new development pin and its separate runtime evidence are recorded in the
-[native UTF-16 candidate report](docs/reviews/2026-09-14-engine-native-string-qualification.md).
+The current development pin and its separate runtime evidence are recorded in the
+[native build reproducibility report](docs/reviews/2026-09-14-engine-native-repro-qualification.md).
+The earlier [UTF-16 candidate report](docs/reviews/2026-09-14-engine-native-string-qualification.md)
+retains the prior pin and its performance measurements.
 The [combined consumer verification](docs/reviews/2026-09-14-effects-inspection-consumer.md)
 records its exact tested commit, raw logs and remaining installed-host limits.
 These results do not prove that the whole upgrade is ready.
@@ -68,13 +70,15 @@ It has not been merged to main.
 | GKOS-Engine-Rust | `codex/rust-differential-core-20260913` | Validation fixtures and the output comparator. |
 | GKOS-standard | Shared specification repository | Contract definitions used by the implementations. |
 
-Kosmos currently pins Engine `a6ab4764ba858a1af07333311337230f3a1d4f29`.
-Its complete hosted matrix passed 1,217 tests per Windows lane and 1,220 per
+Kosmos currently pins Engine `851239a32a81ed794addd1ab6ecf3f02904b60fc`.
+Its complete hosted matrix passed 1,218 tests per Windows lane and 1,220 per
 Ubuntu lane, with no failures or skips. Native Windows and Debian runs also
-passed. All source bindings and raw logs were verified; Node 26 is informative.
-See the [current Engine report](docs/reviews/2026-09-14-engine-native-string-qualification.md).
-The separate native build reproducibility candidate is in
-[Engine PR 81](https://github.com/Odenknight/GKOS-Engine/pull/81); it is not the consumer pin.
+passed. All 705 source files and raw logs were verified; Node 26 is informative.
+Two complete local npm packages reproduced byte for byte after a rebuild.
+See the [current Engine report](docs/reviews/2026-09-14-engine-native-repro-qualification.md)
+and [Engine PR 81](https://github.com/Odenknight/GKOS-Engine/pull/81).
+The consumer pin update needs its own integration verification; earlier consumer
+receipts remain bound to their original revisions.
 The earlier failed `13ff119` Node 22 result remains historical evidence in the
 [Node 22 qualification update](docs/reviews/2026-09-14-node22-terminal-qualification.md).
 
