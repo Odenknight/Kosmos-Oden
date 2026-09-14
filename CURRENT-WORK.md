@@ -55,6 +55,8 @@ The upgrade is on review branches. It has not been merged to main.
 
 GKOS-standard defines the shared contracts used by these products.
 GKOS-Engine-Rust needs its own working implementation evidence.
+Its pinned Windows workspace suite now passes 400 tests with the exact admitted tools.
+See the [Rust test evidence](docs/reviews/2026-09-13-rust-pinned-suite.md) for scope and remaining gaps.
 A passing TypeScript test does not prove that the Rust product works.
 
 Kosmos work is on `codex/build-plan-completion-20260913`.
