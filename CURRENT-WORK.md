@@ -23,7 +23,7 @@ Production history remains disabled.
 The separate Engine Effects branch now separates preparation from execution.
 Preparation records intent without replacing source notes.
 Execution checks current authority and source bytes again.
-All 155 Effects tests passed on that branch.
+All 159 Effects tests passed on that branch.
 Recovery now checks current authority before changing interrupted work.
 It checks again under the target lock and holds that lock through recovery.
 Missing, revoked, or malformed authority blocks those recovery changes.
@@ -88,10 +88,12 @@ This update includes release preservation through `274dbdb` and the reconciliati
 Engine work is on `codex/graphiti-product-binding-20260913`, at `6f1486f`.
 Its last full qualification tested the earlier `ab38572` revision and failed.
 Engine PR 73 builds on PR 72.
-Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `337bde3`.
+Additional Effects API work is on Engine branch `codex/effects-host-api-20260914` at `46f38a7`.
 Read its [host API progress](https://github.com/Odenknight/GKOS-Engine/blob/codex/effects-host-api-20260914/docs/EFFECTS-HOST-API-PROGRESS.md).
 This branch now includes the watcher candidate through `6f1486f`.
-Its combined build and all 174 focused tests passed.
+Its combined build and all 178 focused tests passed.
+Source reads now reject linked files and detected changes during reading.
+Complete path-safety receipts and production host wiring remain unfinished.
 [Engine PR 74](https://github.com/Odenknight/GKOS-Engine/pull/74) is a draft for these Effects changes.
 Full qualification of the combined candidate is still required.
 Kosmos currently pins Engine `885b0b39ca1f4c20c27623cdb49b625a8be3d52b`.
