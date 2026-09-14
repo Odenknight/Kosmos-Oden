@@ -140,3 +140,24 @@ The new fixture checks ordering over permutations, Unicode, duplicates, nested v
 empty/singleton inputs, deep freezing, and preservation of the input graph.
 Type checking, build, current source-inventory validation, package validation, and whitespace checks passed.
 The change is pushed on Engine PR 73. Kosmos's dependency pin and the installed plugin remain unchanged.
+
+## Validation-only experiments after the sort-key change
+
+Two private experiments based on Engine `eafdfc9` tested avoiding canonical output
+construction when a caller only needs input validation. They preserved the strict
+input checks. The differential fixture covered 6,967 cases without observed
+acceptance/rejection differences or getter calls.
+
+The first experiment changed two discard-only serialization calls in candidate
+validation. Its 2,000-note edit took 10,867.42 ms.
+The expanded experiment also changed discard-only serialization and digest calls
+in retrieval modules. Its edit took 10,612.37 ms.
+Both runs ended in `FAIL_BUDGET` against the 2,000 ms limit.
+Each receipt contains only one edit cycle and no restart.
+Neither establishes a useful improvement over the committed 10,770.04 ms diagnostic.
+Neither implementation was adopted. Do not repeat these experiments without new evidence.
+
+Private receipts are retained under `watcher-validation-only-run-20260913`
+and `watcher-validation-only-expanded-run-20260913` in the task evidence directory.
+Their UTC start times are 2026-09-14T01:47:35.861Z and 2026-09-14T01:49:45.322Z.
+The Engine source remains unchanged by these experiments.
