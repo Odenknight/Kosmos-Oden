@@ -35,7 +35,7 @@ export class KosmosReadableView extends ItemView {
   }
   private selectedNode(nodes: any[]) {
     if (!this.uid) return nodes.find(node => node.path === this.path);
-    const matches = nodes.filter(node => node.uid === this.uid);
+    const matches = nodes.filter(node => typeof node.uid === "string" && node.uid.toLowerCase() === this.uid!.toLowerCase());
     return matches.length === 1 ? matches[0] : undefined;
   }
   private remember(node: any) {

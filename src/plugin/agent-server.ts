@@ -801,7 +801,9 @@ export class KosmosAgentServer {
     const files = this.fileNodes(graph);
     if (sel.uid) {
       const uid = sel.uid.trim();
-      const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
+      const matches = (candidate: unknown) => typeof candidate === "string" &&
+        (candidate === uid || isValidGkxAuthoredUid(uid) && candidate.toLowerCase() === uid.toLowerCase());
+      const hits = files.filter((n) => matches(n.gkx?.projection?.authored.uid) || matches(n.gkx?.uid));
       if (hits.length > 1) {
         const exact = sel.path ? hits.filter(n => n.path === sel.path.trim()) : [];
         if (exact.length === 1) return exact[0];
@@ -1232,7 +1234,7 @@ export class KosmosAgentServer {
     if (episodes.length !== total) throw new ProviderError("provider_unavailable");
     const nodes = new Map(visible.nodes.filter(node => node.kind === "file").map(node => [node.path, node]));
     const counts = new Map<string, number>();
-    for (const node of graph.nodes) if (node.kind === "file" && node.gkx?.uid) counts.set(node.gkx.uid, (counts.get(node.gkx.uid) ?? 0) + 1);
+    for (const node of graph.nodes) if (node.kind === "file" && node.gkx?.uid) counts.set(node.gkx.uid.toLowerCase(), (counts.get(node.gkx.uid.toLowerCase()) ?? 0) + 1);
     const sources = new Map<string, Uint8Array>();
     const inputs: Array<{source_id:string; raw:Uint8Array; episode:ManagedGraphitiEpisode}> = [];
     let remaining = 64 * 1024 * 1024;
@@ -1240,7 +1242,7 @@ export class KosmosAgentServer {
       check();
       const body = JSON.parse(episode.episode_body), path = episode.source === "fact_triple" ? body.source_path : body.path;
       const node = nodes.get(path), uid = node?.gkx?.uid;
-      if (!uid || !isValidGkxAuthoredUid(uid) || counts.get(uid) !== 1) throw new ProviderError("provider_unavailable");
+      if (!uid || !isValidGkxAuthoredUid(uid) || counts.get(uid.toLowerCase()) !== 1) throw new ProviderError("provider_unavailable");
       if (!sources.has(path)) {
         const raw = await provider.getIndexedSourceBytes(path, graph, remaining);
         check();

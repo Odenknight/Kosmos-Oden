@@ -57,10 +57,11 @@ export class NotesWorkspaceHost {
       if (!provider.getIndexedSourceBytes) return null;
       const graph = await provider.getGraph();
       if (!accepted()) return null;
+      const matches = (uid: unknown) => typeof uid === "string" && uid.toLowerCase() === citation.source_id.toLowerCase();
       if (graph.nodes.filter(node => node.kind === "file" &&
-          (node.gkx?.projection?.authored.uid === citation.source_id || node.gkx?.uid === citation.source_id)).length !== 1) return null;
+          (matches(node.gkx?.projection?.authored.uid) || matches(node.gkx?.uid))).length !== 1) return null;
       const note = await this.api.qNote({uid: citation.source_id, page_size: 2});
-      if (!accepted() || note.error || note.uid !== citation.source_id) return null;
+      if (!accepted() || note.error || !matches(note.uid)) return null;
       const path = validateVaultRelativePath(note.path);
       if (!path.valid || path.normalized !== note.path) return null;
       const raw = await provider.getIndexedSourceBytes(note.path, graph, 64 * 1024 * 1024);

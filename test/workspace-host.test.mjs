@@ -269,3 +269,14 @@ test('semantic citation resolution does not read hidden or ambiguous source UIDs
     assert.equal((await host.resolveSemanticCitation('query','request',result,citation,new AbortController().signal)).value,null);
   }
 });
+
+
+test('UID selectors and citation resolution reject case-variant duplicate identities',async()=>{
+ const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+ const f=fixture([uid,uid.toUpperCase()].map((id,i)=>({relativePath:`Alias${i}.md`,content:`---\ngkx_version: "2.3"\nuid: "${id}"\nsensitivity: public\n---\nBody`})));
+ await assert.rejects(f.host.read('Alias0.md',{uid}),/Ambiguous UID/);
+ f.provider.getIndexedSourceBytes=async()=>assert.fail('ambiguous source bytes requested');
+ const citation={projection_episode_id:'episode',source_id:uid,source_digest:`sha256:${'a'.repeat(64)}`};
+ const host=new NotesWorkspaceHost(f.api,{isCurrent:()=>true});
+ assert.equal((await host.resolveSemanticCitation('query','request',{hits:[{citations:[citation]}]},citation,new AbortController().signal)).value,null);
+});

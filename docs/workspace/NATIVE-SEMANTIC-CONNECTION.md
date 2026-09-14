@@ -65,3 +65,17 @@ Cancelled preparation retains its slot until the underlying work settles.
 
 This code does not provision a profile, ingest vault content, or establish
 visible native user-interface acceptance. Those deployment checks remain open.
+
+## UUID case ambiguity regression
+
+Native manifest preparation counts UUID identities without regard to letter case.
+The count includes hidden file nodes before source-byte reads.
+A readable source with a hidden UUID case alias is refused.
+Notes selectors and citation uniqueness checks follow the same UUID identity rule.
+Saved spatial UID selection follows a uniquely matching case variant and refuses aliases.
+Stored UID spelling, source bytes and source digests are preserved.
+Legacy non-UUID selector strings retain their exact-match behavior.
+
+Three new regression fixtures failed before this correction.
+Full repository verification passes 575 tests after the correction.
+The existing vault duplicate-identity reconciliation and live native acceptance remain open.

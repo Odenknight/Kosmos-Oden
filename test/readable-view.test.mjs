@@ -97,3 +97,14 @@ test('cross-mode UID lookup rejects an old-path replacement and forwards identit
   assert.match(f.view.status.textContent,/unavailable/);
   assert.throws(()=>f.view.locate('A.md','invalid'),/UID_INVALID/);
 });
+
+
+test('saved spatial UUID resolves case variants and refuses duplicate aliases',async()=>{
+ const f=fixture(),uid='019b2d14-4230-7db7-87d4-7d81cfaec932',opened=[];
+ f.view.openNotes=path=>opened.push(path);
+ await f.view.setState({selectedPath:'Old.md',selectedUid:uid},{});
+ f.view.snapshot.value.nodes=[{id:'file:Moved.md',path:'Moved.md',uid:uid.toUpperCase()}];
+ await f.view.returnToNotes();assert.deepEqual(opened,['Moved.md']);
+ f.view.snapshot.value.nodes.push({id:'file:Other.md',path:'Other.md',uid});
+ await f.view.returnToNotes();assert.deepEqual(opened,['Moved.md']);
+});

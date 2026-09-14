@@ -104,7 +104,7 @@ Wrong credentials and an unavailable gateway returned the fallback result.
 The client recovered after the gateway restarted.
 This was a client-module test. Native Obsidian acceptance is still open.
 
-The latest completed Kosmos verification passed 572 tests.
+The latest completed Kosmos verification passed 575 tests.
 The persistent reader passed 53 Python tests on Windows and Linux.
 Each result applies to its tested revision.
 Later changes still need their affected checks.
@@ -172,6 +172,14 @@ Synthetic tests prove rollback during cleanup and persistence after commit.
 External cleanup and native purge qualification remain unfinished.
 Storage remains off in the plugin. Migration and native integration remain unfinished.
 See the [source-history handoff](docs/workspace/SOURCE-OBSERVATION-LEDGER.md).
+
+Native identity checks now recognize UUID letter-case variants.
+The manifest refuses a hidden note that duplicates a readable UUID in another case.
+Notes UID selection, citation resolution and saved spatial selection use the same identity meaning.
+The source UID spelling and source bytes remain unchanged.
+Three regression tests failed before the fix and pass afterward.
+The full repository verification now passes 575 tests.
+This does not resolve the existing vault's duplicate-UID records.
 
 ## What still needs work
 

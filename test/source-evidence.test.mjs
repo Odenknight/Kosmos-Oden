@@ -10,11 +10,11 @@ import { KosmosAgentServer, DEFAULT_AGENT_SETTINGS, MAX_SOURCE_EVIDENCE_BYTES } 
 const compiled = await build({ entryPoints: ["src/plugin/vault-provider.ts"], bundle: true, platform: "node", format: "esm", write: false });
 const { VaultDataProvider } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`);
 
-function fixture(relationships = "") {
+function fixture(relationships = "", privateUid = "") {
   const raw = "---\r\ntype: semantic\r\nsensitivity: internal\r\n" + relationships + "---\r\nExact café 🌌\r\n" + "tail ".repeat(3000);
   const settings = { ...DEFAULT_AGENT_SETTINGS, defaultSensitivity: "internal", agentSensitivityCeiling: "internal" };
   const file = { path: "note.md", name: "note.md", extension: "md", stat: { size: Buffer.byteLength(raw), mtime: 1, ctime: 1 } };
-  const privateRaw = "---\ntype: semantic\nsensitivity: secret\n---\nPrivate";
+  const privateRaw = "---\ntype: semantic\n" + (privateUid ? `uid: "${privateUid}"\n` : "") + "sensitivity: secret\n---\nPrivate";
   const privateFile = { ...file, path: "private.md", name: "private.md", stat: { ...file.stat, size: Buffer.byteLength(privateRaw) } };
   const reads = [];
   let binary = Buffer.from(raw), hook = () => {};
@@ -261,4 +261,12 @@ test('relationship-only export pages attach the originating source byte evidence
   assert.equal(body.source_evidence.sha256,createHash('sha256').update(Buffer.from(f.raw)).digest('hex'));
   assert.equal(body.content,undefined);
   assert.deepEqual(f.reads,['note.md']);
+});
+
+
+test('native manifest rejects a hidden UUID case alias before reading source bytes',async()=>{
+ const uid='019b2d14-4230-7db7-87d4-7d81cfaec932';
+ const f=fixture(`uid: "${uid}"\r\n`,uid.toUpperCase());
+ await assert.rejects(f.server.prepareManagedGraphitiManifest(new AbortController().signal),e=>e.reason==='provider_unavailable');
+ assert.deepEqual(f.reads,[]);
 });
