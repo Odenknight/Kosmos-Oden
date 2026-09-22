@@ -40,7 +40,7 @@ jobs:
       - name: Version synchronization
         run: npm run check:versions
 
-      - name: Artifact checks (main.js, kosmos-oden-stand-alone.html, self-containment)
+      - name: Artifact checks (plugin, optional desktop host, standalone, self-containment)
         run: npm run check:artifacts
 
       - name: Invariants policy (kosmos-invariants.yml)
@@ -55,6 +55,7 @@ jobs:
           name: kosmos-oden-${{ github.sha }}
           path: |
             main.js
+            effects-inspection-host.cjs
             manifest.json
             styles.css
             kosmos-oden-stand-alone.html
@@ -72,14 +73,90 @@ jobs:
       - name: First build
         run: |
           npm run build
-          sha256sum main.js kosmos-oden-stand-alone.html dist/kosmos-embed.html > first.sha256
+          sha256sum main.js effects-inspection-host.cjs kosmos-oden-stand-alone.html dist/kosmos-embed.html > first.sha256
       - name: Second build
         run: |
           git clean -xfd -e node_modules -e first.sha256
           npm run build
-          sha256sum main.js kosmos-oden-stand-alone.html dist/kosmos-embed.html > second.sha256
+          sha256sum main.js effects-inspection-host.cjs kosmos-oden-stand-alone.html dist/kosmos-embed.html > second.sha256
       - name: Compare
         run: diff -u first.sha256 second.sha256
+
+  native-history-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.1
+          cache: npm
+
+      - name: Lockfile SHA guard (git deps must pin to a commit SHA)
+        run: npm run check:lockfile
+
+      - name: Install (clean, from lockfile)
+        run: npm ci
+
+      # This pass exercises the default Windows PowerShell ACL path. The
+      # Node-API-only branches in this file are conditional no-ops here.
+      - name: Native history storage (default PowerShell ACL path)
+        env:
+          KOSMOS_HISTORY_ACL_DIAGNOSTIC: reason-v1
+        run: node --test test/native-history-database.test.mjs
+
+      - name: Build Windows ACL executable and Node-API helper
+        run: npm run build:history-acl
+
+      - name: Native history storage (executable ACL helper)
+        shell: pwsh
+        run: |
+          $env:KOSMOS_HISTORY_ACL_HELPER_PROFILE = (Resolve-Path 'dist/native/history-acl.json').Path
+          node --test test/native-history-database.test.mjs
+
+      # Supplying and checking the generated node-api profile makes every
+      # Node-API-specific branch in the focused test file active in this pass.
+      - name: Install Node-API helper in a private qualification directory
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $profile = Get-Content -Raw -LiteralPath 'dist/native/history-acl-addon.json' | ConvertFrom-Json
+          $digest = (Get-FileHash -LiteralPath $profile.path -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($profile.kind -ne 'node-api' -or $profile.sha256 -cne "sha256:$digest" -or [IO.Path]::GetFileName($profile.path) -cne "history-acl-$digest.node") { throw 'Built helper identity mismatch.' }
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+          $directoryAcl = [Security.AccessControl.DirectorySecurity]::new()
+          $directoryAcl.SetOwner($sid)
+          $directoryAcl.SetAccessRuleProtection($true, $false)
+          $fileAcl = [Security.AccessControl.FileSecurity]::new()
+          $fileAcl.SetOwner($sid)
+          $fileAcl.SetAccessRuleProtection($true, $false)
+          foreach ($id in @($sid.Value, 'S-1-5-18', 'S-1-5-32-544')) {
+            $principal = [Security.Principal.SecurityIdentifier]::new($id)
+            $directoryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($principal, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+            $fileAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($principal, 'FullControl', 'Allow'))
+          }
+          $directory = Join-Path $env:USERPROFILE ('.kosmos-history-ci-helper-' + [guid]::NewGuid().ToString('N'))
+          if (Test-Path -LiteralPath $directory) { throw 'Qualification directory already exists.' }
+          [IO.Directory]::CreateDirectory($directory, $directoryAcl) | Out-Null
+          $destination = Join-Path $directory ([IO.Path]::GetFileName($profile.path))
+          $bytes = [IO.File]::ReadAllBytes($profile.path)
+          $stream = [IO.FileStream]::new($destination, [IO.FileMode]::CreateNew, [Security.AccessControl.FileSystemRights]::FullControl, [IO.FileShare]::None, 4096, [IO.FileOptions]::None, $fileAcl)
+          try { $stream.Write($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+          if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -cne $digest) { throw 'Installed helper identity mismatch.' }
+          $profile.path = $destination
+          $profilePath = Join-Path $directory 'profile.json'
+          [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+          [IO.File]::AppendAllText($env:GITHUB_ENV, "KOSMOS_HISTORY_ACL_HELPER_PROFILE=$profilePath`n", [Text.UTF8Encoding]::new($false))
+
+      - name: Native history storage (Node-API ACL helper)
+        shell: pwsh
+        run: |
+          $profilePath = (Resolve-Path -LiteralPath $env:KOSMOS_HISTORY_ACL_HELPER_PROFILE).Path
+          $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+          if ($profile.kind -ne 'node-api') { throw 'Expected the built Node-API ACL helper profile.' }
+          if (-not (Test-Path -LiteralPath $profile.path -PathType Leaf)) { throw 'Built Node-API ACL helper is missing.' }
+          $env:KOSMOS_HISTORY_ACL_HELPER_PROFILE = $profilePath
+          node --test test/native-history-database.test.mjs
 
   dependency-review:
     if: github.event_name == 'pull_request'

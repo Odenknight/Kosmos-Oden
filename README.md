@@ -1,8 +1,27 @@
 # Kosmos-Oden — v0.8.3 candidate
 
+[Current work — short read-aloud handoff for people and agents](CURRENT-WORK.md)
+
+[Current Engine Unicode correction](docs/reviews/2026-09-13-graphiti-unicode-consumer.md) · [Earlier Engine development-pin qualification](docs/reviews/2026-09-13-engine-777ba17.md)
+
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
-[Current Engine development-pin qualification](docs/reviews/2026-09-13-engine-777ba17.md)
+[Native Hermes read and identity receipt](docs/reviews/2026-09-13-native-hermes-acceptance.md)
+
+[Bounded long-note continuation](docs/reviews/2026-09-13-note-continuation.md)
+
+[Notes workspace contract and qualification](docs/workspace/CONTRACT.md): the
+candidate adds **Open Kosmos-Oden Notes** for policy-checked search, Markdown
+preview, separate provenance sections, and canonical Obsidian source editing.
+[Installed native checks](docs/reviews/2026-09-13-installed-notes-acceptance.md)
+pass for registration, reading and reopening; final release qualification and
+the default-workspace transition remain pending.
+
+Enable **Notes-first workspace** in settings to make **Open Kosmos-Oden
+workspace** start in Notes. It is off by default; existing saved views and the
+direct Notes/Kosmos commands retain their behavior. Notes includes a local map
+of readable neighbors and **Locate in Kosmos** for a policy-checked spatial view.
+The opt-in entry and local map are candidate features awaiting native qualification.
 
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
@@ -19,7 +38,7 @@ read-only, and the standalone viewer works without Obsidian or the internet.
 
 > **Version 0.8.3 candidate:** adds modern MCP 2026-07-28 and preserves Engine
 > adapter sensitivity policy. Uses the TypeScript GKOS-Engine 2.2.0 development candidate
-> at exact commit `777ba170b905952817e364f125c794152f118fa4`. This update preserves the
+> at exact commit `f898cafb8612be8f2ed13f91a17e6f6f7e4e7d71`. This update preserves the
 > existing plugin and standalone workflows, repairs overlapping vault updates,
 > and hardens local service connections. It includes no Rust build.
 > Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
@@ -86,6 +105,11 @@ For a source installation, copy `manifest.json`, `main.js`, and `styles.css`
 into `<vault>/.obsidian/plugins/kosmos-oden/`, enable the plugin, and run
 **Open Kosmos-Oden**. The view follows Obsidian create, modify, rename, and
 delete events without rebuilding the whole vault for an ordinary note edit.
+
+The optional desktop **Inspect Navigation Effects Recovery** action also needs
+`effects-inspection-host.cjs` beside `main.js`. Standard Community Plugins and
+BRAT installation fetch only the normal plugin files, so the action reports
+unavailable there unless that release asset is installed manually.
 
 The same renderer works on desktop and mobile. It pauses its render loop while
 hidden, adapts geometry and pixel ratio for lower-power devices, and provides
@@ -208,7 +232,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`777ba170b905952817e364f125c794152f118fa4`. Its Effects contract says
+`f898cafb8612be8f2ed13f91a17e6f6f7e4e7d71`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

@@ -254,6 +254,12 @@ export class KosmosSettingTab extends PluginSettingTab {
       .addButton((b) => b.setButtonText("Safety validation pending").setDisabled(true));
 
     gkxEl.createEl("h2", { text: "GKOS Note Formatting" });
+    new Setting(gkxEl).setName("Notes-first workspace")
+      .setDesc("Opt in to Notes as the starting view for Open Kosmos-Oden workspace. Existing saved views and direct Notes/Kosmos commands keep their behavior.")
+      .addToggle(t => t.setValue(s.notesWorkspaceEnabled).onChange(async enabled => {
+        s.notesWorkspaceEnabled = enabled;
+        await this.plugin.saveAgentSettings();
+      }));
     gkxEl.createEl("p", { text: "GKOS-Engine 2.1 note formatting and source-content-read-only Navigation for Kosmos-Oden. It preserves authored content, separates authored/derived/proposed/approved data, and does not claim to be the GKOS standard itself." });
     gkxEl.createEl("h3", { text: "Navigation 1.0" });
     new Setting(gkxEl).setName("Enable Engine Navigation centers")
@@ -263,6 +269,21 @@ export class KosmosSettingTab extends PluginSettingTab {
         await this.plugin.saveAgentSettings();
         this.plugin.provider.markFullDirty();
         new Notice("Kosmos-Oden: reopen or refresh the cosmos view to apply the Navigation center policy.");
+      }));
+    gkxEl.createEl("h3", { text: "Navigation Effects recovery" });
+    const effectsInspectionStatus = gkxEl.createEl("p", {
+      text: "Read-only recovery inspection has not run. Source effects and automatic writes remain unavailable.",
+      cls: "setting-item-description",
+    });
+    new Setting(gkxEl).setName("Inspect recovery status")
+      .setDesc("Reads existing Engine recovery evidence without creating Effects state, recovering work, or enabling writes.")
+      .addButton(button => button.setButtonText("Inspect").onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.plugin.inspectNavigationEffects();
+        if (this.plugin.effectsInspectionCanPublish()) {
+          effectsInspectionStatus.setText(this.plugin.effectsInspectionMessage(result));
+          button.setDisabled(false);
+        }
       }));
     gkxEl.createEl("h3", { text: "Portable note timestamps" });
     gkxEl.createEl("p", { text: "Maintains created_at and updated_at timestamps. By default they are ISO 8601 UTC values ending in Z; you can switch to local time with an explicit numeric UTC offset. Existing created_at values are preserved; updated_at follows Obsidian file modifications. Internal .obsidian and .gkx files are excluded." });

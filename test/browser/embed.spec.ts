@@ -18,5 +18,69 @@ test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ p
 
   const ok = await page.evaluate(() => (window as any).__embedOk);
   expect(ok, "embed reported a rendered scene").toBeTruthy();
+  const embed = page.frames().find(frame => frame !== page.mainFrame());
+  expect(embed).toBeTruthy();
+  const rejected = await embed!.evaluate(() => {
+    const w = window as any;
+    const before = w.__kosmosEmbed.getIndexInfo();
+    const files = [{ relativePath: "Injected.md", content: "# Untrusted frame" }];
+    for (const data of [
+      { protocol: "kosmos-oden", version: 1, type: "vault-snapshot", payload: { files } },
+      { type: "kosmos:files", files },
+    ]) window.dispatchEvent(new MessageEvent("message", { source: window, data }));
+    const after = w.__kosmosEmbed.getIndexInfo();
+    return before.notes === after.notes && before.parseCount === after.parseCount;
+  });
+  expect(rejected, "non-parent messages cannot replace the embedded graph").toBe(true);
+  const metadata = await embed!.evaluate(() => {
+    const api = (window as any).__kosmos;
+    const graph = api.showDemo();
+    const node = graph.nodes.find((n: any) => n.kind === 'file');
+    const updated = { ...graph, nodes: graph.nodes.map((n: any) => n.id === node.id ? {
+      ...n, updatedAt: '2026-01-01', validAt: '2026-01-01',
+      gkx: { ...n.gkx, projection: { effective: { sensitivity: 'public' } } },
+    } : { ...n }) };
+    api.renderGraph(updated);
+    const changed = { ...updated, nodes: updated.nodes.map((n: any) => n.id === node.id ? {
+      ...n, gkx: { ...n.gkx, projection: { effective: { sensitivity: 'confidential' } } },
+    } : { ...n }) };
+    api.renderGraph(changed);
+    const projectionChanged = node.gkx?.projection?.effective?.sensitivity === 'confidential';
+    api.renderGraph({ ...changed, nodes: changed.nodes.map((n: any) => n.id === node.id ? {
+      ...n, gkx: undefined, validAt: undefined, updatedAt: undefined,
+    } : { ...n }) });
+    return { projectionChanged, removed: node.gkx === undefined && node.validAt === undefined && node.updatedAt === undefined && node.__vt === null && node.__it === null };
+  });
+  expect(metadata).toEqual({ projectionChanged: true, removed: true });
+  await page.evaluate(() => {
+    (window as any).readableAcks=[]; (window as any).readableSelections=[];
+    window.addEventListener("message",event=>{if(event.source===document.querySelector("iframe")!.contentWindow && event.data?.type==="readable-selection") (window as any).readableSelections.push(event.data.payload);});
+    window.addEventListener('message',event=>{if(event.source===document.querySelector('iframe')!.contentWindow && event.data?.type==='readable-state') (window as any).readableAcks.push(event.data.payload);});
+  });
+  await page.evaluate(() => {
+    const graph = { builtAt: '2026-09-13', nodes: [{id:'file:Readable.md',path:'Readable.md',title:'Readable',area:'Vault',type:'note',tags:[],timestamp:null},{id:'file:Neighbor.md',path:'Neighbor.md',title:'Readable neighbor',area:'Vault',type:'note',tags:[],timestamp:null}], links: [{source:'file:Readable.md',target:'file:Neighbor.md',kind:'wikilink'}] };
+    document.querySelector('iframe')!.contentWindow!.postMessage({protocol:'kosmos-oden',version:1,type:'readable-graph',payload:{generation:2,graph}}, '*');
+  });
+  await expect.poll(() => embed!.evaluate(() => (window as any).__kosmosEmbed.getProjectionGeneration())).toBe(2);
+  await page.evaluate(() => document.querySelector('iframe')!.contentWindow!.postMessage({protocol:'kosmos-oden',version:1,type:'select-readable-note',payload:{generation:2,id:'file:Readable.md'}},'*'));
+  await expect(embed!.locator('#inspector')).toContainText('Readable');
+  await expect.poll(()=>page.evaluate(()=>(window as any).readableAcks.some((state:any)=>state.generation===2 && state.selectedId==='file:Readable.md' && state.error===null))).toBe(true);
+  expect(await page.evaluate(()=>(window as any).readableSelections)).toEqual([]);
+  await embed!.locator('#insLinks').getByRole('button',{name:'Readable neighbor',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).readableSelections)).toEqual([{generation:2,id:'file:Neighbor.md'}]);
+  await embed!.locator('#insX').click();
+  await expect.poll(()=>page.evaluate(()=>(window as any).readableSelections.at(-1))).toEqual({generation:2,id:null});
+  const inspectorBefore=await embed!.locator('#inspector').textContent();
+  await page.evaluate(() => {
+    const target=document.querySelector('iframe')!.contentWindow!;
+    target.postMessage({protocol:'kosmos-oden',version:1,type:'select-readable-note',payload:{generation:1,id:'missing'}},'*');
+    target.postMessage({protocol:'kosmos-oden',version:1,type:'select-readable-note',payload:{generation:2,id:'missing'}},'*');
+    target.postMessage({protocol:'kosmos-oden',version:1,type:'readable-graph',payload:{generation:1,graph:{builtAt:'',nodes:[],links:[]}}},'*');
+    target.postMessage({type:'kosmos:files',files:[{relativePath:'Old.md',content:'# Old'}]},'*');
+    target.postMessage({protocol:'kosmos-oden',version:1,type:'visibility',payload:{visible:false}},'*');
+  });
+  await expect.poll(() => embed!.evaluate(() => (window as any).__kosmos.getRenderStats().running)).toBe(false);
+  expect(await embed!.evaluate(() => ({generation:(window as any).__kosmosEmbed.getProjectionGeneration(),notes:(window as any).__kosmosEmbed.getIndexInfo().notes}))).toEqual({generation:2,notes:0});
+  expect(await embed!.locator('#inspector').textContent()).toBe(inspectorBefore);
   expect(errors).toEqual([]);
 });

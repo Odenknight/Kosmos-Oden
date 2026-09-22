@@ -46,7 +46,8 @@ jobs:
         run: cd release && sha256sum -c SHA256SUMS
 
       # Individual files as assets: Obsidian installs manifest.json + main.js +
-      # styles.css (+ stdio adapter for local clients); standalone is separate.
+      # styles.css. The optional desktop inspection host, stdio adapter, and
+      # standalone viewer are separate assets.
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:

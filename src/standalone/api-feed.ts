@@ -47,6 +47,8 @@ export function isLoopbackApiUrl(raw: string): boolean {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return false;
   if (u.username || u.password || u.search || u.hash || u.pathname !== "/") return false;
+  // URL.search/hash omit empty delimiters, which still absorb appended routes.
+  if (raw.includes("?") || raw.includes("#")) return false;
   // URL normalizes `[::1]` -> hostname "[::1]"; strip the brackets to compare.
   const host = u.hostname.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
   return LOOPBACK_HOSTS.has(host);
@@ -272,9 +274,10 @@ export function subscribeTraversalEvents(
       try {
         const response = await fetchImpl(buildFeedUrls(api).events, { headers, cache: "no-store", redirect: "error", signal: controller.signal });
         if (response.status === 401 || response.status === 403) {
+          closed = true;
+          controller.abort();
           callbacks.onError?.(`Traversal credential rejected (HTTP ${response.status}); reconnect with a current credential.`);
           callbacks.onState?.("disconnected");
-          closed = true;
           return;
         }
         if (response.status === 409) {

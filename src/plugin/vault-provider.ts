@@ -1,11 +1,10 @@
 /**
  * Kosmos plugin — Obsidian-backed data provider for the Agent API.
  *
- * Owns a GkxIndex fed from the live vault, so the Agent API answers from
- * the SAME normalized graph snapshot the viewer renders (§33). Change events
- * are folded incrementally (§10): a single edited note is re-read (from
- * Obsidian's in-memory cache) and re-parsed alone; only bulk changes trigger
- * a full rebuild.
+ * Owns the committed Engine snapshot shared by the Agent API and Notes.
+ * The iframe viewer currently maintains a separate index. Incremental source
+ * reads reuse unchanged records, but committing an update may reparse all
+ * retained records; this does not promise incremental parsing.
  */
 import type { App, TFile } from "obsidian";
 import type { GkxIndex } from "gkos-engine";
@@ -154,6 +153,17 @@ export class VaultDataProvider implements AgentDataProvider {
       attempt.active = false;
       if (this.building === work) this.building = null;
     }
+  }
+
+  captureGraphCurrent(graph: GkxGraph): () => boolean {
+    const revision = this.revision;
+    return () => this.revision === revision && this.index.graph === graph && !this.fullDirty && !this.building &&
+      !this.changedPaths.size && !this.removedPaths.size && !this.renamedPaths.length &&
+      this.projectedSensitivity === this.settings.defaultSensitivity;
+  }
+
+  inspectLineage(graph: GkxGraph, sourceNodeId: string, readableNodeIds: ReadonlySet<string>) {
+    return this.adapter.inspectScopedLineage(graph, sourceNodeId, readableNodeIds);
   }
 
   private async rebuild(attempt: { active: boolean; until: number }): Promise<GkxGraph> {

@@ -6,8 +6,60 @@ import {
   KOSMOS_PROTOCOL_VERSION,
   validateHostMessage,
   validateRendererMessage,
+  validateRendererOpenMessage,
   wrap,
 } from "../dist/kosmos-protocol.mjs";
+
+test('readable acknowledgements have bounded IDs and enumerated errors',()=>{
+  assert.equal(validateRendererMessage(wrap('readable-state',{generation:1,selectedId:null,error:null})).ok,true);
+  for(const payload of [{generation:0,selectedId:null,error:null},{generation:1,selectedId:'x'.repeat(4097),error:null},{generation:1,selectedId:null,error:'raw provider error'}]) assert.equal(validateRendererMessage(wrap('readable-state',payload)).ok,false);
+});
+
+test('renderer selection intent requires a bounded ID or explicit clear and positive integral generation',()=>{
+  assert.equal(validateRendererMessage(wrap('readable-selection',{generation:2,id:null})).ok,true);
+  assert.equal(validateRendererMessage(wrap('readable-selection',{generation:2,id:'file:Note.md'})).ok,true);
+  for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)},{generation:1,id:42}]) {
+    assert.equal(validateRendererMessage(wrap('readable-selection',payload)).ok,false);
+  }
+});
+
+test('readable selection requires a valid generation and bounded ID',()=>{
+  assert.equal(validateHostMessage(wrap('select-readable-note',{generation:2,id:'file:Note.md'})).ok,true);
+  for(const payload of [{generation:0,id:'x'},{generation:1.5,id:'x'},{generation:1,id:''},{generation:1,id:'x'.repeat(4097)}]) assert.equal(validateHostMessage(wrap('select-readable-note',payload)).ok,false);
+});
+
+test('readable graph validates scope payload bounds, paths, endpoints and generation', () => {
+  const graph={builtAt:'2026-09-13',nodes:[{id:'file:A.md',path:'A.md',title:'A',area:'Vault',type:'note',tags:[],timestamp:null}],links:[]};
+  const valid=()=>wrap('readable-graph',{generation:1,graph:structuredClone(graph)});
+  assert.equal(validateHostMessage(valid()).ok,true);
+  const large=valid();
+  large.payload.graph.nodes[0].tags=Array(800).fill('x'.repeat(4096));
+  assert.equal(validateHostMessage(large).ok,true);
+  large.payload.graph.nodes=Array.from({length:3},(_,i)=>({...large.payload.graph.nodes[0],id:`file:${i}.md`,path:`${i}.md`}));
+  assert.equal(validateHostMessage(large).ok,false);
+  for(const mutate of [
+    m=>{m.payload.generation=0;}, m=>{m.payload.generation=1.5;},
+    m=>{m.payload.graph.nodes[0].path='../private.md';},
+    m=>{m.payload.graph.nodes.push({...m.payload.graph.nodes[0]});},
+    m=>{m.payload.graph.links.push({source:'file:A.md',target:'missing',kind:'wikilink'});},
+    m=>{m.payload.graph.nodes[0].tags=['x'.repeat(4097)];},
+    m=>{m.payload.graph.nodes[0].timestamp='invalid';},
+  ]) {const message=valid();mutate(message);assert.equal(validateHostMessage(message).ok,false);}
+});
+
+test("legacy renderer opens receive the same path and envelope checks",()=>{
+  for(const [legacy,current] of [["kosmos:open","open-note"],["kosmos:folder","open-folder"]]) {
+    const accepted=validateRendererOpenMessage({type:legacy,path:"Notes/Readable.md"});
+    assert.equal(accepted.ok,true);assert.equal(accepted.message.type,current);
+    for(const path of ["../secret.md","/etc/passwd","C:\\Windows\\secret.md","sub/../../secret.md","", "https://example.test", "obsidian:open", "C:relative.md", "Notes/\u0000bad.md"]) {
+      assert.equal(validateRendererOpenMessage({type:legacy,path}).ok,false,path);
+      assert.equal(validateRendererOpenMessage(wrap(current,{path})).ok,false,path);
+    }
+    assert.equal(validateRendererOpenMessage({protocol:"foreign",type:legacy,path:"Notes/Readable.md"}).ok,false);
+    assert.equal(validateRendererOpenMessage({version:999,type:legacy,path:"Notes/Readable.md"}).ok,false);
+  }
+  assert.equal(validateRendererOpenMessage(wrap("open-note",{path:"Notes/Readable.md"})).ok,true);
+});
 
 test("wrap produces a versioned envelope", () => {
   const m = wrap("vault-snapshot", { files: [] });

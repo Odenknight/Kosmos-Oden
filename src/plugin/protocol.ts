@@ -8,6 +8,7 @@
  * main.js, so a single current version is sufficient; unknown/future versions
  * are rejected clearly rather than acted on.
  */
+import { validReadableGraph } from "../workspace/spatial";
 export const KOSMOS_PROTOCOL = "kosmos-oden";
 export const KOSMOS_PROTOCOL_VERSION = 1;
 
@@ -55,6 +56,8 @@ export interface VaultStatusPayload {
 }
 
 export type HostToRenderer =
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "select-readable-note"; payload: { generation: number; id: string } }
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-graph"; payload: { generation: number; graph: any } }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-snapshot"; payload: FilesPayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-delta"; payload: UpdatePayload }
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "agent-traversal"; payload: AgentTraversalPayload }
@@ -62,6 +65,8 @@ export type HostToRenderer =
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "vault-status"; payload: VaultStatusPayload };
 
 export type RendererToHost =
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-selection"; payload: { generation: number; id: string | null } }
+  | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "readable-state"; payload: { generation: number; selectedId: string | null; error: "render" | "selection" | null } }
   /** A note was chosen ("Go to Note") — open it in a new tab. */
   | { protocol: typeof KOSMOS_PROTOCOL; version: number; type: "open-note"; payload: OpenPayload }
   /** A folder-only galaxy was chosen ("Expand Folder") — reveal it in the
@@ -95,6 +100,14 @@ export function validateHostMessage(data: unknown): ValidationResult<HostToRende
   if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this renderer speaks v${KOSMOS_PROTOCOL_VERSION})` };
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "select-readable-note") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !(p.id === null || (isStr(p.id) && p.id.length > 0 && p.id.length <= 4096))) return { ok: false, reason: "invalid readable selection" };
+    return { ok: true, message: m as unknown as HostToRenderer };
+  }
+  if (m.type === "readable-graph") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !validReadableGraph(p.graph)) return { ok: false, reason: "invalid readable graph or generation" };
+    return { ok: true, message: m as unknown as HostToRenderer };
+  }
   if (m.type === "vault-snapshot") {
     if (!isArr(p.files)) return { ok: false, reason: "vault-snapshot payload.files must be an array" };
     for (const f of p.files as any[]) {
@@ -144,9 +157,32 @@ export function validateRendererMessage(data: unknown): ValidationResult<Rendere
   if (m.version !== KOSMOS_PROTOCOL_VERSION) return { ok: false, reason: `unsupported protocol version ${String(m.version)} (this host speaks v${KOSMOS_PROTOCOL_VERSION})` };
   const p = m.payload as Record<string, unknown>;
   if (!p || typeof p !== "object") return { ok: false, reason: "missing payload" };
+  if (m.type === "readable-selection") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 || !(p.id === null || (isStr(p.id) && p.id.length > 0 && p.id.length <= 4096))) return { ok: false, reason: "invalid readable selection" };
+    return { ok: true, message: m as unknown as RendererToHost };
+  }
+  if (m.type === "readable-state") {
+    if (!Number.isSafeInteger(p.generation) || (p.generation as number) < 1 ||
+      !(p.selectedId === null || (isStr(p.selectedId) && p.selectedId.length > 0 && p.selectedId.length <= 4096)) ||
+      !(p.error === null || p.error === "render" || p.error === "selection")) return { ok: false, reason: "invalid readable state" };
+    return { ok: true, message: m as unknown as RendererToHost };
+  }
   if (m.type === "open-note" || m.type === "open-folder") {
-    if (!safePath(p.path)) return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
+    if (!safePath(p.path) || /^[a-z][a-z0-9+.-]*:/i.test(p.path as string) || /[\x00-\x1f\x7f]/.test(p.path as string))
+      return { ok: false, reason: `${String(m.type)} payload.path malformed or unsafe` };
     return { ok: true, message: m as any };
   }
   return { ok: false, reason: `unsupported message type ${String(m.type)}` };
+}
+
+/** Legacy compatibility is normalization, never a bypass of current validation. */
+export function validateRendererOpenMessage(data: unknown): ValidationResult<RendererToHost> {
+  if (data && typeof data === "object") {
+    const legacy = data as Record<string, unknown>;
+    if (legacy.protocol === undefined && legacy.version === undefined &&
+      (legacy.type === "kosmos:open" || legacy.type === "kosmos:folder")) {
+      return validateRendererMessage(wrap(legacy.type === "kosmos:open" ? "open-note" : "open-folder", { path: legacy.path }));
+    }
+  }
+  return validateRendererMessage(data);
 }

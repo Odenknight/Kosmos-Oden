@@ -11,6 +11,7 @@
     "versions.json",
     "kosmos-oden-stand-alone.html",
     "kosmos-mcp-stdio.mjs",
+    "effects-inspection-host.cjs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
@@ -32,14 +33,16 @@
     "check:versions": "node scripts/check-versions.mjs",
     "check:invariants": "node scripts/check-invariants.mjs",
     "check:renderer-provenance": "node scripts/check-renderer-provenance.mjs",
+    "check:branding": "node scripts/check-branding.mjs",
     "check:lockfile": "node scripts/check-lockfile-sha.mjs",
-    "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:lockfile && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance",
+    "verify": "npm run typecheck && npm run build && npm test && npm run check:versions && npm run check:lockfile && npm run check:artifacts && npm run check:invariants && npm run check:renderer-provenance && npm run check:branding",
     "test:browser": "playwright test --project=chromium --project=firefox --project=webkit",
     "test:browser:chromium": "playwright test --project=chromium --project=mobile-chromium test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts test/browser/consumer-identity.spec.ts test/browser/standalone-flows.spec.ts",
     "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/consumer-identity.spec.ts test/browser/standalone-flows.spec.ts",
     "test:visual": "playwright test test/browser/visual.spec.ts --project=chromium",
     "test:renderer": "npm run test:browser && npm run test:visual",
-    "package:release": "node scripts/package-release.mjs"
+    "package:release": "node scripts/package-release.mjs",
+    "build:history-acl": "node scripts/build-history-acl.mjs"
   },
   "license": "Apache-2.0",
   "devDependencies": {
@@ -51,10 +54,11 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#777ba170b905952817e364f125c794152f118fa4",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#851239a32a81ed794addd1ab6ecf3f02904b60fc",
+    "markdown-it": "15.0.2",
     "three": "0.185.1"
   },
   "allowScripts": {
-    "github:Odenknight/GKOS-Engine#777ba170b905952817e364f125c794152f118fa4": true
+    "github:Odenknight/GKOS-Engine#851239a32a81ed794addd1ab6ecf3f02904b60fc": true
   }
 }

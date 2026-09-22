@@ -22,7 +22,8 @@ import {
 } from "../dist/kosmos-api-feed.mjs";
 
 test("service connections reject ambiguous origins before issuing requests", async () => {
-  for (const api of ["http://user:pass@localhost:4814", "http://localhost:4814/path", "http://localhost:4814/?q=x", "http://localhost:4814/#fragment"]) {
+  for (const api of ["http://user:pass@localhost:4814", "http://localhost:4814/path", "http://localhost:4814/?q=x", "http://localhost:4814/#fragment",
+    "http://localhost:4814?", "http://localhost:4814#", "http://localhost:4814/?", "http://localhost:4814/#"]) {
     assert.equal(isLoopbackApiUrl(api), false);
     assert.equal((await connectToEngine({ api, token: "secret" }, () => { throw new Error("must not fetch"); })).ok, false);
   }
@@ -45,6 +46,33 @@ for (const status of [401, 403]) {
     try { await new Promise(resolve => setTimeout(resolve, 650)); assert.equal(calls, 1); assert.equal(states.at(-1), "disconnected"); }
     finally { stream.close(); }
   });
+}
+
+for (const status of [401, 403]) {
+  for (const callback of ["onError", "onState"]) {
+    test(`denial ${status} closes before throwing ${callback} callback`, async () => {
+      let signal, notified, thrown = false, calls = 0;
+      const ready = new Promise(resolve => { notified = resolve; });
+      const stream = subscribeTraversalEvents({ api: "http://localhost:4814", token: "synthetic" }, {
+        onEvent() { assert.fail("denied stream emitted an event"); },
+        [callback](value) {
+          if (callback === "onState" && value !== "disconnected" || thrown) return;
+          thrown = true;
+          notified();
+          throw new Error("synthetic callback failure");
+        },
+      }, async (_url, init) => {
+        calls++; signal = init.signal;
+        return new Response(null, { status });
+      });
+      try {
+        await ready;
+        await new Promise(resolve => setTimeout(resolve, 650));
+        assert.equal(calls, 1);
+        assert.equal(signal.aborted, true);
+      } finally { stream.close(); }
+    });
+  }
 }
 
 test("parseApiFeedParams: reads only non-secret api and ignores query tokens", () => {

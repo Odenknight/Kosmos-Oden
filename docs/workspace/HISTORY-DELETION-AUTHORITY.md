@@ -1,0 +1,88 @@
+# Independent history deletion authority
+
+This is an isolated native component for the [observation-history contract](OBSERVATION-HISTORY-CONTRACT.md).
+It does not delete source history, source notes, or Graphiti data.
+No plugin hook opens it automatically.
+
+`src/workspace/history-deletion-authority.ts` stores durable deny receipts in a separate, host-owned SQLite database.
+The host must keep this authority outside source-history backup and restore operations.
+A history backup cannot establish that no later denial exists.
+Missing or unavailable independent authority must prevent history activation.
+
+Opening is disabled by default.
+Initialization requires an explicit corpus, receipt-count limit, and current owner capability.
+Each denial additionally requires a synchronous owner-action capability bound to that operation and source.
+The database checks its exact schema, application identity, configuration, canonical receipts, sequence and digest chain.
+It uses full synchronization and rollback journaling.
+An identical operation retries its original receipt.
+Conflicting retries and regressing commit clocks are refused.
+Receipt count is explicitly bounded at a maximum of 10,000.
+Logical receipt bytes are also capped at 16 MiB, with a separate SQLite page-count ceiling.
+Capacity exhaustion is an error, not a successful deletion acknowledgement.
+
+Receipts contain corpus, operation, sequence, source UID, denial time, predecessor digest and receipt digest.
+They contain no source path, source-content digest, source bytes or model output.
+Denials do not expire and there is no undelete operation.
+UUID case variants match the same denial without rewriting historical source records.
+This is denial metadata, not a physical purge receipt.
+
+## Binding source-history access
+
+`bindHistoryHost(corpus, nativeHost)` supplies the shared binding used by source history.
+It captures a real authority snapshot and requires its corpus to match exactly.
+It preserves the native clock, parser-support and optional publication-witness callbacks.
+Function identities are captured when binding; replacing fields on the caller's object cannot replace a grant.
+The returned host is frozen.
+
+Its `canRead` requires both the current native source grant and absence of an independent denial.
+A missing denial alone never grants source access.
+The native grant must return literal true; an asynchronous or truthy substitute is refused.
+The binding checks the native epoch before and after consulting deletion state and source authorization.
+Observed epoch failure or a changed deletion revision permanently invalidates that binding.
+A fresh binding after a denial still refuses the denied UID, including UUID case variants.
+
+The native host must use this bound host when opening the source-observation ledger.
+Its native epoch must cover database identity, source authorization generation, retention revision and host lifetime.
+A current private database capability is still required; the binding does not establish filesystem ownership.
+Neither callback composition nor this API enables production storage.
+
+`capture()` remains a native-only capability with corpus, watermark, `current` and `isDenied`.
+The entire capability stays in the trusted host and is never supplied by a renderer.
+
+Each currency check validates the full denial chain.
+A changed chain, corruption, closed authority or observed owner failure invalidates the captured capability.
+Restoring an earlier head does not revive an already invalidated capability.
+Reopen under a fresh verified native capability to establish new state.
+The implementation does not provide a safe way to restore the deletion authority itself from an old backup.
+That authority needs its own independently verified recovery procedure.
+
+## Verified component behavior
+
+All 22 deletion-authority, binding and local purge tests and all 30 source-history tests pass.
+Full repository verification passes all 572 tests.
+The tests use actual synthetic SQLite databases.
+They cover default-off behavior, current owner/action checks, bounded capacity, retry conflicts,
+clock regression, UUID case variants, missing authority, corrupt chains and unknown schemas.
+Process termination immediately after the INSERT but before COMMIT leaves no readable denial.
+Termination after commit preserves the denial and its original retry receipt.
+
+The two-database test uses `bindHistoryHost`, creates a source-history backup, then commits a separate denial.
+The old pending history read is rejected.
+Restoring only the earlier history database still returns no source content under the current deny authority.
+Closing that authority makes history access unavailable.
+This proves the isolated restore-denial invariant, not a complete production migration or rollback rehearsal.
+
+## Remaining work
+
+- Bind this authority to the qualified native private-directory capability and operational ownership.
+- Complete the owner deletion flow and exact operation/source approval binding.
+- Connect native owner controls and retention holds to the tested local purge boundary.
+- Complete external derived-output cleanup after the local retained-content purge.
+- Extend the tested local purge crash recovery to native and external cleanup workflows.
+- Reconcile import and migration with this independent current authority.
+- Qualify actual native restoration, authority recovery, and startup/rendering costs.
+
+Both this authority and production source-history retention remain unwired and disabled.
+
+`receipt(operation)` retrieves a validated durable denial for the local history purge.
+See the [local purge scope and evidence](SOURCE-OBSERVATION-LEDGER.md#local-retained-content-purge-candidate).

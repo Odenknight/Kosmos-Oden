@@ -57,22 +57,22 @@ test("standalone-native evidence records the exact deterministic blockers", asyn
   assert.equal(report.automaticWriteEligible, false);
   assert.deepEqual(report.primitives.exactByteSnapshot, {
     proof: "unsupported",
-    mechanism: "read-only-inspection-api-missing",
+    mechanism: "exact-snapshot-host-binding-missing",
     limitationCode: "CAPABILITY_UNPROVEN",
   });
   assert.deepEqual(report.primitives.durablePreparedIntent, {
     proof: "unsupported",
-    mechanism: "split-prepare-api-missing",
+    mechanism: "prepared-intent-host-binding-missing",
     limitationCode: "CAPABILITY_UNPROVEN",
   });
   assert.deepEqual(report.primitives.startupRecovery, {
     proof: "unsupported",
-    mechanism: "authorized-recovery-api-missing",
+    mechanism: "authorized-recovery-host-binding-missing",
     limitationCode: "CAPABILITY_UNPROVEN",
   });
   assert.deepEqual(report.primitives.safeShutdown, {
     proof: "unsupported",
-    mechanism: "deadline-shutdown-api-missing",
+    mechanism: "deadline-shutdown-host-binding-missing",
     limitationCode: "CAPABILITY_UNPROVEN",
   });
   assert.deepEqual(report.primitives.directoryFlush, {

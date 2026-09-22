@@ -1,10 +1,83 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { auditMailbox } from "../scripts/audit-mailbox.mjs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { auditMailbox, verifyMailboxReference, verifyMailboxBundle, mailboxSchemaFindings } from "../scripts/audit-mailbox.mjs";
+
+test("empty mailbox directory aliases produce confinement findings without reading children", () => {
+  for (const directory of ["messages", "acks", "acks/bob"]) {
+    const root = mkdtempSync(join(tmpdir(), "mailbox-empty-alias-"));
+    try {
+      mkdirSync(join(root, "external"));
+      if (directory !== "messages") mkdirSync(join(root, "messages"));
+      if (directory === "acks/bob") mkdirSync(join(root, "acks"));
+      symlinkSync(join(root, "external"), join(root, directory), process.platform === "win32" ? "junction" : "dir");
+      const result = auditMailbox(root, "bob");
+      assert.deepEqual(result.findings, [{file:directory === "messages" ? "messages" : "acks/bob", code:"envelope-reference-path-invalid"}]);
+      assert.equal(result.messageCount, 0);
+      assert.deepEqual(result.acknowledgements, []);
+    } finally { rmSync(root, {recursive:true, force:true}); }
+  }
+});
+
+test("sender directory aliases produce a confinement finding instead of disappearing", () => {
+  const root = mkdtempSync(join(tmpdir(), "mailbox-directory-alias-"));
+  try {
+    mkdirSync(join(root, "messages"));
+    mkdirSync(join(root, "external"));
+    writeFileSync(join(root, "external", "alice-000001-first.json"), JSON.stringify({sender:"alice", recipients:["bob"], sender_seq:1, message_id:"first", prev_message_sha256:null}));
+    symlinkSync(join(root, "external"), join(root, "messages", "alice"), process.platform === "win32" ? "junction" : "dir");
+    const result = auditMailbox(root, "bob");
+    assert.equal(result.messageCount, 0);
+    assert.deepEqual(result.findings, [{file:"messages/alice", code:"envelope-reference-path-invalid"}]);
+  } finally { rmSync(root, {recursive:true, force:true}); }
+});
+
+test("reference, message and ACK reads bound growth and reject changes to the opened file", () => {
+  const moduleUrl = new URL("../scripts/audit-mailbox.mjs", import.meta.url).href;
+  for (const scope of ["bundle", "message", "ack"]) for (const mutation of ["grow", "rewrite", "replace"]) {
+    const output = execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import fs from 'node:fs';
+      import {syncBuiltinESMExports} from 'node:module';
+      import {tmpdir} from 'node:os';
+      import {join} from 'node:path';
+      const root=fs.mkdtempSync(join(tmpdir(),'mailbox-read-race-'));
+      for(const directory of ['bundle','messages/alice','acks/bob']) fs.mkdirSync(join(root,directory),{recursive:true});
+      const scope=${JSON.stringify(scope)};
+      const path=join(root,scope==='bundle'?'bundle/SHA256SUMS':scope==='message'?'messages/alice/alice-000001-m.json':'acks/bob/bob-000001-ack-m.json');
+      fs.writeFileSync(path,'x');
+      const originalOpen=fs.openSync, originalRead=fs.readSync;
+      let targetFd, changed=false, bytesRead=0;
+      fs.openSync=function(p,...args) { const fd=originalOpen(p,...args); if(p===path) targetFd=fd; return fd; };
+      fs.readSync=function(fd,...args) {
+        if(fd===targetFd && !changed) {
+          changed=true;
+          if(${JSON.stringify(mutation)}==='grow') fs.appendFileSync(path,Buffer.alloc(131072,120));
+          else if(${JSON.stringify(mutation)}==='rewrite') fs.writeFileSync(path,'yy');
+          else { fs.renameSync(path,path+'.old'); fs.writeFileSync(path,'x'); }
+        }
+        const count=originalRead(fd,...args); if(fd===targetFd) bytesRead+=count; return count;
+      };
+      syncBuiltinESMExports();
+      try {
+        const {verifyMailboxBundle,auditMailbox}=await import(${JSON.stringify(moduleUrl)});
+        const audit=scope==='bundle'?null:auditMailbox(root,'bob',root);
+        const result=scope==='bundle'?verifyMailboxBundle(root,{path:'bundle',sha256sums:'SHA256SUMS'}):audit.findings[0]?.code;
+        if(audit && (audit.messageCount!==0 || audit.acknowledgements.length!==0)) throw new Error('Changed envelope was admitted');
+        process.stdout.write(JSON.stringify({result,bytesRead,changed}));
+      } finally { fs.rmSync(root,{recursive:true,force:true}); }
+    `], { encoding: "utf8", windowsHide: true });
+    const result = JSON.parse(output);
+    assert.equal(result.changed, true);
+    assert.equal(result.result, scope === "bundle"
+      ? mutation === "grow" ? "reference-over-budget" : "reference-changed"
+      : mutation === "grow" ? "oversized" : "envelope-reference-changed");
+    assert.ok(result.bytesRead <= 65537, "concurrent growth must not cause an unbounded read");
+  }
+});
 
 test("mailbox audit selects recipient and exposes forks, inverted roles and bad raw hashes", () => {
   const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-"));
@@ -21,6 +94,7 @@ test("mailbox audit selects recipient and exposes forks, inverted roles and bad 
   const clean = auditMailbox(root, "bob");
   assert.deepEqual(clean.findings, []);
   assert.equal(clean.acknowledgements.length, 1);
+  assert.ok(clean.schemaFindings.some(x=>x.code==="schema-required-field"), "minimal integrity fixtures must not be certified as complete protocol records");
   assert.equal(clean.acknowledgements[0].completionVerified, false);
   const wrong = auditMailbox(root, "carol").findings.map(f => f.code);
   assert.ok(wrong.includes("ack-role-mismatch"));
@@ -40,4 +114,243 @@ test("mailbox audit selects recipient and exposes forks, inverted roles and bad 
   assert.ok(malformed.includes("message-schema"));
   assert.ok(malformed.includes("ack-schema"));
   assert.throws(() => auditMailbox(root, "../carol"), /Invalid recipient/);
+});
+
+
+test("conflicting message IDs and forked parents remain explicit at ACK resolution", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-conflict-"));
+  const put = (dir, name, data) => {
+    mkdirSync(join(root, dir), { recursive: true });
+    const raw = JSON.stringify(data); writeFileSync(join(root, dir, name), raw);
+    return createHash("sha256").update(raw).digest("hex");
+  };
+  const first = {sender:"alice",recipients:["bob"],sender_seq:1,message_id:"same",prev_message_sha256:null,kind:"RESULT"};
+  const hash = put("messages/alice", "alice-000001-same.json", first);
+  put("messages/alice", "alice-000001-other.json", {...first,message_id:"other"});
+  put("messages/alice", "alice-000002-next.json", {...first,sender_seq:2,message_id:"next",prev_message_sha256:hash});
+  put("messages/carol", "carol-000001-same.json", {...first,sender:"carol"});
+  put("acks/bob", "bob-000001-ack-same.json", {recipient:"bob",sender:"alice",message_id:"same",message_sha256:hash,status:"RECEIVED"});
+  put("acks/bob", "bob-000001-ack-next.json", {recipient:"bob",sender:"alice",message_id:"next",message_sha256:"bad",status:"RECEIVED"});
+  const result = auditMailbox(root,"bob");
+  assert.ok(result.findings.some(x=>x.code==="ack-target-ambiguous" && x.file.endsWith("ack-same.json")));
+  assert.equal(result.findings.some(x=>["ack-target-missing","ack-hash-mismatch","ack-role-mismatch"].includes(x.code) && x.file.endsWith("ack-same.json")), false);
+  assert.ok(result.findings.some(x=>x.code==="parent-chain-ambiguous" && x.file.endsWith("next.json")));
+  assert.ok(result.findings.some(x=>x.code==="ack-ordinal-reused"));
+  assert.ok(result.acknowledgements.every(x=>x.completionVerified===false));
+});
+
+
+test("unpublished temporary files are ignored while malformed delivered files remain findings", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-interrupted-"));
+  for (const dir of ["messages/alice", "acks/bob"]) {
+    mkdirSync(join(root,dir),{recursive:true});
+    writeFileSync(join(root,dir,".tmp-interrupted.json"), "{partial");
+  }
+  assert.deepEqual(auditMailbox(root,"bob").findings, []);
+  writeFileSync(join(root,"messages/alice","published.json"), "{partial");
+  const result = auditMailbox(root,"bob");
+  assert.deepEqual(result.findings, [{file:"messages/alice/published.json",code:"invalid-json"}]);
+  assert.equal(readFileSync(join(root,"messages/alice/.tmp-interrupted.json"),"utf8"),"{partial");
+});
+
+
+test("file references hash raw bytes, confine paths, and distinguish superseded mutable files", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-refs-"));
+  const raw = Buffer.from("\ufeffretained\r\n", "utf8");
+  writeFileSync(join(root,"source.md"),raw);
+  const sha256 = createHash("sha256").update(raw).digest("hex");
+  assert.equal(verifyMailboxReference(root,{path:"source.md",sha256}),null);
+  for (const path of ["../source.md","/source.md","C:/source.md","folder/../source.md","folder\\source.md"])
+    assert.equal(verifyMailboxReference(root,{path,sha256}),"reference-path-invalid");
+  assert.equal(verifyMailboxReference(root,{path:"source.md",sha256:"0".repeat(64)}),"reference-hash-mismatch");
+  assert.equal(verifyMailboxReference(root,{path:"missing.md",sha256}),"reference-missing");
+  writeFileSync(join(root,"COMMUNICATIONS.md"),"new revision");
+  assert.equal(verifyMailboxReference(root,{path:"COMMUNICATIONS.md",sha256}),"reference-superseded");
+  mkdirSync(join(root,".coordination/v1/artifacts"),{recursive:true});
+  for (const path of [".coordination/v1/BOARD.md", ".coordination/v1/PROTOCOL-1.1.0.md", ".coordination/v1/artifacts/BOARD.md"]) {
+    writeFileSync(join(root,path),"new revision");
+    assert.equal(verifyMailboxReference(root,{path,sha256}),path === ".coordination/v1/BOARD.md" ? "reference-superseded" : "reference-hash-mismatch");
+  }
+  assert.equal(verifyMailboxReference(root,{path:"bundle",sha256sums:"SHA256SUMS"}),"reference-schema");
+});
+
+test("mailbox envelope reads enforce the exact 64 KiB boundary", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-size-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  const message=JSON.stringify({sender:"alice",recipients:["bob"],sender_seq:1,message_id:"sized",prev_message_sha256:null,kind:"RESULT"});
+  const path=join(root,"messages/alice/alice-000001-sized.json");
+  writeFileSync(path,message.padEnd(65536," "));
+  assert.equal(auditMailbox(root,"bob").messageCount,1);
+  writeFileSync(path,message.padEnd(65537," "));
+  const report=auditMailbox(root,"bob");
+  assert.equal(report.messageCount,0);
+  assert.deepEqual(report.findings,[{file:"messages/alice/alice-000001-sized.json",code:"oversized"}]);
+});
+
+test("message and ACK decoding rejects corrupt UTF-8 without rewriting delivered bytes", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-utf8-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  mkdirSync(join(root,"acks/bob"),{recursive:true});
+  const message={sender:"alice",recipients:["bob"],sender_seq:1,message_id:"utf8",prev_message_sha256:null,payload:{subject:"MARKER"}};
+  const ack={recipient:"bob",sender:"alice",message_id:"utf8",status:"RECEIVED",reason:"MARKER"};
+  const messagePath=join(root,"messages/alice/alice-000001-utf8.json");
+  const ackPath=join(root,"acks/bob/bob-000001-ack-utf8.json");
+  for (const invalid of [[0xff],[0xc0,0xaf],[0xed,0xa0,0x80],[0xe2,0x82]]) {
+    const raws=[message,ack].map(value => {
+      const [before,after]=JSON.stringify(value).split("MARKER");
+      return Buffer.concat([Buffer.from(before),Buffer.from(invalid),Buffer.from(after)]);
+    });
+    writeFileSync(messagePath,raws[0]); writeFileSync(ackPath,raws[1]);
+    const report=auditMailbox(root,"bob");
+    assert.equal(report.messageCount,0); assert.equal(report.acknowledgements.length,0);
+    assert.equal(report.findings.filter(x=>x.code==="invalid-json").length,2);
+    assert.deepEqual(readFileSync(messagePath),raws[0]); assert.deepEqual(readFileSync(ackPath),raws[1]);
+  }
+  // An actual replacement character is valid text; a BOM is retained in the hash.
+  const valid=Buffer.concat([Buffer.from([0xef,0xbb,0xbf]),Buffer.from(JSON.stringify({...message,payload:{subject:"� 😀"}}))]);
+  writeFileSync(messagePath,valid); unlinkSync(ackPath);
+  const report=auditMailbox(root,"bob");
+  assert.equal(report.messageCount,1);
+  assert.equal(report.inbox[0].sha256,createHash("sha256").update(valid).digest("hex"));
+  assert.equal(report.findings.some(x=>x.code==="invalid-json"),false);
+});
+
+
+test("bundle verification checks members without claiming an unbound manifest authentic", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-bundle-"));
+  mkdirSync(join(root,"artifacts/alice"),{recursive:true});
+  writeFileSync(join(root,"artifacts/alice/note.md"),"retained");
+  const hash=createHash("sha256").update("retained").digest("hex");
+  const manifest=join(root,"artifacts/alice/SHA256SUMS");
+  const ref={path:"artifacts/alice",sha256sums:"SHA256SUMS"};
+  writeFileSync(manifest,`${hash} *note.md\n`);
+  assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-unbound");
+  const manifestHash=createHash("sha256").update(readFileSync(manifest)).digest("hex");
+  assert.equal(verifyMailboxBundle(root,ref,manifestHash),null);
+  assert.equal(verifyMailboxBundle(root,ref,"0".repeat(64)),"reference-manifest-hash-mismatch");
+  assert.equal(verifyMailboxBundle(root,ref,"not-a-digest"),"reference-schema");
+  assert.equal(verifyMailboxBundle(root,{...ref,host:"another-host"}),"reference-host-unresolved");
+  writeFileSync(join(root,"artifacts/alice/note.md"),"changed");
+  assert.equal(verifyMailboxBundle(root,ref,manifestHash),"reference-hash-mismatch");
+  assert.equal(verifyMailboxBundle(root,ref),"reference-hash-mismatch");
+  writeFileSync(manifest,`${hash}  ../../outside.md\n`);
+  assert.equal(verifyMailboxBundle(root,ref),"reference-path-invalid");
+  writeFileSync(manifest,`${hash}  note.md\n${hash}  note.md\n`);
+  writeFileSync(join(root,"artifacts/alice/note.md"),"retained");
+  assert.equal(verifyMailboxBundle(root,ref),"reference-manifest-invalid");
+});
+
+
+test("bundle manifests reject malformed UTF-8 instead of resolving replacement filenames", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-manifest-utf8-"));
+  mkdirSync(join(root, "bundle"));
+  const content = Buffer.from("retained"), hash = createHash("sha256").update(content).digest("hex");
+  writeFileSync(join(root, "bundle", "�.md"), content);
+  const path = join(root, "bundle", "SHA256SUMS"), ref = {path:"bundle",sha256sums:"SHA256SUMS"};
+  const malformed = Buffer.concat([Buffer.from(`${hash}  `), Buffer.from([0xff]), Buffer.from(".md\n")]);
+  writeFileSync(path, malformed);
+  assert.equal(verifyMailboxBundle(root, ref, createHash("sha256").update(malformed).digest("hex")), "reference-manifest-invalid");
+  assert.deepEqual(readFileSync(path), malformed);
+  const valid = Buffer.from(`${hash}  �.md\n`);
+  writeFileSync(path, valid);
+  assert.equal(verifyMailboxBundle(root, ref, createHash("sha256").update(valid).digest("hex")), null);
+});
+
+test("retained heads detect removed suffixes and rewritten observations without updating state", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-heads-"));
+  mkdirSync(join(root,"messages/alice"),{recursive:true});
+  const put = (sequence, previous) => {
+    const raw=JSON.stringify({sender:"alice",recipients:["bob"],sender_seq:sequence,message_id:`m${sequence}`,prev_message_sha256:previous});
+    const path=join(root,`messages/alice/alice-${String(sequence).padStart(6,"0")}-m${sequence}.json`);
+    writeFileSync(path,raw);return {path,sha256:createHash("sha256").update(raw).digest("hex")};
+  };
+  const first=put(1,null),second=put(2,first.sha256);
+  const heads=[{sender:"alice",sequence:2,sha256:second.sha256}];
+  assert.deepEqual(auditMailbox(root,"bob",root,heads).findings,[]);
+  writeFileSync(second.path,readFileSync(second.path,"utf8")+" ");
+  assert.ok(auditMailbox(root,"bob",root,heads).findings.some(x=>x.code==="retained-head-changed"));
+  unlinkSync(second.path);
+  assert.ok(auditMailbox(root,"bob",root,heads).findings.some(x=>x.code==="retained-head-missing"));
+  assert.equal(heads[0].sha256,second.sha256);
+  assert.throws(()=>auditMailbox(root,"bob",root,[{sender:"../outside",sequence:2,sha256:second.sha256}]),/Invalid retained head/);
+});
+
+
+test("protocol schema checks missing fields, roles and ACK evidence shapes", () => {
+  const message={schema_version:1,message_id:"m",sender:"alice",recipients:["bob"],sender_seq:1,task_id:"task",in_reply_to:null,created_utc:"2026-09-13T00:00:00Z",kind:"RESULT",payload:{subject:"Result",body_markdown:"Data"},input_plan_digests:[],artifacts:[],prev_message_sha256:null};
+  assert.deepEqual(mailboxSchemaFindings(message,"message"),[]);
+  assert.ok(mailboxSchemaFindings({...message,kind:"ASSIGNMENT"},"message").includes("assignment-role-mismatch"));
+  assert.ok(mailboxSchemaFindings({...message,recipients:["bob","bob"]},"message").includes("schema-recipients"));
+  assert.ok(mailboxSchemaFindings({...message,created_utc:"yesterday"},"message").includes("schema-time"));
+  const incomplete={...message};delete incomplete.payload;
+  assert.ok(mailboxSchemaFindings(incomplete,"message").includes("schema-required-field"));
+  const ack={schema_version:1,ack_id:"a",sender:"alice",recipient:"bob",message_id:"m",message_sha256:"a".repeat(64),status:"RECEIVED",created_utc:message.created_utc,reason:"Received",review_message_id:null,outputs:[]};
+  assert.deepEqual(mailboxSchemaFindings(ack,"ack"),[]);
+  assert.ok(mailboxSchemaFindings({...ack,outputs:null},"ack").includes("schema-outputs"));
+});
+
+
+test("schema time rejects calendar rollover and accepts actual leap days", () => {
+  for (const created_utc of ["2026-02-29T00:00:00Z","2026-02-30T00:00:00Z","1900-02-29T00:00:00Z","2026-04-31T00:00:00Z","2026-09-13T24:00:00Z","2026-09-13T00:00:00+24:00"])
+    assert.ok(mailboxSchemaFindings({created_utc},"message").includes("schema-time"),created_utc);
+  for (const created_utc of ["2000-02-29T00:00:00Z","2024-02-29T23:59:59.1234567Z","2026-09-13T00:00:00-04:00"])
+    assert.equal(mailboxSchemaFindings({created_utc},"message").includes("schema-time"),false,created_utc);
+});
+
+test("ACK output hashes are checked without elevating completion status", () => {
+  const root=mkdtempSync(join(tmpdir(),"kosmos-mailbox-output-"));
+  mkdirSync(join(root,"messages"));mkdirSync(join(root,"acks/bob"),{recursive:true});
+  writeFileSync(join(root,"result.md"),"output");
+  const ack={recipient:"bob",sender:"alice",message_id:"m",status:"COMPLETED",outputs:[{path:"result.md",sha256:"0".repeat(64)}]};
+  writeFileSync(join(root,"acks/bob/bob-000001-ack-m.json"),JSON.stringify(ack));
+  const result=auditMailbox(root,"bob",root);
+  assert.ok(result.findings.some(x=>x.code==="output-reference-hash-mismatch"));
+  assert.equal(result.acknowledgements[0].completionVerified,false);
+});
+
+
+test("M1 CLI recipient matrix preserves forks and corrections without accepting ACK claims", () => {
+  const root = mkdtempSync(join(tmpdir(), "kosmos-mailbox-m1-cli-"));
+  const originals = new Map();
+  const put = (path, value) => {
+    const full = join(root, path), bytes = Buffer.from(JSON.stringify(value));
+    mkdirSync(join(full, '..'), { recursive: true });
+    writeFileSync(full, bytes); originals.set(full, bytes);
+    return createHash('sha256').update(bytes).digest('hex');
+  };
+  const base = { schema_version: 1, sender: 'alice', recipients: ['bob', 'carol'],
+    sender_seq: 1, message_id: 'first', task_id: 'm1', in_reply_to: null,
+    created_utc: '2026-09-14T00:00:00Z', kind: 'FINDING',
+    payload: { subject: 'Historical finding', body_markdown: 'Synthetic original.' },
+    input_plan_digests: [], artifacts: [], prev_message_sha256: null };
+  const first = put('messages/alice/alice-000001-first.json', base);
+  put('messages/alice/alice-000001-fork.json', { ...base, message_id: 'fork' });
+  put('messages/alice/alice-000002-correction.json', { ...base, sender_seq: 2,
+    message_id: 'correction', in_reply_to: 'first', prev_message_sha256: first,
+    payload: { subject: 'Correction', body_markdown: 'Earlier finding corrected; retain original and fork.' } });
+  const ack = { schema_version: 1, ack_id: 'bob-ack', recipient: 'bob', sender: 'alice',
+    message_id: 'first', message_sha256: first, status: 'ACCEPTED',
+    created_utc: base.created_utc, reason: 'Received for review', review_message_id: null, outputs: [] };
+  put('acks/bob/bob-000001-ack-first.json', ack);
+  put('acks/carol/carol-000001-ack-first.json', { ...ack, ack_id: 'carol-ack',
+    recipient: 'alice', sender: 'carol', message_sha256: '0'.repeat(64), status: 'COMPLETED' });
+  for (const recipient of ['bob', 'carol']) {
+    const child = spawnSync(process.execPath, ['scripts/audit-mailbox.mjs', root, recipient],
+      { encoding: 'utf8', timeout: 10000, windowsHide: true });
+    assert.ifError(child.error); assert.equal(child.signal, null);
+    assert.equal(child.status, 1, 'disclosed ambiguity must fail the audit');
+    const report = JSON.parse(child.stdout);
+    assert.equal(report.recipient, recipient);
+    assert.equal(report.messageCount, 3);
+    assert.deepEqual(report.schemaFindings, []);
+    assert.equal(report.acknowledgements.length, 1);
+    assert.equal(report.acknowledgements[0].completionVerified, false);
+    assert.ok(report.acknowledgements[0].file.startsWith(`acks/${recipient}/`));
+    assert.ok(report.findings.some(x => x.code === 'sequence-fork'));
+    assert.ok(report.findings.some(x => x.code === 'parent-chain-ambiguous' && x.file.endsWith('correction.json')));
+    for (const code of ['ack-role-mismatch', 'ack-hash-mismatch', 'completion-evidence-missing']) {
+      assert.equal(report.findings.some(x => x.code === code), recipient === 'carol', code);
+    }
+  }
+  for (const [path, bytes] of originals) assert.deepEqual(readFileSync(path), bytes);
 });

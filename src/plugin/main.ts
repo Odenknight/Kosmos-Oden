@@ -8,11 +8,16 @@
  *
  * The plugin streams the vault into the iframe: one full snapshot on open,
  * then debounced deltas; the iframe's shared GkxIndex re-parses only what
- * changed (§10). The Agent API answers from the same core index (§33).
+ * changed (§10). The Agent API and Notes share a separate provider index;
+ * using the same Engine library does not establish snapshot parity.
  */
-import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { FileSystemAdapter, ItemView, Notice, Platform, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
+import { KosmosNotesView, NOTES_VIEW_TYPE } from "./notes-view";
+import {NativeSemanticConnection, readNativeSemanticProfile} from "../workspace/native-semantic";
+import { KosmosReadableView, READABLE_VIEW_TYPE } from "./readable-view";
+import { NotesWorkspaceHost } from "../workspace/host";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
@@ -20,11 +25,12 @@ import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settin
 import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
-import { validateRendererMessage, wrap } from "./protocol";
+import { validateRendererOpenMessage, wrap } from "./protocol";
 import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } from "./vault-provider";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
+import type { EffectsInspectionHost, EffectsInspectionResult } from "../navigation-effects/plugin-inspection-host";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -103,7 +109,7 @@ export class KosmosView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("kosmos-oden-root");
-    const frame = document.createElement("iframe");
+    const frame = root.ownerDocument.createElement("iframe");
     frame.setAttribute("title", "Kosmos-Oden");
     // Defense-in-depth: the renderer is treated as a distinct, opaque-origin
     // context. It needs scripts (WebGL/Three.js), pointer lock (fly mode) and
@@ -116,23 +122,23 @@ export class KosmosView extends ItemView {
     root.appendChild(frame);
     this.frame = frame;
     // open-note / open-folder requests coming back from the 3D view (right-click)
-    this.registerDomEvent(window, "message", (ev: MessageEvent) => this.onMessage(ev));
+    this.registerDomEvent(root.ownerDocument.defaultView || window, "message", (ev: MessageEvent) => this.onMessage(ev));
+    this.registerDomEvent(root.ownerDocument, "visibilitychange", () => {
+      this.syncVisibility();
+      if (this.isVisible()) this.flushIfDeferred();
+    });
   }
 
   private onMessage(ev: MessageEvent): void {
     if (!this.frame || ev.source !== this.frame.contentWindow) return;     // only our own iframe
     const data: any = ev.data;
     // Preferred path: versioned, structurally validated envelope.
-    const v = validateRendererMessage(data);
+    const v = validateRendererOpenMessage(data);
     let type: "open-note" | "open-folder" | null = null;
     let path: string | undefined;
-    if (v.ok && v.message) {
+    if (v.ok && v.message && (v.message.type === "open-note" || v.message.type === "open-folder")) {
       type = v.message.type;
       path = (v.message.payload as any).path;
-    } else if (data && data.type === "kosmos:open" && typeof data.path === "string") {
-      type = "open-note"; path = data.path;               // legacy flat shape (older renderer builds)
-    } else if (data && data.type === "kosmos:folder" && typeof data.path === "string") {
-      type = "open-folder"; path = data.path;
     } else {
       return;
     }
@@ -146,7 +152,7 @@ export class KosmosView extends ItemView {
     if (file instanceof TFile) {
       void this.app.workspace.getLeaf("tab").openFile(file);               // open the note in a NEW tab
     } else {
-      void this.app.workspace.openLinkText(path, "", "tab");               // fall back to link resolution
+      new Notice("Kosmos-Oden: this note is no longer available. Refresh the view.");
     }
   }
 
@@ -244,8 +250,8 @@ export class KosmosView extends ItemView {
   }
 
   private isVisible(): boolean {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
     const el = this.containerEl as HTMLElement;
+    if (el?.ownerDocument?.visibilityState === "hidden") return false;
     return !!el && !!el.offsetParent;          // background tabs have no offsetParent
   }
   /** Called when a view becomes active/visible again. */
@@ -331,7 +337,11 @@ export default class KosmosOdenPlugin extends Plugin {
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
   nextcloudStatus = "Not configured";
   agentApi!: KosmosAgentServer;
+  private readonly semanticConnection = new NativeSemanticConnection();
+  private nativeSemanticConfiguration: unknown = null;
   provider!: VaultDataProvider;
+  private effectsInspectionHost: EffectsInspectionHost | null = null;
+  private effectsInspectionLive = false;
 
   private eventsLive = false;
   private nextcloudSyncRunning = false;
@@ -392,7 +402,9 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   async onload(): Promise<void> {
+    this.effectsInspectionLive = true;
     const persisted = await this.loadData();
+    this.nativeSemanticConfiguration = persisted?.nativeSemantic ?? null;
     this.agentSettings = migrateAgentSettings(persisted);
     this.nextcloudSettings = migrateNextcloudSettings(persisted?.nextcloud);
     if (!persisted?.nextcloud) this.nextcloudSettings.remoteFolder = `Kosmos-Oden/${this.app.vault.getName()}`;
@@ -427,6 +439,22 @@ export default class KosmosOdenPlugin extends Plugin {
     const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled);
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
+    this.registerView(READABLE_VIEW_TYPE, leaf => new KosmosReadableView(leaf, new NotesWorkspaceHost(this.agentApi), kosmosHtml, (path, uid) => { void this.activateNotes(path, uid).catch(() => new Notice("Kosmos-Oden: Notes could not be opened.")); }));
+    this.registerView(NOTES_VIEW_TYPE, leaf => new KosmosNotesView(leaf, new NotesWorkspaceHost(this.agentApi, this.semanticConnection), (path, uid) => {
+      void this.activateReadable(path, uid).catch(() => new Notice("Kosmos-Oden: readable view could not be opened."));
+    }));
+    this.addRibbonIcon("notebook-pen", "Open Kosmos-Oden Notes", () => void this.activateNotes());
+    this.addCommand({ id: "open-kosmos-notes", name: "Open Kosmos-Oden Notes", callback: () => void this.activateNotes() });
+    this.addCommand({ id: "reconnect-kosmos-semantic", name: "Reconnect related-fact search", callback: () => void this.reconnectSemanticSearch(true) });
+    this.addCommand({ id: "inspect-navigation-effects-recovery", name: "Inspect Navigation Effects recovery status", callback: () => {
+      void this.inspectNavigationEffects().then(result => {
+        if (this.effectsInspectionLive) new Notice(`Kosmos-Oden: ${this.effectsInspectionMessage(result)}`);
+      });
+    } });
+    void this.reconnectSemanticSearch(false);
+    this.addCommand({ id: "open-kosmos-workspace", name: "Open Kosmos-Oden workspace", callback: () => {
+      void (this.agentSettings.notesWorkspaceEnabled ? this.activateNotes() : this.activate());
+    } });
     this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
     this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
     this.addCommand({
@@ -541,10 +569,41 @@ export default class KosmosOdenPlugin extends Plugin {
       leaf = ws.getLeaf(true);
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
-    ws.revealLeaf(leaf);
+    await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
   }
 
-  async saveAgentSettings(): Promise<void> { await this.savePluginData(); }
+  async activateNotes(path?: string | null, uid?: string): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(NOTES_VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = ws.getLeaf(true);
+      await leaf.setViewState({ type: NOTES_VIEW_TYPE, active: true });
+    }
+    await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
+    if (path !== undefined && leaf.view instanceof KosmosNotesView) await leaf.view.select(path, uid);
+  }
+
+  async activateReadable(path?: string, uid?: string): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(READABLE_VIEW_TYPE)[0];
+    if (!leaf) { leaf = ws.getLeaf(true); await leaf.setViewState({ type: READABLE_VIEW_TYPE, active: true }); }
+    await ws.revealLeaf(leaf);
+    ws.setActiveLeaf(leaf, { focus: true });
+    if (leaf.view instanceof KosmosReadableView) {
+      if (path) await leaf.view.locate(path, uid); else leaf.view.refresh();
+    }
+  }
+
+  async saveAgentSettings(): Promise<void> {
+    this.semanticConnection.disconnect();
+    for (const leaf of this.app.workspace.getLeavesOfType(READABLE_VIEW_TYPE))
+      if (leaf.view instanceof KosmosReadableView) leaf.view.refresh();
+    for (const leaf of this.app.workspace.getLeavesOfType(NOTES_VIEW_TYPE))
+      if (leaf.view instanceof KosmosNotesView) leaf.view.refresh();
+    await this.savePluginData();
+  }
 
   async saveNextcloudSettings(): Promise<void> {
     const scope = syncScope(this.nextcloudSettings);
@@ -553,7 +612,20 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   private async savePluginData(): Promise<void> {
-    await this.saveData({ ...this.agentSettings, nextcloud: this.nextcloudSettings, nextcloudState: this.nextcloudState });
+    await this.saveData({ ...this.agentSettings, nextcloud: this.nextcloudSettings, nextcloudState: this.nextcloudState,
+      nativeSemantic: this.nativeSemanticConfiguration });
+  }
+
+  private async reconnectSemanticSearch(notify: boolean): Promise<void> {
+    this.semanticConnection.disconnect();
+    const profile = readNativeSemanticProfile(this.nativeSemanticConfiguration);
+    let connected = false;
+    if (profile && profile.vaultIdentity === this.provider.vaultIdentity()) {
+      const configuration = this.nativeSemanticConfiguration;
+      connected = await this.semanticConnection.connect({api:this.agentApi,...profile,
+        current: () => this.nativeSemanticConfiguration === configuration && profile.vaultIdentity === this.provider.vaultIdentity()});
+    }
+    if (notify) new Notice(connected ? "Kosmos-Oden: related-fact search connected." : "Kosmos-Oden: related-fact search is unavailable. Readable note search remains available.");
   }
 
   /** Stable per-vault suffix (FNV-1a over plugin id and vault name). The
@@ -654,6 +726,10 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.effectsInspectionLive = false;
+    this.effectsInspectionHost?.close();
+    this.effectsInspectionHost = null;
+    this.semanticConnection.disconnect();
     this.eventsLive = false;
     this.agentApi?.stop();
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
@@ -661,6 +737,45 @@ export default class KosmosOdenPlugin extends Plugin {
     this.timestampTimers.clear();
     // Cancel the one-shot startup Nextcloud sync if it hasn't fired yet.
     if (this.startupSyncTimer != null) { window.clearTimeout(this.startupSyncTimer); this.startupSyncTimer = null; }
+  }
+
+  async inspectNavigationEffects(): Promise<EffectsInspectionResult | null> {
+    if (!this.effectsInspectionLive || !Platform.isDesktopApp) return null;
+    try {
+      const vaultAdapter = this.app.vault.adapter;
+      if (!(vaultAdapter instanceof FileSystemAdapter)) return null;
+      const basePath = vaultAdapter.getBasePath();
+      let host = this.effectsInspectionHost;
+      if (!host) {
+        const modulePath = installedBridgePath(this.app, this).replace(/kosmos-mcp-stdio\.mjs$/u, "effects-inspection-host.cjs");
+        const loaded = nodeRequire(modulePath) as { EffectsInspectionHost?: new(binding: any) => EffectsInspectionHost } | null;
+        if (!loaded?.EffectsInspectionHost) return null;
+        host = new loaded.EffectsInspectionHost({
+          adapter: vaultAdapter,
+          basePath,
+          currentAdapter: () => this.app.vault.adapter,
+          currentBasePath: () => this.app.vault.adapter instanceof FileSystemAdapter
+            ? this.app.vault.adapter.getBasePath() : "",
+        });
+        if (!this.effectsInspectionLive || this.app.vault.adapter !== vaultAdapter) { host.close(); return null; }
+        this.effectsInspectionHost = host;
+      }
+      const result = await host.inspect();
+      return this.effectsInspectionLive && this.effectsInspectionHost === host ? result : null;
+    } catch {
+      return null;
+    }
+  }
+
+  effectsInspectionCanPublish(): boolean { return this.effectsInspectionLive; }
+
+  effectsInspectionMessage(result: EffectsInspectionResult | null): string {
+    if (!result || result.artifactKind === "kosmos.effect-host-unavailable") {
+      return "Navigation Effects recovery inspection is unavailable on this host.";
+    }
+    if (result.status === "safe") return "No pending Navigation Effects recovery was observed.";
+    if (result.status === "blocked") return "Navigation Effects recovery is blocked; automatic writes remain disabled.";
+    return "Navigation Effects recovery requires operator review; automatic writes remain disabled.";
   }
 
   /** Export readable source assertions as a non-authoritative Graphiti projection.

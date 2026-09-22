@@ -22,8 +22,10 @@
  *    endpoints exist (§18).
  */
 import { ProviderError } from "./vault-operations";
-import { projectAtTime, type ProjectableNote } from "gkos-engine";
+import { projectAtTime, type ProjectableNote, type inspectScopedLineage } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
+import {buildManagedGraphitiManifest, type ManagedGraphitiEpisode} from "gkos-engine/graphiti";
+import {isValidGkxAuthoredUid} from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
 import { ENGINE_VERSION, GKX23_POLICY, GKX23_PROFILE, FAIL_CLOSED_SENSITIVITY_DEFAULT, SENSITIVITY_RANK } from "gkos-engine";
@@ -128,6 +130,8 @@ export interface AgentSettings {
   agentAllowQueryToken: boolean;
   /** Opt into GKOS-Engine 2.1 canonical-five Navigation center discovery. */
   navigationEnabled: boolean;
+  /** Notes-first entry for the new workspace; does not migrate saved view IDs. */
+  notesWorkspaceEnabled: boolean;
   /**
    * Separately versioned Navigation Effects settings. These settings describe
    * operator intent only; defaults expose no writer and enable no effect.
@@ -175,6 +179,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   agentGraphNamespace: "",
   agentAllowQueryToken: false,
   navigationEnabled: KOSMOS_NAVIGATION_DEFAULT_ENABLED,
+  notesWorkspaceEnabled: false,
   navigationEffects: {
     ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS,
     policyRef: { ...DEFAULT_NAVIGATION_EFFECTS_SETTINGS.policyRef },
@@ -236,6 +241,7 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   s.gkxExcludePatterns = Array.isArray(s.gkxExcludePatterns) ? s.gkxExcludePatterns.map(String).slice(0, 200) : [];
   s.gkxDeveloperExclusions = s.gkxDeveloperExclusions === true;
   s.navigationEnabled = s.navigationEnabled === true;
+  s.notesWorkspaceEnabled = s.notesWorkspaceEnabled === true;
   s.noteTimestampsEnabled = s.noteTimestampsEnabled !== false;
   s.timestampUseLocalTimezone = s.timestampUseLocalTimezone === true;
   s.timestampCreatedKey = typeof s.timestampCreatedKey === "string" && s.timestampCreatedKey.trim() ? s.timestampCreatedKey.trim() : "created_at";
@@ -321,11 +327,14 @@ export function makeToken(): string {
 export interface AgentDataProvider {
   /** The shared graph snapshot — the same one the viewer renders (§33). */
   getGraph(): Promise<GkxGraph>;
+  inspectLineage?: typeof inspectScopedLineage;
   /** Note body with frontmatter stripped, or null when unknown. */
   getNoteContent(path: string): Promise<string | null>;
   /** Body from the committed graph's source snapshot; never performs vault I/O. */
   getIndexedBody?(path: string, graph: GkxGraph): string | null;
   getIndexedSourceBytes?(path: string, graph: GkxGraph, maxBytes: number): Promise<Uint8Array | null>;
+  /** Synchronous revision check for a host-held committed snapshot. */
+  captureGraphCurrent?(graph: GkxGraph): () => boolean;
   vaultName(): string;
   /** Opaque stable-ish identity used to disambiguate Graphiti namespaces. */
   vaultIdentity?(): string;
@@ -792,7 +801,9 @@ export class KosmosAgentServer {
     const files = this.fileNodes(graph);
     if (sel.uid) {
       const uid = sel.uid.trim();
-      const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
+      const matches = (candidate: unknown) => typeof candidate === "string" &&
+        (candidate === uid || isValidGkxAuthoredUid(uid) && candidate.toLowerCase() === uid.toLowerCase());
+      const hits = files.filter((n) => matches(n.gkx?.projection?.authored.uid) || matches(n.gkx?.uid));
       if (hits.length > 1) {
         const exact = sel.path ? hits.filter(n => n.path === sel.path.trim()) : [];
         if (exact.length === 1) return exact[0];
@@ -906,10 +917,13 @@ export class KosmosAgentServer {
     };
   }
 
-  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number; body?: boolean } = {}): Promise<any> {
+  async qSearch(query: string, opts: { tag?: string; area?: string; limit?: number; body?: boolean; offset?: number } = {}): Promise<any> {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
+    // Native host continuation only; public MCP keeps its existing schema.
+    const offset = opts.offset ?? 0;
+    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("SEARCH_OFFSET_INVALID");
     const scored: Array<[number, GkxNode]> = [];
     if (opts.body && !this.provider.getIndexedBody) throw new McpRpcError(-32602, "Body search is unavailable from this provider");
     let bodyCharacters = 0, bodyNotes = 0, bodyLimited = false;
@@ -939,11 +953,12 @@ export class KosmosAgentServer {
       method: opts.body ? "lexical (title/alias/tag/path and bounded body substring; no embeddings)" : "lexical (title/alias/tag/path substring; no embeddings)",
       ...(opts.body ? { bodySearch: { coverage: "partial", notesScanned: bodyNotes, charactersScanned: bodyCharacters, truncated: bodyLimited, maxCharactersPerNote: 64_000, maxCharactersPerQuery: 8_000_000 } } : {}),
       total: scored.length,
-      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph)),
+      results: scored.slice(offset, offset + lim).map(([, n]) => this.brief(n, graph)),
     };
   }
 
-  async qNote(sel: { path?: string; title?: string }): Promise<any> {
+  async qNote(sel: { path?: string; title?: string; uid?: string; offset?: number; page_size?: number; revision?: string }): Promise<any> {
+    if (sel.page_size !== undefined || sel.offset !== undefined || sel.revision !== undefined) return this.qNotePage(sel);
     const graph = await this.provider.getGraph();
     const n = this.findNode(graph, sel);
     if (!n) return { error: "note not found", hint: "pass path (e.g. Ideas/Engine v2.md) or title" };
@@ -988,6 +1003,35 @@ export class KosmosAgentServer {
       links: { outgoing, backlinks, semantic },
       content: this.capContent(content ?? ""),
     };
+  }
+
+  /** Opt-in continuation over committed content; legacy get_note stays unchanged. */
+  private async qNotePage(sel: { path?: string; title?: string; uid?: string; offset?: number; page_size?: number; revision?: string }): Promise<any> {
+    const provider = this.provider, ceiling = this.settings.agentSensitivityCeiling, defaults = this.settings.defaultSensitivity;
+    if (!provider.getIndexedBody || !provider.vaultIdentity) throw new McpRpcError(-32602, "Committed note continuation is unavailable from this provider");
+    const graph = await provider.getGraph(), n = this.findNode(graph, sel);
+    if (!n) return { error: "note not found" };
+    const body = provider.getIndexedBody(n.path, graph);
+    if (body === null) throw new ProviderError("provider_unavailable");
+    if (body.length > 8_000_000) return { error: "note exceeds continuation budget", code: "NOTE_READ_BUDGET_EXCEEDED" };
+    const offset = sel.offset ?? 0, size = sel.page_size ?? MAX_NOTE_CONTENT_CHARS;
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > body.length || !Number.isInteger(size) || size < 2 || size > MAX_NOTE_CONTENT_CHARS)
+      throw new McpRpcError(-32602, "Invalid note continuation bounds");
+    const corpus = provider.vaultIdentity();
+    const bytes = new TextEncoder().encode(JSON.stringify([corpus, n.path, ceiling, defaults, body]));
+    const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    const revision = "sha256:" + Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+    const currentGraph = await provider.getGraph();
+    if (provider !== this.provider || graph !== currentGraph || ceiling !== this.settings.agentSensitivityCeiling || defaults !== this.settings.defaultSensitivity || corpus !== provider.vaultIdentity() || this.findNode(graph, { path: n.path }) !== n)
+      throw new ProviderError("provider_unavailable");
+    if ((offset > 0 && !sel.revision) || (sel.revision !== undefined && sel.revision !== revision))
+      return { error: "note continuation changed; restart at offset zero", code: "NOTE_REVISION_CHANGED" };
+    if (offset > 0 && /[\uDC00-\uDFFF]/.test(body[offset]) && /[\uD800-\uDBFF]/.test(body[offset - 1]))
+      throw new McpRpcError(-32602, "Continuation offset splits a Unicode character");
+    let end = Math.min(body.length, offset + size);
+    if (end < body.length && /[\uD800-\uDBFF]/.test(body[end - 1]) && /[\uDC00-\uDFFF]/.test(body[end])) end--;
+    return { ...this.brief(n, graph), content: body.slice(offset, end),
+      continuation: { revision, offset, next_offset: end < body.length ? end : null, total_characters: body.length, complete: end === body.length, offset_unit: "UTF-16 code units" } };
   }
 
   private async gkxNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: GkxGraph; node: GkxNode } | null> {
@@ -1095,6 +1139,7 @@ export class KosmosAgentServer {
       for: n.path,
       chainLength: chain.length,
       chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
+      inspection: this.provider.inspectLineage?.(graph, n.id, new Set(byId.keys())) ?? { available: false, declarations: [] },
     };
   }
 
@@ -1154,12 +1199,116 @@ export class KosmosAgentServer {
     };
   }
 
-  async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false): Promise<any[]> {
+  /** Capture every host field that selects the export's identity or projection. */
+  private captureGraphitiProjection(): () => boolean {
+    const provider = this.provider;
+    const values = () => [provider.vaultName(), provider.vaultIdentity?.(), this.settings.agentGraphNamespace,
+      this.settings.graphitiCombinedExtraction, this.settings.graphitiSagaMapping,
+      this.settings.agentSensitivityCeiling, this.settings.defaultSensitivity];
+    const captured = values();
+    return () => this.provider === provider && values().every((value, index) => value === captured[index]);
+  }
+
+  /** Native history preparation. No storage is enabled and no wire method exposes
+   * this one-use capability. The history owner must bind current into its final
+   * database transaction checks; the projection is provenance, never a read grant.
+   */
+  async prepareHistorySource(uid: string, signal: AbortSignal, maxBytes: number) {
+    if (!isValidGkxAuthoredUid(uid) || !Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 64 * 1024 * 1024)
+      throw new ProviderError("provider_unavailable");
+    const provider = this.provider, projectionCurrent = this.captureGraphitiProjection();
+    if (!provider.getIndexedSourceBytes || !provider.captureGraphCurrent || !provider.vaultIdentity)
+      throw new ProviderError("provider_unavailable");
+    const corpus = provider.vaultIdentity();
+    if (!corpus) throw new ProviderError("provider_unavailable");
+    const graph = await provider.getGraph(), graphCurrent = provider.captureGraphCurrent(graph);
+    let invalidated = false, used = false;
+    const current = () => {
+      try { if (signal.aborted || !projectionCurrent() || !graphCurrent() || provider.vaultIdentity!() !== corpus) invalidated = true; }
+      catch { invalidated = true; }
+      return !invalidated;
+    };
+    const check = () => { if (!current()) throw new ProviderError("provider_unavailable"); };
+    check();
+    const matches = (value: unknown) => typeof value === "string" && value.toLowerCase() === uid.toLowerCase();
+    const nodes = graph.nodes.filter(node => node.kind === "file" &&
+      (matches(node.gkx?.projection?.authored.uid) || matches(node.gkx?.uid)));
+    const node = nodes[0];
+    if (nodes.length !== 1 || !this.fileNodes(graph).includes(node) || !node.gkx?.projection ||
+        !isValidGkxAuthoredUid(node.gkx.uid) || !matches(node.gkx.uid) || !matches(node.gkx.projection.authored.uid))
+      throw new ProviderError("provider_unavailable");
+    const raw = await provider.getIndexedSourceBytes(node.path, graph, maxBytes);
+    check();
+    if (!raw || raw.byteLength > maxBytes) throw new ProviderError("provider_unavailable");
+    const bytes = new Uint8Array(raw), projection = structuredClone(node.gkx.projection);
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    check();
+    const sourceDigest = `sha256:${Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("")}`;
+    const source = node.gkx.uid, path = node.path;
+    return Object.freeze({current, publish: <T>(apply: (observation: {
+      corpus: string; source: string; path: string; sourceDigest: string;
+      bytes: Uint8Array; projection: typeof projection; current: () => boolean;
+    }) => T): T => {
+      if (used) throw new ProviderError("provider_unavailable");
+      used = true; check();
+      return apply({corpus,source,path,sourceDigest,bytes:new Uint8Array(bytes),projection:structuredClone(projection),current});
+    }});
+  }
+
+  /** Native host preparation only. No MCP method exposes this authority closure. */
+  async prepareManagedGraphitiManifest(signal: AbortSignal, projectionTime?: string) {
+    const projectionCurrent = this.captureGraphitiProjection(), provider = this.provider;
+    if (!provider.getIndexedSourceBytes || !provider.captureGraphCurrent) throw new ProviderError("provider_unavailable");
+    const graph = await provider.getGraph(), graphCurrent = provider.captureGraphCurrent(graph);
+    const processingTime = projectionTime ?? graph.stats.indexedAt;
+    if (typeof processingTime !== "string" || !Number.isFinite(Date.parse(processingTime)) ||
+        new Date(processingTime).toISOString() !== processingTime) throw new ProviderError("provider_unavailable");
+    let invalidated = false;
+    const current = () => {
+      if (signal.aborted || !projectionCurrent() || !graphCurrent()) invalidated = true;
+      return !invalidated;
+    };
+    const check = () => { if (!current()) throw new ProviderError("provider_unavailable"); };
+    check();
+    const visible = this.graphForVisibleNodes(graph);
+    // Check the complete count before using the bounded public export reader.
+    const total = buildGraphitiEpisodes(visible, {combinedExtraction:this.settings.graphitiCombinedExtraction,
+      sagaMapping:this.settings.graphitiSagaMapping}).length;
+    if (!total || total > MAX_EPISODES) throw new ProviderError("provider_unavailable");
+    const episodes = await this.qEpisodes(undefined, 0, false, processingTime);
+    check();
+    if (episodes.length !== total) throw new ProviderError("provider_unavailable");
+    const nodes = new Map(visible.nodes.filter(node => node.kind === "file").map(node => [node.path, node]));
+    const counts = new Map<string, number>();
+    for (const node of graph.nodes) if (node.kind === "file" && node.gkx?.uid) counts.set(node.gkx.uid.toLowerCase(), (counts.get(node.gkx.uid.toLowerCase()) ?? 0) + 1);
+    const sources = new Map<string, Uint8Array>();
+    const inputs: Array<{source_id:string; raw:Uint8Array; episode:ManagedGraphitiEpisode}> = [];
+    let remaining = 64 * 1024 * 1024;
+    for (const episode of episodes) {
+      check();
+      const body = JSON.parse(episode.episode_body), path = episode.source === "fact_triple" ? body.source_path : body.path;
+      const node = nodes.get(path), uid = node?.gkx?.uid;
+      if (!uid || !isValidGkxAuthoredUid(uid) || counts.get(uid.toLowerCase()) !== 1) throw new ProviderError("provider_unavailable");
+      if (!sources.has(path)) {
+        const raw = await provider.getIndexedSourceBytes(path, graph, remaining);
+        check();
+        if (!raw || raw.byteLength > remaining) throw new ProviderError("provider_unavailable");
+        remaining -= raw.byteLength; sources.set(path, new Uint8Array(raw));
+      }
+      inputs.push({source_id:uid, raw:sources.get(path)!, episode:{name:episode.name, episode_body:episode.episode_body,
+        source_description:episode.source_description, reference_time:episode.reference_time}});
+    }
+    const manifest = await buildManagedGraphitiManifest(inputs);
+    check();
+    return {...manifest, projection_time:processingTime, episodes:inputs.map(input => input.episode), current};
+  }
+
+  async qEpisodes(limit?: number, offset = 0, includeSourceEvidence = false, nativeProjectionTime?: string): Promise<any[]> {
+    const projectionCurrent = this.captureGraphitiProjection();
     const provider = this.provider;
     if (includeSourceEvidence && (!provider.getIndexedSourceBytes || !provider.getIndexedBody)) throw new McpRpcError(-32602, "Source-byte evidence is unavailable from this provider");
     const graph = await provider.getGraph();
-    const ceiling = this.settings.agentSensitivityCeiling;
-    const defaultSensitivity = this.settings.defaultSensitivity;
+    if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
     const visibleGraph = this.graphForVisibleNodes(graph);
     const all = buildGraphitiEpisodes(visibleGraph, {
       vault: this.provider.vaultName(),
@@ -1170,7 +1319,7 @@ export class KosmosAgentServer {
       corpusId: this.settings.agentGraphNamespace || this.provider.vaultIdentity?.(),
       combinedExtraction: this.settings.graphitiCombinedExtraction,
       sagaMapping: this.settings.graphitiSagaMapping,
-      processingTime: graph.stats.indexedAt,
+      processingTime: nativeProjectionTime ?? graph.stats.indexedAt,
     });
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const cap = limit == null || !Number.isFinite(limit) ? MAX_EPISODES : Math.max(1, Math.min(Math.floor(limit), MAX_EPISODES));
@@ -1179,34 +1328,40 @@ export class KosmosAgentServer {
     const sources = new Map<string, Uint8Array>();
     let remainingBytes = MAX_SOURCE_EVIDENCE_BYTES;
     for (const episode of episodes) {
-      if (this.provider !== provider || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) throw new ProviderError("provider_unavailable");
+      if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
       let path = "";
-      try { path = String(JSON.parse(episode.episode_body).path || ""); } catch (_) { /* generated JSON */ }
+      try {
+        const body = JSON.parse(episode.episode_body);
+        path = String((episode.source === "fact_triple" ? body.source_path : body.path) || "");
+      } catch (_) { /* generated JSON */ }
       if (!path) continue;
       const c = provider.getIndexedBody
         ? provider.getIndexedBody(path, graph)
         : await provider.getNoteContent(path);
+      if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
       if (c != null) contents.set(path, c);
       if (includeSourceEvidence && !sources.has(path)) {
         if (c == null) throw new ProviderError("provider_unavailable");
         const bytes = await provider.getIndexedSourceBytes!(path, graph, remainingBytes);
-        if (!bytes || bytes.byteLength > remainingBytes) throw new ProviderError("provider_unavailable");
+        if (!projectionCurrent() || !bytes || bytes.byteLength > remainingBytes) throw new ProviderError("provider_unavailable");
         sources.set(path, bytes);
         remainingBytes -= bytes.byteLength;
       }
     }
     const result = attachGraphitiContent(episodes, contents);
     if (includeSourceEvidence) await attachGraphitiSourceEvidence(result, sources);
-    if (this.provider !== provider || await provider.getGraph() !== graph || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) {
+    if (await provider.getGraph() !== graph || !projectionCurrent()) {
       throw new ProviderError("provider_unavailable");
     }
     return result;
   }
 
   async qEpisodePage(offset = 0, limit = DEFAULT_EPISODE_PAGE, includeSourceEvidence = false): Promise<any> {
+    const projectionCurrent = this.captureGraphitiProjection();
     const provider = this.provider;
     const graph = await provider.getGraph();
-    const ceiling = this.settings.agentSensitivityCeiling, defaultSensitivity = this.settings.defaultSensitivity;
+    if (!projectionCurrent()) throw new ProviderError("provider_unavailable");
+    const ceiling = this.settings.agentSensitivityCeiling;
     const visibleGraph = this.graphForVisibleNodes(graph);
     const profile = graphitiIngestionProfile({ combinedExtraction: this.settings.graphitiCombinedExtraction });
     const total = buildGraphitiEpisodes(visibleGraph, {
@@ -1217,7 +1372,7 @@ export class KosmosAgentServer {
     const start = Math.max(0, Math.floor(Number.isFinite(offset) ? offset : 0));
     const pageSize = Math.max(1, Math.min(Math.floor(Number.isFinite(limit) ? limit : DEFAULT_EPISODE_PAGE), MAX_EPISODE_PAGE));
     const episodes = await this.qEpisodes(pageSize, start, includeSourceEvidence);
-    if (this.provider !== provider || await provider.getGraph() !== graph || this.settings.agentSensitivityCeiling !== ceiling || this.settings.defaultSensitivity !== defaultSensitivity) throw new ProviderError("provider_unavailable");
+    if (await provider.getGraph() !== graph || !projectionCurrent()) throw new ProviderError("provider_unavailable");
     const next = start + episodes.length;
     return {
       authority: "non-authoritative Graphiti adapter projection with authored/derived/proposed/approved origin separation",
@@ -1275,7 +1430,7 @@ export class KosmosAgentServer {
     return [
       tool("vault_overview", "Vault overview", `Sensitivity-filtered GKOS-Engine v${ENGINE_VERSION} GKX projection statistics and diagnostics. Source notes and accepted semantic events remain authoritative.`, { type: "object", properties: {}, additionalProperties: false }),
       tool("search_notes", "Search notes", "Lexical search over readable titles, aliases, tags and paths. Optional body search checks cached prefixes (64,000 characters/note, 8 million/query); reports partial coverage. No embeddings or extra vault reads.", { type: "object", properties: { query: { type: "string" }, body: { type: "boolean" }, tag: { type: "string" }, area: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["query"], additionalProperties: false }),
-      tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links.", selectionSchema),
+      tool("get_note", "Get note", "Readable source note content, GKX metadata, resolved lineage projection, and links. Opt into committed-body continuation with page_size; use returned revision and next_offset on subsequent calls. Page reads return source summary and content; ordinary reads retain the existing metadata response.", { ...selectionSchema, properties: { ...selectionSchema.properties, page_size: { type: "integer", minimum: 2, maximum: MAX_NOTE_CONTENT_CHARS }, offset: { type: "integer", minimum: 0 }, revision: { type: "string", pattern: "^sha256:[0-9a-f]{64}$" } } }),
       tool("get_lineage", "Get lineage", "Readable GKX supersession chain ordered oldest to newest.", selectionSchema),
       tool("get_related", "Get related notes", "Readable semantic related_to neighbors, outgoing links, and backlinks.", selectionSchema),
       tool("graph_at_time", "Graph at time", "Point-in-time temporal-validity projection across all readable notes. Use time, not at. No area/path filter or pagination; valid and superseded lists are bounded samples with full readable counts and a truncation flag.", { type: "object", properties: { time: { type: "string", description: "ISO 8601 temporal-validity instant, e.g. 2026-09-01T00:00:00Z" }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } }, required: ["time"], additionalProperties: false }),
@@ -1318,6 +1473,7 @@ export class KosmosAgentServer {
     if (name === "search_notes" && typeof a.query !== "string") throw new McpRpcError(-32602, "search_notes requires string query");
     if (name === "search_notes" && "body" in a && typeof a.body !== "boolean") throw new McpRpcError(-32602, "body must be a boolean");
     if (name === "export_graphiti_episodes" && "include_source_evidence" in a && typeof a.include_source_evidence !== "boolean") throw new McpRpcError(-32602, "include_source_evidence must be a boolean");
+    if (name === "get_note" && "revision" in a && (typeof a.revision !== "string" || !/^sha256:[0-9a-f]{64}$/.test(a.revision))) throw new McpRpcError(-32602, "Invalid note revision");
     if (["get_note", "get_lineage", "get_related", "get_gkx_note", "get_assessment", "get_diagnostics", "get_effective_labels", "get_evidence", "get_relationships", "validate_note", "assess_note"].includes(name)) requireSelector();
     if (name === "graph_at_time" && typeof a.time !== "string") throw new McpRpcError(-32602, "graph_at_time requires string time");
     const integer = (key: string, min: number, max: number) => {
@@ -1325,6 +1481,7 @@ export class KosmosAgentServer {
       if (!Number.isInteger(a[key]) || a[key] < min || a[key] > max) throw new McpRpcError(-32602, `${key} must be an integer from ${min} to ${max}`);
     };
     integer("limit", 1, name === "export_graphiti_episodes" ? MAX_EPISODE_PAGE : name === "assess_vault" ? 200 : MAX_SEARCH_RESULTS);
+    if (name === "get_note") { integer("page_size", 2, MAX_NOTE_CONTENT_CHARS); integer("offset", 0, 8_000_000); }
     if (name === "export_graphiti_episodes") integer("cursor", 0, Number.MAX_SAFE_INTEGER);
     return a;
   }

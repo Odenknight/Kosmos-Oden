@@ -19,6 +19,21 @@ const manifest = JSON.parse(read("manifest.json"));
 const versions = JSON.parse(read("versions.json"));
 
 const problems = [];
+const tauri = JSON.parse(read("src-tauri/tauri.conf.json"));
+if (tauri.version !== version) problems.push(`src-tauri/tauri.conf.json version ${tauri.version} != ${version}`);
+// These checked-in Cargo files use literal package versions. Scope the check to
+// the shell package so dependency versions and the retained vendor patch differ freely.
+const cargoPackage = read("src-tauri/Cargo.toml").split(/(?=^\[)/m)
+  .find(section => /^\[package\]\s*$/m.test(section));
+const lockedPackages = read("src-tauri/Cargo.lock").split("[[package]]")
+  .filter(section => /^name\s*=\s*"kosmos-oden-desktop"\s*$/m.test(section));
+for (const [path, section] of [["src-tauri/Cargo.toml", cargoPackage],
+  ["src-tauri/Cargo.lock", lockedPackages.length === 1 ? lockedPackages[0] : undefined]]) {
+  const values = [...(section ?? "").matchAll(/^version\s*=\s*"([^"]+)"\s*$/gm)];
+  if (values.length !== 1 || values[0][1] !== version) {
+    problems.push(`${path} shell package version must be the literal ${version}`);
+  }
+}
 if (pkg.version !== version) problems.push(`package.json version ${pkg.version} != ${version}`);
 if (manifest.version !== version) problems.push(`manifest.json version ${manifest.version} != ${version}`);
 if (!versions[version]) problems.push(`versions.json is missing an entry for ${version}`);
