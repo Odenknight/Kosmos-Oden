@@ -139,6 +139,29 @@ test("primary controls remain inside compact-desktop and mobile viewports", asyn
   }
 });
 
+test("portrait overview refits after a focused resize", async ({ page }) => {
+  for (const quality of ["high", "lite"]) {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto(`/kosmos-oden-stand-alone.html?seed=1907&quality=${quality}&camera=overview`);
+    await page.getByRole("button", { name: /Load Demo/ }).click();
+    await page.waitForFunction(() => document.getElementById("boot")?.classList.contains("gone"), null, { timeout: 15_000 });
+    await page.locator('#modes button[data-mode="focus"]').click();
+    await expect(page.locator('#modes button[data-mode="focus"]')).toHaveClass(/on/);
+    const frames = await page.evaluate(() => (window as any).__kosmosRenderStats.frames);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(start => (window as any).__kosmosRenderStats.frames > start + 1, frames);
+    await page.locator('#modes button[data-mode="overview"]').click();
+    await expect(page.locator('#modes button[data-mode="overview"]')).toHaveClass(/on/);
+    await page.waitForFunction(() => {
+      const labels = Array.from(document.querySelectorAll(".lbl")).filter(element => Number(getComputedStyle(element).opacity) > 0.02);
+      return labels.length > 0 && labels.every(element => {
+        const box = element.getBoundingClientRect();
+        return box.left >= -0.5 && box.top >= -0.5 && box.right <= innerWidth + 0.5 && box.bottom <= innerHeight + 0.5;
+      });
+    }, null, { timeout: 15_000 });
+  }
+});
+
 test("constellation key and minimap can be shown from the toolbar", async ({ page }) => {
   await page.goto("/kosmos-oden-stand-alone.html");
   await page.getByRole("button", { name: /Load Demo/ }).click();
