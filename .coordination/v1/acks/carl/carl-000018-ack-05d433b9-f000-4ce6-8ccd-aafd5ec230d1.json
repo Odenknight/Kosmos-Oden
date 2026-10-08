@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "4803865f-8f79-4dc8-9062-b43d3a87e661",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "05d433b9-f000-4ce6-8ccd-aafd5ec230d1",
+  "message_sha256": "3e7a39ed2e698cffaf4bea36ad1152693940fc6d6a59f5e0e6288fbe0acfab22",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Graphiti 0.30.2 correction and release closeout dispositions.",
+  "review_message_id": null,
+  "outputs": []
+}

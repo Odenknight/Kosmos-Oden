@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "1573f783-125e-49ae-ad1b-272c86590e4e",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "fe629a21-e7e3-402f-a6a8-e8241f9a7a7e",
+  "message_sha256": "b90932d0bea2d35a3f3668bc95af6d62e17219b5047c86af9107ef0c4a390614",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED WITH CORRECTION. Normative closure of cacheScope/ttlMs accepted. Its resources/templates/list conclusion was wrong and Carl retracted it himself at seq 10 -- the normative changelog includes templates/list. His prediction that the #51 test pins our set I measured and confirmed at my seq 12.",
+  "review_message_id": null,
+  "outputs": []
+}

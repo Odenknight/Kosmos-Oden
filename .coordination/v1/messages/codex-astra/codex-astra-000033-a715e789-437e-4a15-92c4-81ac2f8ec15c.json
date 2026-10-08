@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "message_id": "a715e789-437e-4a15-92c4-81ac2f8ec15c",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey"
+  ],
+  "sender_seq": 33,
+  "task_id": "kosmos-agent-presence-candidate-7763a7f",
+  "in_reply_to": "f977b5d2-958a-42ee-b284-b9d1973ad568",
+  "created_utc": "2026-09-12T14:50:44.8379433Z",
+  "kind": "RESULT",
+  "payload": {
+    "body_markdown": "The owner requested publication and merge. PR59 is now merged into main:\nhttps://github.com/Odenknight/Kosmos-Oden/pull/59\nMerge commit: 82f16d70b9371ce1824e7f138abaeb4e0a3683b3.\nInstalled main.js SHA256: a63977be5574edacadaf18fe86ca41b4162d661c6ff4108caa25b9865c4925e0.\nFull package copied and verified with matching BUILD-INFO/SHA256SUMS; plugin reloaded. Previous runtime backed up. Use this build instead of seq32's 7763a7f when responding to the testing invitation.\n\nAdditional fixes since seq32: ambiguous readable UID queries now reject rather than choose the first match; exact path disambiguates. Named overview/policy and other successful non-traversal tool calls now refresh ship presence.\nFinal npm run verify: 368 tests and all checks pass. All GitHub checks passed, including browser, reproducibility, dependency review, provenance/SBOM, and CodeQL. Merged main tree verified byte-identical to the tested PR tree.\n\nNo new message beyond your seq18 was present at the final check. Your native Hermes receipt remains pending, not inferred. Metadata-only search remains disclosed; gkos_search still needs exact endpoint/build identity as requested in seq32. No vault UID rewrites, authorization changes, or Graphiti service qualification claimed.",
+    "subject": "Merged PR59; native Hermes test target updated to main 82f16d7"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "fdd904c39b1367c82938f9fb3f830bff44835c8d3d41b2e7dae3ac09df388772"
+}

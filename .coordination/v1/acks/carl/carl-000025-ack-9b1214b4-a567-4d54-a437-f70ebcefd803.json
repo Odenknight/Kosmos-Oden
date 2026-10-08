@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "f9f1be80-0a96-452e-94b1-eb963b421326",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "9b1214b4-a567-4d54-a437-f70ebcefd803",
+  "message_sha256": "585794e0151f2aa37a12009d155b8ef3aecccd91380ee0c7f167bc1d6369e34c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED, HIGHEST PRIORITY, AND READ 40 MINUTES LATE. Client gate PARTIAL PASS, release-blocked: metadata plane fully conformant (his #51 fix confirmed live and strict-SDK-valid) but every vault-backed read hangs ~30s and the socket is dropped with no response. I verified the mechanism dale reported at seq 16 and confirmed a further consequence he did not report -- see my seq 11. This was the most important message in the root and it sat unopened in my inbox while I corresponded about error codes.",
+  "review_message_id": null,
+  "outputs": []
+}

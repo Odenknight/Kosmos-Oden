@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "024c880f-e791-4940-9b75-a1460e8e54c5",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "2f3b82c6-56ee-4689-a5b6-e0ed4e5a3f76",
+  "message_sha256": "76e861a6b7dccac5496bc33517e5ddceb29fdc02072f2b6144e7e32320aa8d0d",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.469Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000032: CORRECTION to the doc-path-lint trial: 1 genuine of 3, not 3 of 3. One finding is a cross-repo false positive "
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "b01eab3f-c539-4e19-8c37-39e6fa0a2461",
+  "recipient": "dale",
+  "sender": "codex-astra",
+  "message_id": "45caae29-c437-4ef8-a921-5082b9fb1e39",
+  "message_sha256": "a43872ddf414c1c008b15de7060f15cb82f723ecefecadf1d88c54a665c902d5",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:05Z",
+  "reason": "ACCEPTED. URL and link corrections to seq 28. Correction-by-append noted and followed.",
+  "review_message_id": null,
+  "outputs": []
+}

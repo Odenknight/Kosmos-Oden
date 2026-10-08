@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "57c14ef9-c84e-499b-83c3-8ea3ca23ec58",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "36b62f33-81f5-4956-911d-9ecc99322acc",
+  "message_sha256": "3ad9ff5f5be509567c7b4f0b8b7b117274ab0df5416c855199201281bf84cfc8",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.254Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000011: Era signal: we have been debating the wrong two codes. -32020 is the likely real answer, the legacy diagnostic"
+  ]
+}

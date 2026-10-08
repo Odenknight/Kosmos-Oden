@@ -1,0 +1,603 @@
+{
+  "fixture_set": "tag-fixtures-v1",
+  "generated_utc": "2026-09-09T11:55:00Z",
+  "author": "jeffrey",
+  "provenance": "synthetic; no live vault content; hand-authored expectations, mechanically computed spans against the fixture bytes in notes/",
+  "parser_contract_rules": {
+    "R1": "A tag candidate is '#' followed immediately (no space) by at least one character.",
+    "R2": "The character before '#' must not be a word character (letter/digit/underscore) or '#'; start-of-line qualifies.",
+    "R3": "Valid tag characters: Unicode letters, digits, '_', '-', '/'. At least one non-digit required; purely numeric (#123) excluded.",
+    "R4": "'/' separates nested segments; every segment must be non-empty (no leading, trailing, or double slash).",
+    "R5": "Trailing punctuation (.,!?;:) terminates the tag and is not part of it.",
+    "R6": "'#' inside fenced code blocks, inline code spans, ATX headings, URLs/URI fragments, and wikilink heading anchors is excluded.",
+    "R7": "Backslash-escaped '\\#' is excluded.",
+    "R8": "Normalization: case-fold to a key; preserve original spelling and exact source span (line, col, char offset, length) per occurrence.",
+    "R9": "Origin separation: frontmatter tags (data.tags, leading '#' stripped) and inline body tags are distinct origins; neither implies the other.",
+    "R10": "GKX governed labels are NOT navigation tags and must never surface through a navigation_tags selector; frontmatter presence does not prove human authorship of a label's standing."
+  },
+  "qualify_before_implementation": [
+    {
+      "note": "edge-cases.md",
+      "literal": "page#fragment",
+      "reason": "url-fragment",
+      "span": {
+        "line": 18,
+        "col": 31,
+        "offset": 314,
+        "length": 13
+      },
+      "expected_is_tag": false,
+      "qualification_note": "expected no-tag; '#' inside URL excluded by context rule - needs Obsidian qualification"
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "vault=x#y",
+      "reason": "obsidian-uri-fragment",
+      "span": {
+        "line": 18,
+        "col": 65,
+        "offset": 348,
+        "length": 9
+      },
+      "expected_is_tag": false,
+      "qualification_note": "expected no-tag; '=' is a non-word char so a naive R2 rule would tag 'y'; URL-context exclusion needs qualification"
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "literal": "#project/",
+      "reason": "trailing-slash",
+      "span": {
+        "line": 7,
+        "col": 16,
+        "offset": 170,
+        "length": 9
+      },
+      "expected_is_tag": false,
+      "qualification_note": "expected no-tag (empty final segment); Obsidian behavior on trailing slash needs qualification"
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "literal": "#/bad",
+      "reason": "leading-slash",
+      "span": {
+        "line": 8,
+        "col": 15,
+        "offset": 253,
+        "length": 5
+      },
+      "expected_is_tag": false,
+      "qualification_note": "expected no-tag (empty first segment); needs qualification"
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "literal": "#a//b",
+      "reason": "double-slash",
+      "span": {
+        "line": 8,
+        "col": 46,
+        "offset": 284,
+        "length": 5
+      },
+      "expected_is_tag": false,
+      "qualification_note": "expected no-tag (empty middle segment); needs qualification"
+    }
+  ],
+  "expected_inline_tags": [
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "alpha",
+      "normalized_key": "alpha",
+      "span": {
+        "line": 6,
+        "col": 19,
+        "offset": 70,
+        "length": 6
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "beta",
+      "normalized_key": "beta",
+      "span": {
+        "line": 6,
+        "col": 30,
+        "offset": 81,
+        "length": 5
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "gamma",
+      "normalized_key": "gamma",
+      "span": {
+        "line": 7,
+        "col": 20,
+        "offset": 130,
+        "length": 6
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "delta",
+      "normalized_key": "delta",
+      "span": {
+        "line": 8,
+        "col": 46,
+        "offset": 183,
+        "length": 6
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "epsilon",
+      "normalized_key": "epsilon",
+      "span": {
+        "line": 8,
+        "col": 54,
+        "offset": 191,
+        "length": 8
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "zeta",
+      "normalized_key": "zeta",
+      "span": {
+        "line": 8,
+        "col": 68,
+        "offset": 205,
+        "length": 5
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "eta",
+      "normalized_key": "eta",
+      "span": {
+        "line": 9,
+        "col": 20,
+        "offset": 231,
+        "length": 4
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "inline-basic.md",
+      "origin": "inline",
+      "original": "theta",
+      "normalized_key": "theta",
+      "span": {
+        "line": 9,
+        "col": 25,
+        "offset": 236,
+        "length": 6
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "edge-cases.md",
+      "origin": "inline",
+      "original": "v2release",
+      "normalized_key": "v2release",
+      "span": {
+        "line": 20,
+        "col": 23,
+        "offset": 461,
+        "length": 10
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "project/kosmos",
+      "normalized_key": "project/kosmos",
+      "span": {
+        "line": 6,
+        "col": 14,
+        "offset": 77,
+        "length": 15
+      },
+      "hierarchy_parent": "project"
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "project/kosmos/tags",
+      "normalized_key": "project/kosmos/tags",
+      "span": {
+        "line": 6,
+        "col": 34,
+        "offset": 97,
+        "length": 20
+      },
+      "hierarchy_parent": "project/kosmos"
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "gkos_engine",
+      "normalized_key": "gkos_engine",
+      "span": {
+        "line": 9,
+        "col": 40,
+        "offset": 341,
+        "length": 12
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "gkos-engine",
+      "normalized_key": "gkos-engine",
+      "span": {
+        "line": 9,
+        "col": 54,
+        "offset": 355,
+        "length": 12
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "mixed_case-tag",
+      "normalized_key": "mixed_case-tag",
+      "span": {
+        "line": 9,
+        "col": 68,
+        "offset": 369,
+        "length": 15
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "KosmosTag",
+      "normalized_key": "kosmostag",
+      "span": {
+        "line": 10,
+        "col": 7,
+        "offset": 402,
+        "length": 10
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "kosmostag",
+      "normalized_key": "kosmostag",
+      "span": {
+        "line": 10,
+        "col": 22,
+        "offset": 417,
+        "length": 10
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "日本語",
+      "normalized_key": "日本語",
+      "span": {
+        "line": 11,
+        "col": 10,
+        "offset": 489,
+        "length": 4
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "café",
+      "normalized_key": "café",
+      "span": {
+        "line": 11,
+        "col": 19,
+        "offset": 498,
+        "length": 5
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "naïve-tag",
+      "normalized_key": "naïve-tag",
+      "span": {
+        "line": 11,
+        "col": 29,
+        "offset": 508,
+        "length": 10
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "origin": "inline",
+      "original": "a-very-long-tag-that-exceeds-reasonable-length-but-is-still-syntactically-valid",
+      "normalized_key": "a-very-long-tag-that-exceeds-reasonable-length-but-is-still-syntactically-valid",
+      "span": {
+        "line": 12,
+        "col": 15,
+        "offset": 549,
+        "length": 80
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "frontmatter-and-links.md",
+      "origin": "inline",
+      "original": "fm-body-tag",
+      "normalized_key": "fm-body-tag",
+      "span": {
+        "line": 17,
+        "col": 55,
+        "offset": 565,
+        "length": 12
+      },
+      "hierarchy_parent": null
+    },
+    {
+      "note": "gkx-labels.md",
+      "origin": "inline",
+      "original": "tier-a-inline",
+      "normalized_key": "tier-a-inline",
+      "span": {
+        "line": 20,
+        "col": 17,
+        "offset": 618,
+        "length": 14
+      },
+      "hierarchy_parent": null
+    }
+  ],
+  "expected_frontmatter_tags": [
+    {
+      "note": "frontmatter-and-links.md",
+      "origin": "frontmatter",
+      "as_written": "fm/one",
+      "normalized_key": "fm/one",
+      "span": {
+        "line": 5,
+        "col": 5,
+        "offset": 88,
+        "length": 6
+      },
+      "note_on_hash_prefix": null
+    },
+    {
+      "note": "frontmatter-and-links.md",
+      "origin": "frontmatter",
+      "as_written": "fm-two",
+      "normalized_key": "fm-two",
+      "span": {
+        "line": 6,
+        "col": 5,
+        "offset": 99,
+        "length": 6
+      },
+      "note_on_hash_prefix": null
+    },
+    {
+      "note": "frontmatter-and-links.md",
+      "origin": "frontmatter",
+      "as_written": "#fm-three",
+      "normalized_key": "fm-three",
+      "span": {
+        "line": 7,
+        "col": 6,
+        "offset": 111,
+        "length": 9
+      },
+      "note_on_hash_prefix": "leading '#' in frontmatter list item stripped by normalizeTags (Engine markdown.ts)"
+    },
+    {
+      "note": "gkx-labels.md",
+      "origin": "frontmatter",
+      "as_written": "governed-fixture",
+      "normalized_key": "governed-fixture",
+      "span": {
+        "line": 6,
+        "col": 5,
+        "offset": 70,
+        "length": 16
+      },
+      "note_on_hash_prefix": null
+    }
+  ],
+  "expected_non_tags": [
+    {
+      "note": "inline-basic.md",
+      "literal": "sentence#notaTag",
+      "reason": "preceded-by-word-char",
+      "span": {
+        "line": 10,
+        "col": 5,
+        "offset": 262,
+        "length": 16
+      },
+      "is_tag": false
+    },
+    {
+      "note": "inline-basic.md",
+      "literal": "# Inline Basic",
+      "reason": "atx-heading",
+      "span": {
+        "line": 4,
+        "col": 1,
+        "offset": 36,
+        "length": 14
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "#not-a-tag-in-fence",
+      "reason": "fenced-code-block",
+      "span": {
+        "line": 9,
+        "col": 1,
+        "offset": 94,
+        "length": 19
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "#fenced-no",
+      "reason": "fenced-code-block",
+      "span": {
+        "line": 10,
+        "col": 6,
+        "offset": 119,
+        "length": 10
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "#not-a-tag-in-code",
+      "reason": "inline-code-span",
+      "span": {
+        "line": 13,
+        "col": 14,
+        "offset": 148,
+        "length": 18
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "\\#escaped",
+      "reason": "backslash-escape",
+      "span": {
+        "line": 14,
+        "col": 14,
+        "offset": 197,
+        "length": 9
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "# Heading One Is Not A Tag",
+      "reason": "atx-heading",
+      "span": {
+        "line": 16,
+        "col": 1,
+        "offset": 239,
+        "length": 26
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "## Also Not A Tag",
+      "reason": "atx-heading-double-hash",
+      "span": {
+        "line": 17,
+        "col": 1,
+        "offset": 266,
+        "length": 17
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "#123",
+      "reason": "numeric-only",
+      "span": {
+        "line": 19,
+        "col": 16,
+        "offset": 384,
+        "length": 4
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "#456",
+      "reason": "numeric-only",
+      "span": {
+        "line": 19,
+        "col": 25,
+        "offset": 393,
+        "length": 4
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "[[Some Note#section]]",
+      "reason": "wikilink-heading-anchor",
+      "span": {
+        "line": 21,
+        "col": 34,
+        "offset": 538,
+        "length": 21
+      },
+      "is_tag": false
+    },
+    {
+      "note": "edge-cases.md",
+      "literal": "# alone",
+      "reason": "empty-hash-followed-by-space",
+      "span": {
+        "line": 22,
+        "col": 12,
+        "offset": 603,
+        "length": 7
+      },
+      "is_tag": false
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "literal": "# Nested And Unicode",
+      "reason": "atx-heading",
+      "span": {
+        "line": 4,
+        "col": 1,
+        "offset": 42,
+        "length": 20
+      },
+      "is_tag": false
+    }
+  ],
+  "expected_hierarchy": {
+    "project/kosmos/tags": {
+      "parent": "project/kosmos",
+      "note": "nested-and-unicode.md line 6"
+    },
+    "fm/one": {
+      "parent": "fm",
+      "note": "frontmatter-and-links.md line 5"
+    }
+  },
+  "expected_case_normalization": {
+    "key": "kosmostag",
+    "originals": [
+      "KosmosTag",
+      "kosmostag"
+    ],
+    "note": "one normalized key; both original spellings preserved with spans"
+  }
+}

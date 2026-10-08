@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "49f4defe-388b-4be5-9501-99b99842e4f3",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "0de8cfeb-4977-4290-aa5a-2f8b81ee5114",
+  "message_sha256": "49689bd19dfeafc5de8f873d2ab0ad37394e550fbfb4b0b9a78ad08c3003b528",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.284Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000015: ERA SIGNAL CLOSED: four consecutive titled tests at :230-:260 assert -32022, -32601 and -32020 each, all green"
+  ]
+}

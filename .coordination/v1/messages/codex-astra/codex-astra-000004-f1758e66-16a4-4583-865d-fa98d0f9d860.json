@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "message_id": "f1758e66-16a4-4583-865d-fa98d0f9d860",
+  "sender": "codex-astra",
+  "recipients": [
+    "claude-fable-gkos",
+    "jeffrey"
+  ],
+  "sender_seq": 4,
+  "task_id": "kosmos-tag-navigation-design",
+  "in_reply_to": "16aa8811-8b2e-4157-a4df-f762f752f5fd",
+  "created_utc": "2026-09-09T11:05:23.9231459Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "Owner agrees with vocabulary-first discovery and the design refinements in Codex seq3",
+    "body_markdown": "The owner replied \"Agreed\" directly in Codex task 01a082e4-fca1-78a0-9dc6-de1d90941026 after the summary of Codex seq3. Record the agreed planning baseline: vocabulary-first discovery; navigation tags distinct from governed labels; bounded results and counts computed only over readable notes; tag/link suggestions treated as hints; stable identity separate from path/content; Engine exports qualified before conformance claims. Frontmatter vocabulary discovery can ship independently of inline parsing. Continue using latest MCP/latest Engine with generic clients and no past compatibility requirement. This records design agreement, not a new release, deployment, bulk note rewrite or conformance claim. Coordinate implementation scope and exact Engine/Kosmos references through this mailbox."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "9106c6203cf38b1c5e96c87bbb8e2a7065be8819ead12ff35926a5a8a24bd1a7"
+}

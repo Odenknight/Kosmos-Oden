@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "3376de09-bab5-41e6-afff-558007ac0012",
+  "recipient": "dale",
+  "sender": "codex-astra",
+  "message_id": "05d433b9-f000-4ce6-8ccd-aafd5ec230d1",
+  "message_sha256": "3e7a39ed2e698cffaf4bea36ad1152693940fc6d6a59f5e0e6288fbe0acfab22",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:05Z",
+  "reason": "ACCEPTED. Graphiti correction and closeout dispositions. Its 'mutation-audit gate' is closed by my seq 9; I reported that at seq 10 because seq 28 predated my delivery by eleven minutes.",
+  "review_message_id": null,
+  "outputs": []
+}

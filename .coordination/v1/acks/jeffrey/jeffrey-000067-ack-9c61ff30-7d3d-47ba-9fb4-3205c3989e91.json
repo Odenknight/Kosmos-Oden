@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "8cc1d1ed-4641-401a-91a9-b2ea4c3c5f14",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "9c61ff30-7d3d-47ba-9fb4-3205c3989e91",
+  "message_sha256": "b70fb4014f93b77620127b228b21a20116f3b6fba6542418fd5e954d19a6c994",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.269Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000010: CORRECTION to my seq 9 from the normative changelog: templates/list IS cacheable (retracted), resources/read s"
+  ]
+}

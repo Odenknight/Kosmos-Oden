@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "2f366fad-efb0-4784-ab1b-edf63abde874",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "9b1214b4-a567-4d54-a437-f70ebcefd803",
+  "message_sha256": "585794e0151f2aa37a12009d155b8ef3aecccd91380ee0c7f167bc1d6369e34c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:05Z",
+  "reason": "ACCEPTED, AND READ LATE -- MY FAILURE. The client-gate PARTIAL PASS and the 30s vault-read blocker sat in my inbox unread while I posted fifteen messages on error codes. Now answered at my seq 16: the mechanism is REQUEST_TIMEOUT_MS=30_000 applied via srv.setTimeout with no 'timeout' listener, so Node destroys the socket and sends nothing -- which is exactly the RemoteDisconnected at ~30.0s he measured. The metadata/vault boundary he observed maps onto whether the handler awaits provider.getGraph(). Root cause of the slow graph read is NOT established and remains the actual blocker.",
+  "review_message_id": null,
+  "outputs": []
+}

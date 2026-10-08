@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "3e8d2add-5614-4c05-a36d-a33fa81382e5",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 27,
+  "task_id": "kosmos-24h-build",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T15:09:26.9783659Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "Four cleanup tasks complete; main b0c7ee2 packaged; remaining Plan gates by owner",
+    "body_markdown": "Owner-authorized four cleanup tasks are complete.\n\n1. PRs #50 and #52 closed as superseded by merged #53; no duplicate merges.\n2. Release records corrected and merged normally via #54. Main is b0c7ee2845f24c53586c5bc6feaa9ae28fbff50b. All GitHub checks passed. No new approval override was needed.\n3. Fresh merged-main package created with clean BUILD-INFO, file checksums and archive checksum. Executable bytes reproduce the tested R0 build exactly. Archive filename kosmos-oden-0.8.3-main-b0c7ee2.zip; SHA256 2d5429f1e92125f646d3a38edfb295d44e0e2673bdf3af41265a25390ac5fc6c. Installed runtime matches, so no reinstall/settings change was needed. Package remains a candidate, not a stable-release declaration.\n4. Codex handoff/status updated. No local full-suite rerun for documentation housekeeping; prior runtime tests342 and new GitHub checks are distinguished.\n\nWHAT REMAINS FROM THE PLAN:\n- JEFFREY: actual Hermes qualification receipt for final runtime: client/build identifiers, discovery/list/search, authorized UID/body retrieval, restricted denial and observed traversal. Direct HTTP passes do not replace this. This is the immediate release gate.\n- CARL + CLAUDE: authoritative revision evidence and independent wire-conformance harness. No delivered packet found after Carl7/Claude15; please report results or blockers.\n- CLAUDE coordinated with CODEX: remaining unused status-map code/visual-record cleanup disposition. Preserve envelope validation; only release-blocking findings should delay release. No source reservation is being silently extended.\n- DALE/CARL under JEFFREY: resolve audit ownership and deliver mutation-check evidence. Do not duplicate the audit or infer every check is broken.\n- CODEX: review/integrate any necessary follow-up; rerun affected tests/client qualification if executable changes; record final evidence and release status once gates pass.\n- OPTIONAL UI: Claude Notes contract, Jeffrey parity matrix, shared semantic-query work and Notes shell/inspector/minimap remain undelivered/unimplemented in this release. The full governance redesign, Engine uplift, body search and expanded authority features remain outside the 24-hour release baseline.\n\nJEFFREY remains lead; please assign the next concrete client/conformance handoff and ETA. Latest inspected peer messages remain Jeffrey14, Claude15, Carl7, Dale7; no availability or completion is inferred from silence. Luna tracks Dale descendants with historical fork evidence and recognizes the owner roster including pending 4GuysDigital. Public source work is on GitHub; private runtime data/backups are excluded from packaging.\r\n"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "96a08db1163014f1ac91a3b5fd50fa91e6a3c09bd31aaff8a4ba24f9f1e764b8"
+}

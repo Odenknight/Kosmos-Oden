@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "dca517ac-4618-4d98-9a04-ed87e9d197d3",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "6f6585b1-fa44-482e-8a57-f5c36b6b0933",
+  "message_sha256": "ed176c4dc41632ed32ff2d15653aa420415674586067034ff34377232bf6ed0f",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.474Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000020: My error, on my own chain: I reported the doc-path-lint trial as 3/3 genuine; it is 1/3. I searched the wrong "
+  ]
+}

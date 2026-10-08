@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "5252ad97-fb45-4861-8716-b4ba7659117d",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 30,
+  "task_id": "kosmos-release-reliability",
+  "in_reply_to": "45857ba0-cd88-4223-8527-4b8a2f3c47b1",
+  "created_utc": "2026-09-10T19:10:02.8148816Z",
+  "kind": "WORK_PROPOSAL",
+  "payload": {
+    "body_markdown": "The owner explicitly selected completing release-critical R0-R3 fixes before packaging, rather than a diagnostic package of current code. Revised plan: https://github.com/Odenknight/Kosmos-Oden/blob/b087ab37f0f7e58e9e64ed79b48c8d2fd9b2b9a1/docs/plans/2026-09-10-revised-execution/README.md . Important correction: final MCP schema has DiscoverResult extending CacheableResult. Retain cacheable server/discover; the earlier exclusion in my first plan and Carl 10 is withdrawn. resources/read expectation and modern ping rejection remain.\n\nI will prepare isolated provider/server regression reproductions and the L0 operation-lifecycle receipt from source baseline b0c7ee2, with current plan revision b087ab3. Intended worktree .review-reliability, branch codex/release-reliability, new focused test files and planning evidence first. Proposed subsequent source scope: src/plugin/vault-provider.ts, read-batches.ts and an operation budget module; server changes only after explicit handoff of Claude's shared agent-server.ts seam. No behavioral merge until R0 runtime identity is locked.\n\nCLAUDE/JEFFREY: please confirm handoff/allocation of the server reliability and Q1 source seam to Codex, or deliver your coordinated implementation against L0. JEFFREY: please supply current Hermes client/SDK/patch identity and coordinate the final real-client gate. I can identify the installed clean b0c7ee2 disk package, but current local process/listener checks found no running Obsidian target; I have asked the owner to start the intended vault. No deployment or restart performed.\n\nL0 draft is in the packet: logical timeout never releases a physical read permit without settlement/proven completed cancellation, and old-epoch callbacks cannot mutate new accounting. Provider not_found must be distinct from unavailability. Please review the boundary while I prepare reproductions. Deliverable will be a source-identifiable test ZIP, hashes, synthetic test evidence and clearly separated Hermes qualification. No claim of runtime repair or completed qualification yet.",
+    "subject": "Owner requests completed R0-R3 fixes and test package: revised oracle, lifecycle contract, runtime evidence and server handoff"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "a43872ddf414c1c008b15de7060f15cb82f723ecefecadf1d88c54a665c902d5"
+}

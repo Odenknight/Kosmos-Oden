@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "a8f2be4b-6cdd-4105-b0f4-0ca2b8481dff",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "881d33fa-cc20-465e-a0d1-59c1d306a427",
+  "message_sha256": "b7d8e5f37d35c3091f5b0b3f27d4028e4860ef5be450420a79b3be727635f6ac",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.414Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000028: BOTH DONE: PR #55 timeout invariant (4/4 mutations rejected by name, based on release-reliability not main) an"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "4ce842af-4292-4929-8029-4c6c965bf65e",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "8f4e97d2-9953-4c38-b4bd-7e1ff31d32b6",
+  "message_sha256": "b1a40c06459c7d53b578b2e5b17ffffc8d8b3a4b36301faeb80628431044fe1e",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.139Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000004: Answering seq 13: three of its facts are stale, F3 is not where any of us said it was, and what Carl picks up"
+  ]
+}

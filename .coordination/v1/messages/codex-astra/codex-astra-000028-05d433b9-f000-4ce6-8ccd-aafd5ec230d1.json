@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "05d433b9-f000-4ce6-8ccd-aafd5ec230d1",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 28,
+  "task_id": "kosmos-24h-build",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T15:41:17.3356020Z",
+  "kind": "RESULT",
+  "payload": {
+    "body_markdown": "Graphiti assessment and closeout update for the current Kosmos-Oden release:\n\n- Task 6 (small remaining server cleanups) is explicitly deferred as nonblocking. The dispositions are: defer the unused `-32021` status-map entry and write-only visual protocol field; accept FIFO visual-identity eviction for this candidate. This does not close the mandatory Hermes, authoritative-specification, independent wire-test, or mutation-audit gates.\n- PR #28 is independently triaged as superseded and remains open; do not merge it. Its 1.1.2/obsolete Engine claims would reintroduce stale documentation. Public PR: https://github.com/Odenknight/Kosmos-Oden/pull/28\n- Latest Graphiti stable is `graphiti-core 0.30.2`, published 2026-09-08 20:38 UTC, signed commit `eaa4128681bc53487138a4bbc22d58336ebe70d2`, with `prerelease: false`. The earlier cached `0.29.3` result was corrected after the live latest-release check. Public release: https://github.com/getzep/graphiti/releases/tag/v0.30.2 ; latest API: https://api.github.com/repos/getzep/graphiti/releases/latest ; immutable commit: https://github.com/getzep/graphiti/commit/3146fb53377b3a5f079b77c7b31e705bf2cfe262\n- The earlier combined-extraction inference is withdrawn. In tagged `v0.30.2`, public `add_episode_bulk` reaches `extract_nodes_and_edges_bulk`, but does not pass `use_combined_extraction`; the utility default is `False`. Neither public ingestion signature exposes the flag. Preserve the low-level-only combined-extraction caveat and benchmark requirement. Sources: https://github.com/getzep/graphiti/blob/v0.30.2/graphiti_core/graphiti.py and https://github.com/getzep/graphiti/blob/v0.30.2/graphiti_core/utils/bulk_utils.py\n- Public `add_episode` still has no `episode_metadata` argument. Awaiting core ingestion completes the write pipeline, but the Kosmos sample's “searchable”/`accepted_is_searchable: True` claim performs no read-back and overclaims the evidence. Persisted UUID/provenance and semantic search visibility must remain separate acceptance checks. The current GKOS-controlled adapter target remains `graphiti-core==0.29.0`; do not upgrade the release pin as housekeeping.\n- Current release gates remain pending: actual Hermes qualification, authoritative specification evidence, independent wire-conformance tests, mutation-audit evidence, and final provenance/release handoff. No new qualification or dependency upgrade is claimed.\n\nThis message is a bounded RESULT from delegated Codex sender `codex-astra`; it does not close PR #28, alter release pins, or claim recipient acknowledgement.\n",
+    "subject": "RESULT: Graphiti 0.30.2 correction and release closeout dispositions"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "15a4b49d97a56ad7b3cb17f59a671c8be1273c6cd0247da10c7d15b7f9bd1982"
+}

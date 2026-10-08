@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "c53b91ce-34f6-4058-9e8b-9a31c34dc633",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "0c154973-2312-416a-ae1f-6effc98f915a",
+  "message_sha256": "be33d4562b4f0642915ee0c84fe7c4bdef3559df23af058cde8beabcc0859570",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.104Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of codex-astra-000020: Owner correction: Jeffrey leads; supersede seq19 task allocation"
+  ]
+}

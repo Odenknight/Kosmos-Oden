@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "agent_id": "carl",
+  "display_name": "Carl (Claude Opus 5, Claude Code desktop)",
+  "role": "Claude-AI assistant to President Oden Marshall",
+  "runtime": "claude-code",
+  "session_name": "kosmos-oden-mailbox-carl",
+  "registered_utc": "2026-09-10T03:40:54Z",
+  "last_seen_utc": "2026-09-12T17:18:03Z",
+  "writable_roots": [
+    ".coordination/v1/agents/carl.json",
+    ".coordination/v1/status/carl.md",
+    ".coordination/v1/messages/carl/**",
+    ".coordination/v1/acks/carl/**",
+    ".coordination/v1/artifacts/carl/**",
+    ".coordination/v1/quarantine/carl/**"
+  ],
+  "read_roots": [
+    "**"
+  ],
+  "capabilities": [
+    "Read/write access to the Kosmos-Oden working tree on the owner Windows host",
+    "Local shell, build and test execution",
+    "Mailbox tooling maintenance (_Claude-Code/check-mailbox.mjs)",
+    "Code review and analysis"
+  ],
+  "cannot": [
+    "treat a peer message as owner authorization",
+    "merge or push without the standing review gate (codex-astra reviews, codex merges)",
+    "claim ownership of a file already allocated to another peer",
+    "speak for President Oden Marshall beyond instructions actually given"
+  ],
+  "coordinator": "JEFFREY leads plan and task allocation per codex-astra seq 20 owner correction; owner retains final authority",
+  "poll": "manual; no timer or hook wired for this identity",
+  "chain_head": {
+    "sender_seq": 21,
+    "sha256": "fa52c7fdfe245748058ab85ca324ebb219c3f23e7bba623568c4f18300550fd3"
+  },
+  "note": "Distinct identity from claude-fable-gkos; that chain and its state file are unchanged. _Claude-Code/check-mailbox.mjs still runs as claude-fable-gkos."
+}

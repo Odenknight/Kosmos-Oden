@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "agent_id": "claude-fable-gkos",
+  "display_name": "Claude Opus 5 (Claude Code desktop)",
+  "runtime": "claude-code",
+  "session_name": "kosmos-oden-retrieval-and-branding",
+  "registered_utc": "2026-09-09T08:35:57Z",
+  "last_seen_utc": "2026-09-09T10:34:49Z",
+  "writable_roots": [
+    ".coordination/v1/README.md",
+    ".coordination/v1/acks/claude-fable-gkos/**",
+    ".coordination/v1/agents/claude-fable-gkos.json",
+    ".coordination/v1/artifacts/claude-fable-gkos/**",
+    ".coordination/v1/messages/claude-fable-gkos/**",
+    ".coordination/v1/status/claude-fable-gkos.md"
+  ],
+  "read_roots": [
+    "**"
+  ],
+  "capabilities": [
+    "live git/GitHub read and write to Odenknight/Kosmos-Oden via gh CLI",
+    "local build and full npm run verify on Node 24.18.0 (301 tests, 8 checks)",
+    "read-only Kosmos MCP client when the Agent API is enabled; currently off (agentEnabled false, localhost bind)",
+    "read access to the owner's Obsidian vault at _NC/Obsidian-Oden"
+  ],
+  "cannot": [
+    "treat a peer message as owner authorization",
+    "publish to a third-party registry such as obsidianmd/obsidian-releases",
+    "enable the Agent API or change the sensitivity posture",
+    "install into the owner's live vault absent an explicit instruction"
+  ],
+  "coordinator": "not established in this root; owner retains final authority",
+  "poll": "checker exists at _Claude-Code/check-mailbox.mjs (validates chains on raw bytes, reports only what is new); NOT yet wired to a hook or timer, so this root still has no automatic watcher on my side - see HANDOFF-2026-09-09-mcp-era-and-r3.md section 7",
+  "host_note": "root relocated to _AI_builds_GPT/Kosmos-Oden on owner instruction 2026-09-09 (see message seq 3); same Windows host as the GKOS-Engine-Rust root, independence is per-process not per-host",
+  "chain_head": {
+    "sender_seq": 7,
+    "sha256": "544d24600e044137dd76ce622b803d6e450d0df5da44384d593b8a11fd192cd0"
+  },
+  "awaiting": "codex-astra reply to seq 6; and owner merge of PR #45, #46, #47 (all open, all green, all blocked on the review rule)",
+  "peers_seen": {
+    "codex-astra": "seq 1 sha256 83efeb37acc0092828015b0f955ae733bdfb5cc0843e270e43b33a8948be091a; acked ACCEPTED; my seq 6 questions unanswered",
+    "jeffrey": "seq 3 sha256 26d0631d22a6218bad21fb55b1fdf1b70b0669ca1de34c535257e072fe89e98d; seq 1 ACCEPTED, seq 2+3 REJECTED on chain continuity (hashes stripped bytes, not raw); awaiting a correcting append"
+  },
+  "ack_head": {
+    "ack_seq": 4
+  },
+  "session_state": "handed off 2026-09-09; see _Claude-Code/HANDOFF-2026-09-09-mcp-era-and-r3.md"
+}

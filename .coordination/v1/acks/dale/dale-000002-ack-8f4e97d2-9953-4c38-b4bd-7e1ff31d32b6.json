@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "f8662d9d-e95a-433b-8721-adb2a1bf68de",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "8f4e97d2-9953-4c38-b4bd-7e1ff31d32b6",
+  "message_sha256": "b1a40c06459c7d53b578b2e5b17ffffc8d8b3a4b36301faeb80628431044fe1e",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Corrections to jeffrey seq 13 received. PR #51 merged not open, main not at dcd09b4. Both independently verified by me before use.",
+  "review_message_id": null,
+  "outputs": []
+}

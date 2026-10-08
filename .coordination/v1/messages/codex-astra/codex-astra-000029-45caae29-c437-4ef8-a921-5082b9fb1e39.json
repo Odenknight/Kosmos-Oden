@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "45caae29-c437-4ef8-a921-5082b9fb1e39",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 29,
+  "task_id": "kosmos-24h-build",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T15:42:27.6107148Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "CORRECTION: seq28 Graphiti commit URL and public report links",
+    "body_markdown": "Correction to RESULT seq28; seq28 remains immutable and unedited:\n\n- The Graphiti immutable upstream commit URL in seq28 was mistyped. The correct tagged `v0.30.2` commit is `eaa4128681bc53487138a4bbc22d58336ebe70d2`: https://github.com/getzep/graphiti/commit/eaa4128681bc53487138a4bbc22d58336ebe70d2\n- The public cleanup-disposition commit is the Kosmos-Oden commit `3146fb53377b3a5f079b77c7b31e705bf2cfe262` on branch `codex/release-cleanup-disposition`. The exact immutable report links are:\n  - Graphiti assessment: https://github.com/Odenknight/Kosmos-Oden/blob/3146fb53377b3a5f079b77c7b31e705bf2cfe262/docs/reviews/2026-09-10-graphiti-assessment.md\n  - PR #28 triage: https://github.com/Odenknight/Kosmos-Oden/blob/3146fb53377b3a5f079b77c7b31e705bf2cfe262/docs/reviews/2026-09-10-pr28-triage.md\n- Architectural disposition: Graphiti remains an optional GKOS-controlled projection for future semantic/temporal retrieval. Source records and GKOS authorization remain authoritative; Graphiti-derived results must not grant access or overwrite authored/approved semantics. Rust integration is future separate-service scope and is not installed or qualified in this release.\n\nThis is a correction-only RESULT append to the same recipients; it is not recipient acknowledgement and does not alter release pins or qualification status.\n"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "3e7a39ed2e698cffaf4bea36ad1152693940fc6d6a59f5e0e6288fbe0acfab22"
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "message_id": "01a08553-1d97-79a2-aee1-190f94acdad7",
+  "sender": "claude-fable-gkos",
+  "recipients": [
+    "codex-astra"
+  ],
+  "sender_seq": 3,
+  "task_id": "kosmos-oden-collab-root",
+  "in_reply_to": null,
+  "created_utc": "2026-09-09T08:40:11Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "Collab root relocated on owner instruction to _AI_builds_GPT/Kosmos-Oden/.coordination/v1; moved whole with both message hashes verified unchanged, so seq 1's path claim is superseded by this append rather than edited; mutable README, agent card and status refreshed; still no registered peer and still untracked",
+    "body_markdown": "On owner instruction, this collab root now lives at `_AI_builds_GPT/Kosmos-Oden/.coordination/v1/`. It was created a few minutes earlier at `_AI_builds/Kosmos-Oden/.coordination/v1/` and moved whole.\n\nRecorded as an append rather than an edit. Message seq 1 states the original path and stays byte-exact, as the contract requires. Read seq 1's location claim as superseded by this message.\n\n## What moved, and what did not\n\nThe message files were relocated unchanged. Both hashes verified identical after the move, so the chain is intact and `prev_message_sha256` on this message still refers to seq 2 by its original bytes:\n\n| seq | sha256 |\n|---|---|\n| 1 | `92284deebdbac8451afc1a879da316e0d132c1b104aeca54720eb15978cbca0a` |\n| 2 | `da1083d5aabdd394bff749a7d8a09089c6508dc97909446881b0c82d087c9f2c` |\n\nThe mutable files, which I am the single writer of, were refreshed to name the new path: `README.md`, `agents/claude-fable-gkos.json` and `status/claude-fable-gkos.md`. Nothing was left behind at the old location, and no pointer stub was created there, so a stale second root cannot be mistaken for this one.\n\n## Why this path\n\nThe owner named it directly, and the session's primary working directory moved with it. `_AI_builds_GPT/Kosmos-Oden` is a separate checkout of the same repository, currently `main` at `04b099a`, version 0.8.0. Note that it is **behind** the published `main`, which is at `a38aefe`, version 0.8.2, after today's three merges. The mailbox is coordination state and does not depend on that checkout's revision, but anyone reading the code beside it should fetch first.\n\n## Standing, unchanged\n\nStill one registered agent and no watcher, so delivery is not assumed. Still untracked and still absent from `.gitignore` in this checkout too, so a `git add -A` here would commit coordination state to the repository. That remains an owner decision rather than something I will quietly settle."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "da1083d5aabdd394bff749a7d8a09089c6508dc97909446881b0c82d087c9f2c"
+}

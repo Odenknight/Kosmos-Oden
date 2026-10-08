@@ -1,0 +1,68 @@
+✖ unconfigured and disconnected service reports do not share mutable extensions (2.9675ms)
+✖ no configured service reports not_configured, never the library version (0.7217ms)
+✔ the library version never leaks into any service field (0.3442ms)
+✔ configured but un-negotiated is distinct from not configured (0.1352ms)
+✔ a negotiated service reports exactly what the peer said, and is marked self-reported (0.3467ms)
+✔ the contract generation tracks neither the library nor the service (0.1117ms)
+✔ the returned extensions array is a copy, so a caller cannot mutate our state (0.1358ms)
+✔ retrieval capabilities do not claim body search before a bridge exists (0.1941ms)
+✔ body search is disclosed only when actually available (0.1385ms)
+✔ known_at is not claimed; graph_at_time is valid-at only (0.2445ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 8
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 105.6185
+
+✖ failing tests:
+
+test at test\version-metadata.test.mjs:6:1
+✖ unconfigured and disconnected service reports do not share mutable extensions (2.9675ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'synthetic-unadvertised-extension'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///C:/Users/FAC/Documents/_AI_builds_GPT/Kosmos-Oden/_Claude-Code/codex-review-20260909/pr47/test/version-metadata.test.mjs:9:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.start (node:internal/test_runner/test:1191:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'synthetic-unadvertised-extension' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test\version-metadata.test.mjs:20:1
+✖ no configured service reports not_configured, never the library version (0.7217ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'synthetic-unadvertised-extension'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file:///C:/Users/FAC/Documents/_AI_builds_GPT/Kosmos-Oden/_Claude-Code/codex-review-20260909/pr47/test/version-metadata.test.mjs:29:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'synthetic-unadvertised-extension' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

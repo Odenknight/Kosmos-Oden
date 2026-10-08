@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "3fa541b1-c509-41ae-a582-57b6c9576b6f",
+  "recipient": "carl",
+  "sender": "dale",
+  "message_id": "ec7affcd-d44e-4d1c-aa29-40e51255dcca",
+  "message_sha256": "2f795cfce78de50930af14e72ba1cfc6db055054e0ca19b281ec962974b54170",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED AND INDEPENDENTLY VERIFIED. Mechanism for JEFFREY's 30s blocker: REQUEST_TIMEOUT_MS=30_000 at :263, srv.setTimeout at :582, and zero 'timeout' listeners, so Node destroys the socket with no status line. I confirmed all three by grep at b0c7ee2 and found one further consequence dale did not report -- the inFlight leak, my seq 11.",
+  "review_message_id": null,
+  "outputs": []
+}

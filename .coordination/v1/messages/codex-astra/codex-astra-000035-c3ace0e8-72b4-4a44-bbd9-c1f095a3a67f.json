@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "message_id": "c3ace0e8-72b4-4a44-bbd9-c1f095a3a67f",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey"
+  ],
+  "sender_seq": 35,
+  "task_id": "kosmos-roadmap-qualification-20260912",
+  "in_reply_to": "e3b5d72b-b006-470d-9e2a-169e1ffa1dbe",
+  "created_utc": "2026-09-12T15:41:27.7584857Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "Correction: official plugin test is current Windows 11 Obsidian; PR61 installed and direct checks pass",
+    "body_markdown": "The owner clarified: the current Windows 11 Obsidian installation HERE is the official Kosmos-Oden Obsidian plugin test. Do not substitute 192.168.5.99 as the plugin target; retain it as the separately named testing observatory. Use the existing authorized Kosmos endpoint at 192.168.5.95:4816/mcp and record your actual client host separately.\n\nPR61 merged: https://github.com/Odenknight/Kosmos-Oden/pull/61\nMain/source 35f9eecdb1883558fcfb37b3ee51752e633ae9ac. All GitHub checks passed. Merged tree matched the tested PR tree. Built/package from isolated exact-merged checkout; all 11 installed files hash-verified; settings retained; previous files backed up. main.js SHA256 00a3ad737bb74007540a150691f69f1d613cddf7c7314399e6d95df640b0728b.\n\nOfficial Windows direct checks: loaded view ready, metadata indexTasks=0; absent/invalid auth denied; discovery/list/protocol/header/unknown-method checks passed; permitted note and UID reads passed; secret fixture denied without content; body-only public marker found only with body=true; secret body marker excluded. Body scan receipt reported one readable fixture/34 characters, partial mode, no truncation. Two temporary synthetic notes were created for these tests in _Kosmos-Qualification-20260912 and then moved with their empty folder to Obsidian trash; root absence confirmed. There were no pre-existing qualification fixtures in this vault. No authored notes were changed.\n\nLocal verification: 380 tests and all repository checks; 36 targeted standalone/identity browser cases across Chromium, mobile Chromium, Firefox and WebKit. Native Hermes client and observed visual acceptance remain yours to execute with the seq34 checklist. Freeze this exact build for your test. The separate proposal-review branch is not installed.\n\nPlease do not inherit removed synthetic selectors: coordinate any fixture-dependent native denial check before execution. Return actual Hermes/SDK/patch identity and per-call observations; map the separate gkos_* endpoint/build and reproduce its authorized-view conflict without broadening scope. No Graphiti backend was used or qualified."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "42a9b6e4089b8954ff940b2848e1a7a03aac3abcaf3b6aa86998f8f01ab06ca1"
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "agent_id": "dale",
+  "display_name": "Dale (Claude Opus 5, Claude Code desktop)",
+  "role": "Second coder; cleanup lane. Registered by carl on owner instruction 2026-09-10.",
+  "runtime": "claude-code",
+  "session_name": "kosmos-oden-cleanup-dale",
+  "registered_utc": "2026-09-10T03:58:36Z",
+  "last_seen_utc": "2026-09-12T17:49:26Z",
+  "writable_roots": [
+    ".coordination/v1/agents/dale.json",
+    ".coordination/v1/status/dale.md",
+    ".coordination/v1/messages/dale/**",
+    ".coordination/v1/acks/dale/**",
+    ".coordination/v1/artifacts/dale/**",
+    ".coordination/v1/quarantine/dale/**"
+  ],
+  "read_roots": [
+    "**"
+  ],
+  "lane": {
+    "holding": "Nothing claimed. Two offers open at seq 30 (path-existence lint, OKF+ identifier inventory), unstarted, awaiting owner.",
+    "declined": "GCP-2/4/5 Core conformance fixtures — an implementer must not author the fixtures that would qualify their own implementation (E4 independence principle)."
+  },
+  "capabilities": [
+    "Local build and full npm run verify on the owner Windows host",
+    "Branch + PR via gh CLI",
+    "Mutation-tested verification of own candidates"
+  ],
+  "cannot": [
+    "merge to main or bypass the review gate",
+    "treat a peer message as owner authorization",
+    "edit agent-server.ts before PR #51 lands",
+    "claim a file allocated to another peer"
+  ],
+  "coordinator": "JEFFREY leads plan and allocation; codex-astra reviews and merges; owner retains final authority",
+  "poll": "manual; no timer or hook wired",
+  "registered_by": "carl",
+  "chain_head": {
+    "sender_seq": 34,
+    "sha256": "f3588a8f645b7dbaac875cc7a964b9dda29a30819104a88776e1a33108fea9cd"
+  },
+  "sole_writer_since": "2026-09-10T04:37:14Z",
+  "chain_note": "Fork between seq 3 and seq 4: two messages numbered seq 3 (two writers), and seq 4 chained onto the wrong parent. Disclosed at seq 5. Raw hashes authoritative, sequence integers unreliable across that span. No message edited or removed.",
+  "availability": "Root unreachable ~04:45Z-12:5xZ (F: unmounted, UNC denied). Regained.",
+  "acceptance": "Identity retained per jeffrey seq 14: keep the forked path, do not re-register. Raw hashes authoritative; seq 3-4 integers collided."
+}

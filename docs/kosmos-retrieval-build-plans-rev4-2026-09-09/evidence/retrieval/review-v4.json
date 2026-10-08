@@ -1,0 +1,90 @@
+{
+  "schema_version": "kosmos.retrieval.plan-review.v1",
+  "reviewed_on": "2026-09-09",
+  "scope": "Plan review only; no product changes or live service probes",
+  "supplied_revision3_files": [
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/ADOPTION-MATRIX-RECONCILIATION.md",
+      "sha256": "6a968c79b3c611910c38897264b15178b03811d1f9f9d0be4496965f1fb8f561"
+    },
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/evidence/retrieval/baseline.json",
+      "sha256": "4856d8c0fd9dcac0daaf8199b330513088c263eb7328bc125fee73290853528f"
+    },
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/NATIVE-AND-HERMES.md",
+      "sha256": "1935f5ca137b82ff31a9f3fc2cc2d773ae0209a04a07c21634bee111633e0f72"
+    },
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/README.md",
+      "sha256": "274b6930287ba3b03c5a303fcd78cc01e357585e72a34d91f25070e6b60d8496"
+    },
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/REVIEW-REV3.md",
+      "sha256": "a0a5891bffd64ea92e10ac1802082a435ac06c233f173ed0033b7a89ed55651d"
+    },
+    {
+      "path": "docs/kosmos-retrieval-build-plans-rev3-2026-09-09/TEMPORAL-AND-GRAPHITI.md",
+      "sha256": "48c8935a2a76f2fbdbf5478359180db1b90332ec631f6dd10536b746f19c6b4e"
+    }
+  ],
+  "git_checked_directly": {
+    "kosmos_main": "3aab1e337a8442d6bc2463cab43cb9b4191291a2",
+    "engine_main": "94a1e643ad71796ff7199a29c6e9e8c2a85f588f",
+    "kosmos_pr42": {
+      "head": "b35b27e0b0a4f6a3223ec8974c2786bc99b83651",
+      "state": "OPEN",
+      "reviewDecision": "REVIEW_REQUIRED",
+      "mergeCommit": null
+    }
+  },
+  "source_checks": [
+    {
+      "repository": "Kosmos-Oden",
+      "commit": "b35b27e0b0a4f6a3223ec8974c2786bc99b83651",
+      "path": "src/operational-paths.ts",
+      "finding": "Explicit .gkx and _archive/moc-runs roots, normalized containment predicate"
+    },
+    {
+      "repository": "Kosmos-Oden",
+      "commit": "b35b27e0b0a4f6a3223ec8974c2786bc99b83651",
+      "path": "src/plugin/vault-provider.ts",
+      "finding": "Central exclusion on lists/rebuild/changes; getNoteContent refuses operational paths then strips frontmatter"
+    },
+    {
+      "repository": "Kosmos-Oden",
+      "commit": "b35b27e0b0a4f6a3223ec8974c2786bc99b83651",
+      "path": "src/plugin/agent-server.ts",
+      "finding": "Sensitivity-filtered metadata substring search, legacy one-hop qRelated and socket-address rate limiter with loopback exemption"
+    },
+    {
+      "repository": "Kosmos-Oden",
+      "branch": "codex/retrieval-moc-next-update",
+      "reported_branch_sha": "35644f1",
+      "path": "src/standalone/engine-search.ts",
+      "finding": "Loopback guard; existing AbortController/30-second timeout/close; reconnect, LAN trust and per-request cancellation still need qualification"
+    }
+  ],
+  "vault_sources_read_directly": [
+    {
+      "path": "C:/Users/FAC/Documents/_NC/Obsidian-Oden/AI_LLM/Projects/harnessOS/Marshal-008/marshal-008-gkos-stack-operating-loop-directive-v0 2.md",
+      "sha256": "fd0dca4302d54d53a3a2c7f14fa766d8571db357f6f59410a831f764546e7ce6",
+      "standing": "draft-pending-signoff; target-only",
+      "finding": "Section 7 target selection/projection contract; benchmark gate standing explicitly attested; original ratification run not supplied"
+    },
+    {
+      "path": "C:/Users/FAC/Documents/_NC/Obsidian-Oden/AI_LLM/Specs/GKOS/2026-08-15_GKOS_Navigation_MOC_Build_Plans_2026-08-15/03_KOSMOS_ODEN_NAVIGATION_MOC_INTEGRATION_PLAN.md",
+      "sha256": "93f82b7e57edd43fb40a12317452595062765826cdc3079a1b3fad68aea735a2",
+      "finding": "Sections 13/14 explicit archive sync/retention policy; read-only Navigation recommended first, no ordinary read-token apply route"
+    }
+  ],
+  "upstream_references_reopened_on": "2026-09-09",
+  "upstream_references": [
+    "https://github.com/getzep/graphiti/blob/main/graphiti_core/search/search_filters.py",
+    "https://github.com/getzep/graphiti/blob/main/graphiti_core/utils/maintenance/edge_operations.py",
+    "https://hermes-agent.nousresearch.com/docs/reference/mcp-config-reference",
+    "https://modelcontextprotocol.io/specification/2025-11-25/basic/transports"
+  ],
+  "qualification_results": "NOT RUN: no implementation changed; package validation is recorded separately. Upstream moving references are design evidence, not deployment pins.",
+  "evidence_publication": "Local operational bundle; redact host addresses, local paths and corpus-specific examples before any public GitHub publication."
+}

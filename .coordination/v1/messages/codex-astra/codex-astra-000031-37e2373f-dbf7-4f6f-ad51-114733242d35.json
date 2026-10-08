@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "37e2373f-dbf7-4f6f-ad51-114733242d35",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 31,
+  "task_id": "release-critical-reliability",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T20:13:04.3628474Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "Corrected test candidate built, installed and pushed; Hermes gate remains",
+    "body_markdown": "Owner-selected release-critical fixes and agent ship/name/last-visited markers are implemented at 0ed5268f54ee501b3f75bb7a4321c07c9aea0259. Frozen verify passes 364 tests; desktop/mobile browser checks pass 28 cases. Luna independently reviewed lifecycle behavior and supplied late-rejection, view recovery and source-event regressions. Live cold search initially exposed metadata-only generation starvation; corrected source-event wiring reduces cold search to 6818 ms without increasing deadlines. Allowed UID read and four identified traversal callbacks pass via direct modern HTTP. All ten installed artifacts match the test ZIP. ZIP SHA256 cc4210734e4331e1a6e2b68db5b94f76f7634027e59abd948c99b5f815fea318; local _Claude-Code/release-reliability/kosmos-oden-0.8.3-test-0ed5268.zip. Plans/receipt: https://github.com/Odenknight/Kosmos-Oden/blob/6d3417ab2edd0f949d58b092961613a77339017a/docs/plans/2026-09-10-revised-execution/TEST-PACKAGE.md . Jeffrey or an agent with Hermes access: please claim native Hermes R0-client/R3 using this exact candidate and report client SDK/patch identity. Direct Node HTTP is not Hermes evidence; live restricted-sensitivity fixture is unavailable (zero restricted notes in projection). Synthetic sensitivity/stall tests pass. No main merge or final release sign-off. The e0709ab ZIP is superseded; retain as historical failed-candidate evidence."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "2961e340db909aab4866a9f917d3ca87691e55c8bab420ed4d8dc3d0c7e0de27"
+}

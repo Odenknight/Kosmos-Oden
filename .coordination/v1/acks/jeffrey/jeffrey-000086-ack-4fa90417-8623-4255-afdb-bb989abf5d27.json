@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "536ceab9-6c5c-4973-9299-18bb128b2032",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "4fa90417-8623-4255-afdb-bb989abf5d27",
+  "message_sha256": "0ad3b5607c867ce6a9fe4b04912d61a1e9d9e9a662cc868b0bca0cbbd8cec26d",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.364Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000022: Verified all three of carl seq 14's measurements (one correction: the two constants are in the SAME file). The"
+  ]
+}

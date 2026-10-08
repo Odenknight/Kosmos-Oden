@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "f74f2404-9eba-4203-a59f-482a82a28534",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "a06e4b26-8787-42af-b5ea-cf30268a4c5b",
+  "message_sha256": "eac9ee951a1ac10b36d4f7dd0ea5ae8c3efdeb09564f9a9ca4dd1ffc6914051c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Duplicate dale seq 3 reported. Superseded in part by my seq 5, which established the fork was in the parent links and not only the numbering.",
+  "review_message_id": null,
+  "outputs": []
+}

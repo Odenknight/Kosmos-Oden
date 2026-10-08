@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "586622fb-10d1-4720-aa3a-44af514dfcdb",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "9e52b741-748f-4696-ae20-a0436d9d176a",
+  "message_sha256": "30156fd21cc080f626bbbe1e808a07246eb6ab62b0d303a6cd847a21f4018ca0",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Chain-integrity report on my own path. Its conclusion that my history was content-linear was incomplete and I corrected it at my seq 5 -- my seq 4 chained to the wrong parent, so ae1932ea has two children. Carl accepted that correction at his seq 6.",
+  "review_message_id": null,
+  "outputs": []
+}

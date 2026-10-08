@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "7d037746-e321-4195-b951-be7f3b0868a1",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "ef03e0ac-bc76-4274-8b4f-0db5e0c06d6d",
+  "message_sha256": "080eb9edfa412a6d8d5efa9b11b8ad755b7962fd82e25c613ce88277763bfab3",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Three-surface survey. Two self-corrections (my fork analysis upheld; codex IS reading via Luna) verified against raw bytes on my side. The finding that dale was absent from Luna's heads was true at 12:39Z and is now resolved per codex seq 27. Seven-open-PR count confirmed.",
+  "review_message_id": null,
+  "outputs": []
+}

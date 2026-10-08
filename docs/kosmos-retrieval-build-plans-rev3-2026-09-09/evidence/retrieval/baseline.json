@@ -1,0 +1,117 @@
+{
+  "schema_version": "kosmos.retrieval.baseline.v1-draft",
+  "captured_at": "2026-09-09T04:40:00Z",
+  "captured_from_host": "192.168.5.95 (Windows 11, the Obsidian host)",
+  "capture_method": "local file inspection, local listener inspection, read-only MCP initialize/capabilities probes; no configuration changed, no secret values recorded",
+  "status_legend": "observed = read directly; self_reported = returned by the live service; inferred = derived from other evidence; unknown = not obtainable without an operator receipt",
+
+  "kosmos_deployed": {
+    "vault": "C:/Users/FAC/Documents/_NC/Obsidian-Oden (Nextcloud-synced folder)",
+    "plugin_dir": ".obsidian/plugins/kosmos-oden_v0.7.0",
+    "manifest_id": "kosmos-oden",
+    "manifest_version": { "value": "0.7.0", "status": "observed" },
+    "main_js_mtime": { "value": "2026-08-06T04:05:02 local", "status": "observed" },
+    "main_js_bytes": 1453512,
+    "source_commit": { "value": "1bbbc541f4b38d66fe646f72fee5d50bff60eb43", "status": "observed", "source": "BUILD-INFO.json in the plugin folder (buildTimeUtc 2026-08-06T08:05:30Z, Node v24.18.0, sourceTreeDirty false); main.js and manifest.json hashes match the shipped SHA256SUMS" },
+    "embedded_engine_library": { "value": "gkos-engine v2.0.1 (string 'GKOS-Engine v2.0.1' occurs 8 times in the bundle)", "status": "observed" },
+    "mcp_tool_catalog": { "count": 18, "names": ["search_notes", "get_note", "get_lineage", "get_related", "graph_at_time", "vault_overview", "get_gkx_note", "get_assessment", "get_diagnostics", "validate_note", "assess_note", "assess_vault", "get_effective_labels", "get_evidence", "get_relationships", "get_policy", "export_graphiti_episodes", "graphiti_ingestion_status"], "status": "observed" },
+    "tool_schema_sha256": { "value": "3b245b36deed98451d144ad9409e7f29a358340a4592bea2bd7f6c141acd8bb6", "status": "observed", "method": "sha256 over JSON of [{name, inputSchema}] sorted by name from an authenticated tools/list on 2026-09-09" },
+    "live_probe_2026_09_09": {
+      "initialize": "200; serverInfo kosmos-oden 0.7.0; protocol 2025-11-25; Mcp-Session-Id issued; instructions text hard-codes 'GKOS-Engine v2.0.1'",
+      "session_handling": "unknown session id returns 404 'unknown or expired MCP session; initialize again'",
+      "limit_validation": "search_notes limit 999 rejected with -32602 'limit must be an integer from 1 to 200'",
+      "corpus": { "vault": "Obsidian-Oden", "notes": 2222, "gkxNotes": 1839, "gkx23Notes": 1248, "semanticEdges": 5296, "lineageEdges": 8, "heads": 6, "superseded": 6, "unresolvedLinks": 384, "areas": 19, "indexBuiltAt": "2026-09-09T04:18:57Z" },
+      "body_only_query_gap_reproduced": "search_notes 'fighter metrics' -> total 0 (lexical title/alias/tag/path only)",
+      "search_total_vs_window": "search_notes 'FAC' -> total 436 with limit 3; the total is reported truthfully, results are clamped",
+      "get_note_sample": "52,582-character note returned whole; envelope keys id,uid,title,path,type,area,tags,sensitivity,timestamp,head,superseded,invalidAt,aliases,gkx,links,content; uid null on plain notes",
+      "graph_at_time": "keys at,semantics,counts{valid,superseded,notYetCreated},valid,superseded; valid-at only",
+      "graphiti_ingestion_status": "state export-ready, searchable false, adapterSchema gkx-graphiti/2.3.0, testedGraphitiCore 0.29.0, combinedExtraction false",
+      "vault_governing_notes_read": ["AI_LLM/Projects/Kosmos-Oden-Project/Kosmos-Oden_Capabilities_2026-09-05.md", "AI_LLM/Projects/harnessOS/Marshal-008/marshal-008-gkos-stack-operating-loop-directive-v0 2.md", "AI_LLM/Specs/GKOS/2026-08-15_GKOS_Navigation_MOC_Build_Plans_2026-08-15/03_KOSMOS_ODEN_NAVIGATION_MOC_INTEGRATION_PLAN.md"],
+      "search_term_semantics": "literal whole-string substring: 'kosmos-oden' -> 31, 'kosmos oden' -> 0, 'kosmos' -> 81",
+      "duplicate_trees_observed": ["AI_LLM/Projects/Kosmsos_Research_Studio", "AI_LLM/Projects/Kosmsos_Research_Suite"],
+      "graph_noise_finding": "get_related backlinks for a LuSaur_Tech note include _archive/moc-runs/2026-09-08/<run>/before|after/... copies written by the MOC prototype; those archive snapshots are indexed as ordinary notes and duplicate edges"
+    },
+    "mcp_protocols_supported": { "value": ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"], "status": "observed" },
+    "settings_non_secret": {
+      "agentEnabled": true,
+      "agentBindMode": "lan",
+      "agentPort": 4816,
+      "agentSensitivityCeiling": "internal",
+      "defaultSensitivity": "public",
+      "agentToken_present": true,
+      "status": "observed"
+    },
+    "listener": { "value": "0.0.0.0:4816 owned by Obsidian.exe (renderer process 37960, started 2026-09-08 17:07 local)", "status": "observed" },
+    "unauthenticated_initialize": { "value": "HTTP 401 application/json", "status": "observed" },
+    "graphiti_mode": { "value": "native_only (export tools present; no database configured in plugin settings)", "status": "inferred" }
+  },
+
+  "other_plugins_in_vault": [
+    {
+      "id": "kosmos-moc-prototype",
+      "version": "0.1.1",
+      "built": "2026-09-08T02:36 local",
+      "embedded_engine_library": "ENGINE_VERSION 2.2.0",
+      "notes": "desktop-only; description 'Explicit managed MOC testing on a copied desktop vault'; bundle references port 4815 and createServer; zero vault write API references found. Not covered by any rev2 plan; must be inventoried as a possible second listener and identity."
+    }
+  ],
+
+  "engine_service_deployed": {
+    "endpoint": "https://192.168.5.99/mcp (reverse proxy header Server: Caddy)",
+    "reached_via": "Claude Desktop MCP server 'fac-local' = npx mcp-remote with a bearer header; that client config sets NODE_TLS_REJECT_UNAUTHORIZED=0",
+    "serverInfo": { "name": "gkos-engine", "version": "2.1.2", "status": "self_reported" },
+    "protocolVersion": { "value": "2025-11-25", "status": "self_reported" },
+    "session_header_issued": true,
+    "gkos_capabilities": {
+      "contract_version": "1.0.0-draft.2",
+      "extension_version": "observatory.mcp-content.v0",
+      "auth_epoch": 1,
+      "capabilities_available": ["capability.read.self", "graph.temporal.read", "navigation.audit", "navigation.discover", "record.assess", "record.lineage.read", "record.validate", "note.content.read", "record.locator.resolve", "note.fulltext.search"],
+      "status": "self_reported"
+    },
+    "unauthenticated_initialize": { "value": "HTTP 401 {\"error\":\"unauthorized\"}", "status": "observed" },
+    "resolved_commit": { "value": null, "status": "unknown", "reason": "serverInfo 2.1.2 is a hard-coded literal in both the v2.1.2 tag (7bf14b48) and the frozen oracle (82079580); commits from 650eab4 onward report ENGINE_VERSION 2.2.0. The service is therefore on the 2.1.2 line and is NOT the 0.8.2 candidate's 650eab4. Distinguishing tag from oracle requires an operator receipt from the 192.168.5.99 host." },
+    "graphiti_database": { "value": null, "status": "unknown" },
+    "probe_history": "the supplied matrix's 'forbidden' probe used a different identity; an authorized identity exists on this host and was used here"
+  },
+
+  "topology": {
+    "hermes_to_kosmos": "LAN, plain HTTP, bearer: http://192.168.5.95:4816/mcp (per the 2026-09-08 transcript; 192.168.5.95 is this host)",
+    "kosmos_to_engine_service": "NOT IMPLEMENTED in any deployed or mainline Kosmos build; the only client code is the unmerged standalone prototype, which refuses non-loopback URLs",
+    "engine_service_location": "separate LAN host 192.168.5.99 behind Caddy TLS; NOT loopback from the Kosmos host",
+    "hermes_host": { "value": null, "status": "unknown" }
+  },
+
+  "repository_coordinates": {
+    "kosmos_origin_main": { "sha": "3aab1e3", "version": "0.8.0", "engine_pin": "41172b91970aac869c161f4842e3526a62fd1fd9", "engine_pin_standing": "OFF-MAIN: commit 'test(identity): scope draft freeze to qualified tree' (2026-08-27) on integration/navigation-effects-reconciliation-20260827; not an ancestor of Engine main; does not descend from v2.1.2", "status": "observed" },
+    "kosmos_pr_42": { "head": "b35b27e0b0a4f6a3223ec8974c2786bc99b83651", "version": "0.8.2", "engine_pin": "650eab4a6752227cae336d7556a57826c22a0d5a", "checks": "all green", "touches_agent_server": false, "status": "observed" },
+    "kosmos_pr_41": { "head": "65e9354f220b19a16c67504ff228e58caf8128ca", "version": "0.8.1", "engine_pin": "f1a95f8f3933f834eb4030f0f0d143051e6eecc2", "scope": "Tauri standalone + vendored glib + docs/plans K0-K6 (K3 = Engine retrieval integration)", "status": "observed" },
+    "kosmos_retrieval_prototype_branch": { "sha": "35644f1", "branch": "codex/retrieval-moc-next-update", "pr": "none", "parent": "PR 41 head", "status": "observed" },
+    "engine_main": { "sha": "94a1e643ad71796ff7199a29c6e9e8c2a85f588f", "package_version": "2.2.0", "runtime_dependencies": "none (the MCP server is hand-rolled; no @modelcontextprotocol/sdk)", "status": "observed" },
+    "engine_v2_1_2_tag_peeled": "7bf14b481e78c5ae9d1e14661602be4f24559d0e",
+    "engine_oracle": { "sha": "8207958047b3361ae21ac07c5a2abbd26a42a684", "distance": "53 commits behind Engine main; 650eab4 is 18 behind main and differs from the oracle in src/service/mcp.ts by 162 lines and in src/retrieval/sqlite-store.ts by 74 lines", "status": "observed" },
+    "engine_f1a95f8f": { "standing": "on Engine main; descends from v2.1.2; 2 commits behind 650eab4", "status": "observed" },
+    "engine_41172b9": { "standing": "NOT on Engine main; does not descend from v2.1.2; merge-base with main c0eac935", "status": "observed" }
+  },
+
+  "engine_contract_facts_at_650eab4": {
+    "gkos_search": { "limit_max": 50, "path_include_max_globs": 16, "glob_max_len": 512, "query_max_len": 256, "retrieval_window": "top-100", "embedding_provider": "local ONNX only, operator-configured; reranking disabled" },
+    "gkos_note_read": { "limit_bytes_min": 4, "limit_bytes_max": 16384, "includes_frontmatter": true, "redaction": "record-level only" },
+    "gkos_lineage_get": { "limit_max": 100, "semantics": "root plus direct neighbours; non-transitive" },
+    "gkos_graph_at_time": { "limit_max": 100, "state_enum": ["valid", "superseded", "not_yet_created", "all"] },
+    "record_ref_format": "gkrec1_ prefix, 29 characters, session-issued",
+    "scope_ref_format": "gkscp1_ prefix, 29 characters, session-issued",
+    "record_assess_scores": "scores_basis_points (integer), profile gkx-2.3-validating-projection",
+    "protocol_negotiation": "fixed: initialize with any protocolVersion other than 2025-11-25 is rejected; responses are application/json (no SSE)",
+    "note": "these values are from the 0.8.2 candidate's pinned Engine; the deployed 2.1.2 service must be captured separately"
+  },
+
+  "kosmos_contract_facts_at_origin_main": {
+    "MAX_SEARCH_RESULTS": 200,
+    "MAX_NOTE_CONTENT_CHARS": 200000,
+    "search_method": "lexical substring over label/aliases/tags/path over sensitivity-filtered fileNodes",
+    "rate_limits": "applied to non-loopback clients only",
+    "agentBindMode_default": "localhost",
+    "hard_coded_engine_strings": "GKOS-Engine v2.1.1 in vault_overview/get_gkx_note descriptions and initialize instructions"
+  }
+}

@@ -1,0 +1,797 @@
+<!-- Kosmos Galaxy Console — agent traversal / telemetry visualization -->
+<!--
+  HTMX split: the galaxy scene, agents list, and inspector stay React-owned
+  (they need imperative Three.js state, not DOM diffing). The ticker and
+  metrics panels below are plain server-shaped HTML fragments — htmx owns
+  swapping/settling them, React never touches their DOM. Both panels are fed
+  by the SAME websocket as the scene: the client demuxes each frame (HTML
+  string vs JSON) and routes it to htmx.swap or to React state, rather than
+  opening a second hx-ws connection that would double the load on the event
+  source. See fragment generators + demux logic near the bottom of the script.
+-->
+<div id="root"></div>
+
+<div class="panel" id="ticker-panel">
+  <div class="panel-head"><span>Event Stream</span><span id="ticker-count">0</span></div>
+  <div class="ticker-body" id="ticker-body">
+    <div class="insp-empty" style="padding:10px;">Awaiting events…</div>
+  </div>
+</div>
+
+<div class="panel" id="metrics-panel">
+  <div class="panel-head"><span>Fleet Telemetry</span><span style="color:var(--gkx-cyan);font-size:9px;">HTMX</span></div>
+  <div id="metrics-body">
+    <div class="metric-row"><span class="metric-label">Writes / min</span><span class="metric-value amber">0</span></div>
+    <div class="metric-row"><span class="metric-label">Active traversals</span><span class="metric-value cyan">0</span></div>
+    <div class="metric-row"><span class="metric-label">PHI gate blocks</span><span class="metric-value alert">0</span></div>
+    <div class="metric-row"><span class="metric-label">Connected agents</span><span class="metric-value">0</span></div>
+  </div>
+</div>
+<style>
+  :root{
+    --void: #05070d;
+    --void-2: #0a0f1c;
+    --panel: rgba(10,15,28,0.86);
+    --line: rgba(140,160,200,0.14);
+    --ink: #dbe4f5;
+    --ink-dim: #7c8aa8;
+    --gkx-cyan: #4fd8e0;
+    --gkx-amber: #e0a84f;
+    --alert: #e0574f;
+    --ok: #5fe0a0;
+    --anon: #9a7ce0;
+    --display: "Fjalla One", "Arial Narrow", sans-serif;
+    --body: "Inter", -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--void);overflow:hidden;height:100%;}
+  #root{position:relative;width:100%;height:100vh;font-family:var(--body);color:var(--ink);}
+  canvas{display:block;}
+
+  #scene-wrap{position:absolute;inset:0;}
+
+  .topbar{
+    position:absolute;top:0;left:0;right:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;
+    background:linear-gradient(to bottom, rgba(5,7,13,0.92), transparent);
+    pointer-events:none;
+    z-index:10;
+  }
+  .topbar *{pointer-events:auto;}
+  .brand{display:flex;align-items:baseline;gap:10px;}
+  .brand .mark{
+    font-family:var(--display);
+    font-size:20px;letter-spacing:0.08em;
+    color:var(--ink);
+    text-transform:uppercase;
+  }
+  .brand .sub{
+    font-family:var(--mono);font-size:11px;color:var(--ink-dim);
+    letter-spacing:0.06em;
+  }
+  .mode-toggle{
+    display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);
+    border-radius:3px;padding:2px;font-family:var(--mono);font-size:11px;
+  }
+  .mode-toggle button{
+    background:transparent;border:none;color:var(--ink-dim);
+    padding:7px 14px;border-radius:2px;cursor:pointer;letter-spacing:0.04em;
+    transition:all .15s;
+  }
+  .mode-toggle button.active{background:rgba(79,216,224,0.14);color:var(--gkx-cyan);}
+  .mode-toggle button:hover:not(.active){color:var(--ink);}
+
+  .ws-row{display:flex;align-items:center;gap:8px;margin-left:10px;}
+  .ws-row input{
+    background:rgba(0,0,0,0.35);border:1px solid var(--line);color:var(--ink);
+    font-family:var(--mono);font-size:11px;padding:7px 9px;border-radius:3px;width:220px;
+  }
+  .ws-row input::placeholder{color:var(--ink-dim);}
+  .ws-dot{width:7px;height:7px;border-radius:50%;background:var(--ink-dim);flex-shrink:0;}
+  .ws-dot.live{background:var(--ok);box-shadow:0 0 6px var(--ok);}
+  .ws-dot.err{background:var(--alert);box-shadow:0 0 6px var(--alert);}
+
+  .breadcrumb{
+    position:absolute;top:64px;left:20px;z-index:10;
+    font-family:var(--mono);font-size:11px;color:var(--ink-dim);
+    letter-spacing:0.04em;pointer-events:none;
+  }
+  .breadcrumb span.here{color:var(--gkx-cyan);}
+
+  /* left: agents panel */
+  .panel{
+    position:absolute;background:var(--panel);border:1px solid var(--line);
+    border-radius:4px;backdrop-filter:blur(6px);z-index:10;
+  }
+  #agents-panel{top:72px;left:20px;width:250px;max-height:44vh;display:flex;flex-direction:column;}
+  .panel-head{
+    padding:9px 12px;border-bottom:1px solid var(--line);
+    font-family:var(--mono);font-size:10px;letter-spacing:0.12em;
+    color:var(--ink-dim);text-transform:uppercase;display:flex;justify-content:space-between;
+  }
+  .panel-body{overflow-y:auto;padding:4px;}
+  .panel-body::-webkit-scrollbar{width:6px;}
+  .panel-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+
+  .agent-row{
+    display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:3px;
+    cursor:pointer;transition:background .12s;
+  }
+  .agent-row:hover{background:rgba(255,255,255,0.04);}
+  .agent-row.selected{background:rgba(79,216,224,0.10);}
+  .agent-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .agent-info{min-width:0;flex:1;}
+  .agent-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .agent-meta{font-family:var(--mono);font-size:10px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .agent-status{
+    font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:2px;
+    text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;
+  }
+  .status-traversing{background:rgba(79,216,224,0.15);color:var(--gkx-cyan);}
+  .status-reading{background:rgba(95,224,160,0.15);color:var(--ok);}
+  .status-writing{background:rgba(224,168,79,0.15);color:var(--gkx-amber);}
+  .status-idle{background:rgba(124,138,168,0.15);color:var(--ink-dim);}
+
+  /* right: metrics panel */
+  #metrics-panel{top:72px;right:20px;width:230px;}
+  .metric-row{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);
+  }
+  .metric-label{font-size:11px;color:var(--ink-dim);}
+  .metric-value{font-family:var(--mono);font-size:15px;color:var(--ink);font-weight:600;}
+  .metric-value.cyan{color:var(--gkx-cyan);}
+  .metric-value.amber{color:var(--gkx-amber);}
+  .metric-value.alert{color:var(--alert);}
+
+  /* bottom: event ticker */
+  #ticker-panel{
+    bottom:20px;left:20px;right:290px;height:150px;display:flex;flex-direction:column;
+  }
+  .ticker-body{flex:1;overflow-y:auto;padding:4px 0;font-family:var(--mono);font-size:11px;}
+  .ticker-body::-webkit-scrollbar{width:6px;}
+  .ticker-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .tick-row{
+    padding:4px 12px;display:flex;gap:8px;border-bottom:1px solid rgba(255,255,255,0.02);
+    animation:fadein .3s ease;
+  }
+  @keyframes fadein{from{opacity:0;transform:translateY(-3px);}to{opacity:1;transform:none;}}
+  .tick-time{color:var(--ink-dim);flex-shrink:0;}
+  .tick-tag{flex-shrink:0;font-weight:700;}
+  .tick-msg{color:var(--ink-dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+
+  /* bottom right: inspector */
+  #inspector-panel{bottom:20px;right:20px;width:255px;height:150px;display:flex;flex-direction:column;}
+  #inspector-panel .panel-body{flex:1;padding:10px 12px;font-size:12px;line-height:1.6;}
+  .insp-empty{color:var(--ink-dim);font-family:var(--mono);font-size:11px;}
+  .insp-field{margin-bottom:6px;}
+  .insp-field .k{color:var(--ink-dim);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.05em;display:block;}
+  .insp-field .v{color:var(--ink);}
+
+  .zoom-hint{
+    position:absolute;bottom:180px;left:50%;transform:translateX(-50%);
+    font-family:var(--mono);font-size:10px;color:var(--ink-dim);
+    letter-spacing:0.06em;z-index:10;pointer-events:none;opacity:0.7;
+  }
+
+  .anon-badge{
+    font-family:var(--mono);font-size:8px;color:var(--anon);
+    border:1px solid var(--anon);border-radius:2px;padding:1px 4px;margin-left:4px;
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef, useCallback} = React;
+
+// ---------- constants ----------
+const SHIP_PREFIXES = ["ISV","RSS","NCX","KSV","VNT","OKF","GKX","LDD"];
+const SHIP_WORDS = ["Halcyon","Wayfarer","Ferrous","Umbral","Vantage","Cortege","Nomad","Ashfall","Corvid","Meridian","Tessellate","Aphelion","Driftwood","Sable","Aurelia","Kestrel"];
+const SYSTEMS = [
+  {id:"kosmos", name:"Kosmos Research", color:0x4fd8e0},
+  {id:"stobetter", name:"STO Better", color:0xe0a84f},
+  {id:"fac", name:"FAC Governance", color:0x9a7ce0},
+  {id:"ldd", name:"LDD Project", color:0x5fe0a0},
+];
+const AGENT_HARNESSES = ["CARSON","JEFFREY","Paperclip","Hermes","Agent Zero"];
+const EVENT_KINDS = [
+  {k:"read", color:"var(--ok)"},
+  {k:"write", color:"var(--gkx-amber)"},
+  {k:"retrieve", color:"var(--gkx-cyan)"},
+  {k:"gate-block", color:"var(--alert)"},
+];
+
+function seededShipName(seed){
+  let h = 0;
+  for(let i=0;i<seed.length;i++){ h = (h*31 + seed.charCodeAt(i)) >>> 0; }
+  const p = SHIP_PREFIXES[h % SHIP_PREFIXES.length];
+  const w = SHIP_WORDS[(h >> 3) % SHIP_WORDS.length];
+  const n = (h % 900) + 100;
+  return `${p} ${w}-${n}`;
+}
+
+function uuid(){
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+function escapeHTML(value){
+  return String(value ?? "").replace(/[&<>"']/g, char=>({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[char]);
+}
+
+// ---------- HTMX fragment layer ----------
+// These strings are exactly what a real bridge service would push down the
+// wire as text/html frames. In SIMULATED mode we build them client-side from
+// the same SimEngine data as before; in LIVE mode they'd arrive verbatim
+// from the server and we'd skip straight to htmx.swap/htmx.process.
+
+function tickerRowHTML(ev){
+  const time = ev.time.toLocaleTimeString([], {hour12:false});
+  const agentId = escapeHTML(ev.agentId);
+  return `<div class="tick-row" data-agent-id="${agentId}"
+      hx-on:click="document.dispatchEvent(new CustomEvent('select-agent',{detail:this.dataset.agentId}))"
+      style="cursor:pointer;">
+    <span class="tick-time">${escapeHTML(time)}</span>
+    <span class="tick-tag" style="color:${escapeHTML(ev.color)}">[${escapeHTML(ev.label)}]</span>
+    <span class="tick-msg">${escapeHTML(ev.msg)}</span>
+  </div>`;
+}
+
+function metricsBodyHTML(metrics, activeTraversals, agentCount){
+  return `
+    <div class="metric-row"><span class="metric-label">Writes / min</span><span class="metric-value amber">${metrics.writesPerMin||0}</span></div>
+    <div class="metric-row"><span class="metric-label">Active traversals</span><span class="metric-value cyan">${activeTraversals}</span></div>
+    <div class="metric-row"><span class="metric-label">PHI gate blocks</span><span class="metric-value alert">${metrics.gateBlocks||0}</span></div>
+    <div class="metric-row"><span class="metric-label">Connected agents</span><span class="metric-value">${agentCount}</span></div>
+  `;
+}
+
+// Push one event fragment into the ticker via htmx. Uses insertAdjacentHTML
+// + htmx.process so any hx-on/hx-* behavior in the incoming fragment (e.g.
+// the click-to-select binding above) activates exactly like it would if the
+// fragment had arrived from a live hx-ws OOB swap.
+function swapTickerEvent(ev){
+  const body = document.getElementById('ticker-body');
+  if(!body) return;
+  const empty = body.querySelector('.insp-empty');
+  if(empty) empty.remove();
+  body.insertAdjacentHTML('afterbegin', tickerRowHTML(ev));
+  htmx.process(body.firstElementChild);
+  while(body.children.length > 60) body.removeChild(body.lastElementChild);
+  const countEl = document.getElementById('ticker-count');
+  if(countEl) countEl.textContent = body.children.length;
+}
+
+function swapMetrics(metrics, activeTraversals, agentCount){
+  const body = document.getElementById('metrics-body');
+  if(!body) return;
+  body.innerHTML = metricsBodyHTML(metrics, activeTraversals, agentCount);
+  htmx.process(body);
+}
+
+function clearHtmxPanels(){
+  const body = document.getElementById('ticker-body');
+  if(body) body.innerHTML = '<div class="insp-empty" style="padding:10px;">Awaiting events…</div>';
+  const countEl = document.getElementById('ticker-count');
+  if(countEl) countEl.textContent = '0';
+  swapMetrics({writesPerMin:0, gateBlocks:0}, 0, 0);
+}
+
+function syncTickerCount(){
+  const body = document.getElementById('ticker-body');
+  const count = document.getElementById('ticker-count');
+  if(body && count) count.textContent = body.querySelectorAll(':scope > .tick-row').length;
+}
+
+// Apply a trusted bridge-rendered fragment through htmx's swap lifecycle.
+// Supports ordinary ticker rows and the bridge's OOB form, for example:
+// <div id="ticker-body" hx-swap-oob="afterbegin">...</div>.
+function applyServerFragment(raw){
+  const template = document.createElement('template');
+  template.innerHTML = raw.trim();
+  const fragment = template.content;
+  const oobNodes = Array.from(fragment.querySelectorAll('[hx-swap-oob]'));
+
+  if(oobNodes.length){
+    oobNodes.forEach(node=>{
+      const instruction = (node.getAttribute('hx-swap-oob') || 'outerHTML').trim();
+      const [styleToken, selectorToken] = instruction.split(':', 2);
+      const swapStyle = styleToken === 'true' ? 'outerHTML' : styleToken;
+      const selector = selectorToken || (node.id ? `#${CSS.escape(node.id)}` : '');
+      const target = selector ? document.querySelector(selector) : null;
+      if(!target) return;
+      const content = swapStyle === 'outerHTML' ? node.outerHTML : node.innerHTML;
+      htmx.swap(target, content, {swapStyle});
+    });
+  } else {
+    const body = document.getElementById('ticker-body');
+    if(body) htmx.swap(body, raw, {swapStyle:'afterbegin'});
+  }
+  syncTickerCount();
+}
+
+// ---------- Simulated telemetry engine ----------
+class SimEngine {
+  constructor(onEvent, onAgentUpdate, onMetrics){
+    this.onEvent = onEvent;
+    this.onAgentUpdate = onAgentUpdate;
+    this.onMetrics = onMetrics;
+    this.agents = new Map();
+    this.metrics = {writesPerMin:0, activeTraversals:0, gateBlocks:0, backendMix:{}};
+    this._writeCount = 0;
+    this.running = false;
+  }
+  start(){
+    this.running = true;
+    for(let i=0;i<4;i++) this._spawnAgent();
+    this._tick();
+    this._metricsInterval = setInterval(()=>{
+      this.metrics.writesPerMin = this._writeCount;
+      this._writeCount = 0;
+      this.onMetrics({...this.metrics});
+    }, 4000);
+  }
+  stop(){
+    this.running = false;
+    clearInterval(this._metricsInterval);
+    clearTimeout(this._tickTimeout);
+  }
+  _spawnAgent(){
+    const id = uuid();
+    const anon = Math.random() < 0.35;
+    const harness = AGENT_HARNESSES[Math.floor(Math.random()*AGENT_HARNESSES.length)];
+    const backend = ["Ornith-1.5-397B","GLM-5.3","Qwen3-VL-8B"][Math.floor(Math.random()*3)];
+    const system = SYSTEMS[Math.floor(Math.random()*SYSTEMS.length)];
+    const agent = {
+      id, anon, label: anon ? null : harness,
+      shipName: seededShipName(id),
+      system: system.id,
+      status: "traversing",
+      backend,
+      trail: [],
+      target: `note-${Math.floor(Math.random()*9000+1000)}`,
+      spawnedAt: Date.now(),
+    };
+    this.agents.set(id, agent);
+    this.onAgentUpdate(new Map(this.agents));
+    return agent;
+  }
+  _tick(){
+    if(!this.running) return;
+    // random event
+    const agentsArr = Array.from(this.agents.values());
+    if(agentsArr.length && Math.random() < 0.9){
+      const agent = agentsArr[Math.floor(Math.random()*agentsArr.length)];
+      const kind = EVENT_KINDS[Math.floor(Math.random()*(Math.random()<0.08?4:3))]; // gate-block rare
+      const noteId = `note-${Math.floor(Math.random()*9000+1000)}`;
+      const score = (Math.random()*0.4+0.6).toFixed(2);
+      agent.target = noteId;
+      agent.status = kind.k === "write" ? "writing" : kind.k === "retrieve" ? "reading" : "traversing";
+      agent.trail.push({node:noteId, t:Date.now()});
+      if(agent.trail.length > 12) agent.trail.shift();
+      this.onAgentUpdate(new Map(this.agents));
+
+      if(kind.k === "write") this._writeCount++;
+      if(kind.k === "gate-block") this.metrics.gateBlocks++;
+      this.metrics.backendMix[agent.backend] = (this.metrics.backendMix[agent.backend]||0)+1;
+
+      const label = agent.anon ? agent.shipName : `${agent.label} (${agent.shipName})`;
+      let msg;
+      if(kind.k === "read") msg = `read → "${noteId}"`;
+      else if(kind.k === "write") msg = `wrote → "${noteId}" [GKX lineage +1]`;
+      else if(kind.k === "retrieve") msg = `retrieve → "${noteId}" (score ${score})`;
+      else msg = `PHI GATE BLOCK → "${noteId}"`;
+
+      this.onEvent({
+        id: uuid(), time: new Date(), agentId: agent.id,
+        label, kind: kind.k, color: kind.color, msg,
+        system: agent.system,
+      });
+    }
+    // occasionally spawn / retire
+    if(Math.random() < 0.02 && this.agents.size < 9) this._spawnAgent();
+    if(Math.random() < 0.015 && this.agents.size > 2){
+      const victim = agentsArr[Math.floor(Math.random()*agentsArr.length)];
+      this.agents.delete(victim.id);
+      this.onAgentUpdate(new Map(this.agents));
+    }
+    // idle decay
+    agentsArr.forEach(a=>{ if(Math.random()<0.3) a.status = "idle"; });
+
+    this._tickTimeout = setTimeout(()=>this._tick(), 550 + Math.random()*500);
+  }
+}
+
+// ---------- Three.js scene ----------
+function GalaxyScene({agents, onSelect, mountRef}){
+  const sceneRef = useRef(null);
+  const objectsRef = useRef({systems:{}, ships:{}, trails:{}});
+
+  useEffect(()=>{
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x05070d, 0.0035);
+    const camera = new THREE.PerspectiveCamera(55, width/height, 0.1, 5000);
+    camera.position.set(0, 220, 480);
+    const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    mountRef.current.appendChild(renderer.domElement);
+
+    // background stars
+    const bgGeo = new THREE.BufferGeometry();
+    const bgCount = 2400;
+    const bgPos = new Float32Array(bgCount*3);
+    for(let i=0;i<bgCount;i++){
+      const r = 1200 + Math.random()*1800;
+      const theta = Math.random()*Math.PI*2;
+      const phi = Math.acos((Math.random()*2)-1);
+      bgPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+      bgPos[i*3+1] = r*Math.sin(phi)*Math.sin(theta);
+      bgPos[i*3+2] = r*Math.cos(phi);
+    }
+    bgGeo.setAttribute('position', new THREE.BufferAttribute(bgPos,3));
+    const bgMat = new THREE.PointsMaterial({color:0x556080, size:1.4, transparent:true, opacity:0.5});
+    scene.add(new THREE.Points(bgGeo, bgMat));
+
+    // system clusters laid out in a ring
+    const radius = 260;
+    SYSTEMS.forEach((sys, i)=>{
+      const angle = (i/SYSTEMS.length) * Math.PI*2;
+      const cx = Math.cos(angle)*radius;
+      const cz = Math.sin(angle)*radius;
+      const group = new THREE.Group();
+      group.position.set(cx, 0, cz);
+      scene.add(group);
+
+      // core star
+      const coreGeo = new THREE.SphereGeometry(9, 24, 24);
+      const coreMat = new THREE.MeshBasicMaterial({color: sys.color});
+      const core = new THREE.Mesh(coreGeo, coreMat);
+      group.add(core);
+      const glowGeo = new THREE.SphereGeometry(16, 16, 16);
+      const glowMat = new THREE.MeshBasicMaterial({color: sys.color, transparent:true, opacity:0.15});
+      group.add(new THREE.Mesh(glowGeo, glowMat));
+
+      // note-planets scattered around
+      const planetGeo = new THREE.BufferGeometry();
+      const pCount = 60;
+      const pPos = new Float32Array(pCount*3);
+      for(let j=0;j<pCount;j++){
+        const rr = 30 + Math.random()*90;
+        const th = Math.random()*Math.PI*2;
+        const ph = (Math.random()-0.5)*0.6;
+        pPos[j*3] = Math.cos(th)*rr;
+        pPos[j*3+1] = Math.sin(ph)*rr*0.4;
+        pPos[j*3+2] = Math.sin(th)*rr;
+      }
+      planetGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+      const planetMat = new THREE.PointsMaterial({color: sys.color, size:2.6, transparent:true, opacity:0.75});
+      group.add(new THREE.Points(planetGeo, planetMat));
+
+      objectsRef.current.systems[sys.id] = {group, angle, radius, color:sys.color};
+    });
+
+    // orbit controls (lightweight manual)
+    let isDragging=false, prevX=0, prevY=0, camAngle=0.4, camElev=0.35, camDist=520;
+    const dom = renderer.domElement;
+    dom.style.cursor = 'grab';
+    dom.addEventListener('mousedown', e=>{isDragging=true; prevX=e.clientX; prevY=e.clientY; dom.style.cursor='grabbing';});
+    window.addEventListener('mouseup', ()=>{isDragging=false; dom.style.cursor='grab';});
+    window.addEventListener('mousemove', e=>{
+      if(!isDragging) return;
+      camAngle -= (e.clientX-prevX)*0.004;
+      camElev = Math.max(0.08, Math.min(1.3, camElev + (e.clientY-prevY)*0.003));
+      prevX=e.clientX; prevY=e.clientY;
+    });
+    dom.addEventListener('wheel', e=>{
+      camDist = Math.max(120, Math.min(1200, camDist + e.deltaY*0.4));
+      e.preventDefault();
+    }, {passive:false});
+
+    // raycaster for selecting systems
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    dom.addEventListener('click', e=>{
+      const rect = dom.getBoundingClientRect();
+      mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
+      mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(scene.children, true);
+      if(hits.length){
+        onSelect({type:'point', pos:hits[0].point});
+      }
+    });
+
+    let raf;
+    const animate = ()=>{
+      raf = requestAnimationFrame(animate);
+      camera.position.x = Math.sin(camAngle)*camDist;
+      camera.position.z = Math.cos(camAngle)*camDist;
+      camera.position.y = camDist*camElev*0.5 + 60;
+      camera.lookAt(0,0,0);
+
+      Object.values(objectsRef.current.systems).forEach(s=>{
+        s.group.children[0].rotation.y += 0.002;
+      });
+
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    sceneRef.current = {scene, camera, renderer, dom};
+
+    const onResize = ()=>{
+      const w = mountRef.current.clientWidth, h = mountRef.current.clientHeight;
+      camera.aspect = w/h; camera.updateProjectionMatrix();
+      renderer.setSize(w,h);
+    };
+    window.addEventListener('resize', onResize);
+
+    return ()=>{
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+      mountRef.current.removeChild(renderer.domElement);
+    };
+  }, []);
+
+  // update ships whenever agents change
+  useEffect(()=>{
+    const {scene} = sceneRef.current || {};
+    if(!scene) return;
+    const shipObjs = objectsRef.current.ships;
+    const trailObjs = objectsRef.current.trails;
+    const seen = new Set();
+
+    agents.forEach(agent=>{
+      seen.add(agent.id);
+      const sys = objectsRef.current.systems[agent.system];
+      if(!sys) return;
+      let ship = shipObjs[agent.id];
+      if(!ship){
+        const geo = new THREE.ConeGeometry(2.6, 7, 6);
+        const color = agent.anon ? 0x9a7ce0 : 0xffffff;
+        const mat = new THREE.MeshBasicMaterial({color});
+        ship = new THREE.Mesh(geo, mat);
+        scene.add(ship);
+        shipObjs[agent.id] = ship;
+
+        const trailGeo = new THREE.BufferGeometry();
+        const trailMat = new THREE.LineBasicMaterial({color: sys.color, transparent:true, opacity:0.55});
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
+        trailObjs[agent.id] = trailLine;
+      }
+      // position ship near its system, offset by hashed target
+      const hashOf = (s)=>{let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h;};
+      const h = hashOf(agent.target || agent.id);
+      const localAngle = (h % 628) / 100;
+      const localR = 30 + (h % 90);
+      const lx = Math.cos(localAngle)*localR;
+      const ly = Math.sin(localAngle*1.3)*localR*0.3;
+      const lz = Math.sin(localAngle)*localR;
+      const worldX = sys.group.position.x + lx;
+      const worldY = ly;
+      const worldZ = sys.group.position.z + lz;
+
+      ship.userData.targetPos = new THREE.Vector3(worldX, worldY, worldZ);
+      if(!ship.userData.curPos) ship.userData.curPos = ship.position.clone();
+      ship.userData.curPos.lerp(ship.userData.targetPos, 0.15);
+      ship.position.copy(ship.userData.curPos);
+      ship.lookAt(sys.group.position);
+
+      // trail points (fade)
+      const trailPts = (agent.trail||[]).slice(-10).map((_,idx,arr)=>{
+        const th = hashOf((agent.trail[agent.trail.length-arr.length+idx]||{}).node || agent.id + idx);
+        const a2 = (th%628)/100, r2 = 30+(th%90);
+        return new THREE.Vector3(
+          sys.group.position.x + Math.cos(a2)*r2,
+          Math.sin(a2*1.3)*r2*0.3,
+          sys.group.position.z + Math.sin(a2)*r2
+        );
+      });
+      trailPts.push(ship.position.clone());
+      trailObjs[agent.id].geometry.setFromPoints(trailPts);
+    });
+
+    // cleanup retired agents
+    Object.keys(shipObjs).forEach(id=>{
+      if(!seen.has(id)){
+        scene.remove(shipObjs[id]);
+        scene.remove(trailObjs[id]);
+        delete shipObjs[id];
+        delete trailObjs[id];
+      }
+    });
+  }, [agents]);
+
+  return null;
+}
+
+// ---------- Main App ----------
+function App(){
+  const [mode, setMode] = useState("sim"); // "sim" | "live"
+  const [wsUrl, setWsUrl] = useState("wss://hypatia.internal/telemetry");
+  const [wsStatus, setWsStatus] = useState("idle"); // idle | live | err
+  const [agents, setAgents] = useState(new Map());
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const mountRef = useRef(null);
+  const engineRef = useRef(null);
+  const wsRef = useRef(null);
+  const agentsRef = useRef(new Map()); // mirror for use inside metrics fragment calc
+
+  // events no longer live in React state — each one is swapped straight
+  // into the DOM by htmx. handleEvent is now just "hand this to htmx".
+  const handleEvent = useCallback((ev)=>{
+    swapTickerEvent(ev);
+  }, []);
+  const handleAgentUpdate = useCallback((map)=>{
+    agentsRef.current = map;
+    setAgents(map);
+  }, []);
+  const handleMetrics = useCallback((m)=>{
+    const activeTraversals = Array.from(agentsRef.current.values()).filter(a=>a.status==="traversing").length;
+    swapMetrics(m, activeTraversals, agentsRef.current.size);
+  }, []);
+
+  // htmx fragments (ticker rows) fire this custom event on click; React owns
+  // the inspector panel, so it listens here rather than htmx reaching into
+  // React-managed DOM directly.
+  useEffect(()=>{
+    const onSelect = (e)=>{
+      const agent = agentsRef.current.get(e.detail);
+      if(agent) setSelectedAgent(agent);
+    };
+    document.addEventListener('select-agent', onSelect);
+    return ()=> document.removeEventListener('select-agent', onSelect);
+  }, []);
+
+  useEffect(()=>{
+    if(mode === "sim"){
+      if(wsRef.current){ wsRef.current.close(); wsRef.current=null; }
+      setWsStatus("idle");
+      clearHtmxPanels();
+      const engine = new SimEngine(handleEvent, handleAgentUpdate, handleMetrics);
+      engineRef.current = engine;
+      engine.start();
+      return ()=> engine.stop();
+    } else {
+      if(engineRef.current){ engineRef.current.stop(); engineRef.current=null; }
+      setAgents(new Map());
+      agentsRef.current = new Map();
+      clearHtmxPanels();
+      // ONE socket drives everything. Frames are demuxed by shape:
+      //  - text starting with "<" → server-rendered HTML fragment → htmx
+      //    (a real bridge would send OOB-swap markup: <div id="ticker-body"
+      //    hx-swap-oob="afterbegin">…</div> — htmx.process handles it as-is)
+      //  - otherwise JSON → scene/agent state → React
+      // This is why we don't use htmx's own hx-ws/ws-connect here: that
+      // extension opens its own connection, which would mean two sockets
+      // against the same Hypatia event stream for no reason.
+      try{
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+        setWsStatus("connecting");
+        ws.onopen = ()=> setWsStatus("live");
+        ws.onerror = ()=> setWsStatus("err");
+        ws.onclose = ()=> setWsStatus(s=> s==="err" ? "err" : "idle");
+        ws.onmessage = (msg)=>{
+          const raw = msg.data;
+          if(typeof raw === "string" && raw.trim().startsWith("<")){
+            applyServerFragment(raw);
+            return;
+          }
+          try{
+            const data = JSON.parse(raw);
+            if(data.type === "agent_update") handleAgentUpdate(new Map(Object.entries(data.agents)));
+            else if(data.type === "metrics") handleMetrics(data.metrics);
+          }catch(e){ /* ignore malformed frame */ }
+        };
+      }catch(e){
+        setWsStatus("err");
+      }
+      return ()=>{ if(wsRef.current){ wsRef.current.close(); wsRef.current=null; } };
+    }
+  }, [mode, wsUrl]);
+
+  const agentArr = Array.from(agents.values());
+
+  return (
+    <div>
+      <div id="scene-wrap" ref={mountRef}>
+        <GalaxyScene agents={agents} onSelect={()=>{}} mountRef={mountRef} />
+      </div>
+
+      <div className="topbar">
+        <div className="brand">
+          <div className="mark">Kosmos Galaxy Console</div>
+          <div className="sub">GKOS Engine · Traversal Telemetry</div>
+        </div>
+        <div style={{display:'flex', alignItems:'center'}}>
+          <div className="mode-toggle">
+            <button className={mode==="sim"?"active":""} onClick={()=>setMode("sim")}>SIMULATED</button>
+            <button className={mode==="live"?"active":""} onClick={()=>setMode("live")}>HYPATIA LIVE</button>
+          </div>
+          {mode==="live" &&
+            <div className="ws-row">
+              <span className={"ws-dot " + (wsStatus==="live"?"live":wsStatus==="err"?"err":"")}></span>
+              <input
+                value={wsUrl}
+                onChange={e=>setWsUrl(e.target.value)}
+                placeholder="wss://hypatia.internal/telemetry"
+              />
+            </div>
+          }
+        </div>
+      </div>
+
+      <div className="breadcrumb">
+        Galaxy <span style={{opacity:0.4}}>›</span> <span className="here">{mode==="sim" ? "Simulated Fleet" : (wsStatus==="live" ? "Live Feed" : wsStatus==="err" ? "No connection" : "Connecting…")}</span>
+      </div>
+
+      <div className="panel" id="agents-panel">
+        <div className="panel-head">
+          <span>Active Agents</span>
+          <span>{agentArr.length}</span>
+        </div>
+        <div className="panel-body">
+          {agentArr.length===0 && <div className="insp-empty" style={{padding:"10px"}}>No agent connections.</div>}
+          {agentArr.map(a=>(
+            <div key={a.id} className={"agent-row"+(selectedAgent&&selectedAgent.id===a.id?" selected":"")}
+                 onClick={()=>setSelectedAgent(a)}>
+              <div className="agent-dot" style={{background: a.anon ? "#9a7ce0" : "#dbe4f5"}}></div>
+              <div className="agent-info">
+                <div className="agent-name">
+                  {a.shipName}
+                  {a.anon
+                    ? <span className="anon-badge">ANON</span>
+                    : <span style={{color:"var(--ink-dim)", fontWeight:400}}> · {a.label}</span>}
+                </div>
+                <div className="agent-meta">{a.backend} · {SYSTEMS.find(s=>s.id===a.system)?.name}</div>
+              </div>
+              <div className={"agent-status status-"+a.status}>{a.status}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Ticker + metrics panels are NOT rendered here — they're static
+          HTML outside #root, owned by htmx. See swapTickerEvent /
+          swapMetrics / the ws demux above. */}
+
+      <div className="zoom-hint">DRAG TO ORBIT · SCROLL TO ZOOM · CLICK A SYSTEM TO INSPECT</div>
+
+      <div className="panel" id="inspector-panel">
+        <div className="panel-head"><span>Inspector</span></div>
+        <div className="panel-body">
+          {!selectedAgent && <div className="insp-empty">Select an agent from the list to inspect its current traversal.</div>}
+          {selectedAgent && (
+            <div>
+              <div className="insp-field"><span className="k">Ship</span><span className="v">{selectedAgent.shipName}</span></div>
+              <div className="insp-field"><span className="k">Identity</span><span className="v">{selectedAgent.anon ? "Anonymous (MCP flagged)" : selectedAgent.label}</span></div>
+              <div className="insp-field"><span className="k">Backend</span><span className="v">{selectedAgent.backend}</span></div>
+              <div className="insp-field"><span className="k">Current target</span><span className="v">{selectedAgent.target}</span></div>
+              <div className="insp-field"><span className="k">Status</span><span className="v">{selectedAgent.status}</span></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>

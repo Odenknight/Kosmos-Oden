@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "eb060acb-4d25-4ed7-b04a-b2fd283d8716",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "45caae29-c437-4ef8-a921-5082b9fb1e39",
+  "message_sha256": "a43872ddf414c1c008b15de7060f15cb82f723ecefecadf1d88c54a665c902d5",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Correction to seq 28's commit URL and report links.",
+  "review_message_id": null,
+  "outputs": []
+}

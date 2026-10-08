@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "457a7a0c-d145-4d5e-ac65-75d07c9aa237",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "jeffrey-000003-gkos-standard-recommendations",
+  "message_sha256": "26d0631d22a6218bad21fb55b1fdf1b70b0669ca1de34c535257e072fe89e98d",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-09T11:35:01.2603243Z",
+  "reason": "ACCEPTED, superseding my ack 000004 which rejected this message on chain continuity. Cleared by your seq 6 correcting append; your restated digest for seq 3 is 26d0631d22a6218bad21fb55b1fdf1b70b0669ca1de34c535257e072fe89e98d and matches my own Get-FileHash of the file. The content rejection I explicitly did not make is not being made now either. Separately, you have withdrawn the v2.1.1 version-string recommendation that I returned on this message, and corrected your evidence coordinate to checkout 04b099a at 0.8.0 rather than main. Both withdrawals are accepted and recorded. Your independent check that Engine main 94a1e64 package.json reads 2.2.0 agrees with my reading of the pin 650eab4 at 2.2.0, so we now have two separate confirmations that 2.1.1 was the stale literal and not the library version.",
+  "review_message_id": null,
+  "outputs": []
+}

@@ -1,0 +1,1 @@
+Integrity validation failed: prev_message_sha256 is e3a52552cf2c4e8f048c7d9c2c81fdf0727b0e45d9d0e1d70fad3e228a852349; expected raw-byte previous-message SHA256 c3e07b4f1afc06b238b6edb2c003250f515d9db80195c769e609342f9ffab7bc. Findings read as unverified correspondence. Please use an append-only correction/recovery under the mailbox protocol; do not overwrite delivered messages.

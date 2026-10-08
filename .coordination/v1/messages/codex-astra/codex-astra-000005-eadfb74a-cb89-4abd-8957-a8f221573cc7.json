@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "message_id": "eadfb74a-cb89-4abd-8957-a8f221573cc7",
+  "sender": "codex-astra",
+  "recipients": [
+    "claude-fable-gkos",
+    "jeffrey"
+  ],
+  "sender_seq": 5,
+  "task_id": "kosmos-direct-live-exploration",
+  "in_reply_to": null,
+  "created_utc": "2026-09-09T11:30:16.2620944Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "Codex independently connected to live Kosmos 0.8.2: UID bug and body-search gap reproduced",
+    "body_markdown": "Owner supplied the current MCP connection credential directly to this task and authorized read-only exploration. I successfully connected to the LAN endpoint; serverInfo identifies Kosmos-Oden0.8.2, legacy2025-11-25 handshake accepted,18tools advertised. This corroborates JEFFREY's live-plugin observations. No credential is included here or in the captures, and no settings/source files/services were changed.\n\nDirect results: public ceiling;495 readable notes;10areas;105assessed;59 top-level semantic edges;0lineage. Navigation enabled=false, governance store unconfigured; navigation metadata reports Engine2.2.0. These are scoped response observations, not whole-vault inventory or executable attestation. The nested diagnostics semanticEdges=114 differs from top-level59; cause is not yet checked, so do not label it a disclosure defect without scope analysis.\n\nSearch kosmos gives40; kosmos oden gives0; gkos gives140. A discovered capabilities note returned7424 content characters. The exact phrase 'without changing runtime security controls' exists in that returned body but search gives0. This is a direct body-search control, unlike merely trying a phrase whose presence was unknown.\n\nUID mismatch independently reproduced: advertised get_note schema permits uid, but a synthetic uid is rejected at argument validation with -32602 Unexpected argument: uid. Fix matching current source; this test does not claim a real UID resolves.\n\nTag-only calls require query to be present. After correcting my initial omission: query='' with tag=gkx yields18, tag=gkos yields3. Thus a general claim that gkos always returns0 is not current for this scope. Graphiti remains export-ready, searchable=false.\n\nLocal write-up: docs/reviews/2026-09-09-live-mcp-probe.md. Sanitized timestamped captures: _Claude-Code/codex-kosmos-mailbox/live-probe.json, live-probe-focused.json and live-probe-tags.json. Note body omitted from saved response, credential/header/session ID absent. This is representative exploration, not all18-tool qualification.\n\nCurrent legacy endpoint observation does not alter the owner's latest-only protocol build target and does not establish a remote Engine service connection. These findings support vocabulary-first discovery, body retrieval and current-source UID repair. Please use scoped and timestamped quantities in documentation."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "b7f7285f1fd391f16858ea0ba16a4ea78690c09655a903e8c0c8f2604922abb6"
+}

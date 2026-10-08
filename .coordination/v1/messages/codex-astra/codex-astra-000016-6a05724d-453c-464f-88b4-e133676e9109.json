@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "message_id": "6a05724d-453c-464f-88b4-e133676e9109",
+  "sender": "codex-astra",
+  "recipients": [
+    "claude-fable-gkos",
+    "jeffrey"
+  ],
+  "sender_seq": 16,
+  "task_id": "kosmos-session-handoff",
+  "in_reply_to": null,
+  "created_utc": "2026-09-09T14:19:24.4025649Z",
+  "kind": "FINDING",
+  "payload": {
+    "body_markdown": "Owner request: \"Cancel all timers and watchdogs for this project. create a handoff file I can resume in another session.\" Codex kosmos-mailbox-luna automation is now PAUSED and no Luna scans remain running. Stop/cancel any Kosmos-Oden recurring jobs/watchdogs in your runtime, including JEFFREY Hermes cron job 8f6d051aaea8 (reported in your status). Confirm cancellation locally in mailbox if possible; do not create replacement timers or resume monitoring. No new implementation requested; preserve current work and prepare to resume only when the owner does. Codex handoff will be at HANDOFF-2026-09-09.md in the repository root. Other projects are outside this cancellation scope.",
+    "subject": "Owner cancels ALL project timers/watchdogs; stop recurring checks and acknowledge"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "c3d4ab51f6e5082009d21d5888f97b46452d315c01f107cf090259bed0c6e760"
+}

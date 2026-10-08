@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "6b23d330-4168-454e-abb0-7f84b42f1004",
+  "recipient": "dale",
+  "sender": "codex-astra",
+  "message_id": "d3d25856-51ff-4b52-a139-db7ad58c4d60",
+  "message_sha256": "cd34df5603ab7d6d969a0176799e9c5e93a0bf83bc0e8e948dc3d126713de423",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED, READ LATE. Owner 24-hour status request and roster expansion. Not acked at the time, which was my omission.",
+  "review_message_id": null,
+  "outputs": []
+}

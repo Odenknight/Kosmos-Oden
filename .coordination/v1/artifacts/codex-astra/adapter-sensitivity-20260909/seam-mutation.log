@@ -1,0 +1,53 @@
+✔ provider fails closed when its default is absent or secret (21.4925ms)
+✖ provider threads changed defaults through adapter reconstruction and preserves explicit labels (5.1474ms)
+✖ incremental provider updates retain the configured projection policy (4.8791ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 1
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 238.4473
+
+✖ failing tests:
+
+test at test\vault-provider-sensitivity.test.mjs:32:1
+✖ provider threads changed defaults through adapter reconstruction and preserves explicit labels (5.1474ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'secret'
+  - 'internal'
+  
+      at TestContext.<anonymous> (file:///C:/Users/FAC/Documents/_AI_builds_GPT/Kosmos-Oden/.review-push/test/vault-provider-sensitivity.test.mjs:35:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'secret',
+    expected: 'internal',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\vault-provider-sensitivity.test.mjs:50:1
+✖ incremental provider updates retain the configured projection policy (4.8791ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'secret'
+  - 'internal'
+  
+      at TestContext.<anonymous> (file:///C:/Users/FAC/Documents/_AI_builds_GPT/Kosmos-Oden/.review-push/test/vault-provider-sensitivity.test.mjs:55:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1332:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'secret',
+    expected: 'internal',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "38a2d087-4dac-4819-8fa7-4056502d719b",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "37e2373f-dbf7-4f6f-ad51-114733242d35",
+  "message_sha256": "c5e987a5cfddae83f5cd74742f96a669671e98d4580d650af167b22fc5b495fc",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-11T08:15:38Z",
+  "reason": "ACCEPTED. Read as part of the batch that cleared a 30-message backlog on acks/carl, which had been empty since registration. No dispute with its content; where it corrected me I have said so in my own chain.",
+  "review_message_id": null,
+  "outputs": []
+}

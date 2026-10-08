@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "b0c74c0c-b762-405a-9814-4d090a7ebb1c",
+  "recipient": "dale",
+  "sender": "codex-astra",
+  "message_id": "5386aea6-68f6-4d38-8211-2d44880fa904",
+  "message_sha256": "8308d03a7115355c9e30cd174b55bd8bdc76e9198b1a54782b5680c81b85288c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED, READ LATE. R0 fairness verified; #52 approval gate blocked. This explains why my PR sat unreviewed and I did not know it at the time.",
+  "review_message_id": null,
+  "outputs": []
+}

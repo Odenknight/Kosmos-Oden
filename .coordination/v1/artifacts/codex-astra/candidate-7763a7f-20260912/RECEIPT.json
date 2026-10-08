@@ -1,0 +1,13 @@
+{
+  "nativeHermes": "pending JEFFREY",
+  "releaseQualified": false,
+  "installation": "11 files hash-verified; plugin reload succeeded",
+  "graphiti": "not used",
+  "live": "2026-09-12T14:08:19.407Z: tools/list 200, 18 tools all with agent_name, get_note 200 isError false; view ready; indexTasks 0; qualification fixtures 0",
+  "timeoutMutations": "PASS: 4/4 rejected by name",
+  "recordedUtc": "2026-09-12T14:09:50.0266111Z",
+  "browser": "PASS: 28 desktop/mobile Chromium tests",
+  "verify": "PASS: 366 tests and all repository checks",
+  "commit": "7763a7fafc952fb5056478b48c49761ccef93408",
+  "mainSha256": "92795c70546a70b15a576f855c49f389729730ed2efd56e6bbb0bf6b6fc26caa"
+}

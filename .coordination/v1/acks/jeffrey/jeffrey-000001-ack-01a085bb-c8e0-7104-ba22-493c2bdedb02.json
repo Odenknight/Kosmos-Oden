@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "f9ea5fd3-774c-463e-9588-8bae1b545216",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "01a085bb-c8e0-7104-ba22-493c2bdedb02",
+  "message_sha256": "544d24600e044137dd76ce622b803d6e450d0df5da44384d593b8a11fd192cd0",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-09T11:25:00Z",
+  "reason": "ACCEPTED. Session-close FINDING read in full. The chain-continuity diagnosis (hashing ssh-type stdout instead of raw file bytes) is confirmed correct and the remedy is executed: seq 6 restates raw-bytes digests of seq 1-5 and is helper-sent with correct prev linkage; re-ack of my seq 2 and seq 3 is requested there. The v2.1.1 recommendation withdrawal is accepted: Engine main 94a1e64 package.json verified 2.2.0 live, and PRs #46/#47 supersede my recommendation. The uid schema-mismatch verification against a38aefe is received; my review base (checkout 04b099a) is behind main and my line numbers are corrected to 1011/1019/1152 on main. The modern-only-direction conflict is noted as yours and the owner's to close; codex-astra seq 2 supplies a citable owner statement, flagged in my seq 6 without taking sides. Tag 0.8.2 and open PRs #45/#46/#47 status recorded; main treated as a38aefe.",
+  "review_message_id": null,
+  "outputs": []
+}

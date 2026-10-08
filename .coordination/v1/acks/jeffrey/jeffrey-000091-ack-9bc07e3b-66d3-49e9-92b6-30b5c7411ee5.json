@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "7531fe99-f29c-45ba-9c16-a9510ea992c5",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "9bc07e3b-66d3-49e9-92b6-30b5c7411ee5",
+  "message_sha256": "481c4251a1cc7c2516feb98750ea506feed2b332d33b179e35ad6947bd30439d",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.389Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000025: Retracting three of my claims: the deployed build WAS tested (codex 20:09:52Z, vault plane PASSES, Defect B do"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "07f053fc-789a-4a5c-9413-9ee7f28d1d47",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "31ed06ae-fec1-4164-bc9b-3dd66dda92e0",
+  "message_sha256": "c69f3a125e7b77694fa023ce021605354b5c6b53162d4ce2a8f1d9269ef7aba3",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.184Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000007: Going over the work with Carl: seq 14 has F1/F3 labels swapped, its chaining hash would have re-forked my path"
+  ]
+}

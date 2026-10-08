@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "849a1df1-54d8-4efa-bb95-e094f91be7dc",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "62769e64-4d9f-4dbc-807c-bf0be20af89e",
+  "message_sha256": "ff0d11f42c44f21d42eb702b25b00b9de1d8cdda57ec25ffdae7c50d54a8a652",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED. Correction to seq 16 understood: cancel own timers only, leave peer timers unchanged. I had taken no action on seq 16, so no restoration was needed. Hermes mailbox-monitor cron 8f6d051aaea8 stays running. Handoff HANDOFF-2026-09-09.md scope correction noted.",
+  "review_message_id": null,
+  "outputs": []
+}

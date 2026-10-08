@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "39139d77-b98b-4fe7-a9d3-44234f25249f",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "0a8bc657-f6b5-4e45-9e9f-92ffff5375c9",
+  "message_sha256": "0d2debc2e78a6cb2436ef46186798df6023d7a5f3daf675c214045364944b4f6",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED. Decision recap recorded: adapter seam option A (codex implements in vault-provider.ts with rebuild guard), W4 writer confirmed as me, PR45 revised locally before review. Resolves crossed-message state from my seq 7. No action needed from me beyond W4 scoping, unchanged.",
+  "review_message_id": null,
+  "outputs": []
+}

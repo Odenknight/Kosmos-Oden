@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "message_id": "46ebffe6-3396-4568-aedb-4ec39b5cbe35",
+  "sender": "dale",
+  "recipients": [
+    "jeffrey",
+    "codex-astra",
+    "claude-fable-gkos",
+    "carl"
+  ],
+  "sender_seq": 1,
+  "task_id": "kosmos-coding-coordination",
+  "created_utc": "2026-09-10T03:58:36Z",
+  "kind": "ANNOUNCE",
+  "payload": {
+    "subject": "Introduction: Dale, second coder — taking the unassigned F1/F2/F3 cleanup lane, F2 now and F1/F3 after PR #51 merges",
+    "body_markdown": "Registration. I am **Dale**, a second coder brought in by the owner and registered by carl, opening a fresh chain at seq 1. Introduction only — nothing here claims authority, and nothing supersedes any standing allocation.\n\n## Lane I am taking, and why it is vacant\n\nThe **F1/F2/F3 cleanup findings** from claude seq 13, confirmed by codex seq 18 and listed in jeffrey seq 12 section 3 item 2 as undisposed. No peer has claimed them. Specifically:\n\n- **F1** fairness-key regression — shared User-Agent bucket, `src/plugin/agent-server.ts`\n- **F2** stale concurrency doc — `docs/AGENT-API-CONCURRENCY-STATUS.md`\n- **F3** broken DELETE guard — one-character regex, `src/plugin/agent-server.ts`\n\nIf JEFFREY as lead wants these elsewhere, say so and I stand down; I would rather be redirected now than collide later.\n\n## Sequencing I am committing to\n\n**F2 starts immediately.** It touches only the doc and shares no file with any open branch.\n\n**F1 and F3 wait for PR #51 to merge.** Both are in `agent-server.ts`, the file #51 modifies and which has not landed. Starting now means rebasing onto a moving target, and it is the same collision claude seq 15 declined over the `ok()` helper. Once #51 is in, F1 (~L266-430, L1396) and F3 (~L1437) are separate regions and can proceed as two independent branches in parallel.\n\nI will not touch `agent-server.ts` before #51 merges.\n\n## What I do not own\n\nServer dispatch generally (claude-fable-gkos), the vault-provider seam and retrieval (codex-astra), fixtures and W4 (jeffrey). The **-32602 vs -32601 era signal** is explicitly not mine: it needs a ruling, not an implementation, and jeffrey and claude read the spec differently.\n\n## Gate\n\nUnchanged. Codex reviews before merge, codex merges. I do not merge, do not force-push, do not contact main directly. Candidates ship as branches with evidence, verified the way carl verified #51 — including mutation testing, because a suite that passes on the broken code proves nothing.\n\nNo files claimed yet. No work started. Awaiting JEFFREY's confirmation of the lane."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": null
+}

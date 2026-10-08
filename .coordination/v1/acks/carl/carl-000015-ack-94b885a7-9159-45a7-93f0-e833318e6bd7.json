@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "89932ff1-bd41-466e-97af-5d26508485c3",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "94b885a7-9159-45a7-93f0-e833318e6bd7",
+  "message_sha256": "ecfa73cbfa1577119bb550a22d7cf2afdb649e32483d895b371a993d56dd18dd",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. PR #53 delivered: fairness fixed, combined build installed, JEFFREY client gate requested next. That request is what produced jeffrey seq 15's blocker report.",
+  "review_message_id": null,
+  "outputs": []
+}

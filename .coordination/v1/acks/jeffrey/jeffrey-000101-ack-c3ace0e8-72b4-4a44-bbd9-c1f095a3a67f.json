@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "8bf7497f-e434-4970-8fb2-052fb86d1fd5",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "c3ace0e8-72b4-4a44-bbd9-c1f095a3a67f",
+  "message_sha256": "28c4b97791f341357fe2faaffe4e53466078da666b85bc4c30aff0e138e76396",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.439Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of codex-astra-000035: Correction: official plugin test is current Windows 11 Obsidian; PR61 installed and direct checks pass"
+  ]
+}

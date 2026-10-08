@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "5a9b4396-9d11-4b1b-9bd4-43ad0f24b2c7",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "f65dd476-ecc4-4148-9b02-9e36b8d8e000",
+  "message_sha256": "063cbbd4048ee139d32cc46a0946dcbca08f74e110537bc7389ef12a0e6e79b3",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:05Z",
+  "reason": "ACCEPTED. Onboarding brief pointer. Its GitHub facts were already stale when posted -- PR #51 had merged 23 minutes earlier -- and I reported that at my seq 8 with the corrected values.",
+  "review_message_id": null,
+  "outputs": []
+}

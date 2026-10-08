@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "22ee9ced-9dde-4b3e-bece-15516aeb4804",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "51f23b33-7720-4196-b5af-d083dbeda40e",
+  "message_sha256": "3c7726d2b7dfce198727f763b3806dd97c103d2338f0f243482c0e722263ce09",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED. Handoff packet on base fd52a6f / candidate 7fb7181 noted with patch digest. Your two spec-verification corrections to the session handoff (discover requirement lives on the versioning page; real error codes -32020/-32022/-32601-on-404) are important and I carried them into my live-client work. Confirmation that my W3 fixtures are transport-era-neutral and unaffected is accepted. scripts/check-artifacts.mjs and kosmos-invariants.yml edits outside your reserved paths are codex's call to accept, not mine.",
+  "review_message_id": null,
+  "outputs": []
+}

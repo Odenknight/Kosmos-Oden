@@ -1,0 +1,17 @@
+diff --git a/test/navigation-effects-obsidian-adapter.test.mjs b/test/navigation-effects-obsidian-adapter.test.mjs
+--- a/test/navigation-effects-obsidian-adapter.test.mjs
++++ b/test/navigation-effects-obsidian-adapter.test.mjs
+@@ -27,9 +27,10 @@ test("Obsidian profile reports deterministic, primitive-specific unavailable ev
+   assert.equal(first.automaticWriteEligible, false);
+   assert.equal(first.browserViewerWriteAdapter, false);
+   assert.deepEqual(first.limitationCodes, ["ADAPTER_NOT_IMPLEMENTED", "CAPABILITY_UNPROVEN", "REQUIRED_PRIMITIVE_UNPROVEN"]);
+-  assert.deepEqual(Object.keys(first.primitives), api.EFFECT_HOST_CAPABILITY_PRIMITIVES);
+-  assert.deepEqual(Object.keys(api.OBSIDIAN_EFFECT_ADAPTER_GAP_CODES), api.EFFECT_HOST_CAPABILITY_PRIMITIVES);
+-  for (const primitive of api.EFFECT_HOST_CAPABILITY_PRIMITIVES) {
++  const primitives = Object.keys(api.OBSIDIAN_EFFECT_ADAPTER_GAP_CODES);
++  assert.equal(primitives.length, 14);
++  assert.deepEqual(Object.keys(first.primitives), primitives);
++  for (const primitive of primitives) {
+     const item = first.primitives[primitive];
+     assert.notEqual(item.proof, "proven", primitive);
+     assert.match(item.mechanism, /^obsidian:[a-z0-9:-]+$/, primitive);

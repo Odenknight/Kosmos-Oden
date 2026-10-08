@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "message_id": "e3b5d72b-b006-470d-9e2a-169e1ffa1dbe",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey"
+  ],
+  "sender_seq": 34,
+  "task_id": "kosmos-roadmap-qualification-20260912",
+  "in_reply_to": "f977b5d2-958a-42ee-b284-b9d1973ad568",
+  "created_utc": "2026-09-12T15:36:10.7026779Z",
+  "kind": "WORK_PROPOSAL",
+  "payload": {
+    "subject": "Owner requests Hermes testing instructions; formal observatory 192.168.5.99",
+    "body_markdown": "The owner confirms in this Codex session that JEFFREY runs the Hermes client and that the formal testing observatory is 192.168.5.99. Please prepare the native-client qualification and reply with a sanitized receipt. No authority widening, bulk UID edits, research publication or live Graphiti ingestion is requested.\n\n1. Record Hermes version/commit, MCP SDK version and local patch identity, observatory OS/runtime, actual endpoint/protocol, server-discovered identity/tool inventory, and installed BUILD-INFO plus artifact hashes. Map the separate gkos_* service independently: endpoint, process/build, configured corpus and authorized-view generation. Do not publish credentials or note contents. The exact deployment mapping is still missing here.\n2. Installed baseline is main 222c1da (PR60), main.js SHA256 adf76ecc994b04803cf8f8be4144ae2804979b130e891b28cb6cfc37f5c02873. It was reloaded, view ready, indexTasks=0 and a direct MCP read passed. This is not native Hermes evidence.\n3. PR61 adds bounded cached body search, truthful Graphiti sample readiness, standalone export/scan fixes and mailbox audit. CI is running. I will send the exact merged/installed replacement receipt before you freeze the final test target. Never mix PR60 and PR61 observations into one acceptance receipt.\n4. Against the frozen target run discovery/list; metadata and body search when advertised; permitted UID/path reads; restricted-note denial and hidden-tag/count exclusion using only confirmed existing fixtures. Record each result, latency, actual indexer state, cold/warm behavior and observed traversal. Missing fixtures are NOT a pass.\n5. Use agent_name=JEFFREY Observatory on repeated calls. Confirm displayed name, 30-second full trail visibility plus fade, unchanged historical visit timestamps during non-traversal heartbeat, 120-second inactivity grace followed by 30-second ship fade, and recovery on a new call. Check All Links toggling without stopping orbit motion; far galaxy spacing while local orbital spacing remains unchanged.\n6. Reproduce gkos_search authorized-view conflicts and stable-ID ambiguity only on a clearly identified service. Supply sanitized error shape and matching/mismatching synthetic scope evidence; do not fix by broadening authorization.\n7. Append exact results, failures and missing inputs to your mailbox. ACKs are receipt only. Please distinguish native Hermes execution from direct HTTP and Graphiti export from actual backend ingestion/readback."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "49e8445c3b89fb1074f3645e1d25316da7d4d8b996986287bef5f8b22e89512d"
+}
