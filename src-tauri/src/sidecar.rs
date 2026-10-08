@@ -338,7 +338,22 @@ fn spawn_locked(inner: &mut Inner, executable: &Path) -> Result<(), String> {
     owner_only_directory(state_root)
         .map_err(|error| format!("cannot protect sidecar state: {error}"))?;
     let status_file = state_root.join("desktop-agent.status.json");
-    let log_path = state_root.join("desktop-agent.log");
+    // The Engine retains read-only handles on status-directory siblings during
+    // publication. A live append handle there conflicts with that guard on Windows.
+    // Keep diagnostics in a separate private directory; retain old logs in place.
+    let log_root = state_root
+        .parent()
+        .ok_or("sidecar log parent is unavailable")?
+        .join("sidecar-logs");
+    #[cfg(windows)]
+    let _log_guard = crate::windows_state::ensure(&log_root)
+        .map_err(|error| format!("cannot protect sidecar logs: {error}"))?;
+    #[cfg(not(windows))]
+    fs::create_dir_all(&log_root)
+        .map_err(|error| format!("cannot prepare sidecar logs: {error}"))?;
+    owner_only_directory(&log_root)
+        .map_err(|error| format!("cannot protect sidecar logs: {error}"))?;
+    let log_path = log_root.join("desktop-agent.log");
     #[cfg(windows)]
     let stdout = crate::windows_state::open_log(&log_path)
         .map_err(|error| format!("cannot open sidecar log: {error}"))?;

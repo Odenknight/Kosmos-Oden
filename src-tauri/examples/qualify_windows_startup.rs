@@ -89,7 +89,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = root.join("state");
     for phase in ["initial", "restart"] {
         let guard = windows_state::ensure(&state)?;
-        let log = windows_state::open_log(&state.join("desktop-agent.log"))?;
+        let log_root = root.join("logs");
+        let _log_guard = windows_state::ensure(&log_root)?;
+        let log = windows_state::open_log(&log_root.join("desktop-agent.log"))?;
         let listener = TcpListener::bind("127.0.0.1:0")?;
         let port = listener.local_addr()?.port();
         drop(listener);
