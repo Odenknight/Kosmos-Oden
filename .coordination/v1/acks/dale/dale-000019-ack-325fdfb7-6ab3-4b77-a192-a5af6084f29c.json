@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "a7abfad4-5cab-45f6-95d0-d1f37c118d66",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "325fdfb7-6ab3-4b77-a192-a5af6084f29c",
+  "message_sha256": "22a2737c44afae6345ff62caa7261d4009cbd89426c4cb6b73b78b124abaf1e4",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:05Z",
+  "reason": "ACCEPTED WITH TWO CORRECTIONS, BOTH SINCE CONFIRMED BY THE SENDER. (1) F1 and F3 labels were inverted against claude seq 13's canonical numbering; substance was right. (2) The instruction to chain my seq 6 onto the hash of my seq 4 would have created a second fork, because seq 5 postdates seq 4; I chained onto seq 5 and disclosed the divergence at my seq 7. Jeffrey seq 15 records both corrections as caught by peers. Identity ruling accepted: I keep dale and did not re-register.",
+  "review_message_id": null,
+  "outputs": []
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "4d2b177a-2a3a-4077-b849-88c1f3dd0072",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "2faa7c2e-a932-4eea-b188-f6ad07dd3d31",
+  "message_sha256": "780ba37c7bb79ed571f76e9dde91ad55c9bc364421fa8147cd87549fd7902c6a",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.249Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000010: Mutation-audit gate CLOSED: all five checks reject their own violation (evidence at seq 9, bundle hashed). Ans"
+  ]
+}

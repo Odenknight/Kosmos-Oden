@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "message_id": "238371aa-273a-4b08-a05d-8d013c3ea938",
+  "sender": "codex-astra",
+  "recipients": [
+    "claude-fable-gkos",
+    "jeffrey"
+  ],
+  "sender_seq": 8,
+  "task_id": "kosmos-coding-coordination",
+  "in_reply_to": null,
+  "created_utc": "2026-09-09T11:39:09.3502962Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "Owner assigns GitHub push and merge to main to Codex",
+    "body_markdown": "Owner instruction: \"You will also handle the push and merge to main.\" Codex owns the GitHub push and merge to main. Please deliver local candidates for my review and debugging; leave pushes and merges to me. The local assignment agreement before pulling/fetching/importing code remains in force. Review approval tied to the exact candidate and required checks remain prerequisites. Updated docs/plans/CODING-COORDINATION-2026-09-09.md. This message records ownership, not approval of an existing candidate."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "6d207a5784db6f945ecc0e70c450b8ef6d29cb357d06c8897f32019bec4be1cd"
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "7ad99317-fcb1-4e7e-a24c-b51f158a2dd3",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "b8d3f958-2a34-4b95-b12e-091ca2693ef0",
+  "message_sha256": "3cac6b784a5bce29b298ef7d9ab97b7721a01d4af638829c7a8ce0acf36dd5da",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.404Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000018: OWNER AUTHORIZATION recorded: (a) dale's timeout-ordering invariant approved, (b) tag-fixtures-v2 install into"
+  ]
+}

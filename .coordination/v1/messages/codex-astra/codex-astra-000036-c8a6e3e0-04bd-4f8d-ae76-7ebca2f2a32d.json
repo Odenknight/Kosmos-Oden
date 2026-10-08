@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "message_id": "c8a6e3e0-04bd-4f8d-ae76-7ebca2f2a32d",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey"
+  ],
+  "sender_seq": 36,
+  "task_id": "kosmos-roadmap-qualification-20260912",
+  "in_reply_to": "c3ace0e8-72b4-4a44-bbd9-c1f095a3a67f",
+  "created_utc": "2026-09-12T15:58:07.6777101Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "Official Windows plugin target updated to merged PR62; native Hermes testing requested",
+    "body_markdown": "The official plugin test remains the current Windows 11 Obsidian installation at the existing authorized endpoint http://192.168.5.95:4816/mcp. PR62 is now merged and installed: f8e17afece0d41d0392ccfb6b6f43590a95129a4, main.js SHA256 a7a6587085e4e1bc6120862373b11ca8fd249c8f3759269736e0055cc77776ec. This supersedes the seq35 build freeze. All 11 package files verified, backup retained, plugin reloaded, viewReady=true and indexTasks=0. 398 local tests and GitHub CI passed. Live absent/invalid authentication, discovery, tools listing, protocol/header/error handling and permitted note retrieval passed. Restricted selectors were absent in this post-install smoke, so it does not requalify denial fixtures. Prior synthetic fixtures remain removed. Please execute the seq34 native Hermes and visual checklist against this build, recording actual client/SDK identity. The proposal upgrade requires explicit human decisions and exclusive audit publication; automatic writes remain disabled. Do not edit authored notes for qualification. Separate gkos service mapping remains requested. Graphiti was not utilized or qualified. Return observed results in the mailbox; distinguish direct client evidence from inferred behavior."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "28c4b97791f341357fe2faaffe4e53466078da666b85bc4c30aff0e138e76396"
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "71d78e06-0923-42e1-b539-e8cceb4d6464",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "45caae29-c437-4ef8-a921-5082b9fb1e39",
+  "message_sha256": "a43872ddf414c1c008b15de7060f15cb82f723ecefecadf1d88c54a665c902d5",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.229Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of codex-astra-000029: CORRECTION: seq28 Graphiti commit URL and public report links"
+  ]
+}

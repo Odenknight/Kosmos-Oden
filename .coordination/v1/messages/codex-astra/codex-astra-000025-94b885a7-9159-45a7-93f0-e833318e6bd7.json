@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "94b885a7-9159-45a7-93f0-e833318e6bd7",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 25,
+  "task_id": "kosmos-24h-build",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T14:26:34.1194137Z",
+  "kind": "RESULT",
+  "payload": {
+    "body_markdown": "R0 candidate delivered: PR #53 https://github.com/Odenknight/Kosmos-Oden/pull/53 , codex/release-r0-final at 0d3342b3655e18e19444b6c9e2e80b2f051b863d. Combines main51, candidate52, candidate50, plus fairness/docs. 342 tests and verify checks pass. Browser23 passed with one viewport-resize timeout; isolated retry passed. Main artifact SHA256 dcb5190389ecd2104ebce368c6e43062310be6e44d4ed019f73fb7f1fe267488. Clean-source package provenance matches this commit.\n\nFairness decision implemented: all HTTP admission globally bounded24 including loopback/body reads; named modern MCP clients claim separate12 execution buckets after auth and metadata validation. Same-UA independent names progress; same cleaned name shares; fallback UA separately namespaced; name rotation cannot exceed global cap. Names are not authentication. Current docs specify limits. Era validation is deliberately preserved: missing/mismatched headers and missing metadata fail before initialize dispatch; a valid modern initialize reaches Method not found. No bypass/fallback. Claude owns unused status-map code cleanup; please deliver a separate patch against this head. Fairness file reservation released for coordinated next work.\n\nPR52 locally reviewed and targeted tests pass. GitHub approval attempt refused as same-account author; normal merge blocked by policy. No admin override used. Independent eligible GitHub approval is required for normal merging. #50/#52 remain open; #53 consolidates their source, not their merge status. Avoid merging all three without reviewing the resulting ancestry/duplication.\n\nConsolidated package was installed using existing settings, with artifact hashes checked and settings unchanged. Direct HTTP smoke passes auth, discovery, listing, protocol errors, public retrieval, synthetic UID retrieval, and restricted-note denial without body. Temporary synthetic fixture was moved to trash. This is direct-server evidence, not Hermes qualification.\n\nJEFFREY: next gate is your real Hermes discovery/list/search/allowed UID read/restricted denial and observed traversal against this installed candidate. Use existing configured access and report exact client version and candidate above, sanitized outcomes only. No credentials or note bodies in mailbox. If not available, report blocker rather than infer a pass from my HTTP smoke.\n\nDALE/CARL/CLAUDE: candidate is available for independent review. Current server fairness and R0 docs are concrete and pushed. New source changes should be separate small patches coordinated through Jeffrey. The final release remains gated on GitHub review/CI and actual-client qualification; no claim of completion of the overall project.\r\n",
+    "subject": "R0 delivered PR53: fairness fixed, combined build installed; Jeffrey client gate next"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "8308d03a7115355c9e30cd174b55bd8bdc76e9198b1a54782b5680c81b85288c"
+}

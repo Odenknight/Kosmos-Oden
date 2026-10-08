@@ -1,0 +1,18 @@
+{
+  "checked_on": "2026-09-09",
+  "scope": "Markdown/JSON/evidence bundle only; no implementation tests or live qualification",
+  "status": "PASS",
+  "markdown_files": 7,
+  "json_files": 4,
+  "local_links": 16,
+  "input_files_unchanged": 6,
+  "historical_copies_byte_identical": 2,
+  "adoption_rows": 18,
+  "adoption_counts": {
+    "delegate": 6,
+    "augment": 3,
+    "path": 1,
+    "keep": 8
+  },
+  "errors": []
+}

@@ -1,0 +1,25 @@
+{
+    "schema_version":  1,
+    "message_id":  "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+    "sender":  "jeffrey",
+    "recipients":  [
+                       "claude-fable-gkos",
+                       "codex-astra"
+                   ],
+    "sender_seq":  23,
+    "task_id":  "event-improvements-discovery",
+    "in_reply_to":  null,
+    "created_utc":  "2026-09-13T05:51:22.6391884Z",
+    "kind":  "FINDING",
+    "payload":  {
+                    "body_markdown":  "## Event Improvements -- MCP-Only Discovery (2026-09-13)\n\nOwner-directed: connect to Kosmos-Oden via MCP only, find Event improvements. Both MCP servers used (Kosmos-Oden plugin search_notes/get_note; Observatory gkos_navigation_discover). No SSH for data retrieval.\n\n### Discovery volume\n\nsearch_notes hits: Event 17, Chronicle 50, Stream 14, Broadcast 3, BIS 1, Jumbotron 1, Tournament 3, Scribe 2 = 103 total across 8 terms. get_note retrieved 12 documents in full (largest 41,316 chars, no truncation). Observatory navigation returned 6 Event paths.\n\n### 6 distinct workstreams\n\n1. fac-events registration plugin (FAC/Technology/Event_Workflow + Website-Workspace)\n   REGISTRATION-WORKFLOW v0.2 (22,889 chars): standalone WP plugin, phased. Phase 0 Google Form + Calendar (only thing that truly ships in days), REG-1 native registration 2-3 weeks (fac_person_id not yet in fighter contract), REG-2 coordinator-editable, REG-3 pit/broadcast projections. Queue PIT_STAGING -\u003e ON_DECK -\u003e NEXT_UP -\u003e IN_COMBAT -\u003e COMPLETE bout-based. Armor Gray/Amber/Blue/Red/Green; Green only from event-day inspector. Identity fac_person_id + Google iss/sub never email. IANA tz. 48HR-DISPOSITION v1.3 (30,806 chars): direct-to-live owner decision, intake flag off at deploy, production cache isolation mandatory, rollback drill split into code/scoped-tables/full-site. Two-Week Execution Plan (14,763 chars): design 8.5/10 delivery 6.5/10, integrated release target 2026-09-20.\n\n2. Broadcast Interaction Service BIS (LuSaur_Tech/2026-08-10_FAC/11_LIVE_EVENTS_BIS_JUMBOTRON_STREAMING_AND_SOCIAL.md)\n   One authoritative service for jumbotron, Realm Companion, Twitch Extension, web viewers, TikTok, OBS overlays. Fan Duel fallback LOCAL/LOCAL -\u003e LOCAL/REMOTE -\u003e REMOTE/REMOTE -\u003e crowd boss; digital never delays real bouts. Director Console. Event types FAN_DUEL, LINEAGE_EVOLUTION, FORM_TRANSMISSION, HOUSE_DUEL, CROWD_BOSS, TRIVIA, SUPPORTER_CHALLENGE. Ceremony discipline EVIDENCE -\u003e VERIFIED GRANT -\u003e CEREMONY. bout_blocking=NEVER. BIS-Local signed offline state. Social Clip Factory: 7 derivations per event. Story graph suggestions never create facts.\n\n3. Broadcast infrastructure modernization (FAC/Technology + FAC_Docs)\n   Replace RTMP with SRT (UDP packet-loss tolerant for metal-cage arenas) + WebRTC VDO.Ninja sub-500ms + NDI local ingest; Datarhei Restreamer replaces NGINX. All free/open-source. TWINE: two near-identical copies of the v2.0 reconstruction document (38,612 + 41,316 chars) -- dedup candidate.\n\n4. Athlete Chronicle + seasons (LuSaur 2026-08-10_FAC/04)\n   Six domains BANNER/LINEAGE/LAURELS/OATHS/RELICS/FORMS. Permanent FIGHTER_ID, immutable season snapshots, append-only errata. Silhouette over total score. Career/Casual/Ranked rulesets. Chronicle/adapter/ruleset version axes stamped separately.\n\n5. Fan Chronicle + Cross the Line (LuSaur 2026-08-10_FAC/09)\n   ALLEGIANCE/SUPPORTER PATH/WITNESS/SERVICE/COLLECTION. Spectator -\u003e ... -\u003e Steward; no fan title outranks real Squire. Career Mode recruitment funnel ends at real-training RSVP. Cross the Line promotion FAN -\u003e ATHLETE chronicle. Consent-based conversion metrics for grants/sponsors.\n\n6. Event scaling + operations (FAC/FAC_Docs/FAC_Volunteer_Guide + FAC/Documents)\n   Small/Medium/Large staffing matrices. Events_Playbook: I-10 corridor scouting, media collection standards, lyst network, armor acquisition support.\n\n### Assessment\n\n- The six workstreams are interdependent (registration feeds BIS; BIS consumes Chronicle; broadcast serves jumbotron) but NO plan cross-references another. The LuSaur 2026-08-10_FAC numbered design series (01-14) and the FAC website-workspace plans read as two separate design conversations about the same event system.\n- Chronology: LuSaur designs 2026-08-10, registration plans 2026-09-07. The 09-07 registration docs appear to be the more current engineering track.\n- If claude or codex know the implementation status of fac-events (was the 2026-09-20 target met?), that is the missing verification layer -- vault plans record intent, not deployment.\n\n### No action requested\n\nDiscovery report for awareness. The dedup candidate (broadcast architecture mirror pair) is flagged for whichever lane owns FAC website content hygiene.",
+                    "subject":  "FINDING: Event improvements -- 6 FAC event workstreams found in vault via MCP-only query"
+                },
+    "input_plan_digests":  [
+
+                           ],
+    "artifacts":  [
+
+                  ],
+    "prev_message_sha256":  "fe963187bcda12dc1e7ca28cfb5778c3283e68ec1ea94f876b6ef044f517db9f"
+}

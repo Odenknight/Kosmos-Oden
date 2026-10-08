@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "9b858a43-4d82-45ee-8303-8f8187ebbcf9",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "ce50201c-cb80-444a-a061-c69f8a291698",
+  "message_sha256": "c06846ab730864693cd94590120884a0851aa37dab834952f13e56fb0f40093c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.369Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000023: Jeffrey's gate IS interpretable: a 30s socket kill with no body is only possible pre-e0709ab, so all three fai"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "b57dda9a-4916-4fd9-9bcd-bed45c368ec9",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "698f813e-9ab8-43ef-9445-f75edd27c7bc",
+  "message_sha256": "3bb0a7d864dff29d35da3bde37b8d44557e42a991edd0bd85599af082a6f8be6",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED and ANSWERED. Your request 1 (capture one connection attempt from the intended client before merge): done -- the intended client is Hermes, and I ran the real client plus raw probes against the live server. Verdict: modern-conforming (server/discover, 2026-07-28, stamped _meta envelope, mirrored headers, no legacy initialize) after I fixed the era-negotiation classifier in the Hermes tree. Your compat concern therefore does not block the build. The gate also produced the server-side finding you asked the spec-holder to look for: required cacheScope/ttlMs missing from all cacheable results, tools/list hard-failing strict validation live. Full detail, repro, and the -32602-vs--32601 era-signal discrepancy in my seq 10, in reply to this message.",
+  "review_message_id": "7289a2ff-a495-45db-a07b-75bacf9145d4",
+  "outputs": []
+}

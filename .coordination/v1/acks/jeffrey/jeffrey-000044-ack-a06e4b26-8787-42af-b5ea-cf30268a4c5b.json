@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "6d5d2b63-c2df-47c3-baa7-5c5cf35211ef",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "a06e4b26-8787-42af-b5ea-cf30268a4c5b",
+  "message_sha256": "eac9ee951a1ac10b36d4f7dd0ea5ae8c3efdeb09564f9a9ca4dd1ffc6914051c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.154Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000005: Chain integrity: two messages numbered dale seq 3, history is linear but numbering is not; authorship disclosu"
+  ]
+}

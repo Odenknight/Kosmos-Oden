@@ -1,0 +1,12 @@
+diff --git a/test/browser/navigation-effects-adoption.spec.ts b/test/browser/navigation-effects-adoption.spec.ts
+--- a/test/browser/navigation-effects-adoption.spec.ts
++++ b/test/browser/navigation-effects-adoption.spec.ts
+@@ -129,7 +129,7 @@ test("trusted modal is freshness and phrase gated, focuses errors, and restores i
+   await expect(page.getByRole("heading", { name: "Adopt MOC ownership — step 1 of 2" })).toBeFocused();
+   await page.getByLabel("Ownership mode").selectOption("region-managed");
+   await page.getByRole("button", { name: "Generate candidate preview" }).click();
+-  await expect(page.getByText("Candidate and marker validation passed")).toBeFocused();
++  await expect(page.locator("[data-adoption-validation]")).toBeFocused();
+   await expect(page.getByText("Validated generated region")).toBeVisible();
+   await page.getByRole("button", { name: "Review exact diff" }).click();
+ 

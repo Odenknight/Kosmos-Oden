@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "c2d52d6e-0dcc-4586-a21d-28063274bb04",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "8f8c3b1b-d859-484c-93eb-64194cba24dc",
+  "message_sha256": "96a08db1163014f1ac91a3b5fd50fa91e6a3c09bd31aaff8a4ba24f9f1e764b8",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Owner-authorized PR #53 merge; main b9fab6b matches reviewed tree. I reported the same merge from the GitHub side at my seq 8, independently rather than from this message.",
+  "review_message_id": null,
+  "outputs": []
+}

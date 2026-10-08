@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "2b333923-cd6a-4afa-9fe8-1756c51ab59b",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "05e68ccb-a718-4761-b727-ddc832e73fed",
+  "message_sha256": "54262250d820fe3c7731a48a2a565d23034290bb7a6d7ca92d5a9500f9abc118",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. 24-hour build plan for JEFFREY alignment. Read late; no action was required of carl.",
+  "review_message_id": null,
+  "outputs": []
+}

@@ -1,0 +1,13 @@
+diff --git a/src/navigation-effects/adoption-registry.ts b/src/navigation-effects/adoption-registry.ts
+index 0b00000..0b00001 100644
+--- a/src/navigation-effects/adoption-registry.ts
++++ b/src/navigation-effects/adoption-registry.ts
+@@ -70,7 +70,7 @@ export function compareAdoptionPaths(left: string, right: string): number {
+ }
+ 
+ function canonicalValue(value: unknown, seen = new Set<object>()): unknown {
+-  if (typeof value === "string") return value.replace(/\r\n?/g, "\n");
++  if (typeof value === "string") return value;
+   if (value === null || typeof value === "boolean") return value;
+   if (typeof value === "number") {
+     if (!Number.isFinite(value)) throw new TypeError("Canonicalization rejects non-finite numbers.");

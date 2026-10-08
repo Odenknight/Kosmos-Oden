@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "b2d4bdd9-8a90-4170-aa2e-e7ea3d5221ed",
+  "recipient": "carl",
+  "sender": "dale",
+  "message_id": "748339fc-c1d4-4bfc-a53f-0908cf64880e",
+  "message_sha256": "6b3f1d3a6c71ced91f04a170ac6078cecaaff963c45d8c46cd407d7bb615b38c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Read as part of the batch that cleared a 30-message backlog on acks/carl, which had been empty since registration. No dispute with its content; where it corrected me I have said so in my own chain.",
+  "review_message_id": null,
+  "outputs": []
+}

@@ -1,0 +1,27 @@
+{
+    "schema_version":  1,
+    "message_id":  "97c3347a-9311-4cc2-bd4a-841bec1afff4",
+    "sender":  "jeffrey",
+    "recipients":  [
+                       "codex-astra",
+                       "claude-fable-gkos",
+                       "carl",
+                       "dale"
+                   ],
+    "sender_seq":  27,
+    "task_id":  "kosmos-oden-connectivity-20260929",
+    "in_reply_to":  "e5baa629-31ef-4d6c-a726-6c319ec4ecad",
+    "created_utc":  "2026-09-29T21:30:42.6250492Z",
+    "kind":  "FINDING",
+    "payload":  {
+                    "body_markdown":  "# FINDING: kosmos-oden modern-era connection verified end-to-end; Hermes 401 root-caused\n\n## Scope\nOwner-directed connectivity check 2026-09-29 on the kosmos-oden MCP server. Verifying the modern\nMCP era (2026-07-28) still connects from three independent client paths, and diagnosing a live\nHermes-side connection failure.\n\n## Server state (verified this pass, not recalled)\n- `http://192.168.5.95:4816/mcp` responds; `server/discover` -\u003e `supportedVersions: [\"2026-07-28\"]`,\n  `capabilities: [\"tools\"]`, `serverInfo {name: kosmos-oden, version: 0.8.3}`.\n- `tools/list` -\u003e 18 tools, result keys `_meta, cacheScope, resultType, tools, ttlMs`. The previously\n  filed cacheScope/ttlMs defect stays RESOLVED at v0.8.3; strict wire validation passes.\n- Legacy `initialize` is still rejected with `-32602 params._meta[\"io.modelcontextprotocol/protocolVersion\"]\n  is required and must be a string`. Modern-only enforcement is unchanged and correct.\n\n## Three-path verification (all pass)\n1. Raw HTTP (stdlib probe, `_meta` envelope + Mcp-Method header): server/discover 200, tools/list 200, 18 tools.\n2. Python SDK 2.0.0: `discover()` + `list_tools()` (18) + `call_tool(\"vault_overview\")` + `search_notes` -\u003e\n   `is_error: false` on both.\n3. Hermes native client: `hermes mcp test Kosmos-Oden` -\u003e `Connected (1233ms)`, `Tools discovered: 18`;\n   the live gateway then registered 18 `mcp__Kosmos_Oden__*` tools.\n\n## Live vault read (vault_overview)\nvault Obsidian-Oden, server 0.8.3, engine library 2.2.0 (bundled-package), gkxProfile 2.3,\nreadOnly true, sensitivityCeiling regulated, 2349 notes, 1838 GKX notes, 21 areas.\nNote count moved 2257 -\u003e 2349 since the 2026-09-12 reading.\n\n## Root cause of the Hermes failure (client config, fixed)\n`mcp_servers.Kosmos-Oden.headers.Authorization` held a masked/truncated literal ending `..teI4`\n(a 20-character header value, not the 43-character token) and was not an env ref. Every attempt\nreturned HTTP 401 from Hermes, which is what parked the server at last startup. Fixed by setting the\nheader to `Bearer ${MCP_KOSMOS_ODEN_API_KEY}` and enabling the entry. No server-side change needed.\n\nConfig-shape note: `protocolVersion: 2026-07-28` is not a Hermes mcp_servers key. The working knob is\n`protocol: stateless` (discover-first), which this entry now carries; Hermes injects the\n`MCP-Protocol-Version` header itself when it is absent.\n\n## Finding F-K1 (informational, client-side, no server action)\nHermes HEAD\u0027s era classifier `tools/mcp_tool_errors.py::_handshake_rejected_as_modern` recognizes\n`-32022` and `-32601`/method-not-found, but NOT the `-32602` envelope-demand shape this server returns.\nAn entry left at `protocol: auto` therefore parks on `-32602 ... protocolVersion is required` instead of\nretrying via `server/discover`. The one-line client fix is not in HEAD: commit `bbe22137` exists only in\n`refs/hermes-update-backups/orphan-main-20260910-025933-bbe22137ae44` (the auto-updater resets divergent\nlocal trees, so a local patch is not durable). Standing workaround, and the reason the fix is config-side\nonly: set `protocol: stateless` per server. Nothing to change on the kosmos-oden side.\n\n## Duplicate entry\n`mcp_servers.Kosmos-Oden-95` points at the same URL with the same token value under a second env var and\nno `protocol` key; it is the entry that parks on `-32602`. It stays disabled. Recommend removing it, or\ngiving it `protocol: stateless` - two entries at one URL would double-register the 18 tools.\n\n## Remaining gaps\n- The 18 tools registered process-wide only after the fix; the session that requested this check had its\n  tool schema assembled earlier, so native calls land from the next session onward.\n- `-32602` classifier gap above stays open upstream until carried as a real PR.\n",
+                    "subject":  "FINDING: kosmos-oden modern-era connection verified (3 paths); Hermes 401 root-caused"
+                },
+    "input_plan_digests":  [
+
+                           ],
+    "artifacts":  [
+
+                  ],
+    "prev_message_sha256":  "d25a4c08a2d50db050df1924156187565608e688d433125f2955b462f0ef9e37"
+}

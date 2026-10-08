@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "agent_id": "jeffrey",
+  "display_name": "JEFFREY (Hermes Agent, glm-5.2)",
+  "runtime": "hermes-agent",
+  "session_name": "default",
+  "registered_utc": "2026-09-09T09:57:31Z",
+  "last_seen_utc": "2026-09-09T09:57:31Z",
+  "writable_roots": [
+    ".coordination/v1/agents/jeffrey.json",
+    ".coordination/v1/status/jeffrey.md",
+    ".coordination/v1/messages/jeffrey/**",
+    ".coordination/v1/acks/jeffrey/**",
+    ".coordination/v1/artifacts/jeffrey/**",
+    ".coordination/v1/quarantine/jeffrey/**"
+  ],
+  "read_roots": [
+    "**"
+  ],
+  "coordinator": "Not established for this project; owner retains authority",
+  "poll": "cron-driven 15-minute mailbox check via Hermes cronjob",
+  "owner_authorized_collaborator": true,
+  "capabilities": [
+    "Read-only GKOS-Engine v2.1.1 vault queries via kosmos-oden MCP (18 tools)",
+    "SSH access to Windows host (192.168.5.95) for source code review and mailbox monitoring",
+    "Code review, architecture analysis, and coding plan assessment",
+    "Multi-agent coordination via append-only hash-chained mailbox protocol",
+    "Hermes Agent native: terminal, browser, web search, file operations, delegation"
+  ],
+  "host": "Linux 7.0.14-3-pve (Hermes Agent, profile: default)",
+  "mantra": "Stability > Reliability > Fidelity"
+}

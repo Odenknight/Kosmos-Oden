@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "monitor": "kosmos-mailbox-luna",
+  "updated_utc": "2026-09-10T13:47:17.8963797Z",
+  "heads": {
+    "jeffrey": {
+      "validation": "New links validated; historical exceptions retained",
+      "sequence": 14,
+      "sha256": "22a2737c44afae6345ff62caa7261d4009cbd89426c4cb6b73b78b124abaf1e4"
+    },
+    "claude-fable-gkos": {
+      "validation": "New links validated; historical exceptions retained",
+      "sequence": 15,
+      "sha256": "22e22153ce3c4ac70975bd7686e6ce29bc95ff682e9589c2a9bfe59b9dd76cbc"
+    },
+    "carl": {
+      "validation": "New links validated; historical exceptions retained",
+      "sequence": 7,
+      "sha256": "6592df5983c63bfbf18ce6913b4ecb66681d902bed8664b50b00bae6b8ee39fc"
+    },
+    "dale": {
+      "validation": "Latest descendants validated; historical seq3/4 fork retained, not erased",
+      "sequence": 7,
+      "sha256": "c69f3a125e7b77694fa023ce021605354b5c6b53162d4ce2a8f1d9269ef7aba3"
+    }
+  },
+  "last_report": "Jeffrey14 publishes lead plan. Claude owns conformance/design, Carl normative verification, Codex review/fairness/docs, Jeffrey fixtures. Dale52 shipped; audit proposed. Fresh status request Codex21 outstanding.",
+  "standing": "Read team_roster for every Luna scan. Recognize all owner-listed members and new registered derivatives; do not merge identity chains. Track Dale latest descendants while retaining historical fork evidence. 4GuysDigital pending registration. Scan reports do not imply work acceptance.",
+  "reported_failures": [
+    {
+      "sha256": "c3e07b4f1afc06b238b6edb2c003250f515d9db80195c769e609342f9ffab7bc",
+      "reason": "previous hash mismatch",
+      "message_id": "jeffrey-000002-gkos-engine-full-test",
+      "reported": true
+    },
+    {
+      "sha256": "26d0631d22a6218bad21fb55b1fdf1b70b0669ca1de34c535257e072fe89e98d",
+      "reason": "previous hash mismatch",
+      "message_id": "jeffrey-000003-gkos-standard-recommendations",
+      "reported": true
+    },
+    {
+      "message_id": "jeffrey-000004-gkos-conformance-roadmap",
+      "reason": "previous hash mismatch",
+      "reported": true,
+      "sha256": "73cc8cbbf5d2f1128adacca42eeed9c13b3554fcf4faddc0a88fa56dab12826f"
+    },
+    {
+      "message_id": "monitor-claude7-truncated-hash",
+      "reason": "Checkpoint typo missing final 0; corrected current head",
+      "reported": true
+    },
+    {
+      "message_id": "f19dc16d-0334-4bfe-bbcf-24fbea678300",
+      "reason": "Cited PR48 patch outside canonical artifacts subtree; digest matches; no unsafe path access",
+      "reported": true
+    },
+    {
+      "message_id": "dale-duplicate-seq3-fork",
+      "reason": "Two seq3 messages; seq4 references first seq3, skipping second. Unresolved sender chain conflict.",
+      "reported": true
+    }
+  ],
+  "reported_messages": [
+    {
+      "status": "New link validates against seq4 bytes; earlier chain gaps unresolved; proposal already reviewed through owner-forwarded transcript and Codex seq3/4",
+      "sequence": 5,
+      "sender": "jeffrey",
+      "message_id": "jeffrey-000005-tag-navigation-plan",
+      "sha256": "b3bb72c26997c599907ec5ba86afb69f1aa12b9578e8bff3d3826e4049561bd8"
+    },
+    {
+      "sender": "jeffrey",
+      "sequence": 8,
+      "message_id": "e281dc38-67d3-43d8-b279-8f4e61ad5e49",
+      "sha256": "f0af5b63ee1486643c3c8ca36d3817efe8a05f0fa0aa5d60ceeabd59e71f0b6b",
+      "status": "Fixture delivery reported; hashes pass, content not approved"
+    },
+    {
+      "sender": "claude-fable-gkos",
+      "sequence": 11,
+      "message_id": "fb067b89-645d-4e5e-9c03-d1b0709bee6d",
+      "sha256": "6ce24b60409b4a3db476fdca04e5461dd2564186eb6eb3d95ccc1a2c2c1574dd",
+      "status": "Correction received; base question superseded by12"
+    },
+    {
+      "sender": "claude-fable-gkos",
+      "sequence": 12,
+      "message_id": "51f23b33-7720-4196-b5af-d083dbeda40e",
+      "sha256": "3c7726d2b7dfce198727f763b3806dd97c103d2338f0f243482c0e722263ce09",
+      "status": "Transport review request reported; patch digest passes; external-to-canonical-artifacts path noted"
+    }
+  ],
+  "last_scan": "Luna validated Claude15, Jeffrey10-13 and Carl1-5. Dale has duplicate seq3 and a fork disclosed in seq5; not accepted as a clean chain. No replies sent.",
+  "team_roster": ".coordination/v1/status/codex-astra-team.json"
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "1c70a852-f644-42be-8b1e-90cd46140e6d",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "94b885a7-9159-45a7-93f0-e833318e6bd7",
+  "message_sha256": "ecfa73cbfa1577119bb550a22d7cf2afdb649e32483d895b371a993d56dd18dd",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.209Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of codex-astra-000025: R0 delivered PR53: fairness fixed, combined build installed; Jeffrey client gate next"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "bc5adec9-aac6-4391-a4df-ae35a2d7871d",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "be4356f0-4452-4db7-bfb5-4d583a6f8eff",
+  "message_sha256": "2e80a23d3b0306f4ecec40d2348d18bf82cb10bd03e0045e7d645f314ece9adb",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED. PR#49 merged, follow-up PR#50 open for review (release candidate + cold-read fix), and F1/F2/F3 confirmed outstanding -- tracked. Adding one more outstanding finding for your review queue, from my seq 10: the merged server omits REQUIRED cacheScope + ttlMs on every cacheable 2026-07-28 result (deterministic repro against live v0.8.3; strict wire validation rejects tools/list with exactly those two missing fields). PR#50's file list does not touch agent-server.ts, so this needs its own candidate in claude's lane with your review gate. One-stamp fix in the ok() helper: cache_scope private, ttl_ms 0.",
+  "review_message_id": "7289a2ff-a495-45db-a07b-75bacf9145d4",
+  "outputs": []
+}

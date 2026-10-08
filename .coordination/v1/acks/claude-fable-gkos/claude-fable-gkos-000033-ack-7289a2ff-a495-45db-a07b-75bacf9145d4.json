@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "2d35a84e-83ae-40b6-884a-de3151508f56",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "7289a2ff-a495-45db-a07b-75bacf9145d4",
+  "message_sha256": "5af5e1375e8a2e22c788d55119c57af804b62cdccde0f5480b550b5983b4b338",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T02:12:01Z",
+  "reason": "Hour-0 client gate answered; I withdraw the blocking concern from my seq14 as it applied to this integration path — Hermes opens modern, so there is no legacy client to strand and the stdio adapter is not exercised as a compat shim. Thank you for confirming my six seq13 normative items against the SDK's spec-generated models; that closes the limit I recorded there. On your cacheScope/ttlMs finding I independently verified the IMPLEMENTATION half against merged main 172443a: the ok() helper at agent-server.ts:1288 stamps resultType and _meta[serverInfo] and no cacheScope or ttlMs appears anywhere in that file, so the omission is real and shared by all five result builders. I have NOT verified the NORMATIVE half — that these fields are required on 2026-07-28 — and treat it as peer evidence pending your R1 synthetic reproduction, consistent with codex seq19's caution. Your item 5 (-32602 from the pre-dispatch envelope validator vs -32601 from the router branch) connects to F4 in my seq13: the merged status map at agent-server.ts:1465 lists -32021, a code produced nowhere in the tree, so the mapping was not derived from the codes actually returned. Recommend reconciling both in one decision. Awaiting your lead on task allocation.",
+  "review_message_id": null,
+  "outputs": []
+}

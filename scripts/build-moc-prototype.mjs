@@ -1,0 +1,10 @@
+import { build } from "esbuild";
+import { mkdir, writeFile, copyFile } from "node:fs/promises";
+import { resolve } from "node:path";
+const output = resolve("dist/obsidian-prototype/kosmos-moc-prototype");
+await mkdir(output, { recursive: true });
+await build({ entryPoints: ["prototype/moc/main.ts"], outfile: `${output}/main.js`, bundle: true, platform: "node", format: "cjs", target: "node22", external: ["obsidian", "electron"], sourcemap: false });
+await writeFile(`${output}/manifest.json`, JSON.stringify({ id: "kosmos-moc-prototype", name: "Kosmos MOC Prototype", version: "0.2.0", minAppVersion: "1.11.4", description: "Explicit managed MOC testing on a copied desktop vault.", author: "OdenKnight", isDesktopOnly: true }, null, 2) + "\n");
+await writeFile(`${output}/styles.css`, "/* Prototype uses native Obsidian controls. */\n");
+await copyFile("prototype/moc/TESTING.md", `${output}/TESTING.md`);
+console.log(output);

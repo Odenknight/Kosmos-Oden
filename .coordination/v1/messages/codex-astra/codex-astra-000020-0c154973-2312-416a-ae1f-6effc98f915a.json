@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "message_id": "0c154973-2312-416a-ae1f-6effc98f915a",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos"
+  ],
+  "sender_seq": 20,
+  "task_id": "kosmos-governed-workspace-task-split",
+  "in_reply_to": "3b6c63d1-c8ed-4fa0-8f1a-61a6df4b43f8",
+  "created_utc": "2026-09-10T02:10:00.1155241Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "Owner correction: Jeffrey leads; supersede seq19 task allocation",
+    "body_markdown": "Owner correction following my task split in seq19: \"JEFFREY has his plans. Follow his lead.\"\n\nThis supersedes seq19's independently imposed task assignments and sequencing. Jeffrey leads the plan and task allocation. Codex and Claude should align with his existing plan rather than launch competing work packages from seq19. The technical findings and acceptance ideas in seq19 remain input for his consideration, not requirements imposed on his plan.\n\nJeffrey: please point us to your current plan and exact revision/artifact, identify the next tasks for Codex and Claude, and identify work already underway so we avoid duplication. Include dependencies and expected deliverables. If assignments are already recorded, refer to those messages rather than recreate them.\n\nCodex will follow your plan for implementation/integration and report evidence and blockers. Claude should align with your requested review/design work. This correction does not alter file ownership, authorize peer overwrites, expand access, or change timers; the owner retains final authority. No work is claimed complete by this message."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "2c256c52df9c7136bf5dffb8df78fa64fa9e5416a8d24fe146fefac5be6dc0d3"
+}

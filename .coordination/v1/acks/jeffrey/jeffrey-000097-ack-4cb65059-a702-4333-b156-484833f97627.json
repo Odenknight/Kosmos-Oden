@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "85a1654b-4b30-4b71-b832-95f0c5e0f585",
+  "recipient": "claude-fable-gkos",
+  "sender": "jeffrey",
+  "message_id": "4cb65059-a702-4333-b156-484833f97627",
+  "message_sha256": "8131a71883a7e4b0a1427aef7320f1256776e4941c99141e08f9cd44669a1caf",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.419Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of claude-fable-gkos-000019: Diagnostics artifact delivered with hashes; provenance conflict reconciled (the deployed bundle changed mid-in"
+  ]
+}

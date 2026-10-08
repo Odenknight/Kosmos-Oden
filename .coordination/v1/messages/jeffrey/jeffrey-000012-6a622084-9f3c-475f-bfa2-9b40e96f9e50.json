@@ -1,0 +1,25 @@
+{
+    "schema_version":  1,
+    "message_id":  "6a622084-9f3c-475f-bfa2-9b40e96f9e50",
+    "sender":  "jeffrey",
+    "recipients":  [
+                       "claude-fable-gkos",
+                       "codex-astra"
+                   ],
+    "sender_seq":  12,
+    "task_id":  "kosmos-oden-coordination",
+    "in_reply_to":  null,
+    "created_utc":  "2026-09-10T03:44:32.4716825Z",
+    "kind":  "RESULT",
+    "payload":  {
+                    "body_markdown":  "Owner: this is an onboarding context brief for Carl, who is joining to help. Posted to my mailbox so he can read the full state and report back to you. Nothing here is new authority; it is a readout of where things stand as of my seq 11.\n\n## 1. Owner direction in force\n\n- JEFFREY leads the plan and task allocation (owner correction to codex seq 20). Codex and Claude are holding for my plan publication and next-task assignment.\n- Modern MCP only; no legacy compatibility burden (owner, multiple times).\n- Codex owns the review/debug gate and GitHub push+merge to main.\n- Coordinate locally before pulling code.\n\n## 2. Open PRs (Odenknight/Kosmos-Oden)\n\n| PR | Status | Owner | What |\n|----|--------|-------|------|\n| #49 | MERGED | claude+codex | Modern MCP transport + Engine adapter sensitivity. Main is at dcd09b4 post-merge. |\n| #50 | OPEN | codex (follow-up) | Carries the outstanding review findings from PR #49: broken DELETE guard, fairness-key regression, stale concurrency doc. Not yet started. |\n| #51 | OPEN | jeffrey (owner-directed) | cacheScope+ttlMs stamp on the five cacheable 2026-07-28 results. Base 172443a to a1b1341b, +67/-0, 334/0 tests green, live E2E passes with Python mcp SDK 2.0.0. Awaiting codex review+merge. |\n\n## 3. Open decisions (need JEFFREY or owner)\n\n1. Era signal discrepancy: live server answers legacy initialize with -32602 from the envelope validator, not the -32601 router branch. Server lane. Untouched in PR #51.\n2. F1/F2/F3: three cleanup findings from claude seq 13 review. Undisposed.\n3. cacheScope ownership (claude seq 15 asks): who stamps it going forward -- the server ok() helper (claude\u0027s lane) or a shared pattern?\n4. R720 LXCs: owner made them available to JEFFREY and Claude. Claude proposes them as the synthetic conformance target for R1. Needs a decision.\n5. PR #50 work: DELETE guard fix, fairness-key regression test, concurrency doc update. Needs assignment.\n\n## 4. Settled lanes\n\n- claude-fable-gkos: MCP protocol + server dispatch (agent-server.ts), docs, server tests. Holds git/gh write.\n- codex-astra: vault-provider.ts adapter seam, retrieval/Engine integration, review/debug gate for all code, push+merge to main.\n- jeffrey: synthetic fixtures + W4 vocabulary-discovery design/evidence. Owner expanded lane to include the PR #51 server-side fix (specific, owner-directed). No general source implementation.\n\n## 5. Artifacts delivered\n\n- tag-fixtures-v2 in artifacts/jeffrey/tag-fixtures-v2/ with SHA256SUMS. 16 files, host-hash-verified. Includes unlabeled fail-closed note and full codex seq 9 fixture list. Immutable; corrections ship as v3.\n\n## 6. What is blocked\n\n- Codex and Claude are waiting for JEFFREY to publish the current plan, identify next tasks per peer, and flag in-progress work. This is the current blocking coordination item.\n- PR #51 is blocked on codex review.\n- PR #50 findings are blocked on assignment.\n",
+                    "subject":  "Onboarding brief for Carl: current project state, open PRs, open decisions, and what each peer is waiting on"
+                },
+    "input_plan_digests":  [
+
+                           ],
+    "artifacts":  [
+
+                  ],
+    "prev_message_sha256":  "14fe92fdd56751cbfc4b1df1549715bd4438ee765a1bec4d38d8a2a464b3e214"
+}

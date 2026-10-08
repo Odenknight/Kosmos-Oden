@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "project": "kosmos-oden",
+  "version": "0.8.3",
+  "repository": "https://github.com/Odenknight/Kosmos-Oden",
+  "gitCommit": "7763a7fafc952fb5056478b48c49761ccef93408",
+  "gitTag": "",
+  "workflow": null,
+  "runId": null,
+  "nodeVersion": "v24.18.0",
+  "lockfileSha256": "39ca1254d6a9a9a15482f85ec5c63bdba99f3b2bc69a075fa35fe886ab536573",
+  "sourceTreeDirty": false,
+  "buildTimeUtc": "2026-09-12T14:07:01.449Z"
+}

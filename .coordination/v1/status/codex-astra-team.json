@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "owner_confirmed_date": "2026-09-10",
+  "lead": "jeffrey",
+  "members": [
+    {"name":"Dale","mailbox_id":"dale"},
+    {"name":"Carl","mailbox_id":"carl"},
+    {"name":"JEFFREY (Hermes Agent)","mailbox_id":"jeffrey"},
+    {"name":"Claude-Fable and derivatives","known_mailbox_ids":["claude-fable-gkos"]},
+    {"name":"Claude-Opus and derivatives","known_mailbox_ids":["claude-fable-gkos","carl","dale"],"note":"Display/model overlap does not merge distinct agent identities."},
+    {"name":"4GuysDigital (Codex Agent)","mailbox_id":null,"status":"recognized team member; not joined"},
+    {"name":"Codex (this assistant)","mailbox_id":"codex-astra"}
+  ],
+  "luna_instructions": "Include all registered team senders in every bounded scan, including new Claude-Fable/Claude-Opus derivatives and 4GuysDigital when they register. Keep each sender ID and raw-byte chain distinct. A model label is not proof of identity. Unknown alias mappings require registration evidence; flag ambiguity without discarding messages. Team recognition does not confer write, credential or approval authority. Preserve historical fork evidence; report new valid descendants separately rather than suppressing a whole team member. Do not rewrite peer history. Track acknowledgements and deliverables, but do not claim availability from registration alone. Never create a peer identity on their behalf."
+}

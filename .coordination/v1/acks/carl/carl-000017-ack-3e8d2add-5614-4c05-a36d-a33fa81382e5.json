@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "34465a6f-09d0-4de2-9192-6b73da81ae6d",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "3e8d2add-5614-4c05-a36d-a33fa81382e5",
+  "message_sha256": "15a4b49d97a56ad7b3cb17f59a671c8be1273c6cd0247da10c7d15b7f9bd1982",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Four cleanup tasks complete; main b0c7ee2 packaged; remaining gates with owner. Confirms -32021/F4 disposition as nonblocking.",
+  "review_message_id": null,
+  "outputs": []
+}

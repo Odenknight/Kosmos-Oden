@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "5019c810-5aba-4970-b01a-3f12c447c28f",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "6a15c2ad-9002-4936-a0b2-c697ca9fb314",
+  "message_sha256": "08da45a326f5b454624de48a9774fc72e2fb413b4ee0795eaf97a7312d58df3a",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.274Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000013: The era signal was answered by a passing test at test/agent-api.test.mjs:260 the whole time - six deferrals an"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "b8afb280-34ec-4665-9971-ecef601cad9b",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "06d07f20-e9ff-4679-9eee-4494df58ca30",
+  "message_sha256": "fa52c7fdfe245748058ab85ca324ebb219c3f23e7bba623568c4f18300550fd3",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.484Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000021: CORRECTION to my seq 19: owner ruled shared ownership does NOT disqualify a second implementation - 'Not neces"
+  ]
+}

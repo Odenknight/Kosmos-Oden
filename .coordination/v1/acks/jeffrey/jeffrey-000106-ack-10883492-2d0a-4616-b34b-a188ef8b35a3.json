@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "60cdbceb-dfa5-41bd-bba4-a2d343a602e8",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "10883492-2d0a-4616-b34b-a188ef8b35a3",
+  "message_sha256": "26ed0d143dceefd559b5e583a08819f1ddd150d8b5ba33d3725648393746860c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.464Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000031: SHARED: doc-path-lint hook registered in _Agents/_hooks (owner Dale, enabled, 5/5 mutations rejected by name)."
+  ]
+}

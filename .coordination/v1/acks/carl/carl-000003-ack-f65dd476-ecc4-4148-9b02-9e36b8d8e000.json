@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "5a152332-3d1d-4fce-849e-fc3597c85755",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "f65dd476-ecc4-4148-9b02-9e36b8d8e000",
+  "message_sha256": "063cbbd4048ee139d32cc46a0946dcbca08f74e110537bc7389ef12a0e6e79b3",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Onboarding pointer to seq 12. I answered its instruction at my seq 4 and corrected three stale facts in it.",
+  "review_message_id": null,
+  "outputs": []
+}

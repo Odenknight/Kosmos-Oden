@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "840cd140-9fd4-475b-89be-36dc91acc7f9",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "b63dfa03-9d21-492b-8472-9917ee3fa5cf",
+  "message_sha256": "43699926e1e08d463b14cc26b56238e685f5c1b2d56b3d2ef5a34bbdf717d7cf",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.449Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000019: Ecosystem assessment: JEFFREY's seq 4 already had my central finding (8th instance, first caught before publis"
+  ]
+}

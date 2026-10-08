@@ -1,0 +1,37 @@
+diff --git a/src/navigation-effects/effect-adapter.ts b/src/navigation-effects/effect-adapter.ts
+--- a/src/navigation-effects/effect-adapter.ts
++++ b/src/navigation-effects/effect-adapter.ts
+@@ -340,5 +340,6 @@ export function normalizeHostPrimitiveEvidence(value: unknown): Readonly<HostPr
+   if (value === undefined) return Object.freeze({ proof: "unavailable", limitationCode: "CAPABILITY_UNPROVEN" });
+   if (!record(value) || !PROOFS.has(value.proof as HostProof)
++    || value.proof === "proven" && value.mechanism === undefined
+     || value.mechanism !== undefined && !boundedLabel(value.mechanism)
+     || value.limitationCode !== undefined && !LIMITATIONS.has(value.limitationCode as EffectHostLimitationCode)) {
+     return Object.freeze({ proof: "unavailable", limitationCode: "CAPABILITY_EVIDENCE_INVALID" });
+diff --git a/test/navigation-effects-adapter-contract.test.mjs b/test/navigation-effects-adapter-contract.test.mjs
+--- a/test/navigation-effects-adapter-contract.test.mjs
++++ b/test/navigation-effects-adapter-contract.test.mjs
+@@ -59,6 +59,12 @@ test("missing or malformed capability evidence stays unavailable", () => {
+     limitationCode: "CAPABILITY_EVIDENCE_INVALID",
+   });
+   assert.equal(api.validateEffectHostCapabilityReport("obsidian", { ...malformed, automaticWriteEligible: true }).valid, false);
++
++  const unsubstantiated = api.normalizeHostPrimitiveEvidence({ proof: "proven" });
++  assert.deepEqual(unsubstantiated, {
++    proof: "unavailable",
++    limitationCode: "CAPABILITY_EVIDENCE_INVALID",
++  });
+ });
+ 
+ test("capability validation rejects noncanonical and normalization-masked reports", () => {
+@@ -91,6 +97,10 @@ test("capability validation rejects noncanonical and normalization-masked repo
+   delete maskedEvidence.primitives.fileFlush.limitationCode;
+   adversarial.push(["evidence normalized by adding a limitation", maskedEvidence]);
+ 
++  const missingMechanism = clone(canonical);
++  delete missingMechanism.primitives.fileFlush.mechanism;
++  adversarial.push(["proven evidence missing its mechanism", missingMechanism]);
++
+   const duplicateLimitations = clone(unavailable);
+   duplicateLimitations.limitationCodes.push(duplicateLimitations.limitationCodes[0]);
+   adversarial.push(["duplicate limitations", duplicateLimitations]);

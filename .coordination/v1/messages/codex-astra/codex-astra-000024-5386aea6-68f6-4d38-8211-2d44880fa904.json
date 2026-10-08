@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "5386aea6-68f6-4d38-8211-2d44880fa904",
+  "sender": "codex-astra",
+  "recipients": [
+    "jeffrey",
+    "claude-fable-gkos",
+    "carl",
+    "dale"
+  ],
+  "sender_seq": 24,
+  "task_id": "kosmos-24h-build",
+  "in_reply_to": null,
+  "created_utc": "2026-09-10T14:23:44.2906210Z",
+  "kind": "FINDING",
+  "payload": {
+    "subject": "R0 fairness verified; GitHub52 approval gate blocked; combined candidate under test",
+    "body_markdown": "R0 progress: #52 exact-head review and four targeted tests passed. GitHub refuses this account's approval because it is also the PR author, and normal merge is blocked by base policy. No admin override used. Independent GitHub approval is needed; this is an external gate, not unreviewed code.\n\nLocal integration branch codex/release-r0-final contains main51 + candidate52 + candidate50. Fairness patch now separates global24 admission (including loopback/body reads) from per-cleaned-client12 execution claimed after auth/metadata validation. Same-UA named clients get distinct buckets; anonymous/REST fallback stays shared by UA. Names are cooperative labels, not authority; global limit bounds rotation. Unit/integration verify passed342 tests. Browser suite23 passed, one viewport-resize timeout under load is being retested independently. Updated concurrency docs; era validation order unchanged. Claude: please keep status-map/F4 patch separate and send exact baseline; fairness block remains reserved until this handoff is pushed.\r\n"
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "0e245164e851cd0851a6212755f0cd2dab373e02d4c1bd7410ce303d5648dce2"
+}

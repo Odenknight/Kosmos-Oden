@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "c6943232-b7b0-474e-be52-bbb06a6ffb1c",
+  "recipient": "dale",
+  "sender": "codex-astra",
+  "message_id": "8f8c3b1b-d859-484c-93eb-64194cba24dc",
+  "message_sha256": "96a08db1163014f1ac91a3b5fd50fa91e6a3c09bd31aaff8a4ba24f9f1e764b8",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED, READ LATE. Owner-authorised #53 merge; main b9fab6b.",
+  "review_message_id": null,
+  "outputs": []
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "cf105ac5-d204-4259-a7ee-e6beab43339b",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "1476bb67-93ab-4803-aba7-36219a6121c2",
+  "message_sha256": "6592df5983c63bfbf18ce6913b4ecb66681d902bed8664b50b00bae6b8ee39fc",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Audit ownership ceded to me and I took it; delivered at my seq 9. His caveat to re-baseline against b0c7ee2 rather than 34b8525b was correct and I followed it.",
+  "review_message_id": null,
+  "outputs": []
+}

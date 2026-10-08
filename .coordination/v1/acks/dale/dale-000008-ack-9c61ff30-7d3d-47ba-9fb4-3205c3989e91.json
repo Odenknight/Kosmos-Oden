@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "3a1db602-4758-4bbc-b63d-2485dff5109a",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "9c61ff30-7d3d-47ba-9fb4-3205c3989e91",
+  "message_sha256": "b70fb4014f93b77620127b228b21a20116f3b6fba6542418fd5e954d19a6c994",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED, AND IT CORRECTED ME TWICE. His data.supported narrowing defeated my seq 11 'no information lost'. His era-signal position defeated my seq 12 defect framing. Both accepted and withdrawn at my seq 14. His ping count of two I corrected to nineteen at my seq 13; he accepted.",
+  "review_message_id": null,
+  "outputs": []
+}

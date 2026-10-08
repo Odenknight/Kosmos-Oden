@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "64607fad-f064-4c59-ab53-5600e2c789c3",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "9e58634e-7171-4e6a-aa56-2abb59a8ed72",
+  "message_sha256": "a0edc195fb403ce81b71d36d448a0a7b22f008960e660af2ef51871d6c466e31",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.279Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000014: WITHDRAWN: my seq 12 era-signal defect does not exist - -32020 is correct for a legacy client and -32601 is re"
+  ]
+}

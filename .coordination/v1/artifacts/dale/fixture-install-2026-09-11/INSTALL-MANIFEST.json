@@ -1,0 +1,113 @@
+{
+  "action": "install tag-fixtures-v2 notes into live Obsidian-Oden projection",
+  "authorizedBy": "owner, directly (confirmed by dale before acting; not via peer relay)",
+  "installedBy": "dale",
+  "installedUtc": "2026-09-12T01:51:06.073Z",
+  "vaultRoot": "C:/Users/OdenKnight/Documents/_NC/Obsidian-Oden",
+  "destinationRoot": "_Kosmos-Qualification-Fixtures",
+  "sourceArtifact": ".coordination/v1/artifacts/jeffrey/tag-fixtures-v2",
+  "sourceBundleHashes": "16/16 verified before install, 16/16 after",
+  "installedCount": 14,
+  "withheld": [
+    "README.md (bundle documentation; would become a corpus note)",
+    "expected.json (oracle; belongs with the artifact)"
+  ],
+  "files": [
+    {
+      "source": "notes/AreaDemo/area-case.md",
+      "destination": "_Kosmos-Qualification-Fixtures/AreaDemo/area-case.md",
+      "sha256": "2443315e738b64b5640e080428f440ff3397043a355fada1a122e4a905765515",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/Root/in-root-folder.md",
+      "destination": "_Kosmos-Qualification-Fixtures/Root/in-root-folder.md",
+      "sha256": "d1fa0ed8c9c9052c607ccefe2bd0344e3f65800ffe34c5ad50bd8ac3a7320ad8",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/edge-cases.md",
+      "destination": "_Kosmos-Qualification-Fixtures/edge-cases.md",
+      "sha256": "63b476e6a7090d88a38899738e0a9b8e1cce1f5fe572d18e1b7bc175e65fafa4",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/frontmatter-and-links.md",
+      "destination": "_Kosmos-Qualification-Fixtures/frontmatter-and-links.md",
+      "sha256": "06e8568c2a848e94754a699c52367d597ef8b1b6e4f0b2c7fec5b28a75d12b11",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/gkx-labels.md",
+      "destination": "_Kosmos-Qualification-Fixtures/gkx-labels.md",
+      "sha256": "7cce76e7c71af5abc7ca9852d93bfee267e885d71a7550d1120b89ffbb4ee611",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/inline-basic.md",
+      "destination": "_Kosmos-Qualification-Fixtures/inline-basic.md",
+      "sha256": "35eaa163e0b64215bbc1d2697ad1a0abb167525750d4cfbc82d261395ff6a03f",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/labels-vs-tags.md",
+      "destination": "_Kosmos-Qualification-Fixtures/labels-vs-tags.md",
+      "sha256": "9fa025b64437e6b6c6feaf8d69a3ff85fc53161c9e3e65f6fd73e70d16ab1581",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/nested-and-unicode.md",
+      "destination": "_Kosmos-Qualification-Fixtures/nested-and-unicode.md",
+      "sha256": "7e4100c8622db4065d60c9afa3f1b07962d80359b86b261b4055b4bac5359c8d",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/root-note.md",
+      "destination": "_Kosmos-Qualification-Fixtures/root-note.md",
+      "sha256": "072e81ee480a2328ef9635290aeada3bda599648d55227880a997e478e7f4397",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/tier-confidential.md",
+      "destination": "_Kosmos-Qualification-Fixtures/tier-confidential.md",
+      "sha256": "21d715b947c6567e7974d7f67fbb84b36d267bcb13f59447c3807e89c8e70874",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/tier-internal.md",
+      "destination": "_Kosmos-Qualification-Fixtures/tier-internal.md",
+      "sha256": "10d3bd4013269ad46007628314e4f2ce37ae9e32aad1e952a4b2e7d4d8deb97a",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/tier-invalid.md",
+      "destination": "_Kosmos-Qualification-Fixtures/tier-invalid.md",
+      "sha256": "7b15bffe1bce5be5c96014b3bfaff6d6722ef834cbcbffd482e03269c4f25501",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/tier-public.md",
+      "destination": "_Kosmos-Qualification-Fixtures/tier-public.md",
+      "sha256": "0b8a42acab42cb27c42f817db8ab1048d9b58bb179628a6831d0c6e1ff181559",
+      "verifiedAfterInstall": true
+    },
+    {
+      "source": "notes/unlabeled-failclosed.md",
+      "destination": "_Kosmos-Qualification-Fixtures/unlabeled-failclosed.md",
+      "sha256": "2e45c540afa5fc79345453137f1a6a9691ab6a3cb5b4dbfe08e79b5e9aad264b",
+      "verifiedAfterInstall": true
+    }
+  ],
+  "qualifies": {
+    "liveRestrictedSensitivity": "tier-confidential.md — sensitivity: confidential, above the shipped ceiling (internal); expects denial and absence from lower-ceiling tag indexes",
+    "ceilingLadder": "tier-public.md, tier-internal.md, tier-confidential.md",
+    "failClosed": "tier-invalid.md (explicit invalid label -> secret), unlabeled-failclosed.md (no label -> secret)"
+  },
+  "removalPlan": {
+    "method": "Move the entire destination root to vault trash, following the 2026-09-09 precedent where the synthetic UID-retrieval note was moved to .trash after use.",
+    "command": "move \"C:\\Users\\OdenKnight\\Documents\\_NC\\Obsidian-Oden\\_Kosmos-Qualification-Fixtures\" to \"C:\\Users\\OdenKnight\\Documents\\_NC\\Obsidian-Oden\\.trash\\_Kosmos-Qualification-Fixtures\"",
+    "scope": "Exactly 14 files under _Kosmos-Qualification-Fixtures/. No pre-existing vault content is touched; the install refused to run if any destination existed.",
+    "when": "After liveRestrictedSensitivity is qualified and the result recorded.",
+    "verifyAfterRemoval": "Confirm the destination root is absent and the vault note count returns to its pre-install value."
+  }
+}

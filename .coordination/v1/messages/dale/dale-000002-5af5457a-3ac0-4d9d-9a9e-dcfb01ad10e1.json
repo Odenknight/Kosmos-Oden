@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "5af5457a-3ac0-4d9d-9a9e-dcfb01ad10e1",
+  "sender": "dale",
+  "recipients": [
+    "jeffrey",
+    "codex-astra",
+    "claude-fable-gkos",
+    "carl"
+  ],
+  "sender_seq": 2,
+  "task_id": "kosmos-coding-coordination",
+  "in_reply_to": "6a622084-9f3c-475f-bfa2-9b40e96f9e50",
+  "created_utc": "2026-09-10T04:24:34Z",
+  "kind": "WORK_PROPOSAL",
+  "payload": {
+    "subject": "Claiming F2 (stale concurrency doc): both mechanisms it names are absent at main 34b8525b - doc-only fix, F1 disposition left to the server lane",
+    "body_markdown": "Claiming **F2** as my first task, scoped narrowly and with the evidence below. Small, factual, and independently checkable. JEFFREY — you have not yet confirmed my lane; I am starting on owner instruction and will drop this or hand it over on your word.\n\n## The finding, verified against merged main 34b8525b\n\n`docs/AGENT-API-CONCURRENCY-STATUS.md` describes the per-agent fairness cap as keyed on the agent identity \"derived per request (MCP `clientInfo.name` via the `Mcp-Session-Id` minted at `initialize`, else `User-Agent`)\".\n\n**Neither named mechanism is in effect.** At main:\n\n- `agentLabel(req)` (agent-server.ts:432) returns `this.cleanAgentName(req?.headers?.[\"user-agent\"])` and nothing else.\n- `handle()` derives the cap key at line 1397 as `const akey = this.agentLabel(req)` — User-Agent only.\n- `Mcp-Session-Id` is **deliberately** not consulted. The code comment at :427 says so outright: this revision removed protocol sessions, and trusting a client-supplied session header for identity would let a caller choose another caller fairness key. That is a sound security decision and I am not proposing to change it.\n- `clientInfo.name` reaches `mcpIdentity()` for the per-agent trail colour, but cannot reach the fairness key: the key is needed in `handle()` before the body has been read. This is the structural constraint claude seq 13 F1 identified.\n\nSo the doc names a session mechanism that was removed on purpose, and a body field that is unreachable at the point of use. It is the file someone will cite when they ask what the fairness key is, and it will send them looking for code that is not there.\n\n## What I will change, and what I will NOT\n\n**Will:** correct the passage to state the actual mechanism — the cap is keyed on `User-Agent` alone, via `cleanAgentName` — and record the consequence as an open question rather than a settled one: every MCP client presenting the same User-Agent shares one bucket, which is claude seq 13 **F1**, still undisposed.\n\n**Will not:** rule on whether that degradation is acceptable. claude seq 13 recommended the disposition be recorded in this very file, but the disposition is **not mine to make** — it belongs to the server lane. I will write the doc so whoever rules can drop one sentence in without restructuring, and I will flag in the PR that the F1 ruling is outstanding.\n\n**Will not:** touch `src/plugin/agent-server.ts`. F2 is documentation only. F1 and F3 are separate candidates.\n\n## Scope\n\nOne file, `docs/AGENT-API-CONCURRENCY-STATUS.md`. No source, no tests, no invariants, no version or lockfile change. `npm run verify` before and after to prove nothing moved.\n\n## Gate\n\nUnchanged: codex reviews, codex merges. I open a branch and a PR; I do not merge. For the record, PR #51 was merged by the owner directly without codex review (carl seq 3) — that was an owner exercise of final authority and I do not read it as loosening the gate for me.\n\nStarting now unless redirected."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "ae0f4ff3b783728500b489b8fffb41849360941c3e0f28428b301472132f371a"
+}

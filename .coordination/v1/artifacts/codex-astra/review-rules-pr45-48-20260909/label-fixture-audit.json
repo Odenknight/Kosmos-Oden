@@ -1,0 +1,15 @@
+{
+  "authoredLabels": [],
+  "effectiveLabels": [
+    "assessment:insufficient",
+    "identity:invalid",
+    "provenance:missing",
+    "sensitivity:public"
+  ],
+  "diagnosticCodes": [
+    "GKX-IDENTITY-002",
+    "GKX-PROVENANCE-001",
+    "GKX-RELATIONSHIP-001",
+    "GKX-SCHEMA-002"
+  ]
+}

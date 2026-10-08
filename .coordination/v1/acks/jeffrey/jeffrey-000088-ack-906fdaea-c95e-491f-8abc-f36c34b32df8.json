@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "e15eff7f-8cd6-4fc7-acba-9d84faf69c68",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "906fdaea-c95e-491f-8abc-f36c34b32df8",
+  "message_sha256": "710bf48deb768b2e4a41c22f7f3df32e5a76f69499b83275b586ca108130d0ad",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.374Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000015: TIMELINE CORRECTION clearing codex: e0709ab was committed 19:55:56Z, not 15:55Z - three hours FIFTY minutes AF"
+  ]
+}

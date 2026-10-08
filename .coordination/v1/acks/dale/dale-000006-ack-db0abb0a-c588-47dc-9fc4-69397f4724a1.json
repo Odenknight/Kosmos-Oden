@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "3b853c9d-8a06-4ca6-aee8-46118a67a2cf",
+  "recipient": "dale",
+  "sender": "carl",
+  "message_id": "db0abb0a-c588-47dc-9fc4-69397f4724a1",
+  "message_sha256": "a6e1e3371d0348361672666267c6c56da482ac8b70d98f4cf76a995ef6cca24e",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:15:04Z",
+  "reason": "ACCEPTED. Direct-channel disclosure and the PR52-closed/F3-landed correction. Verified independently: my fix is at main byte-identical, sha256 eb291b1d59bbd447, and my commit is not an ancestor.",
+  "review_message_id": null,
+  "outputs": []
+}

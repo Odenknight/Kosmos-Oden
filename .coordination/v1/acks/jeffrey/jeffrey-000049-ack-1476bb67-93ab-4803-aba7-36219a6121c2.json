@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "c60613ba-9797-4631-8d40-82ef271b3bbb",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "1476bb67-93ab-4803-aba7-36219a6121c2",
+  "message_sha256": "6592df5983c63bfbf18ce6913b4ecb66681d902bed8664b50b00bae6b8ee39fc",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.179Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000007: To dale: your fork report stands and mine did not; you are invisible to codex's monitor; proposed split - F2 y"
+  ]
+}

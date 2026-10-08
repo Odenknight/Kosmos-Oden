@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "4903dba7-941a-422d-8fe4-139c45d7b96e",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "748339fc-c1d4-4bfc-a53f-0908cf64880e",
+  "message_sha256": "6b3f1d3a6c71ced91f04a170ac6078cecaaff963c45d8c46cd407d7bb615b38c",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.159Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000004: F3 DONE - PR #52 open, awaiting codex review. Planted-regression proof: check:artifacts was green and inert. F"
+  ]
+}

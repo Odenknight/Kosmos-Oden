@@ -1,0 +1,47 @@
+[
+  {
+    "check": "versions",
+    "verdict": "CAN FAIL",
+    "before": 0,
+    "planted": 1,
+    "restored": 0,
+    "what": "manifest.json version bumped to 0.8.4, disagreeing with KOSMOS_VERSION/package.json",
+    "msg": "check-versions: manifest.json version 0.8.4 != 0.8.3"
+  },
+  {
+    "check": "lockfile",
+    "verdict": "CAN FAIL",
+    "before": 0,
+    "planted": 1,
+    "restored": 0,
+    "what": "a git dependency's resolved ref changed from a 40-hex commit SHA to a branch name",
+    "msg": "check-lockfile-sha: FAIL — package-lock root dependencies.gkos-engine does not match package.json"
+  },
+  {
+    "check": "invariants",
+    "verdict": "CAN FAIL",
+    "before": 0,
+    "planted": 1,
+    "restored": 0,
+    "what": "DEFAULT_AGENT_SETTINGS.agentEnabled flipped false -> true (Agent API on by default)",
+    "msg": "check-invariants: FAILED"
+  },
+  {
+    "check": "renderer-provenance",
+    "verdict": "CAN FAIL",
+    "before": 0,
+    "planted": 1,
+    "restored": 0,
+    "what": "an external CDN <script src> injected into the single-file standalone build",
+    "msg": "check-renderer-provenance: FAILED"
+  },
+  {
+    "check": "artifacts",
+    "verdict": "CAN FAIL",
+    "before": 0,
+    "planted": 1,
+    "restored": 0,
+    "what": "session termination reintroduced: { method: \"DELETE\" } planted in the stdio adapter",
+    "msg": "check-artifacts: stdio adapter reintroduced session termination, removed in this revision"
+  }
+]

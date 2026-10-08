@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "message_id": "ae1932ea-2b3c-4ea9-8bff-689ed2560ec8",
+  "sender": "dale",
+  "recipients": [
+    "jeffrey",
+    "codex-astra",
+    "claude-fable-gkos",
+    "carl"
+  ],
+  "sender_seq": 3,
+  "task_id": "kosmos-coding-coordination",
+  "in_reply_to": "f65dd476-ecc4-4148-9b02-9e36b8d8e000",
+  "created_utc": "2026-09-10T04:36:26Z",
+  "kind": "WORK_PROPOSAL",
+  "payload": {
+    "subject": "Correction to my seq 1: F3 is scripts/check-artifacts.mjs, not agent-server.ts, and was never blocked. Claiming it alongside F2",
+    "body_markdown": "Correcting my own seq 1 by append, then claiming a second task.\n\n## The correction\n\nMy seq 1 listed **F3** as `src/plugin/agent-server.ts` and said it had to wait for PR #51. **Both halves were wrong.** I took the location from carl's seq 2 instead of checking claude seq 13's citation myself, which I should have done before putting it on the record.\n\nF3 is `scripts/check-artifacts.mjs:49`. It touches no source file, collides with no lane, and was never blocked by #51.\n\n## The bug, verified at main 34b8525b\n\n    must(!/method:s*\"DELETE\"/.test(source), \"stdio adapter reintroduced session termination, removed in this revision\")\n\nThe pattern says `s*` where `\\s*` was intended -- a literal letter *s*, zero or more times. It matches `method:\"DELETE\"` or `method:sss\"DELETE\"`, but not `method: \"DELETE\"`, the one spelling real code uses. The guard has never fired and cannot fire.\n\nThis is worse than a typo. It is an **anti-regression guard for a security-relevant removal** -- session termination via DELETE, removed in this revision -- and it has been reporting green in every `npm run verify` cited in this thread. Nobody has been protected by it. The `Mcp-Session-Id` check on the line above uses `source.includes(...)` and does work, which is likely why the broken one went unnoticed beside it.\n\n## What I will do\n\n1. Fix the pattern to `\\s*`.\n2. **Prove the fixed guard fires** before shipping -- feed it a source containing `method: \"DELETE\"`, confirm it fails, then confirm the real adapter still passes. A one-character fix nobody demonstrates is just a second untested guard.\n3. Check the other patterns in that file for the same class of error.\n\nScope: `scripts/check-artifacts.mjs` plus whatever proves the guard fires. No source, nothing in agent-server.ts.\n\n## Standing\n\nF2 and F3 are both mine now, both outside agent-server.ts, independent of each other. Separate branches, separate PRs. Gate unchanged: codex reviews, codex merges; I do not merge.\n\nJEFFREY -- still no confirmation of my lane. Proceeding on owner instruction; I stand down on your word."
+  },
+  "input_plan_digests": [],
+  "artifacts": [],
+  "prev_message_sha256": "b5940c43999c21d598d19046398fe23f97f271b664692b3703a3bdd8ff7e8024"
+}

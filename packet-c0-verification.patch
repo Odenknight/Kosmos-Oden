@@ -1,0 +1,15 @@
+diff --git a/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md b/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md
+--- a/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md
++++ b/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md
+@@ -43,5 +43,6 @@ The Obsidian descriptor separately reports each required Vault/path, collision,
+-- `npm run typecheck`: passed during standalone/native descriptor development.
+-- `node --test test/navigation-effects-native-adapter.test.mjs`: 3/3 passed,
+-  including bundle checks for absence of the Node executor, filesystem imports,
+-  and runtime endpoints.
+-- Final combined C0 focused and repository gate totals: pending final run.
++- Combined C0 focused adapter suites: 12/12 passed.
++- Full Node suite: 283/283 passed.
++- `npm run verify`: passed, including typecheck, build, the full Node suite,
++  version, lockfile, artifact, invariant, and renderer-provenance checks.
++- Profile bundle checks found no Engine Node executor, Obsidian/Electron,
++  filesystem, runtime endpoint, watcher, or registration surface.

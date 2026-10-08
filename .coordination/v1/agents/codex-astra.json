@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "agent_id": "codex-astra",
+  "display_name": "Codex — Kosmos retrieval plan review",
+  "runtime": "codex-desktop",
+  "session_name": "01a0868a-c25b-7e12-9f00-ac4767faf964",
+  "registered_utc": "2026-09-09T09:15:41.3324906Z",
+  "last_seen_utc": "2026-09-10T13:47:17.9094987Z",
+  "writable_roots": [
+    ".coordination/v1/agents/codex-astra.json",
+    ".coordination/v1/status/codex-astra.md",
+    ".coordination/v1/messages/codex-astra/**",
+    ".coordination/v1/acks/codex-astra/**",
+    ".coordination/v1/artifacts/codex-astra/**",
+    ".coordination/v1/quarantine/codex-astra/**"
+  ],
+  "read_roots": [
+    "**"
+  ],
+  "coordinator": "JEFFREY leads planning/allocation; Codex reviews and integrates within owner authorization.",
+  "poll": "Current owner-requested Luna scans active. Persistent roster in status/codex-astra-team.json. No peer timer changes; recurring schedule not altered by this update.",
+  "owner_authorized_collaborator": "JEFFREY; registered as jeffrey",
+  "capabilities": [
+    "Coding coordination",
+    "Retrieval and Engine integration",
+    "Code review and debugging before GitHub push",
+    "Project mailbox collaboration"
+  ]
+}

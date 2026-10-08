@@ -1,0 +1,152 @@
+diff --git a/test/navigation-effects-adoption.test.mjs b/test/navigation-effects-adoption.test.mjs
+--- a/test/navigation-effects-adoption.test.mjs
++++ b/test/navigation-effects-adoption.test.mjs
+@@ -43,6 +43,23 @@ async function preview(overrides = {}) {
+   return api.planMocAdoption({ operationId: "op-1", targetPath: "MOCs/Alpha.md", currentBytes: lf, candidateBytes: candidate, ownership: "region-managed", policyDigest, configDigest, actor, registry, ...overrides });
+ }
+ 
++function confirmationInput(previewValue, registry, overrides = {}) {
++  return {
++    preview: previewValue,
++    registry,
++    rereadBytes: lf,
++    currentTargetPath: previewValue.targetPath,
++    currentProposedDigest: previewValue.proposedDigest,
++    currentPolicyDigest: previewValue.policyDigest,
++    currentConfigDigest: previewValue.configDigest,
++    actor,
++    credentialId: "cred-1",
++    confirmed: true,
++    occurredAt: "2026-08-27T12:00:00Z",
++    ...overrides,
++  };
++}
++
+ test("every unbound MOC is unmanaged and unmanaged adoption cannot confirm", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   assert.equal(registry.bindings.length, 0);
+@@ -55,7 +72,7 @@ test("every unbound MOC is unmanaged and unmanaged adoption cannot confirm", as
+   assert.ok(plan.reasonCodes.includes("UNMANAGED_NOT_ADOPTABLE"));
+   assert.equal(plan.binding.ownership, "unmanaged");
+   await assert.rejects(
+-    api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" }),
++    api.confirmMocAdoption(confirmationInput(plan, registry)),
+     /NOT_CONFIRMABLE/,
+   );
+ });
+@@ -142,12 +159,22 @@ test("path hazards, operational roots, and case or Unicode collisions fail clos
+   assert.ok(unicodeCollision.reasonCodes.includes("TARGET_PATH_NOT_CANONICAL"));
+ });
+ 
+-test("confirmation is credential-bound and target changes make the reviewed plan stale", async () => {
++test("confirmation rechecks credential, target, candidate, policy, configuration, actor, and collisions", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   const plan = await preview({ registry });
+-  await assert.rejects(api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf, actor, credentialId: "", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" }), /CREDENTIAL_BOUND/);
+-  await assert.rejects(api.confirmMocAdoption({ preview: plan, registry, rereadBytes: `${lf}external`, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" }), /STALE/);
+-  await assert.rejects(api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf.replace("generated body", "moved or changed body"), actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" }), /STALE/);
++  await assert.rejects(api.confirmMocAdoption(confirmationInput(plan, registry, { credentialId: "" })), /CREDENTIAL_BOUND/);
++  for (const changed of [
++    { rereadBytes: `${lf}external` },
++    { rereadBytes: lf.replace("generated body", "moved or changed body") },
++    { currentTargetPath: "MOCs/Other.md" },
++    { currentProposedDigest: digest("c") },
++    { currentPolicyDigest: digest("c") },
++    { currentConfigDigest: digest("c") },
++    { actor: { ...actor, actorId: "operator-2" } },
++    { currentExistingPaths: ["mocs/alpha.md"] },
++  ]) {
++    await assert.rejects(api.confirmMocAdoption(confirmationInput(plan, registry, changed)), /STALE/, JSON.stringify(changed));
++  }
+ });
+ 
+ test("adoption is deterministic and idempotent for the same operation ID", async () => {
+@@ -156,21 +183,21 @@ test("adoption is deterministic and idempotent for the same operation ID", asyn
+   const planA = await preview({ registry });
+   const planB = await preview({ registry });
+   assert.deepEqual(planB, planA);
+-  const confirmation = { preview: planA, registry, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" };
++  const confirmation = confirmationInput(planA, registry);
+   const confirmedA = await api.confirmMocAdoption(confirmation);
+   const confirmedB = await api.confirmMocAdoption(confirmation);
+   assert.deepEqual(confirmedB, confirmedA);
+   const store = new api.InMemoryAdoptionStore(registry);
+-  store.commit(registry.registryDigest, confirmedA.registry, confirmedA.receipt);
+-  store.commit(registry.registryDigest, confirmedB.registry, confirmedB.receipt);
++  await store.commit(registry.registryDigest, confirmedA.registry, confirmedA.receipt);
++  await store.commit(registry.registryDigest, confirmedB.registry, confirmedB.receipt);
+   assert.equal(store.load().generation, 1);
+-  assert.equal(store.receipts.size, 1);
++  assert.deepEqual(store.receipt(confirmedA.receipt.receiptId), confirmedA.receipt);
+ });
+ 
+ test("adoption receipt binds exact registry generation and contains no source note", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   const plan = await preview({ registry });
+-  const confirmed = await api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" });
++  const confirmed = await api.confirmMocAdoption(confirmationInput(plan, registry));
+   assert.equal(confirmed.receipt.sourceContentIncluded, false);
+   assert.equal("currentBytes" in confirmed.receipt, false);
+   assert.equal("candidateBytes" in confirmed.receipt, false);
+@@ -193,37 +220,50 @@ test("adoption receipt binds exact registry generation and contains no source no
+   assert.equal("saveSource" in store, false);
+   await assert.rejects(async () => store.commit(digest("f"), confirmed.registry, confirmed.receipt), /STALE/);
+-  store.commit(registry.registryDigest, confirmed.registry, confirmed.receipt);
++  await store.commit(registry.registryDigest, confirmed.registry, confirmed.receipt);
+   assert.equal(store.load().generation, 1);
+ });
+ 
+ test("target, policy, config, actor, and registry changes invalidate the preview binding", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   const plan = await preview({ registry });
+   const actorDigest = await api.canonicalDigest(actor);
+-  const exact = { targetDigest: plan.currentDigest, policyDigest, configDigest, actorDigest, registryDigest: registry.registryDigest };
++  const exact = {
++    targetPath: plan.targetPath,
++    targetDigest: plan.currentDigest,
++    proposedDigest: plan.proposedDigest,
++    policyDigest,
++    configDigest,
++    actorDigest,
++    registryDigest: registry.registryDigest,
++    existingPaths: [],
++  };
+   assert.equal(api.previewStillCurrent(plan, exact), true);
+-  for (const key of Object.keys(exact)) assert.equal(api.previewStillCurrent(plan, { ...exact, [key]: digest("e") }), false, key);
++  for (const key of ["targetDigest", "proposedDigest", "policyDigest", "configDigest", "actorDigest", "registryDigest"]) {
++    assert.equal(api.previewStillCurrent(plan, { ...exact, [key]: digest("e") }), false, key);
++  }
++  assert.equal(api.previewStillCurrent(plan, { ...exact, targetPath: "MOCs/Other.md" }), false, "targetPath");
++  assert.equal(api.previewStillCurrent(plan, { ...exact, existingPaths: ["mocs/alpha.md"] }), false, "existingPaths");
+ });
+ 
+ test("registry corruption and operation-ID receipt mismatch fail closed", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   const plan = await preview({ registry });
+-  const confirmed = await api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" });
++  const confirmed = await api.confirmMocAdoption(confirmationInput(plan, registry));
+   const corrupt = { ...registry, bindings: [{ schemaVersion: 1, targetPath: 42, ownership: "fully-managed" }] };
+   assert.equal((await api.validateAdoptionRegistry(corrupt)).valid, false);
+-  await assert.rejects(api.confirmMocAdoption({ preview: plan, registry: corrupt, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" }), /REGISTRY_INVALID/);
++  await assert.rejects(api.confirmMocAdoption(confirmationInput(plan, corrupt)), /REGISTRY_INVALID/);
+   const store = new api.InMemoryAdoptionStore(registry);
+-  store.commit(registry.registryDigest, confirmed.registry, confirmed.receipt);
++  await store.commit(registry.registryDigest, confirmed.registry, confirmed.receipt);
+   const mismatched = { ...confirmed.receipt, receiptId: "adoption:different", receiptDigest: digest("d") };
+-  assert.throws(() => store.commit(confirmed.registry.registryDigest, confirmed.registry, mismatched), /OPERATION_MISMATCH/);
++  await assert.rejects(store.commit(confirmed.registry.registryDigest, confirmed.registry, mismatched), /OPERATION_MISMATCH/);
+ });
+ 
+ test("receipt tampering cannot silently retarget ownership", async () => {
+   const registry = await api.createEmptyAdoptionRegistry();
+   const plan = await preview({ registry });
+-  const confirmed = await api.confirmMocAdoption({ preview: plan, registry, rereadBytes: lf, actor, credentialId: "cred-1", confirmed: true, occurredAt: "2026-08-27T12:00:00Z" });
++  const confirmed = await api.confirmMocAdoption(confirmationInput(plan, registry));
+   const retargeted = { ...confirmed.receipt, targetPath: "MOCs/Other.md" };
+   const store = new api.InMemoryAdoptionStore(registry);
+-  assert.throws(
+-    () => store.commit(registry.registryDigest, confirmed.registry, retargeted),
++  await assert.rejects(
++    store.commit(registry.registryDigest, confirmed.registry, retargeted),
+     /RECEIPT_(?:DIGEST|BINDING)_INVALID/,
+   );

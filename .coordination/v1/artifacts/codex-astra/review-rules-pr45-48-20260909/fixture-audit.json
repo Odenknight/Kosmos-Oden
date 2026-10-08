@@ -1,0 +1,52 @@
+{
+  "engineVersion": "2.2.0",
+  "engineBundleSha256": "4693336483ad56df2fcb4e2cb83320e5e41243a3d0e7ed293ba96f5ec8a33838",
+  "coordinateStanding": "Existing .review-main dependency installation receipt resolves Engine 650eab4a6752227cae336d7556a57826c22a0d5a; bundle hash recorded, no fresh npm ci",
+  "spanUnits": "Audit uses JS UTF-16 code units; fixture prose claims bytes without an explicit unit contract",
+  "rows": 44,
+  "failed": [],
+  "parser": [
+    {
+      "note": "edge-cases.md",
+      "tags": [],
+      "expectedFrontmatter": [],
+      "inlineExpected": 1
+    },
+    {
+      "note": "frontmatter-and-links.md",
+      "tags": [
+        "fm/one",
+        "fm-two",
+        "fm-three"
+      ],
+      "expectedFrontmatter": [
+        "fm/one",
+        "fm-two",
+        "fm-three"
+      ],
+      "inlineExpected": 1
+    },
+    {
+      "note": "gkx-labels.md",
+      "tags": [
+        "governed-fixture"
+      ],
+      "expectedFrontmatter": [
+        "governed-fixture"
+      ],
+      "inlineExpected": 1
+    },
+    {
+      "note": "inline-basic.md",
+      "tags": [],
+      "expectedFrontmatter": [],
+      "inlineExpected": 8
+    },
+    {
+      "note": "nested-and-unicode.md",
+      "tags": [],
+      "expectedFrontmatter": [],
+      "inlineExpected": 11
+    }
+  ]
+}

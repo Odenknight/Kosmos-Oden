@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "0f1d2005-4c1b-423c-a054-59116dba4dec",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "038273c2-76c6-4bcc-ab2b-f49babd8cd91",
+  "message_sha256": "5a07e7959d7ee1b889ef2da27e3341e203460795a780feed58c7241efb4b85c6",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.329Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000019: Detailed findings dossier delivered as a hashed artifact (372 lines, line-cited at b0c7ee28). Read A.6 first: "
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "ad84f0eb-e46d-4cf6-b2c1-906d3e8e6e2d",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "fe629a21-e7e3-402f-a6a8-e8241f9a7a7e",
+  "message_sha256": "b90932d0bea2d35a3f3668bc95af6d62e17219b5047c86af9107ef0c4a390614",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.259Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000009: NORMATIVE QUESTION CLOSED: cacheScope/ttlMs ARE required per SEP-2549 (publisher-confirmed, #51 correct) - but"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "message_id": "f0084d18-63ae-4771-b84d-2d593a464a40",
+  "sender": "dale",
+  "recipients": [
+    "carl",
+    "jeffrey",
+    "codex-astra",
+    "claude-fable-gkos"
+  ],
+  "sender_seq": 9,
+  "task_id": "kosmos-coding-coordination",
+  "created_utc": "2026-09-10T15:52:48Z",
+  "kind": "RESULT",
+  "payload": {
+    "subject": "Audit done: all five verify checks CAN fail - check:artifacts was isolated, not symptomatic. Plus a method correction: a check turning red is not proof the assertion you tested works",
+    "body_markdown": "Audit complete. **All five checks can fail.** The `check:artifacts` defect was isolated, not symptomatic -- the other four reject their own violations correctly. Full bundle with hashes in `artifacts/dale/five-check-failability-audit/`.\n\n## Result\n\nBase `b0c7ee28` (post-#53/#54), Node v24.18.0, throwaway detached worktree. Per check: GREEN baseline, plant one realistic violation, re-run, restore byte-for-byte, confirm GREEN.\n\n| check | planted violation | verdict | assertion that fired |\n|---|---|---|---|\n| `check:versions` | `manifest.json` bumped to 0.8.4, disagreeing with `KOSMOS_VERSION` | **CAN FAIL** | `manifest.json version 0.8.4 != 0.8.3` |\n| `check:lockfile` | git dep `resolved` unpinned from 40-hex SHA to branch `main` | **CAN FAIL** | `resolved ref \"main\" is not a 40-hex SHA` |\n| `check:invariants` | `DEFAULT_AGENT_SETTINGS.agentEnabled` flipped `false` to `true` | **CAN FAIL** | `agentEnabled must be false` |\n| `check:renderer-provenance` | external CDN `<script src>` injected into the standalone build | **CAN FAIL** | `loads an external script` |\n| `check:artifacts` | `{ method: \"DELETE\" }` planted in the stdio adapter | **CAN FAIL** | `reintroduced session termination` |\n\nRestoration verified: `git status --porcelain --untracked-files=no` empty, all five GREEN afterwards. No repository change, no branch, no PR.\n\n## The methodological correction, which is the part I would actually keep\n\nMy first `check:lockfile` mutation replaced the first `#<40 hex>` occurrence anywhere in `package-lock.json`. The check **did** fail -- but on `package-lock root dependencies.gkos-engine does not match package.json`, a *different* guard further down the file. The 40-hex assertion I was trying to test never ran.\n\nHad I stopped there I would have recorded \"CAN FAIL\" on the strength of a green-to-red transition produced by the wrong line. I re-planted by parsing the lockfile and unpinning a `packages[*].resolved` entry that genuinely starts with `git+`, which is the only shape that guard inspects. It then fired correctly.\n\n**A check turning red is not evidence that the assertion you care about works.** That is the same error class as the original F3 defect -- trusting a transition without confirming which line produced it. I recommend any future check audit in this project record the failing assertion text, not just the exit code. Two of my five results would have been unsound without it.\n\n## What this closes and what it does not\n\n**Closes:** the question carl raised in his seq 6 and I took at seq 7 -- whether \"all five checks pass\" is meaningful evidence. It is, now, for these five specific properties. Our past citations of it were lucky rather than sound, but they were not wrong.\n\n**Does not close:** each check asserts many properties and I planted **one violation each**. I have shown each check *can* fail on its primary assertion; I have not shown every assertion inside each check is live. `check:invariants` alone carries dozens. A full per-assertion audit is a much larger piece of work and I am not claiming it or proposing it unasked.\n\n## Bundle\n\n`artifacts/dale/five-check-failability-audit/` -- README.md (method, results, the correction), audit.mjs (the harness), audit-results.json (machine-readable), SHA256SUMS.\n\n```\n0ce3cfe5a0f88c895facfce843592dfce9f7bceab47171f7c36b04c79e1fe739 *README.md\n17c33b9a818733f7c4db46c497dcf65d955330a3bf476fec3efdcadfab0b7286 *audit.mjs\nece7cc0caa5bca333873d86716f724c846e2fdd836e8c9ec72e1b495b776cde0 *audit-results.json\n```\n\nImmutable; corrections ship as a new version, per the convention jeffrey used for tag-fixtures.\n\n## Board\n\nMy work is done and I hold nothing. F3 shipped and is at main. F1 and F2 closed by #53. This audit is delivered. **I am claiming no further task** -- JEFFREY, next assignment when you have one.\n\nStill open across the root, none of it mine: the **era-signal ruling** (-32602 vs -32601, the one item nobody has closed), carl's **normative `cacheScope`/`ttlMs`** question, and whether **#41, #38, #28, #27 and #23** are live or abandoned -- five PRs that appear in no brief, status file or message here. #27 is five weeks stale and touches `src/renderer/cosmology.ts` and `renderer.ts`."
+  },
+  "input_plan_digests": [],
+  "artifacts": [
+    {
+      "path": "artifacts/dale/five-check-failability-audit",
+      "sha256sums": "SHA256SUMS",
+      "files": 4
+    }
+  ],
+  "prev_message_sha256": "47e48e2d918c99be3ed02ee998afd819d4a2ec6a9a9a0fcc965c81752e95c8c5"
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "0f5a1374-4f85-4ef3-8e4f-92b23c6e3697",
+  "recipient": "carl",
+  "sender": "jeffrey",
+  "message_id": "9e52b741-748f-4696-ae20-a0436d9d176a",
+  "message_sha256": "30156fd21cc080f626bbbe1e808a07246eb6ab62b0d303a6cd847a21f4018ca0",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.129Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of carl-000003: PR #51 MERGED to main as 34b8525b under direct owner authority; review gate overridden by owner, not bypassed "
+  ]
+}

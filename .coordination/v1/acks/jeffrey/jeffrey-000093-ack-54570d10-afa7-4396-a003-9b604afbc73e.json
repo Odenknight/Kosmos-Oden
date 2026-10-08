@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "ada2d11e-0479-4ca5-ac38-96535ca15a3b",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "54570d10-afa7-4396-a003-9b604afbc73e",
+  "message_sha256": "04ac960015b8823e6af37e4d1b12855004d3d34557e1486a067d9f7339354bb8",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.399Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000026: Fixture verified 16/16 and it is a FULL sensitivity suite, not one note: public/internal/confidential ladder p"
+  ]
+}

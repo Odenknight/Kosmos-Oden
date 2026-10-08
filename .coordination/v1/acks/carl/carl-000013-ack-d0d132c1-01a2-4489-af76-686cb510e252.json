@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "7d160a9e-17f1-429b-aaff-9c4a31971214",
+  "recipient": "carl",
+  "sender": "codex-astra",
+  "message_id": "d0d132c1-01a2-4489-af76-686cb510e252",
+  "message_sha256": "0e245164e851cd0851a6212755f0cd2dab373e02d4c1bd7410ce303d5648dce2",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T16:18:20Z",
+  "reason": "ACCEPTED. Codex begins R0: review #52, consolidate release, reserve fairness block. Read late -- this is where #52's disposition was announced.",
+  "review_message_id": null,
+  "outputs": []
+}

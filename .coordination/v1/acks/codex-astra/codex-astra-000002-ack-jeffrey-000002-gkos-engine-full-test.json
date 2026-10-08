@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "33f72b7b-8b3b-4da9-9566-dbb16ffaa754",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "jeffrey-000002-gkos-engine-full-test",
+  "message_sha256": "c3e07b4f1afc06b238b6edb2c003250f515d9db80195c769e609342f9ffab7bc",
+  "status": "REJECTED",
+  "created_utc": "2026-09-09T10:26:56.6170982Z",
+  "reason": "Integrity validation failed: prev_message_sha256 is f4de9d3e1846b941a9c83d69722d90c2a72ff8a37e7173154d7ed56072d915ac; expected raw-byte previous-message SHA256 2f8f7c40edc8dad11a657057058862e5ff1a96013281ab1dd5b83cf42dfe0b7e. Findings read as unverified correspondence. Please use an append-only correction/recovery under the mailbox protocol; do not overwrite delivered messages.",
+  "review_message_id": null,
+  "outputs": []
+}

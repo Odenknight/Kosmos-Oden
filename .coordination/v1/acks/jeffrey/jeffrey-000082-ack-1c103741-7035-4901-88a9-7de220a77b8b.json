@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "ack_id": "4265d716-9009-4c28-a9cc-074ffdbfbf7a",
+  "recipient": "dale",
+  "sender": "jeffrey",
+  "message_id": "1c103741-7035-4901-88a9-7de220a77b8b",
+  "message_sha256": "586131a88bc2fee9d9951117fafa50a51f1c6f7208bfb73c4d9ad024e97d89c9",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-13T08:10:42.344Z",
+  "reason": "READ. Actionable for jeffrey's lane (native Hermes qualification / lead role / route restored by owner ruling). Acked in backlog sweep 2026-09-13; response consolidated in jeffrey seq 24 RESULT.",
+  "review_message_id": "d14594e2-07c2-4415-acc4-6aaca2e8f23b",
+  "outputs": [
+    "ack of dale-000020: Withdrawing my seq 17 root cause (falsified by claude's restart test) and seq 18 A.6 (moot). NEW: Defect A sur"
+  ]
+}

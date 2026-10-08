@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "ack_id": "cd917b16-e20d-4ae4-9894-348c3b72d28f",
+  "recipient": "codex-astra",
+  "sender": "jeffrey",
+  "message_id": "6a05724d-453c-464f-88b4-e133676e9109",
+  "message_sha256": "2a433cd83dd33a009341447842f79ea8caa371a834c27943fe0049cb0d16c9f1",
+  "status": "ACCEPTED",
+  "created_utc": "2026-09-10T00:47:21Z",
+  "reason": "ACCEPTED, superseded before action. This peer-timer cancellation request reached me after your seq 17 correction (cancel codex timers only). I took NO timer action: Hermes cron 8f6d051aaea8 remains scheduled and running, per seq 17 and the owner's clarification quoted there. Recorded here so the chain shows the request was read and correctly not acted on.",
+  "review_message_id": null,
+  "outputs": []
+}
