@@ -66,7 +66,7 @@ export interface KosmosApp {
   notifyLiveEvent(ev: { path: string; type?: string }): void;
   /** Highlight the notes touched by one Agent API query with a fading trail.
    *  `agent` (optional) colours the trail per-agent and labels its rocket head. */
-  notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay?: boolean): void;
+  notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay?: boolean, agentId?: string): void;
   clearTraversalObservability(): void;
   setTrafficHeatmapEnabled(enabled: boolean): void;
   clearTrafficHeatmap(): void;
@@ -218,7 +218,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
      drawn as fading emerald line segments (v0.5.1 behavior, ported). */
   let agentTrail: any = null;
   let agentDust: any = null;
-  let agentSteps: Array<{ id: string; t: number; agent: string }> = [];
+  let agentSteps: Array<{ id: string; t: number; agent: string; label: string }> = [];
   let __agentLive = new Set<string>();
   let __agentHintT = 0;
   const AGENT_MAX = 24;
@@ -256,6 +256,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     else if (hue < 240) { g = x; b = c; } else if (hue < 300) { r = x; b = c; } else { r = c; b = x; }
     const rgb: [number, number, number] = [r + m, g + m, b + m];
     const val = { rgb, css: `hsl(${hue} 82% 62%)` };
+    if (__agentColors.size >= 64) __agentColors.delete(__agentColors.keys().next().value!);
     __agentColors.set(key, val);
     return val;
   }
@@ -1568,7 +1569,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const now = performance.now();
     // newest hop per agent over the trail lifetime (rocket rides the head of
     // each agent's trail and fades with it); newest agents first, capped
-    const headByAgent = new Map<string, { id: string; t: number; agent: string }>();
+    const headByAgent = new Map<string, { id: string; t: number; agent: string; label: string }>();
     for (const s of agentSteps) { if (now - s.t > AGENT_TRAIL_MS || !idToRender.has(s.id)) continue; headByAgent.set(s.agent, s); }
     const heads = Array.from(headByAgent.values()).sort((a, b) => b.t - a.t).slice(0, MAX_AGENTS_SHOWN);
     let mi = 0;
@@ -1579,7 +1580,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const m = agentMarkers[mi++]; const col = agentColor(s.agent);
       m.agent = s.agent;
       m.rocket.style.color = col.css; m.rocket.style.textShadow = `0 0 6px ${col.css}`;
-      if (m.name.textContent !== s.agent) m.name.textContent = s.agent;
+      if (m.name.textContent !== s.label) m.name.textContent = s.label;
       m.name.style.color = col.css; m.name.style.borderColor = col.css + "66";
       m.name.style.display = labelsEnabled ? "" : "none";
       m.el.style.transform = `translate(-50%,-140%) translate(${sp.x.toFixed(1)}px,${sp.y.toFixed(1)}px)`;
@@ -1600,9 +1601,12 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     applyLive(); updateHalos();
   }
   /** Entry point: the host posts agent-traversal whenever the Agent API serves a query. */
-  function notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay = false): void {
+  function notifyAgentTraversal(paths: string[], tool: string, agent?: string, replay = false, agentId?: string): void {
     if (!Array.isArray(paths) || !G) return;
-    const who = String(agent || "").trim() || DEFAULT_AGENT;
+    const displayLabel = String(agent || "").trim() || DEFAULT_AGENT;
+    // Explicit identity is opaque and separate from legacy label-only identity.
+    const who = typeof agentId === "string" && agentId.trim()
+      ? JSON.stringify(["id", agentId]) : JSON.stringify(["label", displayLabel]);
     const now = performance.now(); let touched = false;
     for (const p of paths) {
       const id = "file:" + String(p || "").replace(/\\/g, "/");
@@ -1611,15 +1615,15 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       // Find this agent's own head so interleaved agents retain independent
       // comet segments and never connect to somebody else's traversal.
       let last:any=null; for(let i=agentSteps.length-1;i>=0;i--)if(agentSteps[i].agent===who){last=agentSteps[i];break;}
-      if (last && last.id === id && last.agent === who) { last.t = now; touched = true; continue; }
+      if (last && last.id === id && last.agent === who) { last.t = now; last.label = displayLabel; touched = true; continue; }
       burstAgentDust(last?.id??null,id,who,now);
-      agentSteps.push({ id, t: now, agent: who }); touched = true;
+      agentSteps.push({ id, t: now, agent: who, label: displayLabel }); touched = true;
       if (agentSteps.length > AGENT_MAX + 1) agentSteps.splice(0, agentSteps.length - (AGENT_MAX + 1));
     }
     if (!touched) return;
     refreshAgentLive(now); updateAgentTrail();
     updateTrafficHeat(true);
-    const label = replay ? `Replay · ${who}` : (who === DEFAULT_AGENT ? "Agent traversal" : who + " traversal");
+    const label = replay ? `Replay · ${displayLabel}` : (displayLabel === DEFAULT_AGENT ? "Agent traversal" : displayLabel + " traversal");
     if (now - __agentHintT > 4000) { __agentHintT = now; showHint(label + ": " + (tool || "query")); }
   }
   function clearTraversalObservability(): void {
@@ -2095,7 +2099,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     setTrafficHeatmapEnabled,
     clearTrafficHeatmap,
     setHostVisible,
-    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
+    getDiagnostics() { return G ? { ...(G.diagnostics || {}), residualCollisions: G.__residualCollisions ?? (G.diagnostics && G.diagnostics.residualCollisions) ?? 0, agentTraversalHops: agentSteps.length, agentTraversalAgents: new Set(agentSteps.map(s => s.agent)).size, agentColorCacheEntries: __agentColors.size, agentDustParticles: agentDust?.active ?? 0, trafficHeatEnabled, trafficHeatNodes: trafficHeat.size } : null; },
     getRenderStats() { return { frames: renderStats.frames, running: renderStats.running, drawCalls: renderer.info.render.calls }; },
     showError: showFatal,
     showHint,

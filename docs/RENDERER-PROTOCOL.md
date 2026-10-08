@@ -107,6 +107,16 @@ of falling through to link resolution.
 
 ### Compatibility
 
+The renderer method `notifyAgentTraversal(paths, tool, agentLabel?, replay?, agentId?)`
+accepts an optional opaque stable ID. Live service and recorded replay adapters
+must pass `agent_id` as the fifth argument and keep `agent_label` for display.
+Equal labels with different IDs retain separate heads and colors; renaming an ID
+does not create another head. IDs are not authentication or effect authority.
+Callers without stable IDs retain explicit label-only grouping, in a namespace
+separate from IDs. Missing/blank IDs use this legacy behavior. Retained traversal
+steps remain capped at 25, displayed markers at six, and the deterministic color
+cache at 64 entries. A shared location can visually overlap distinct markers.
+
 Host and renderer ship together inside `main.js`, so a single current version
 suffices. For resilience, the renderer also still accepts the legacy flat
 shapes (`kosmos:files` / `kosmos:update` / `kosmos:open`) from older host
