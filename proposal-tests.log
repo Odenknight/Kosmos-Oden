@@ -1,0 +1,25 @@
+✔ accepted apply commits its immutable decision before guarded source processing (15.5364ms)
+✔ missing acknowledgement or Secret Storage blocks decisions and source writes (3.8692ms)
+✔ zero or multiple canonical proposal matches block the whole batch before decisions (2.8034ms)
+✔ accepted, rejected, and deferred decisions bind immutable proposals and human authority (11.9154ms)
+✔ decision persistence is atomic, idempotent, proposal-preserving, and source-inert (3.4209ms)
+✔ decision collisions and tampering fail before any record or source write (3.5756ms)
+✔ agents cannot self-approve and unbound human identities fail closed (2.0349ms)
+✔ desktop audit publication never replaces a racing destination and rejects escaping junctions (24.8547ms)
+✔ proposal records bind canonical identity, source, evidence, provenance, and content hash (6.642ms)
+✔ atomic quarantine persistence is idempotent and never touches a source note (4.2419ms)
+✔ a later equivalent submission preserves the first immutable creation bytes (3.2406ms)
+✔ a different immutable record at the same proposal path is rejected without overwrite (1.2011ms)
+✔ a failed replacement removes the verified temporary record and leaves no partial proposal (1.4318ms)
+✔ unsafe target paths and invalid content hashes fail before disk access (1.6704ms)
+✔ conflicts are deterministic projections and proposal bytes remain immutable (1.1447ms)
+✔ confidence triage only sorts, filters, and selects; it never changes status (0.9885ms)
+✔ credential-bound agent identity is explicit and false credential claims are rejected (0.6773ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 171.09

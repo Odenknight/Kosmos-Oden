@@ -1,0 +1,42 @@
+X [ERROR] No matching export in "stub:obsidian" for import "requestUrl"
+
+    src/plugin/gkx-llm.ts:1:9:
+      1 │ import { requestUrl } from "obsidian";
+        ╵          ~~~~~~~~~~
+
+C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1748
+  let error = new Error(text);
+              ^
+
+Error: Build failed with 1 error:
+src/plugin/gkx-llm.ts:1:9: ERROR: No matching export in "stub:obsidian" for import "requestUrl"
+    at failureErrorWithLog (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1748:15)
+    at C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1207:25
+    at runOnEndCallbacks (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1588:45)
+    at buildResponseToResult (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1205:7)
+    at C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:1232:16
+    at responseCallbacks.<computed> (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:884:9)
+    at handleIncomingPacket (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:939:12)
+    at Socket.readFromStdout (C:\Users\FAC\Documents\_AI_builds_GPT\Kosmos-Oden\.review-main\node_modules\esbuild\lib\main.js:862:7)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+
+Node.js v24.18.0
+✖ test\proposal-review-selection.test.mjs (107.3884ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113.6393
+
+✖ failing tests:
+
+test at test\proposal-review-selection.test.mjs:1:1
+✖ test\proposal-review-selection.test.mjs (107.3884ms)
+  'test failed'

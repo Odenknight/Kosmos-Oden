@@ -1,0 +1,20 @@
+Kosmos-Oden layout: 1 residual body intersection(s) after corrective pass
+bench 100: done
+Kosmos-Oden layout: 12 residual body intersection(s) after corrective pass
+bench 1000: done
+Kosmos-Oden layout: 210 residual body intersection(s) after corrective pass
+bench 5000: done
+Kosmos-Oden layout: 282 residual body intersection(s) after corrective pass
+bench 10000: done
+Kosmos-Oden layout: 1053 residual body intersection(s) after corrective pass
+bench 25000: done
+Kosmos-Oden layout: 2073 residual body intersection(s) after corrective pass
+bench 50000: done
+| Notes | Full build (parse+graph) | Cosmology | Layout | Single-note update | New-folder update | Reparsed | Residual collisions | RSS |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 42.9 ms | 2.8 ms | 25.6 ms | 17.3 ms | 15.2 ms | 1 | 1 | 74 MB |
+| 1,000 | 172.2 ms | 9.7 ms | 153.1 ms | 157.1 ms | 146.9 ms | 1 | 12 | 239 MB |
+| 5,000 | 714.2 ms | 49.9 ms | 989.7 ms | 821.8 ms | 724.8 ms | 1 | 210 | 461 MB |
+| 10,000 | 1444.2 ms | 131.6 ms | 2217.0 ms | 1487.1 ms | 1584.7 ms | 1 | 282 | 887 MB |
+| 25,000 | 3774.7 ms | 624.6 ms | 7034.5 ms | 4115.6 ms | 4045.0 ms | 1 | 1053 | 1606 MB |
+| 50,000 | 6922.4 ms | 2651.0 ms | 15660.8 ms | 7926.4 ms | 7376.8 ms | 1 | 2073 | 2825 MB |
