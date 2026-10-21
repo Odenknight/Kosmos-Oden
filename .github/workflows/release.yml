@@ -25,6 +25,9 @@ jobs:
           cache: npm
 
       # The release ships only if the full validation pipeline passes.
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - run: npm ci
       - run: npm run verify
 

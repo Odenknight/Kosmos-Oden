@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.8.4 — 2026-10-21
+
+Engine:
+- Pin GKOS-Engine 2.2.0 development line at `7511233717cd5ab9ce8f6cec76e9623a21e3c728`
+  (Engine main, 2026-10-12; previously `777ba170b905`). Every export Kosmos
+  consumes is unchanged; the increment is additive (scoped lineage inspection,
+  reviewer v1, governance artifacts, Graphiti query hardening).
+- `get_lineage` (MCP and `/lineage`) adds `declarations`: the note's own
+  authored lineage declarations, resolved by Engine `inspectScopedLineage`
+  against only the notes the caller may read. A declaration whose target is
+  unreadable or missing reports `unresolved` with no target identity.
+
+Renderer — sharper close-ups:
+- Close-up mesh tier: up to 8 bodies (4 on mobile) whose projected radius is at
+  least 42 px are redrawn with spheres subdivided 4x (3x Lite). The overview
+  instance collapses to zero scale, so each body is shaded once. Silhouettes no
+  longer show facets when a body fills the view.
+- Close-up shading (detail level 2): three more zero-mean noise octaves,
+  screen-space bump relief on rocky planets and moons (gas and ice giants stay
+  smooth), and slowly drifting granulation on stars.
+- A selected body may be approached to about 2.6 of its radii (floor 2.5)
+  instead of the fixed 12-unit floor; the near plane follows the orbit radius
+  (0.05 to 0.5) so close-ups are not clipped.
+
+Renderer — efficiency:
+- The minimap was repainted every fourth frame (one arc and fill per note)
+  while hidden, which is its default. It is now skipped while hidden and, when
+  shown, fills one path per colour.
+- Orbit order is resolved once per scene build instead of scanning every node
+  once per role every frame; instance matrices are rewritten only for orbiting
+  bodies that are drawn.
+- Focus links are resolved once per focus change; area label counts once per
+  build; the idle comet-dust pool no longer scans and uploads each frame.
+- Hover and click picking uses an analytic ray/sphere test against current
+  positions: it no longer selects culled bodies or depends on stale
+  InstancedMesh bounds while bodies orbit.
+- Measured (Chromium, Intel UHD, D3D11, 1600x900, overview): 15,000 notes went
+  from 26.6-28.5 fps to 60 fps, script time 5.6-5.8 to 2.8-3.1 ms per frame;
+  3,000 notes went from 1.36-1.41 to 1.23-1.33 ms per frame at 60 fps.
+
+Fixes:
+- Renamed notes refreshed in place (no topology change) now refresh their
+  cached overlay label text.
+- CI could not install the private `gkos-engine` git dependency
+  (`Permission denied (publickey)` since 2026-10-19). Workflows now load a
+  read-only deploy key from the `GKOS_ENGINE_DEPLOY_KEY` secret through
+  `.github/actions/engine-access` and fail with an actionable message when it
+  is absent.
+
 ## Graphiti recovery consumer - 2026-09-13
 
 - Pin the Engine query-contract/recovery source and consume its packaged

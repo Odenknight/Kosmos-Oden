@@ -1,8 +1,8 @@
-# Kosmos-Oden — v0.8.3 candidate
+# Kosmos-Oden — v0.8.4
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
-[Current Engine development-pin qualification](docs/reviews/2026-09-13-engine-777ba17.md)
+[Current Engine development-pin qualification](docs/reviews/2026-10-21-engine-7511233.md)
 
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
@@ -17,9 +17,15 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
+> **Version 0.8.4:** sharper close-ups (a finer close-up mesh tier with extra surface
+> detail and relief, closer zoom on a selected body), a lighter per-frame renderer
+> (the hidden minimap is no longer painted), and Engine-resolved lineage
+> declarations in `get_lineage`.
+> Uses the TypeScript GKOS-Engine 2.2.0 development line at exact commit
+> `7511233717cd5ab9ce8f6cec76e9623a21e3c728` (Engine main, 2026-10-12).
+>
 > **Version 0.8.3 candidate:** adds modern MCP 2026-07-28 and preserves Engine
-> adapter sensitivity policy. Uses the TypeScript GKOS-Engine 2.2.0 development candidate
-> at exact commit `777ba170b905952817e364f125c794152f118fa4`. This update preserves the
+> adapter sensitivity policy. Used Engine commit `777ba170b905952817e364f125c794152f118fa4`. This update preserves the
 > existing plugin and standalone workflows, repairs overlapping vault updates,
 > and hardens local service connections. It includes no Rust build.
 > Automatic MOC writes remain unavailable. See [candidate installation and qualification](docs/REVIEW-0.8.3.md).
@@ -208,7 +214,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`777ba170b905952817e364f125c794152f118fa4`. Its Effects contract says
+`7511233717cd5ab9ce8f6cec76e9623a21e3c728`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
