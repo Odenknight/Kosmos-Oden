@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "workflow_id": "pr-triage",
+  "stages": [
+    {"id": "01-inventory", "depends_on": []},
+    {"id": "02-disposition", "depends_on": ["01-inventory"]},
+    {"id": "03-review", "depends_on": ["02-disposition"]},
+    {"id": "04-handoff", "depends_on": ["03-review"]}
+  ]
+}

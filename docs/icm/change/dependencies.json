@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "workflow_id": "change",
+  "stages": [
+    {"id": "01-understand", "depends_on": []},
+    {"id": "02-plan", "depends_on": ["01-understand"]},
+    {"id": "03-build", "depends_on": ["02-plan"]},
+    {"id": "04-verify", "depends_on": ["03-build"]},
+    {"id": "05-integrate", "depends_on": ["04-verify"]},
+    {"id": "06-deliver", "depends_on": ["05-integrate"]}
+  ]
+}

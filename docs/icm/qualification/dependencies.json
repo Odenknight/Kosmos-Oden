@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "workflow_id": "qualification",
+  "stages": [
+    {"id": "01-candidate", "depends_on": []},
+    {"id": "02-required-chromium", "depends_on": ["01-candidate"]},
+    {"id": "03-advisory-matrix", "depends_on": ["01-candidate"]},
+    {"id": "04-release-time", "depends_on": ["01-candidate", "02-required-chromium"]},
+    {"id": "05-report", "depends_on": ["02-required-chromium", "03-advisory-matrix", "04-release-time"]}
+  ]
+}
