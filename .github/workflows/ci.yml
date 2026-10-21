@@ -22,6 +22,9 @@ jobs:
       - name: Lockfile SHA guard (git deps must pin to a commit SHA)
         run: npm run check:lockfile
 
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - name: Install (clean, from lockfile)
         run: npm ci
 
@@ -67,6 +70,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - run: npm ci
       # Build twice from a clean tree; the executable artifacts must be identical (Doc2 §4.4).
       - name: First build

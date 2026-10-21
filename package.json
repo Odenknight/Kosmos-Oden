@@ -1,6 +1,6 @@
 {
   "name": "kosmos-oden",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Kosmos-Oden v0.8.3 — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
@@ -51,10 +51,10 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#777ba170b905952817e364f125c794152f118fa4",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#7511233717cd5ab9ce8f6cec76e9623a21e3c728",
     "three": "0.185.1"
   },
   "allowScripts": {
-    "github:Odenknight/GKOS-Engine#777ba170b905952817e364f125c794152f118fa4": true
+    "github:Odenknight/GKOS-Engine#7511233717cd5ab9ce8f6cec76e9623a21e3c728": true
   }
 }

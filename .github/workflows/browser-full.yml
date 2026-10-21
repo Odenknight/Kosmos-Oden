@@ -41,6 +41,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - run: npm ci
       - run: npm run build
       - name: Install Playwright + browsers

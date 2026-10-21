@@ -1,7 +1,7 @@
 # Navigation Effects development pin
 
-Historical ledger for the August integration. The current Kosmos 0.8.3 candidate
-pins Engine `777ba170b905952817e364f125c794152f118fa4` (2.2.0 development candidate).
+Historical ledger for the August integration. Kosmos 0.8.4 pins Engine
+`7511233717cd5ab9ce8f6cec76e9623a21e3c728` (2.2.0 development line); 0.8.3 pinned `777ba170b905952817e364f125c794152f118fa4`.
 The older coordinates below are retained as historical evidence.
 
 Status: exact development-only integration coordinate. This is not a released

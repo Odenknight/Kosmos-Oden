@@ -61,12 +61,12 @@ for (const group of ["dependencies", "devDependencies"]) {
 }
 
 const engine = packages["node_modules/gkos-engine"];
-const engineCommit = "777ba170b905952817e364f125c794152f118fa4";
+const engineCommit = "7511233717cd5ab9ce8f6cec76e9623a21e3c728";
 if (
   engine?.version !== "2.2.0"
   || !String(engine.resolved ?? "").endsWith(`#${engineCommit}`)
 ) {
-  console.error(`check-lockfile-sha: FAIL — gkos-engine is not bound to Graphiti adapter commit ${engineCommit.slice(0, 12)}`);
+  console.error(`check-lockfile-sha: FAIL — gkos-engine is not bound to Engine commit ${engineCommit.slice(0, 12)}`);
   process.exit(1);
 }
 

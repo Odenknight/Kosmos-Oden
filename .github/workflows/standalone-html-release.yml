@@ -28,6 +28,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - run: npm ci
       # Full build so both HTML artifacts are produced (embed precedes plugin).
       - run: npm run build

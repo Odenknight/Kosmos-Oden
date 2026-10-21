@@ -211,6 +211,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let backdropGroup: any = null, nebula: any = null;
   let G: any = null, nodeRender: any[] = []; const idToRender = new Map<string, any>();
   let haloBase = 0; const HALO_CAP = MOBILE ? 24 : 48;
+  const HERO_CAP = MOBILE ? 4 : 8, HERO_PX = 42;   // close-up layer size; projected radius (px) that earns it
+  let heroLayers: any = null, heroRecs: any[] = [];
   const matsWithTime: any[] = [];
 
   let __attach: string[] = [];
@@ -316,12 +318,19 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
 
     const seg = (hi: number, lo: number) => Math.max(6, Math.round(LOWPOWER ? lo : hi));
-    const geoCluster = keep(new THREE.SphereGeometry(1, seg(40, 26), seg(28, 16)));
-    const geoGalaxy = keep(new THREE.SphereGeometry(1, seg(34, 22), seg(24, 14)));
-    const geoStar = keep(new THREE.SphereGeometry(1, seg(30, 20), seg(22, 14)));
-    const geoPlanet = keep(new THREE.SphereGeometry(1, seg(24, 14), seg(18, 11)));
-    const geoMoon = keep(new THREE.SphereGeometry(1, seg(14, 10), seg(11, 8)));
-    const geoMoonlet = keep(new THREE.SphereGeometry(1, seg(9, 7), seg(8, 6)));
+    // Close-up spheres subdivide the overview tessellation by an integer factor,
+    // so a body keeps its exact shape when it moves between the two layers.
+    const sphereSegs: any = {
+      cluster: [seg(40, 26), seg(28, 16)], galaxy: [seg(34, 22), seg(24, 14)], star: [seg(30, 20), seg(22, 14)],
+      planet: [seg(24, 14), seg(18, 11)], moon: [seg(14, 10), seg(11, 8)], moonlet: [seg(9, 7), seg(8, 6)],
+    };
+    const sphere = (b: string, k = 1) => keep(new THREE.SphereGeometry(1, sphereSegs[b][0] * k, sphereSegs[b][1] * k));
+    const geoCluster = sphere("cluster");
+    const geoGalaxy = sphere("galaxy");
+    const geoStar = sphere("star");
+    const geoPlanet = sphere("planet");
+    const geoMoon = sphere("moon");
+    const geoMoonlet = sphere("moonlet");
     const geoAster = keep(new THREE.IcosahedronGeometry(1, 0));
     const geoOort = keep(new THREE.IcosahedronGeometry(1, 0));
 
@@ -346,6 +355,18 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       asteroid: makeLayer(geoAster, matAster, byBody.asteroid.length),
       oort: makeLayer(geoOort, matOort, byBody.oort.length),
     };
+    // Close-up layer: a few bodies that fill enough of the screen are redrawn
+    // with finer spheres and full-detail shading (aDetail = 2). Same materials,
+    // so no extra shader programs; empty layers are not drawn.
+    const heroK = LOWPOWER ? 3 : 4;
+    const heroMats: any = { cluster: matCluster, galaxy: matGalaxy, star: matStar, planet: matPlanet, moon: matMoon, moonlet: matMoonlet };
+    heroLayers = {}; heroRecs = [];
+    for (const b in heroMats) {
+      if (!byBody[b].length) continue;
+      const H = makeLayer(sphere(b, heroK), heroMats[b], HERO_CAP);
+      H.mesh.count = 0; H.mesh.visible = false; H.mesh.renderOrder = 1;
+      heroLayers[b] = H; world.add(H.mesh);
+    }
 
     if (G.__cosmos) {
       for (const n of G.nodes) { if (n.__r == null) n.__r = (n.mass || 0.4); }
@@ -406,6 +427,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     buildRings(byBody.planet);
     lumNodes = lumin;
     if (G.__cosmos) { for (const r of nodeRender) { const op = r.node.__op; const pr = (op != null) ? idToRender.get(op) : null; r.node.__opNode = pr ? pr.node : null; } }
+    buildOrbiters();
+    focusPairsFor = null;
     if (G.__cosmos) buildCosmosLinks(); else buildLinks();
     buildBackdrop();
     buildAreaLabels();
@@ -518,57 +541,74 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
 
   /* ---- live orbital motion ---- */
+  // Orbiting bodies in parent-before-child order, resolved once per scene build
+  // instead of rescanning every node once per role on every frame.
+  const ORBIT_ORDER = ["galaxy", "star", "planet", "moon", "moonlet", "asteroid", "oort"];
+  let orbiters: any[] = [];
+  function buildOrbiters() {
+    orbiters = [];
+    if (!G || !G.__cosmos) return;
+    for (const role of ORBIT_ORDER) for (const rec of nodeRender) { const n = rec.node; if (n.body === role && n.__opNode && n.__ov) orbiters.push(rec); }
+  }
   function animateOrbits(t: number) {
-    if (!G || !G.__cosmos || !nodeRender.length) return;
-    const ORDER = ["galaxy", "star", "planet", "moon", "moonlet", "asteroid", "oort"];
-    for (let ri = 0; ri < ORDER.length; ri++) {
-      const role = ORDER[ri];
-      for (const rec of nodeRender) {
-        const n = rec.node; if (n.body !== role || n.__hidden) continue;
-        const pn = n.__opNode; if (!pn || !n.__ov) continue; const p = pn.position;
-        const ox = n.__ov[0], oy = n.__ov[1], oz = n.__ov[2];
-        const e = n.__ecc || 0;
-        if (e > 0) {
-          // Elliptical orbit: apoapsis is pinned to the original |ov_horiz|,
-          // so the max distance from the parent never exceeds the packed radius
-          // (collision-safe). Periapsis is a(1-e) inward. At t=0 the object is
-          // at apoapsis (matches its layout-time position exactly).
-          const aH = Math.hypot(ox, oz);
-          if (aH > 0) {
-            const semi = aH / (1 + e);                // semi-major axis
-            let theta = Math.PI + (n.__os || 0) * t;  // start at apoapsis
-            // Sibling perturbation (theta jitter): the heaviest sibling tugs
-            // this body slightly along its orbit — no perpendicular offset,
-            // so max radius stays exactly aH. Zero at t=0 by construction.
-            const wa = n.__wob_amp;
-            if (wa) {
-              const wph = n.__wob_phase || 0;
-              theta += wa * (Math.sin((n.__wob_freq || 0) * t + wph) - Math.sin(wph));
-            }
-            const rOrbit = semi * (1 - e * e) / (1 + e * Math.cos(theta));
-            const dth = theta - Math.PI, cd = Math.cos(dth), sd = Math.sin(dth);
-            const ux = ox / aH, uz = oz / aH;         // apoapsis unit direction
-            const rx = ux * cd - uz * sd;             // rotate around Y by dθ
-            const rz = ux * sd + uz * cd;
-            n.position[0] = p[0] + rx * rOrbit;
-            n.position[1] = p[1] + oy;
-            n.position[2] = p[2] + rz * rOrbit;
-            continue;
+    if (!G || !G.__cosmos || !orbiters.length) return;
+    for (const rec of orbiters) {
+      const n = rec.node; if (n.__hidden) continue;
+      const pn = n.__opNode; const p = pn.position;
+      const ox = n.__ov[0], oy = n.__ov[1], oz = n.__ov[2];
+      const e = n.__ecc || 0;
+      if (e > 0) {
+        // Elliptical orbit: apoapsis is pinned to the original |ov_horiz|,
+        // so the max distance from the parent never exceeds the packed radius
+        // (collision-safe). Periapsis is a(1-e) inward. At t=0 the object is
+        // at apoapsis (matches its layout-time position exactly).
+        const aH = Math.hypot(ox, oz);
+        if (aH > 0) {
+          const semi = aH / (1 + e);                // semi-major axis
+          let theta = Math.PI + (n.__os || 0) * t;  // start at apoapsis
+          // Sibling perturbation (theta jitter): the heaviest sibling tugs
+          // this body slightly along its orbit — no perpendicular offset,
+          // so max radius stays exactly aH. Zero at t=0 by construction.
+          const wa = n.__wob_amp;
+          if (wa) {
+            const wph = n.__wob_phase || 0;
+            theta += wa * (Math.sin((n.__wob_freq || 0) * t + wph) - Math.sin(wph));
           }
+          const rOrbit = semi * (1 - e * e) / (1 + e * Math.cos(theta));
+          const dth = theta - Math.PI, cd = Math.cos(dth), sd = Math.sin(dth);
+          const ux = ox / aH, uz = oz / aH;         // apoapsis unit direction
+          const rx = ux * cd - uz * sd;             // rotate around Y by dθ
+          const rz = ux * sd + uz * cd;
+          n.position[0] = p[0] + rx * rOrbit;
+          n.position[1] = p[1] + oy;
+          n.position[2] = p[2] + rz * rOrbit;
+          continue;
         }
-        // fallback: perfect circle (unchanged from prior behaviour)
-        const a = (n.__os || 0) * t, c = Math.cos(a), s = Math.sin(a);
-        n.position[0] = p[0] + ox * c + oz * s; n.position[1] = p[1] + oy; n.position[2] = p[2] - ox * s + oz * c;
       }
+      // fallback: perfect circle (unchanged from prior behaviour)
+      const a = (n.__os || 0) * t, c = Math.cos(a), s = Math.sin(a);
+      n.position[0] = p[0] + ox * c + oz * s; n.position[1] = p[1] + oy; n.position[2] = p[2] - ox * s + oz * c;
     }
+  }
+  /** Writes one body's instance matrix. A body promoted to the close-up layer is
+   *  collapsed to zero scale here so it is shaded once, by the finer mesh. */
+  function writeInstanceMatrix(rec: any) {
+    const n = rec.node, r = rec.__hero ? 0 : (n.__r || 0.4);
+    MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(r, r, r)); rec.layer.mesh.setMatrixAt(rec.idx, MAT); rec.layer.__dirty = 1;
+  }
+  function flushInstanceMatrices() {
+    for (const bb in layers) { const L = layers[bb]; if (L.__dirty) { L.__dirty = 0; L.mesh.instanceMatrix.needsUpdate = true; } }   // skip GPU uploads for untouched layers
   }
   function updateInstancePositions() {
     if (!layers) return;
-    for (const rec of nodeRender) {
-      const n = rec.node; if (n.__hidden) continue; const r = n.__r || 0.4;
-      MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(r, r, r)); rec.layer.mesh.setMatrixAt(rec.idx, MAT); rec.layer.__dirty = 1;
+    // Only orbiting bodies move, and a body that is not drawn (filtered or
+    // culled) needs no matrix until it is drawn again; cullLOD and playback
+    // write it at the moment it reappears.
+    for (const rec of orbiters) {
+      if (rec.node.__hidden || rec.layer.attrs.aVisible.getX(rec.idx) < 0.5) continue;
+      writeInstanceMatrix(rec);
     }
-    for (const bb in layers) { const L = layers[bb]; if (L.__dirty) { L.__dirty = 0; L.mesh.instanceMatrix.needsUpdate = true; } }   // skip GPU uploads for untouched layers
+    flushInstanceMatrices();
     if (glow && lumNodes.length) {
       for (const n of lumNodes) {
         if (n.__glow == null) continue;
@@ -596,21 +636,31 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
     if (lastFocusIds) updateFocusLinks(lastFocusIds);
   }
+  // Links touching the current focus set, resolved once per focus change. The
+  // orbit refresh then only rewrites endpoints instead of rescanning every link.
+  let focusPairs: any[] = [], focusPairsFor: Set<string> | null = null;
+  const FOCUS_C = new THREE.Color();
   function updateFocusLinks(focusIds: Set<string> | null) {
     if (!focusLines) return;
     lastFocusIds = focusIds && focusIds.size ? focusIds : null;
-    const { fpos, fcol, cap, geo } = focusLines; const c = new THREE.Color(); let v = 0;
-    if (focusIds && focusIds.size) {
-      for (const l of G.links) {
-        if (l.kind === "contains") continue;
-        if (!focusIds.has(l.source) && !focusIds.has(l.target)) continue;
-        const s = G.nodeById.get(l.source), t = G.nodeById.get(l.target); if (!s || !t || s.__hidden || t.__hidden) continue;
-        if (v >= cap) break; const o = v * 6;
-        fpos[o] = s.position[0]; fpos[o + 1] = s.position[1]; fpos[o + 2] = s.position[2];
-        fpos[o + 3] = t.position[0]; fpos[o + 4] = t.position[1]; fpos[o + 5] = t.position[2];
-        c.set(LINK_COLORS[l.kind] || "#7dd3fc");
-        fcol[o] = c.r; fcol[o + 1] = c.g; fcol[o + 2] = c.b; fcol[o + 3] = c.r; fcol[o + 4] = c.g; fcol[o + 5] = c.b; v++;
+    if (focusIds !== focusPairsFor) {
+      focusPairsFor = focusIds; focusPairs = [];
+      if (focusIds && focusIds.size) {
+        for (const l of G.links) {
+          if (l.kind === "contains") continue;
+          if (!focusIds.has(l.source) && !focusIds.has(l.target)) continue;
+          const s = G.nodeById.get(l.source), t = G.nodeById.get(l.target); if (!s || !t) continue;
+          FOCUS_C.set(LINK_COLORS[l.kind] || "#7dd3fc"); focusPairs.push({ s, t, r: FOCUS_C.r, g: FOCUS_C.g, b: FOCUS_C.b });
+        }
       }
+    }
+    const { fpos, fcol, cap, geo } = focusLines; let v = 0;
+    for (const p of focusPairs) {
+      const s = p.s, t = p.t; if (s.__hidden || t.__hidden) continue;
+      if (v >= cap) break; const o = v * 6;
+      fpos[o] = s.position[0]; fpos[o + 1] = s.position[1]; fpos[o + 2] = s.position[2];
+      fpos[o + 3] = t.position[0]; fpos[o + 4] = t.position[1]; fpos[o + 5] = t.position[2];
+      fcol[o] = p.r; fcol[o + 1] = p.g; fcol[o + 2] = p.b; fcol[o + 3] = p.r; fcol[o + 4] = p.g; fcol[o + 5] = p.b; v++;
     }
     geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true; geo.setDrawRange(0, v * 2);
   }
@@ -662,9 +712,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let areaLabels: any[] = [];
   function buildAreaLabels() {
     for (const a of areaLabels) a.el.remove(); areaLabels = [];
+    const filesPerArea = new Map<string, number>();
+    for (const x of G.nodes) if (x.kind === "file") filesPerArea.set(x.area, (filesPerArea.get(x.area) || 0) + 1);
     for (const n of G.nodes) {
       if (n.kind !== "folder" || n.id === "folder:.") continue;
-      const count = G.nodes.filter((x: any) => x.area === n.area && x.kind === "file").length;
+      const count = filesPerArea.get(n.area) || 0;
       const el = document.createElement("div"); el.className = "lbl area";
       el.style.color = n.color; el.style.borderColor = n.color + "55";
       el.innerHTML = `${escapeHtml(n.label)}<span class="count">${count}</span>`;
@@ -763,10 +815,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function prettyArea(a: string) { return a === "Vault" ? "Vault" : a === "Unresolved" ? "Unresolved" : a.replace(/^\d+_/, ""); }
 
   /* ---- camera controller ---- */
+  const BASE_MIN_R = 12;
   const cam: any = {
     target: new THREE.Vector3(0, 4, 0), theta: 0.6, phi: 1.02, radius: 178,
     tTheta: 0.6, tPhi: 1.02, tRadius: 178, tTarget: new THREE.Vector3(0, 4, 0),
-    minR: 12, maxR: 1800, autoRotate: true, flight: null,
+    minR: BASE_MIN_R, maxR: 1800, autoRotate: true, flight: null,
   };
   const ZERO3 = new THREE.Vector3(0, 0, 0);
   let overviewRadius = MOBILE ? 156 : 184, sceneRadius = 90;
@@ -991,19 +1044,24 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   /** Ids currently lit for the live AI-agent traversal trail (Agent API queries) — colored emerald, distinct from the edit-live pulse. */
   let agentIds = new Set<string>();
   let pendingHover: any = null, lastHoverT = 0;
+  /** Nearest drawn body under the pointer. Bodies are spheres, so an analytic
+   *  ray/sphere test against current positions replaces per-instance mesh
+   *  raycasts; it also ignores culled bodies and is unaffected by stale
+   *  InstancedMesh bounds while bodies orbit. */
   function pickAt(cx: number, cy: number) {
+    if (!layers) return null;
     ndc.x = (cx / window.innerWidth) * 2 - 1; ndc.y = -(cy / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(ndc, camera);
-    let best: any = null, bestDist = Infinity;
-    for (const b in layers) {
-      const hits = raycaster.intersectObject(layers[b].mesh, false);
-      for (const h of hits) {
-        if (h.instanceId == null) continue;
-        const rec = layers[b].recByIdx[h.instanceId];
-        if (!rec || rec.node.__hidden) continue;
-        if (h.distance < bestDist) { bestDist = h.distance; best = rec; }
-        break;
-      }
+    const o = raycaster.ray.origin, d = raycaster.ray.direction;
+    let best: any = null, bestT = Infinity;
+    for (const rec of nodeRender) {
+      const n = rec.node; if (n.__hidden || rec.layer.attrs.aVisible.getX(rec.idx) < 0.5) continue;
+      const p = n.position, r = n.__r || 0.4;
+      const lx = p[0] - o.x, ly = p[1] - o.y, lz = p[2] - o.z;
+      const tca = lx * d.x + ly * d.y + lz * d.z;
+      const d2 = lx * lx + ly * ly + lz * lz - tca * tca; if (d2 > r * r) continue;
+      const thc = Math.sqrt(r * r - d2); let t = tca - thc; if (t < 0) t = tca + thc;
+      if (t >= 0 && t < bestT) { bestT = t; best = rec; }
     }
     return best;
   }
@@ -1048,11 +1106,24 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     glow.mesh.instanceMatrix.needsUpdate = true;
     glow.attrs.aVisible.needsUpdate = true; glow.attrs.aColor.needsUpdate = true; glow.attrs.aSize.needsUpdate = true; glow.attrs.aLive.needsUpdate = true; glow.attrs.aSeed.needsUpdate = true;
   }
+  /** Zoom floor: a selected body may be approached to a few of its own radii,
+   *  so small planets and moons can fill the view; otherwise the overview floor. */
+  function updateZoomFloor() {
+    const rec = selectedId ? idToRender.get(selectedId) : null;
+    cam.minR = rec ? THREE.MathUtils.clamp((rec.node.__r || 1) * 2.6, 2.5, BASE_MIN_R) : BASE_MIN_R;
+    if (cam.tRadius < cam.minR) cam.tRadius = cam.minR;   // ease back out rather than snapping on the next wheel step
+  }
+  /** Near plane follows the orbit radius so close-ups are not clipped, while
+   *  overview keeps the original depth precision. */
+  function updateNearPlane() {
+    const near = navMode === "fly" ? 0.2 : THREE.MathUtils.clamp(cam.radius * 0.02, 0.05, 0.5);
+    if (Math.abs(near - camera.near) > camera.near * 0.1) { camera.near = near; camera.updateProjectionMatrix(); }
+  }
   function selectNode(id: string, fly?: boolean) {
-    selectedId = id; cam.autoRotate = false; applyHighlight(); showInspector(id);
+    selectedId = id; cam.autoRotate = false; updateZoomFloor(); applyHighlight(); showInspector(id);
     if (fly !== false && navMode !== "fly") startFlight(navMode === "overview" ? "focus" : navMode);
   }
-  function clearFocus() { selectedId = null; applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
+  function clearFocus() { selectedId = null; updateZoomFloor(); applyHighlight(); hideInspector(); if (navMode === "overview") cam.autoRotate = true; }
 
   /* ---- UI wiring ---- */
   function updateStats() {
@@ -1318,9 +1389,23 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   let mmScale = 1, mmOffsetX = 0, mmOffsetZ = 0, mmPan: any = null;
   function mmBounds() { let mx = 20; for (const n of G.nodes) mx = Math.max(mx, Math.abs(n.position[0]), Math.abs(n.position[2])); return mx; }
   function drawMinimap() {
-    if (!mmx || !mm || !G) return; const W = mm.width, H = mm.height; mmx.clearRect(0, 0, W, H);
+    if (!mmx || !mm || !G) return;
+    // The minimap is hidden unless the key is open (kosmos.css: body:not(.legend-open) .mmwrap); don't paint it unseen.
+    if (!document.body.classList.contains("legend-open")) return;
+    const W = mm.width, H = mm.height; mmx.clearRect(0, 0, W, H);
     const R = mmBounds() * 1.06, s = (Math.min(W, H) / 2 - 6) / R * mmScale, cx = W / 2, cy = H / 2;
     const dotR = (n: any) => n.body === "cluster" ? 5.5 : n.body === "galaxy" ? 3.8 : n.body === "star" ? 2.4 : n.body === "planet" ? 1.3 : n.body === "asteroid" ? 0.8 : n.body === "oort" ? 0.5 : 1.0;
+    // Ordinary dots share one path per colour: a fill per colour, not per note.
+    const batches = new Map<string, Path2D>(), top: any[] = [];
+    for (const n of G.nodes) {
+      if (n.__hidden || n.body === "cluster" || n.body === "galaxy") continue;
+      if (n.id === selectedId || liveIds.has(n.id)) { top.push(n); continue; }
+      const x = cx + (n.position[0] - mmOffsetX) * s, y = cy + (n.position[2] - mmOffsetZ) * s, r = dotR(n), col = n.color || "#9fb4d4";
+      let p = batches.get(col); if (!p) { p = new Path2D(); batches.set(col, p); }
+      p.moveTo(x + r, y); p.arc(x, y, r, 0, 6.283);
+    }
+    mmx.globalAlpha = 0.6;
+    for (const [col, p] of batches) { mmx.fillStyle = col; mmx.fill(p); }
     const draw = (n: any) => {
       const x = cx + (n.position[0] - mmOffsetX) * s, y = cy + (n.position[2] - mmOffsetZ) * s;
       const anchor = (n.body === "cluster" || n.body === "galaxy");
@@ -1329,7 +1414,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       mmx.beginPath(); mmx.arc(x, y, dotR(n), 0, 6.283); mmx.fill();
       if (anchor) { mmx.globalAlpha = 0.45; mmx.strokeStyle = n.color || "#cbd5e1"; mmx.lineWidth = 1; mmx.beginPath(); mmx.arc(x, y, dotR(n) + 2.6, 0, 6.283); mmx.stroke(); }
     };
-    for (const n of G.nodes) { if (n.__hidden || n.body === "cluster" || n.body === "galaxy") continue; draw(n); }
+    for (const n of top) draw(n);
     for (const n of G.nodes) { if (!n.__hidden && (n.body === "cluster" || n.body === "galaxy")) draw(n); }
     mmx.globalAlpha = 1;
     const camx = cx + (camera.position.x - mmOffsetX) * s, camy = cy + (camera.position.z - mmOffsetZ) * s, tx = cx + (cam.target.x - mmOffsetX) * s, ty = cy + (cam.target.z - mmOffsetZ) * s;
@@ -1421,7 +1506,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const step = 0.14;
       while (playback.i < playback.order.length && playback.t >= playback.i * step) {
         const id = playback.order[playback.i]; const r = idToRender.get(id);
-        if (r) { r.node.__hidden = false; r.layer.attrs.aVisible.setX(r.idx, 1); r.layer.attrs.aVisible.needsUpdate = true; emergingIds = new Set([id]); applyLive(); }
+        if (r) { r.node.__hidden = false; r.layer.attrs.aVisible.setX(r.idx, 1); r.layer.attrs.aVisible.needsUpdate = true; writeInstanceMatrix(r); flushInstanceMatrices(); emergingIds = new Set([id]); applyLive(); }
         playback.i++;
       }
       applyAmbientVisibility();
@@ -1550,7 +1635,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function updateAgentDust(dt:number,now:number):void {
     if(!agentDust&&!agentSteps.length)return;
     if(agentSteps.length&&now-__agentDustHeadT>AGENT_DUST_HEAD_MS){__agentDustHeadT=now;const heads=new Map<string,any>();for(const s of agentSteps)if(now-s.t<8000)heads.set(s.agent,s);for(const s of heads.values()){const p=idToRender.get(s.id)?.node?.position;if(p)emitAgentDust(p[0]+(Math.random()-.5)*.32,p[1]+(Math.random()-.5)*.32,p[2]+(Math.random()-.5)*.32,s.agent,now,4200+Math.random()*3600,LOWPOWER?2.6:3.8,(Math.random()-.5)*.035,-.018-Math.random()*.025,(Math.random()-.5)*.035);}}
-    const D=agentDust;if(!D)return;let active=0;
+    const D=agentDust;if(!D||!D.active)return;let active=0;   // idle pool: no per-frame scan or upload
     D.points.material.uniforms.uPixelRatio.value=renderer.getPixelRatio();
     for(let i=0;i<D.cap;i++){if(D.die[i]<=now){D.alpha[i]=0;continue;}const life=D.die[i]-D.born[i],age=now-D.born[i],f=Math.max(0,1-age/life),o=i*3;D.pos[o]+=D.vel[o]*dt;D.pos[o+1]+=D.vel[o+1]*dt;D.pos[o+2]+=D.vel[o+2]*dt;D.vel[o]*=.998;D.vel[o+2]*=.998;D.alpha[i]=Math.pow(f,.85);active++;}
     D.active=active;D.geo.attributes.position.needsUpdate=true;D.geo.attributes.aAlpha.needsUpdate=true;
@@ -1836,6 +1921,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     const minPx: any = { cluster: 0, galaxy: 0, star: 0, planet: 0.5, moon: 0.9, moonlet: 1.2, asteroid: 1.3, oort: 1.4 };
     const touched: any = {}, detailTouched: any = {};
+    const heroCands: any[] = [];
     for (const r of nodeRender) {
       const n = r.node; if (n.__hidden) continue;
       const keepForce = (showAllObjects || n.id === selectedId || n.id === hoveredId || liveIds.has(n.id));
@@ -1857,10 +1943,51 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       const detailed = detailForce || px >= (r.body === "planet" ? 9 : r.body === "moon" ? 7 : 5);
       const detailValue = detailed ? 1 : 0;
       if (r.layer.attrs.aDetail.getX(r.idx) !== detailValue) { r.layer.attrs.aDetail.setX(r.idx, detailValue); detailTouched[r.body] = 1; }
-      if (vis !== (n.__lodVisible !== false)) { n.__lodVisible = vis; r.layer.attrs.aVisible.setX(r.idx, (vis && !n.__hidden) ? 1 : 0); touched[r.body] = 1; }
+      if (vis !== (n.__lodVisible !== false)) {
+        n.__lodVisible = vis; r.layer.attrs.aVisible.setX(r.idx, (vis && !n.__hidden) ? 1 : 0); touched[r.body] = 1;
+        if (vis) writeInstanceMatrix(r);   // matrices of undrawn bodies are not kept current
+      }
+      if (vis && heroLayers && heroLayers[r.body] && px >= HERO_PX) heroCands.push({ r, px });
     }
     for (const b in touched) if (layers[b]) layers[b].attrs.aVisible.needsUpdate = true;
     for (const b in detailTouched) if (layers[b]) layers[b].attrs.aDetail.needsUpdate = true;
+    heroCands.sort((a, b) => b.px - a.px);
+    assignHeroes(heroCands.slice(0, HERO_CAP).map((c) => c.r));
+    flushInstanceMatrices();
+  }
+
+  /* ---- close-up layer: finer spheres for the few bodies that fill the view ---- */
+  function assignHeroes(next: any[]) {
+    if (!heroLayers) return;
+    const keepSet = new Set(next);
+    for (const r of heroRecs) if (!keepSet.has(r)) { r.__hero = false; writeInstanceMatrix(r); }
+    for (const r of next) if (!r.__hero) { r.__hero = true; writeInstanceMatrix(r); }
+    heroRecs = next;
+    syncHeroes();
+  }
+  const HERO_ATTRS = ["aSeed", "aVisible", "aHi", "aLive", "aEmerge", "aBand", "aHeat"];
+  /** Mirrors each promoted body's live state into its close-up slot. At most
+   *  HERO_CAP instances, so this per-frame copy is a few dozen floats. */
+  function syncHeroes() {
+    if (!heroLayers) return;
+    const used: any = {};
+    for (const r of heroRecs) {
+      const H = heroLayers[r.body]; if (!H) continue;
+      const i = used[r.body] || 0; if (i >= HERO_CAP) continue; used[r.body] = i + 1;
+      const n = r.node, rad = n.__r || 0.4, src = r.layer.attrs;
+      MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(rad, rad, rad)); H.mesh.setMatrixAt(i, MAT);
+      H.attrs.aColor.setXYZ(i, src.aColor.getX(r.idx), src.aColor.getY(r.idx), src.aColor.getZ(r.idx));
+      for (const k of HERO_ATTRS) H.attrs[k].setX(i, src[k].getX(r.idx));
+      H.attrs.aDetail.setX(i, 2);
+      H.recByIdx[i] = r;
+    }
+    for (const b in heroLayers) {
+      const H = heroLayers[b], count = used[b] || 0;
+      H.mesh.count = count; H.mesh.visible = count > 0;
+      if (!count) continue;
+      H.mesh.instanceMatrix.needsUpdate = true;
+      for (const k in H.attrs) H.attrs[k].needsUpdate = true;
+    }
   }
 
   /* ---- cinematic trailer flight ---- */
@@ -2018,6 +2145,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     updateLabels(t);
     if ((mmFrame = (mmFrame + 1) & 3) === 0) drawMinimap();
     if ((lodFrame = (lodFrame + 1) & 7) === 0) cullLOD();
+    if (heroRecs.length) syncHeroes();
+    updateNearPlane();
     adaptQuality(dt, t);
     // A distant, idle overview contains no readable surface detail. Continue
     // simulation/UI work at display cadence but submit only every other frame;
@@ -2153,6 +2282,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
       if (m.gkx) { r.node.gkx = m.gkx; r.node.__it = m.gkx.invalidAt ? Date.parse(m.gkx.invalidAt) : null; }
     }
     if (graph.areas) G.areas = graph.areas;
+    for (const slot of labelPool) slot.id = null;   // relabelled notes must not keep their cached overlay text
     buildFilterUI();
     applyFilters();
     if (chronoT != null) setChronoTint();

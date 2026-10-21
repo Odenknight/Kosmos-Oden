@@ -22,7 +22,7 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
       attribute float aHi; attribute float aLive; attribute float aEmerge; attribute float aBand; attribute float aDetail; attribute float aHeat;
       uniform float uTime;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat; varying float vRad;
       #ifdef ROCK
       float hrock(vec3 q){ return fract(sin(dot(q,vec3(17.1,113.5,71.7)))*43758.5453); }
       #endif
@@ -44,14 +44,14 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
         p*=boost; vObjNRM=normalize(nrm);
         mat4 toWorld=modelMatrix*instanceMatrix;
         vec4 wp=toWorld*vec4(p,1.0); vWP=wp.xyz;
-        vWN=normalize(mat3(toWorld)*nrm);
+        vWN=normalize(mat3(toWorld)*nrm); vRad=length(toWorld[0].xyz);
         gl_Position=projectionMatrix*viewMatrix*wp;
         if(aVisible<0.5) gl_Position=vec4(2.0,2.0,2.0,1.0);
       }`,
     fragmentShader: `${D}${ACES}
       uniform float uTime; uniform vec3 uLightDir; uniform vec3 uCamPos; uniform float uGlowAll;
       varying vec3 vColor; varying vec3 vWN; varying vec3 vWP; varying vec3 vObjNRM;
-      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat;
+      varying float vHi; varying float vLive; varying float vEmerge; varying float vSeed; varying float vBand; varying float vDetail; varying float vHeat; varying float vRad;
       float h31(vec3 p){ return fract(sin(dot(p,vec3(17.1,113.5,71.7)))*43758.5453); }
       float vnoise(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
         float a=mix(mix(h31(i),h31(i+vec3(1,0,0)),f.x), mix(h31(i+vec3(0,1,0)),h31(i+vec3(1,1,0)),f.x), f.y);
@@ -66,6 +66,10 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
           float fl=0.85+0.15*sin(uTime*3.0+vSeed*40.0)+0.07*sin(uTime*7.3+vSeed*13.0);
           col=vColor*(1.5*fl)*mix(0.6,1.28,ld)+vColor*0.5;
           col=mix(col, vec3(1.0,0.96,0.88), pow(1.0-NV,2.2)*0.55);
+          if(vDetail>1.5){                                                                 // close-up: slowly drifting granulation
+            float gr=fbm(vObjNRM*18.0+vSeed*11.0+vec3(0.0,uTime*0.04,0.0));
+            col*=0.84+0.32*gr;
+          }
         #else
           float diff=max(dot(N,L),0.0); float wrap=diff*0.9+0.1;
           vec3 base=vColor;
@@ -76,7 +80,23 @@ mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
           #ifdef SURF
             float m=0.5;
             if(vDetail>0.5){
-              m=fbm(vObjNRM*3.2+vSeed*7.0);
+              vec3 sp=vObjNRM*3.2+vSeed*7.0;
+              m=fbm(sp);
+              if(vDetail>1.5){
+                // Close-up: three finer zero-mean octaves keep the colour thresholds
+                // below meaningful, and a screen-space bump turns them into relief.
+                vec3 q=sp*8.3654;
+                m+=0.0625*(vnoise(q)-0.5)+0.03125*(vnoise(q*2.03)-0.5)+0.015625*(vnoise(q*4.1209)-0.5);
+                float bumpK=1.0;
+              #ifdef PLANET
+                if(vBand>0.5&&vBand<2.5) bumpK=0.2;                                        // gas and ice giants stay smooth
+              #endif
+                float h=m*vRad*0.03*bumpK;
+                vec3 dpx=dFdx(vWP), dpy=dFdy(vWP); float dhx=dFdx(h), dhy=dFdy(h);
+                vec3 r1=cross(dpy,N), r2=cross(N,dpx); float det=dot(dpx,r1);
+                N=normalize(abs(det)*N-sign(det)*(dhx*r1+dhy*r2));
+                diff=max(dot(N,L),0.0); wrap=diff*0.9+0.1;
+              }
               base*=mix(0.78,1.18,m);
               base+=vColor*0.20*smoothstep(0.58,0.9,m);
             #ifdef PLANET

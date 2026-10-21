@@ -22,7 +22,7 @@
  *    endpoints exist (§18).
  */
 import { ProviderError } from "./vault-operations";
-import { projectAtTime, type ProjectableNote } from "gkos-engine";
+import { inspectScopedLineage, projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { getKosmosNavigationManifest, KOSMOS_NAVIGATION_DEFAULT_ENABLED } from "../navigation-integration";
@@ -1095,7 +1095,24 @@ export class KosmosAgentServer {
       for: n.path,
       chainLength: chain.length,
       chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
+      declarations: this.lineageDeclarations(graph, n, byId),
     };
+  }
+
+  /** The note's own authored lineage declarations, resolved by the Engine
+   *  against only the notes this caller may read. An unreadable or missing
+   *  target reports `unresolved`, so its identity never leaves the Engine. */
+  private lineageDeclarations(graph: GkxGraph, n: GkxNode, readable: Map<string, GkxNode>): any[] | null {
+    try {
+      const r = inspectScopedLineage(graph, n.id, new Set(readable.keys()));
+      if (!r.available) return null;
+      return r.declarations.map((d) => ({
+        field: d.field, origin: d.origin, line: d.sourceLine, status: d.status,
+        target: d.resolvedNodeId ? (readable.get(d.resolvedNodeId)?.path ?? null) : null,
+      }));
+    } catch {
+      return null;   // fail closed: no declaration detail rather than a partial view
+    }
   }
 
   async qRelated(sel: { path?: string; title?: string }): Promise<any> {
