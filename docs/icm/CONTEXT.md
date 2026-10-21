@@ -7,7 +7,7 @@ This folder grants no authority. It does not assign work, appoint a coordinator,
 ## Read first, in this order
 
 1. `CONTRIBUTING.md`: setup, the one-semantics rule, the before-PR list, the browser test table, and the changes that require explicit review.
-2. `README.md`: the current 0.8.3 candidate, the exact GKOS-Engine development pin, and the statement that the candidate includes no Rust build.
+2. `README.md`: the current version note, the exact GKOS-Engine development pin, and the statement that the build includes no Rust Engine.
 3. `kosmos-invariants.yml` and `SECURITY.md`: the security and build properties that `npm run check:invariants` enforces.
 4. `docs/ARCHITECTURE.md`: since 0.8.0 the shared semantic engine is the pinned `gkos-engine` package, consumed by every surface.
 5. `docs/RELEASE-PROCESS.md`: releases are built from the tag in CI; generated files are not committed.
