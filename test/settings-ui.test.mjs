@@ -9,7 +9,7 @@ const brandedPluginPaths = [
   "gkx-enrichment.ts", "gkx-migration.ts", "settings.ts",
 ].map((name) => new URL(`../src/plugin/${name}`, import.meta.url));
 
-test("plugin-facing copy consistently uses GKOS Engine and GKX branding", async () => {
+test("plugin-facing copy consistently uses GKOS-Engine and GKX branding", async () => {
   const sources = await Promise.all(brandedPluginPaths.map((path) => readFile(path, "utf8")));
   const copy = sources.join("\n");
   // The engine version must be interpolated from the library, never frozen as a

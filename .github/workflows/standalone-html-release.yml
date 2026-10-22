@@ -1,7 +1,7 @@
 name: Standalone HTML release
 
 # Publishes the self-contained 3D HTML viewer artifacts as a GitHub PRERELEASE
-# for consumption by GKOS Engine Desktop and its wrappers (Odenknight/GKOS-Engine-Lite#4).
+# for consumption by GKOS-Engine-Lite Desktop and its wrappers (Odenknight/GKOS-Engine-Lite#4).
 #
 # Trigger on `viewer-v*` tags (distinct from the plugin's exact-version release
 # tags, so this never collides with the Obsidian community-plugin release flow),
@@ -46,7 +46,7 @@ jobs:
         run: |
           {
             echo "note<<EOF"
-            echo "Standalone 3D HTML viewer artifacts built from ${GITHUB_REPOSITORY}@${GITHUB_SHA} (tag ${GITHUB_REF_NAME}). Unsigned. Loopback-only consumption: the viewer reads a live graph only from a local GKOS Engine Desktop sidecar on 127.0.0.1 (read-only, bearer-token)."
+            echo "Standalone 3D HTML viewer artifacts built from ${GITHUB_REPOSITORY}@${GITHUB_SHA} (tag ${GITHUB_REF_NAME}). Unsigned. Loopback-only consumption: the viewer reads a live graph only from a local GKOS-Engine-Lite Desktop sidecar on 127.0.0.1 (read-only, bearer-token)."
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
