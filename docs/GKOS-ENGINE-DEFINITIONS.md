@@ -1,11 +1,11 @@
 ---
 gkx_version: "2.3"
 uid: ededed8e-3d17-4572-8886-9360cfe1d387
-title: GKOS Engine Definitions
+title: GKOS-Engine Definitions
 type: semantic
 created_at: 2026-07-19T00:00:00.000Z
 updated_at: 2026-07-19T00:00:00.000Z
-description: Definitions sheet for terms used by the GKOS Engine (Kosmos-Oden's implementation), with a mapping table showing where the GKOS v0.75 governing document needs each definition referenced or adopted.
+description: Definitions sheet for terms used by the GKOS-Engine (Kosmos-Oden's implementation), with a mapping table showing where the GKOS v0.75 governing document needs each definition referenced or adopted.
 epistemic_state: verified_inference
 sensitivity: internal
 authorship_origin: authored
@@ -14,9 +14,9 @@ tags:
   - gkx
   - definitions
 ---
-# GKOS Engine Definitions
+# GKOS-Engine Definitions
 
-**Purpose:** a single reference for terms used across the GKOS Engine v1.0 build
+**Purpose:** a single reference for terms used across the GKOS-Engine v1.0 build
 instructions, the GKX 2.3 profile, and the GKOS v0.75 governing document, so all
 three documents can cite one vocabulary instead of restating it. Part 1 defines each
 term. Part 2 maps each term to the exact place in the GKOS governing document
@@ -36,13 +36,13 @@ Status values used below:
 
 # Part 1 — Definitions
 
-## GKOS Engine
+## GKOS-Engine
 
 **Definition:** The deterministic knowledge-compiler implementation described in
 `GKOS-Engine-v1.0-Build-Instructions.md` — parse, validate, project, assess, graph,
 propose, decide, export — consumed by the Obsidian plugin, a standalone app/CLI, and
 agent surfaces (REST/MCP). It is **an implementation, explicitly not the GKOS standard
-itself**: GKOS v0.75 defines the governance model in the abstract; the GKOS Engine is
+itself**: GKOS v0.75 defines the governance model in the abstract; the GKOS-Engine is
 one conforming (partially) piece of software built against Kosmos-Oden's `src/core/`.
 The engine's own conformance claim (Build Instructions §3) is deliberately narrower
 than full GKOS conformance — it claims a GCP-2/3-shaped validating projection with

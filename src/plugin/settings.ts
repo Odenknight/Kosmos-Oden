@@ -151,7 +151,7 @@ a substitute for a canonical identity. Use the exact path for notes without one.
 
 ## 4 · Direct vs. indirect Graphiti
 
-- **Direct (KGCP):** agents read a sensitivity-filtered deterministic GKX temporal projection live from GKOS Engine 2.1 — no database, no LLM. Search is lexical, not embeddings.
+- **Direct (KGCP):** agents read a sensitivity-filtered deterministic GKX temporal projection live from GKOS-Engine 2.1 — no database, no LLM. Search is lexical, not embeddings.
 - **Indirect (full Graphiti):** ingest the paginated/exported episodes for entity extraction and hybrid retrieval. Episodes are explicitly non-authoritative, origin-separated adapter projections; source notes and accepted semantic events remain authoritative. Graphiti's LLM may reconstruct different entities.
 
 An accepted ingestion job is not searchable evidence. Poll the upstream job to

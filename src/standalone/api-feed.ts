@@ -1,9 +1,9 @@
 import { normalizeTraversalEvent, type TraversalEventEnvelope } from "./observability";
 
 /**
- * Kosmos standalone — live local GKOS Engine service feed.
+ * Kosmos standalone — live local GKOS-Engine service feed.
  *
- * A compatible GKOS Engine runtime serves a LOOPBACK-ONLY, read-only,
+ * A compatible GKOS-Engine runtime serves a LOOPBACK-ONLY, read-only,
  * bearer-authenticated API on 127.0.0.1:4814. Its `/graph` route
  * returns the exact same GkxGraph the viewer already renders (see
  * `tryLocalGraphJson` in standalone.ts — this is the same shape, fetched live
@@ -182,7 +182,7 @@ export async function connectToEngine(
   } catch (e: any) {
     return {
       ok: false,
-      error: `Could not reach the local GKOS Engine service at ${api}. Is it running? (${e?.message || e})`,
+      error: `Could not reach the local GKOS-Engine service at ${api}. Is it running? (${e?.message || e})`,
     };
   }
   if (hres.status === 401) {
@@ -190,7 +190,7 @@ export async function connectToEngine(
       ok: false,
       status: 401,
       error:
-        "The engine rejected the credential (401). Enter the current viewer credential from the local GKOS Engine service and try again.",
+        "The engine rejected the credential (401). Enter the current viewer credential from the local GKOS-Engine service and try again.",
     };
   }
   if (!hres.ok) {

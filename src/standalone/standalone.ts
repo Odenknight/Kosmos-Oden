@@ -276,7 +276,7 @@ function renderEngineGraph(graph: ViewerGraph, health: any): void {
   monitor?.stop();
   monitor = null;
   source = null;
-  sourceName = "GKOS Engine";
+  sourceName = "GKOS-Engine";
   ui.hideStartup();
   ui.clearErrors();
   app.setAttachments(Array.isArray((graph as any).attachments) ? (graph as any).attachments : []);

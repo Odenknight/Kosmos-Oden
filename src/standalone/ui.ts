@@ -12,7 +12,7 @@ export interface StandaloneUIHandlers {
   onReopenLast: () => void;
   onOpenSnapshot: (files: FileList) => void;
   onLoadDemo: () => void;
-  /** Connect to a loopback GKOS Engine service (read-only API feed). */
+  /** Connect to a loopback GKOS-Engine service (read-only API feed). */
   onConnectEngine: (api: string, token: string) => void;
   onRescan: () => void;
   onRefreshEngine: () => void;
@@ -181,11 +181,11 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     );
     mkBtn("Load Demo", "Explore a built-in demo cosmos — no files needed", true, handlers.onLoadDemo);
 
-    /* ---- connect to local GKOS Engine (read-only API feed) ---- */
+    /* ---- connect to local GKOS-Engine (read-only API feed) ---- */
     const connectPrefilled = !!(opts.apiPrefill || opts.tokenPrefill) || !!opts.connectOpen;
     const connectToggle = mkBtn(
       "Connect to Local Engine",
-      "Read a live graph and authorized traversal events from a local GKOS Engine service (loopback only)",
+      "Read a live graph and authorized traversal events from a local GKOS-Engine service (loopback only)",
       true,
       () => {}
     );
