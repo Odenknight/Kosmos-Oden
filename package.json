@@ -52,7 +52,7 @@
   "author": "OdenKnight",
   "dependencies": {
     "gkos-engine": "github:Odenknight/GKOS-Engine#7511233717cd5ab9ce8f6cec76e9623a21e3c728",
-    "three": "0.185.1"
+    "three": "0.186.1"
   },
   "allowScripts": {
     "github:Odenknight/GKOS-Engine#7511233717cd5ab9ce8f6cec76e9623a21e3c728": true
