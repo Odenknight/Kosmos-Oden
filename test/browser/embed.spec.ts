@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * Plugin embed sandbox harness (CI/CD directive §7.4). Loads dist/kosmos-embed.html
  * inside a sandboxed, opaque-origin iframe (allow-scripts allow-pointer-lock
  * allow-downloads — NO allow-same-origin, matching the plugin) and drives it via
- * the versioned postMessage protocol, confirming the r185 renderer initializes
+ * the versioned postMessage protocol, confirming the r186 renderer initializes
  * and renders under sandbox. Run after `npm run build`.
  */
 test("embed renders under the plugin sandbox (no allow-same-origin)", async ({ page }) => {

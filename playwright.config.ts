@@ -12,7 +12,7 @@ import { defineConfig, devices } from "@playwright/test";
  * WebGL2 context cannot be created at all and every renderer spec times out on
  * `waitForFunction` — which is exactly how the `Browser` workflow came to be
  * red on every push. Chromium is driven onto ANGLE/SwiftShader, a conformant
- * software WebGL2 implementation the r185 renderer accepts; Firefox needs its
+ * software WebGL2 implementation the r186 renderer accepts; Firefox needs its
  * WebGL2 gate re-opened because the Playwright build ships with
  * `AllowWebgl2:false`. WebKit has no equivalent knob — its WebGL support on
  * headless Linux is not dependable, which is why firefox/webkit run in the
