@@ -2,7 +2,7 @@ name: Browser
 
 # Real-browser rendering gate (CI/CD directive §7.4) — the assessment's largest
 # assurance gap. Boots the built WebGL2 artifact in Chromium via Playwright and
-# asserts the r185 renderer initializes, draws the scene, survives a context
+# asserts the r186 renderer initializes, draws the scene, survives a context
 # loss/restore cycle, and renders under the plugin's iframe sandbox.
 #
 # WHY CHROMIUM ONLY HERE (signal integrity): GitHub-hosted runners have no GPU.

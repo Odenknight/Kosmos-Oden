@@ -34,7 +34,7 @@ if (locked) {
 }
 
 // 3. expected revision + backend
-must(prov.threeRevision === "185", `expected Three revision 185, provenance says ${prov.threeRevision}`);
+must(prov.threeRevision === "186", `expected Three revision 186, provenance says ${prov.threeRevision}`);
 must(prov.stableBackend === "WebGLRenderer", `stable backend must be WebGLRenderer (got ${prov.stableBackend})`);
 must(prov.webglVersion === 2, "stable renderer must target WebGL2");
 must(/mit/i.test(prov.license), "renderer license must be recorded (MIT)");
