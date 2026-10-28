@@ -38,7 +38,7 @@ test("All links gates connection drawing without stopping animation", async ({ p
   expect(hiddenAgain.frames).toBeGreaterThan(0);
 });
 
-test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", async ({ page }, testInfo) => {
+test("standalone boots the r186 WebGL2 renderer and draws the demo cosmos", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -49,7 +49,7 @@ test("standalone boots the r185 WebGL2 renderer and draws the demo cosmos", asyn
   await page.waitForFunction(() => (window as any).__kosmosRenderer != null, null, { timeout: 15_000 });
   const r = await page.evaluate(() => (window as any).__kosmosRenderer);
   expect(r.backend).toBe("webgl2");
-  expect(r.threeRevision).toBe("185");
+  expect(r.threeRevision).toBe("186");
   if (testInfo.project.name === "mobile-chromium") {
     expect(r.mobile).toBe(true);
     expect(r.quality).toBe("high");
