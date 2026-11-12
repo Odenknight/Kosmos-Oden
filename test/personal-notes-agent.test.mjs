@@ -82,7 +82,7 @@ test("settings: new fields default closed, migrate safely, and bump the schema",
     personalNotesExcludedFolders: "Journal", personalNotesImportFolders: [], personalNotesPriorDefaultSensitivity: "bogus",
   });
   assert.equal(dirty.personalNotesEnabled, false, "only literal true turns the mode on");
-  assert.deepEqual(dirty.personalNotesFolders, ["Import"]);
+  assert.deepEqual(dirty.personalNotesFolders, ["import"], "invalid entries are rejected, not repaired; case is not folded (0.9.0 scope rules)");
   assert.deepEqual(dirty.personalNotesExcludedFolders, []);
   assert.deepEqual(dirty.personalNotesImportFolders, ["Import"], "an empty list falls back to the default folder");
   assert.equal(dirty.personalNotesPriorDefaultSensitivity, "");

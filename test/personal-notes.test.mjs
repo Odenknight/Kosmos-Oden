@@ -1,13 +1,10 @@
-/** Personal Notes pure helpers (0.9.0): scope, full-text search, attachments, status. */
+/**
+ * Personal Notes pure helpers (0.9.0): full-text search, attachments, status.
+ * Scope tests moved to personal-scope.test.mjs (case-sensitive, reject-not-repair semantics).
+ */
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PERSONAL_WHOLE_VAULT,
-  normalizeFolder,
-  sanitizeFolderList,
-  isUnderFolder,
-  isUnderAnyFolder,
-  inPersonalScope,
   parseQuery,
   FullTextIndex,
   MAX_INDEXED_BODY_CHARS,
@@ -17,50 +14,6 @@ import {
   asWikilink,
   mergeSupersedes,
 } from "../dist/kosmos-personal-notes.mjs";
-
-test("normalizeFolder cleans separators and refuses traversal", () => {
-  assert.equal(normalizeFolder("Import"), "Import");
-  assert.equal(normalizeFolder("  /Import/OneNote/  "), "Import/OneNote");
-  assert.equal(normalizeFolder("Import\\Keep"), "Import/Keep");
-  assert.equal(normalizeFolder("/"), PERSONAL_WHOLE_VAULT);
-  assert.equal(normalizeFolder(""), "");
-  assert.equal(normalizeFolder("   "), "");
-  assert.equal(normalizeFolder("//"), "", "only the exact value / means the whole vault");
-  assert.equal(normalizeFolder("."), "");
-  assert.equal(normalizeFolder("Import/../Private"), "");
-  assert.equal(normalizeFolder(42), "");
-  assert.equal(normalizeFolder(null), "");
-});
-
-test("sanitizeFolderList drops junk, de-duplicates without regard to case, and is bounded", () => {
-  assert.deepEqual(sanitizeFolderList(["Import", "import/", "", 7, "Notes/Home", "../x"]), ["Import", "Notes/Home"]);
-  assert.deepEqual(sanitizeFolderList("Import"), []);
-  assert.deepEqual(sanitizeFolderList(undefined), []);
-  assert.equal(sanitizeFolderList(Array.from({ length: 500 }, (_, i) => `F${i}`)).length, 200);
-});
-
-test("isUnderFolder matches the folder and its descendants only", () => {
-  assert.equal(isUnderFolder("Import/Keep/List.md", "Import"), true);
-  assert.equal(isUnderFolder("import/keep/list.md", "Import"), true, "case-insensitive");
-  assert.equal(isUnderFolder("Imported/List.md", "Import"), false, "prefix of a sibling name is not containment");
-  assert.equal(isUnderFolder("Import", "Import"), true);
-  assert.equal(isUnderFolder("Anything/At/All.md", "/"), true);
-  assert.equal(isUnderFolder("Import/List.md", ""), false);
-  assert.equal(isUnderFolder("", "Import"), false);
-  assert.equal(isUnderFolder(undefined, "Import"), false);
-  assert.equal(isUnderAnyFolder("A/x.md", ["B", "A"]), true);
-  assert.equal(isUnderAnyFolder("A/x.md", undefined), false);
-});
-
-test("inPersonalScope fails closed and lets exclusions win", () => {
-  assert.equal(inPersonalScope("Import/a.md", [], []), false, "empty include list reads nothing");
-  assert.equal(inPersonalScope("Import/a.md", undefined, undefined), false);
-  assert.equal(inPersonalScope("Import/a.md", ["Import"], []), true);
-  assert.equal(inPersonalScope("Journal/a.md", ["Import"], []), false);
-  assert.equal(inPersonalScope("Import/Private/a.md", ["Import"], ["Import/Private"]), false);
-  assert.equal(inPersonalScope("Import/Private/a.md", ["/"], ["Import/Private"]), false);
-  assert.equal(inPersonalScope("Journal/a.md", ["/"], ["Import/Private"]), true);
-});
 
 test("parseQuery lowercases, keeps quoted phrases whole, and removes duplicates", () => {
   assert.deepEqual(parseQuery('Shopping "Olive Oil" shopping'), ["shopping", "olive oil"]);
@@ -168,32 +121,39 @@ test("hasSearchableText ignores link syntax and needs a letter or digit", () => 
   assert.equal(hasSearchableText(undefined), false);
 });
 
-test("summarizePersonalNotes counts only the import folders and separates import logs", () => {
+test("summarizePersonalNotes reports files present and only the reports the user selected", () => {
+  const report = "Import/Rapport d'importation Keep.md"; // any language: chosen by the user, not guessed from its name
   const status = summarizePersonalNotes({
     importFolders: ["Import"],
+    importReportPaths: [report, "Import/deleted report.md"],
     notes: [
       ...DOCS.map((d) => ({ path: d.path, body: d.body })),
-      { path: "Import/2026-11-12 Google Keep import log.md", body: "Finished. 3 notes imported." },
+      { path: report, body: "3 notes ignorées." },
+      { path: "Import/2026-11-12 Google Keep import log.md", body: "An English-named note is an ordinary note now." },
     ],
     files: [
       ...DOCS.map((d) => d.path),
+      report,
+      "Import/2026-11-12 Google Keep import log.md",
       "Import/OneNote/Scan - Ink.svg",
       "Import/Keep/photo.png",
       "Import/.trash/old.png",
       "Elsewhere/file.pdf",
+      "import/case-differs.png",
     ],
   });
   assert.deepEqual(status, {
     importFolders: ["Import"],
-    imported: 3,
-    attachmentsSaved: 2,
-    searchable: 2,
+    notesPresent: 4,
+    otherFilesPresent: 2,
+    searchable: 3,
     needsAttentionTotal: 1,
     needsAttention: ["Import/OneNote/Scan.md"],
-    importLogs: ["Import/2026-11-12 Google Keep import log.md"],
+    reports: [{ path: report, present: true }, { path: "Import/deleted report.md", present: false }],
   });
   const none = summarizePersonalNotes({ importFolders: [], notes: DOCS, files: [] });
-  assert.equal(none.imported, 0);
+  assert.equal(none.notesPresent, 0);
+  assert.deepEqual(none.reports, []);
   const capped = summarizePersonalNotes({ importFolders: ["/"], notes: Array.from({ length: 5 }, (_, i) => ({ path: `e${i}.md`, body: "" })), files: [], maxListed: 2 });
   assert.equal(capped.needsAttentionTotal, 5);
   assert.equal(capped.needsAttention.length, 2);
