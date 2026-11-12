@@ -256,11 +256,17 @@ try {
     await page.evaluate(async () => { await window.app.plugins.loadManifests(); await window.app.plugins.enablePluginAndSave("obsidian-importer"); });
     const imp = await P("(p) => p.importer()");
     check("Importer is detected with its version", imp.state === "enabled" && /^\d+\.\d+\.\d+$/.test(imp.version || ""), JSON.stringify(imp));
+    // Record every window that appears, so a window that opens and closes is still seen.
+    await page.evaluate(() => {
+      window.__smokeModals = [];
+      new MutationObserver((records) => { for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1 && (n.matches?.(".modal-container, .modal") || n.querySelector?.(".modal"))) setTimeout(() => window.__smokeModals.push((n.textContent || "").slice(0, 80)), 50); }).observe(document.body, { childList: true, subtree: true });
+    });
     const opened = await P("(p) => p.openImporter('Import')");
-    await page.waitForFunction(() => /import/i.test(document.querySelector(".modal")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
-    const modal = await page.evaluate(() => [...document.querySelectorAll(".modal")].map((m) => (m.textContent || "").slice(0, 80)).join(" | "));
+    await page.waitForFunction(() => window.__smokeModals.some((t) => /import/i.test(t)), null, { timeout: 8000 }).catch(() => {});
+    const modal = await page.evaluate(() => window.__smokeModals.join(" | "));
+    const still = await page.evaluate(() => document.querySelectorAll(".modal").length);
     const commands = await page.evaluate(() => Object.keys(window.app.commands.commands).filter((id) => /import/i.test(id)).join(","));
-    check("Open Importer opens the Importer window through its command", opened === true && /import/i.test(modal), `returned ${opened}; modal "${modal}"; commands ${commands}`);
+    check("Open Importer opens the Importer window through its command", opened === true && /import/i.test(modal), `returned ${opened}; windows seen "${modal}"; open now ${still}; commands ${commands}`);
     check("the import folder is held back from automatic time stamps until marked finished", (await P("(p) => p.pendingImportFolders()")).includes("Import"));
     await page.keyboard.press("Escape");
   } else check("Importer absent is reported, not thrown", ["missing", "unknown"].includes((await P("(p) => p.importer().state"))));
