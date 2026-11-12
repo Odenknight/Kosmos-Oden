@@ -71,10 +71,11 @@ const hashTree = (dir) => {
   return out;
 };
 
-const request = (path, { method = "GET", token, headers = {}, body } = {}) => new Promise((resolveReq) => {
-  const req = http.request({ host: "127.0.0.1", port: apiPort, path, method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json", Accept: "application/json, text/event-stream" } : {}), ...headers } }, (res) => {
+const request = (path, { method = "GET", token, headers = {}, body, host = "127.0.0.1" } = {}) => new Promise((resolveReq) => {
+  const req = http.request({ host, port: apiPort, path, method, timeout: 5000, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json", Accept: "application/json, text/event-stream" } : {}), ...headers } }, (res) => {
     let text = ""; res.on("data", (c) => (text += c)); res.on("end", () => { let json = null; try { json = JSON.parse(text); } catch { /* not JSON */ } resolveReq({ status: res.statusCode, json, text }); });
   });
+  req.on("timeout", () => req.destroy(new Error("timeout")));
   req.on("error", (e) => resolveReq({ status: 0, json: null, text: String(e.code || e.message) }));
   req.end(body ? JSON.stringify(body) : undefined);
 });
@@ -169,6 +170,20 @@ try {
   const legacyTools = await request("/mcp", { method: "POST", token, headers: { "MCP-Protocol-Version": "2025-06-18" }, body: { jsonrpc: "2.0", id: 2, method: "tools/list" } });
   const names = (legacyTools.json?.result?.tools || []).map((t) => t.name).sort().join(",");
   check("older MCP lists exactly the five Personal tools", names === "get_lineage,get_note,get_related,search_notes,vault_overview", names);
+
+  /* ---- bind address, from this computer only (not a second-machine test) ---- */
+  const lan = (await P("(p) => p.reachableAddresses()"))[0];
+  if (lan) {
+    check("This computer only: not listening on the LAN address", (await request("/overview", { token, host: lan })).status === 0);
+    await P("(p) => p.updatePersonalNotes((d) => { d.connection = { ...d.connection, bindMode: 'lan' }; })");
+    for (let i = 0; i < 20 && (await P("(p) => p.connection().state")) !== "running"; i++) await sleep(250);
+    check("Local network: answers on this computer's own LAN address", (await request("/overview", { token, host: lan })).status === 200);
+    check("Local network: loopback still works", (await request("/overview", { token })).status === 200);
+    check("Local network: a token is still required", (await request("/overview", { host: lan })).status === 401);
+    await P("(p) => p.updatePersonalNotes((d) => { d.connection = { ...d.connection, bindMode: 'localhost' }; })");
+    for (let i = 0; i < 20 && (await P("(p) => p.connection().state")) !== "running"; i++) await sleep(250);
+    check("back to This computer only: LAN address closed again", (await request("/overview", { token, host: lan })).status === 0);
+  } else console.log("SKIP  bind-address checks: this computer reports no LAN address");
 
   /* ---- no-write, then optional tags ---- */
   const afterReads = hashTree(vault);
