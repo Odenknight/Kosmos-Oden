@@ -45,9 +45,11 @@ every file in it. It contains no `node_modules`, settings, tokens or notes.
   nothing shared and the connection off.
 - **Sharing is off until you choose folders.** In the Personal profile an
   agent can read only the folders under "Folders shared with agents".
-- **Optional tags are off.** Kosmos-Oden does not write to any note in the
-  Personal profile until you turn on "Use optional tags", pick folders and
-  press "Apply selected tags".
+- **Optional tags are off.** In the Personal profile Kosmos-Oden writes to a
+  note only after you turn on "Use optional tags" and then press "Apply
+  selected tags" or "Add supersedes", or turn on "Automatic time stamps"
+  (which then stamps notes you edit in the folders to tag). The separate GKX
+  formatting commands still write only when you run them.
 - **The Personal connection has its own token**, stored on this device only.
   It is not in `data.json` and does not sync. The token saved by earlier
   versions keeps working for the existing profile and is not accepted on the
@@ -68,10 +70,13 @@ Reading and searching never change notes, so they need no content rollback.
 Two things are your content and are **not** undone by rolling the plugin back:
 
 - Notes and attachments created by the Importer.
-- Tags you applied. Each bulk "Apply selected tags" saves the exact previous
-  bytes of every note it changed under `.gkx/backup/` in the vault, with a
-  manifest. Restore from there, or from your copied vault. A restore refuses
-  to overwrite a note you edited afterwards.
+- Tags you applied. Each "Apply selected tags" or "Add supersedes" first
+  saves the exact previous text of every note it changes, as
+  `.gkx/backup/tagging-<time>-<code>/files/<note path>.bak`, with a
+  `manifest.json` listing each backup and its before and after hashes. There
+  is no restore command in this release: copy a backup back by hand, or use
+  your copied vault, and check first that you have not edited the note since.
+  Automatic time stamps make no backup.
 
 After a downgrade the older version does not know the new folder and protocol
 settings. Review its connector settings before turning its connector on.

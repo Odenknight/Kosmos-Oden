@@ -17,15 +17,20 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
-> **Version 0.9.0 (alpha):** adds Personal Notes, an optional mode for everyday
-> notes with no GKX formatting. It guides you through bringing in Google Keep
-> and OneNote notes with the Obsidian Importer community plugin, adds a full
-> text **Search my notes** view, and adds **Connect my AI**, where you choose
-> which folders an assistant may read and whether it connects from this
-> computer or your local network. GKX time stamps, IDs and supersedes lineage
-> stay available and optional. The Agent API now also answers older MCP
-> clients. Off by default. Desktop only. See
-> [Personal Notes](docs/PERSONAL-NOTES.md).
+> **Version 0.9.0 (alpha test candidate):** adds the **Personal Notes**
+> profile for everyday notes that have no GKX formatting. **Add notes from
+> another app** walks you through bringing in Google Keep and OneNote notes
+> with the Obsidian Importer community plugin (which does the conversion).
+> **Search my notes** is a full-text search over your whole vault.
+> **Connect my AI** lets an assistant read only the **Folders shared with
+> agents**, from this computer or your local network, with a key that stays
+> on this computer. Optional, rule-based tags (time stamps, permanent IDs,
+> "supersedes" links) are off until you turn them on. The Agent API answers
+> both modern and older MCP clients. A new installation starts in Personal
+> Notes with nothing shared; an upgraded one stays on the existing profile.
+> Requires Obsidian 1.13.0 or newer; connecting needs desktop Obsidian. Start
+> with [Personal Notes](docs/PERSONAL-NOTES.md); release notes, install and
+> test steps are in [docs/v0.9.0/](docs/v0.9.0/ALPHA-INSTALL.md).
 >
 > **Version 0.8.4:** sharper close-ups (a finer close-up mesh tier with extra surface
 > detail and relief, closer zoom on a selected body), a lighter per-frame renderer
@@ -47,7 +52,8 @@ Markdown content changes. Connection lines now stay hidden until **All links**
 is enabled, while orbital motion continues. See the
 [bugfix report and validation limits](docs/reviews/2026-09-12-startup-and-links-bugfix.md).
 
-Agents can opt into note-body discovery with `search_notes` using `body: true`.
+In the existing profile, agents can opt into note-body discovery with
+`search_notes` using `body: true`. (Personal Notes always searches full text.)
 It searches the already indexed, readable note snapshot without extra vault reads.
 Metadata search remains the default. Body coverage is explicitly partial: at most
 64,000 characters per note and 8 million per query; use area/tag filters to narrow
@@ -69,7 +75,7 @@ changes. See [review behavior and host limits](docs/reviews/2026-09-12-proposal-
 | Experience | Best for | What it needs |
 |---|---|---|
 | **Standalone sky** | Opening a local Markdown folder as one offline visual | `kosmos-oden-stand-alone.html` and a current browser |
-| **Obsidian plugin** | Live updates, note navigation, GKX tools, Agent API, and optional sync | Obsidian 1.11.4+ |
+| **Obsidian plugin** | Live updates, note navigation, Personal Notes, GKX tools, Agent API, and optional sync | Obsidian 1.13.0+ |
 | **Build CLI** | Producing graph JSON or Graphiti episodes in scripts | Node.js 22–24 and a source checkout |
 
 All three use the same pinned Engine semantics rather than inventing separate
@@ -298,9 +304,11 @@ The MCP endpoint uses Streamable HTTP in the stateless per-request ("modern")
 shape defined by MCP revision `2026-07-28`: no handshake, no session, no GET
 stream, with the protocol version and client identity carried per request in
 `_meta` and validated against the mirrored HTTP headers. As of 0.9.0, clients
-that speak only legacy revisions (`2025-11-25` and earlier) are answered too,
-also without a session, while **Accept older MCP clients** is on (the
-default). `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
+that open with the older `initialize` handshake are answered too, also without
+a session, while **Accept older MCP clients** is on (the default):
+`2025-11-25`, `2025-06-18` and `2025-03-26` directly over HTTP, and
+`2024-11-05` only through the included stdio bridge `kosmos-mcp-stdio.mjs`.
+The deprecated HTTP+SSE transport (`/sse`) is not offered. Request,
 response, rate, concurrency, and episode-page limits bound resource use.
 Sensitivity filtering applies before serialization; invalid explicit labels
 fail closed.
@@ -309,6 +317,11 @@ LAN mode is a separate opt-in compatibility feature of the Obsidian API. It
 requires a token and uses unencrypted HTTP, so use a trusted private network or
 a secure tunnel. The standalone-service client described above remains
 loopback-only.
+
+In the Personal Notes profile the same listener serves only five read-only
+tools (`vault_overview`, `search_notes`, `get_note`, `get_related`,
+`get_lineage`) over the shared folders, with exact paged note reads and its own
+device-local token.
 
 See [Agent API](AGENT-API.md) for exact routes, tools, and setup.
 
@@ -429,8 +442,11 @@ exact command, commit, platform, failures, and documented skips.
 - [Architecture](docs/ARCHITECTURE.md)—the established module map
 - [Renderer protocol](docs/RENDERER-PROTOCOL.md)—the Obsidian host/viewer
   message contract
-- [MCP protocol eras](docs/MCP-PROTOCOL-ERAS.md)—which MCP revisions the Agent
-  API speaks, and why a `2026-07-28`-only client cannot connect
+- [Personal Notes](docs/PERSONAL-NOTES.md)—the 0.9.0 profile for everyday
+  notes, and the [0.9.0 alpha documents](docs/v0.9.0/ALPHA-INSTALL.md)
+- [MCP protocol eras](docs/MCP-PROTOCOL-ERAS.md) and
+  [MCP compatibility](docs/v0.9.0/MCP-COMPATIBILITY.md)—which MCP revisions
+  the Agent API speaks on each transport
 - [Engine 2.1 compatibility](docs/ENGINE-2.1-COMPATIBILITY.md)—the pinned
   dependency and read-only Navigation boundary
 - [GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)—validating projection behavior
@@ -458,9 +474,11 @@ licensing structure.
 ## MCP qualification scope
 
 The Agent API implements modern MCP `2026-07-28` and, while **Accept older MCP
-clients** is on, a stateless legacy path for `2025-11-25` and earlier. The
-legacy path is new in 0.9.0 and is covered by automated tests only; no named
-legacy client has been qualified. The separate Engine retrieval client is not upgraded by this candidate;
+clients** is on, a stateless legacy path for `2025-11-25`, `2025-06-18` and
+`2025-03-26` over HTTP, plus `2024-11-05` through the stdio bridge. The
+legacy path is new in 0.9.0 and is covered by automated tests (including the
+official MCP SDK client 2.4.0) only; no named product client has been
+qualified. The separate Engine retrieval client is not upgraded by this candidate;
 its service must be qualified independently of the bundled library version.
 
 Kosmos-Oden's read-only viewing behavior does not by itself qualify the GKOS
@@ -482,7 +500,8 @@ display a designated name. Names retain spaces, are limited to 80 characters,
 and are self-reported labels, not authorization. Use distinct names for distinct
 agents.
 
-Every tool also accepts an optional `agent_name` argument, so an agent can name
+In the existing profile every tool also accepts an optional `agent_name`
+argument (the Personal Notes tools do not), so an agent can name
 its ship even when its host controls client metadata. For example:
 `get_note({"path":"Game_Dev/Research Game Styles.md","agent_name":"Codex Game Research"})`.
 Send the same name on each call. It overrides the transport label for that call.

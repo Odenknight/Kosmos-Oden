@@ -19,11 +19,21 @@ Not included in 0.9.0: the deprecated HTTP+SSE transport (`GET /sse` plus
 release's matrix; use the stdio bridge instead if the host can launch stdio
 servers. Native discovery (`GET /`) lists only the native HTTP revisions.
 
-The "Accept older MCP clients" setting (`agentLegacyMcp`) is on by default
-for fresh installs, migrated settings, and any settings object that omits the
-field. Turned off, every initialize-era request is refused with HTTP 400 and
-error `-32022` naming the modern revision, while modern traffic keeps
-working. Enabling the setting never starts the connector.
+The "Accept older MCP clients" setting is on by default for fresh installs,
+migrated settings, and any settings object that omits the field. Each profile
+has its own value: `agentLegacyMcp` for the existing profile (Settings,
+Agent API tab) and `personalNotes.connection.acceptOlderMcp` for Personal
+Notes (the Connect my AI window). Turned off, every initialize-era request is
+refused with HTTP 400 and error `-32022` naming the modern revision, while
+modern traffic keeps working. Because the bridge carries every legacy
+exchange to the same server, this also refuses initialize-era clients on
+stdio, including `2024-11-05`: off means modern only on both transports, and
+`GET /` (and the Personal profile's `vault_overview`) then advertise
+`2026-07-28` only. Enabling the
+setting never starts the connector.
+
+Both profiles share this transport code; only the tool set served differs
+(the Personal profile serves exactly five tools, see `AGENT-API.md`).
 
 ## Classification
 

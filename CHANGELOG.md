@@ -4,45 +4,140 @@
 
 - Naming pass: use the GKOS-Engine and GKOS-Engine-Lite spellings in UI text and docs, rename local scratch-directory ignores to `kosmos-oden_v*`, and rewrite the manifest description in plain language. The existing read-only compatibility for the pre-rename `vault-kosmos-view` view type and `vault-kosmos-nextcloud-*` secret key is kept, so saved layouts and stored WebDAV passwords still carry over.
 
-## 0.9.0 (alpha) — 2026-11-12
+## 0.9.0 (alpha test candidate) — 2026-11-12
 
-Personal Notes (alpha, opt in, desktop):
-- New **Add notes from another app** window: guided Google Keep and OneNote
-  import through the Obsidian Importer community plugin, which extracts notes
-  to Markdown with their attachments, followed by a plain status of what
-  arrived. Kosmos-Oden converts nothing itself.
-- New **Search my notes** view: full text search over every note, with
-  snippets. No embeddings and no index file on disk.
-- New **Connect my AI** window: choose the folders an assistant may read,
-  choose this computer or the local network, turn on the existing read only
-  Agent API, and copy a quick connect block.
-- Personal Notes access rule: while the mode is on, an assistant can read only
-  notes inside the chosen folders. Notes with no sensitivity label are treated
-  as `internal`; explicit labels and the agent ceiling still apply. The mode is
-  off by default and shares nothing until folders are chosen.
-- Optional GKX tags for personal notes: a time stamp opt in for import
-  folders, the existing deterministic GKX formatting workflow scoped to the
-  import folders, and a new **This note replaces another note** command that
-  writes a `supersedes` property. Notes inside an import folder are not
-  stamped unless the user opts in.
+**Status: alpha test candidate, not a qualified release.** Automated checks
+pass on the build machine. The trials that need Obsidian 1.13.0+, real
+exports or accounts, real MCP client applications or a second machine have
+not been run: Google Keep import (I01), OneNote file import (I02), OneNote
+account import (I03), re-import with Skip (I04), Importer report (I05), another
+machine connecting and localhost mode being unreachable from it (N02, N01
+remote half), real older and modern MCP clients (C01), the archive installed
+in a clean vault (B02), runtime checks inside Obsidian, performance inside
+Obsidian, and the visual review on the owner's GPU. See
+[docs/v0.9.0/ALPHA-TEST.md](docs/v0.9.0/ALPHA-TEST.md). The installable
+archive is `kosmos-oden-0.9.0-alpha.1.zip` (`npm run package:release`); the
+manifest version is `0.9.0`.
 
-Agent API:
-- Dual-era MCP by owner direction of 2026-11-12. The modern `2026-07-28` path
-  is unchanged. While the new **Accept older MCP clients** setting is on (the
-  default), clients that open with the legacy `initialize` handshake
-  (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`) are answered on a
-  stateless legacy path. No session is minted in either era.
-- `search_notes` performs full text search with `snippet`, `matchedIn` and
-  `score` per result while Personal Notes mode is on. With the mode off, or
-  with `body: false`, search is unchanged.
-- `get_note` accepts `offset` and `expected_hash` and returns
-  `contentTotalChars`, `contentOffset`, `truncated`, `nextOffset`,
-  `contentHash` and `attachments` in both modes.
-- `vault_overview` returns a `personalNotes` block.
-- Settings schema 10 adds the Personal Notes fields and `agentLegacyMcp`.
+Added — Personal Notes profile ([guide](docs/PERSONAL-NOTES.md)):
+- A second profile, **Personal Notes**, next to the existing (governed)
+  profile, chosen with **Active profile**. In it an assistant reads only the
+  **Folders shared with agents**; ordinary notes need no labels. Notes that
+  author a `sensitivity` are shared only at or below the existing Agent
+  sensitivity ceiling; an invalid label or unreadable properties block hides
+  the note. A fresh installation starts in Personal Notes with nothing shared
+  and the connection off; an upgraded installation stays on the existing
+  profile. Switching profiles never changes the existing profile's settings.
+- **Add notes from another app**: guided Google Keep (Takeout) and OneNote
+  (account or `.one`/`.onepkg`) imports through the Obsidian Importer
+  community plugin (steps written for Importer 3.1.17), which does the
+  conversion. Review results shows files present, notes without words, and an
+  Importer report the user selects; reports are never shared. Advice to use
+  **Skip existing notes** on re-import.
+- **Search my notes**: full-text search over the whole vault in a bundled
+  background worker. Lexical substring matching on NFC/lowercase copies with
+  excerpts in the original spelling, quoted phrases, at most 500 characters
+  and 16 terms. In memory only, rebuilt at startup; files over 5 MiB or beyond
+  128 MiB of text are skipped and reported as partial coverage. No embeddings,
+  no index on disk, no main-thread fallback.
+- **Optional tags** (off by default, rule-based, no model): independent time
+  stamps (`created_at`/`updated_at`), permanent `uid` (UUIDv7) and
+  **This note supersedes…** links, each previewed before **Apply selected
+  tags**, re-checked by hash before writing, with exact backups under
+  `.gkx/backup/`. Opt-in automatic time stamps after real content changes,
+  held back for import folders until **Import finished — review tags**. A
+  tagged note stays a plain note: no `gkx_version`, no conversion. Lineage is
+  read from explicit `supersedes`/`superseded_by` only.
+- Five read-only tools for this profile: `vault_overview`, `search_notes`,
+  `get_note`, `get_related`, `get_lineage`, through REST (`/overview`,
+  `/notes`, `/note`, `/related`, `/lineage`) and every MCP era. Contract
+  `kosmos-personal-notes/1`.
+- Exact paged reads: `get_note` returns exact UTF-16 slices of the raw
+  Markdown with `content_hash` (SHA-256), `next_offset_chars`, and
+  `note_changed` / `note_too_large` errors; attachment references only.
+- **Connect my AI**: shared folders, Connect/Disconnect, Rotate token, Start
+  when Obsidian opens (per device, off by default), network access, Accept
+  older MCP clients, and a real **Test connection** (key, MCP opening, tool
+  list, search, read).
+- **Quick Connect** for **This computer** and **Another computer / agent
+  server**, from one shared generator used by the settings tab, the Connect
+  window and the Agent API guide: Claude Code (command and `.mcp.json`),
+  OpenAI Codex, other MCP clients, stdio bridge and an HTTP health check.
+  `0.0.0.0` and loopback addresses are refused for another computer.
+- A **device-local Personal token**, kept in Obsidian secret storage and never
+  in `data.json`, notes or synced settings.
 
-Unchanged: Engine pin, renderer, Graphiti export, Nextcloud sync, loopback and
-local network bind modes, and every default of a pre-existing setting.
+Added — MCP:
+- Dual-era MCP on both profiles. Modern `2026-07-28` is unchanged. While
+  **Accept older MCP clients** is on (default), initialize-era clients are
+  answered statelessly: `2025-11-25`, `2025-06-18` and `2025-03-26` natively
+  on `/mcp`, including March-2025 JSON-RPC batches (up to 100 messages,
+  request-scoped event-stream reply), and `2024-11-05` only through the stdio
+  bridge's internal adapter. Off means modern only on both transports.
+- The stdio bridge carries both eras, remembers the negotiated legacy revision
+  per process, splits March-2025 batches, and keeps stdout to protocol
+  messages only.
+- Development dependency `@modelcontextprotocol/client@2.4.0` (Apache-2.0)
+  for conformance tests only; it is not shipped.
+
+Changed:
+- Settings schema 11: `activeProfile` and a nested `personalNotes` object. The
+  starter patch's flat schema-10 keys are migrated and removed; a lowered
+  Default sensitivity recorded by that patch is restored, and if it cannot be
+  restored the connector stays stopped with a notice. Unknown keys are kept.
+- Minimum Obsidian version 1.13.0 (was 1.11.4).
+- The Claude Code `.mcp.json` template uses `"type": "http"` (was
+  `"streamable-http"`).
+- Existing-profile Agent API retrieval is faster with byte-identical results
+  (for example `qSearch` p95 at 15,000 notes 86.66 → 9.68 ms on one machine);
+  see [PERFORMANCE-AGENT-API.md](docs/v0.9.0/PERFORMANCE-AGENT-API.md).
+- While the Personal profile is active, the existing automatic timestamp
+  option writes nothing.
+- Renderer ([RENDERER-STABILITY.md](docs/v0.9.0/RENDERER-STABILITY.md)): the
+  adaptive pixel ratio never exceeds the display's own ratio (capped at 2), so
+  close-ups on standard-density screens are slightly less smooth than in
+  0.8.4; the adaptive ratio no longer flaps; hidden link layers are no longer
+  rewritten every frame; faster orbit and instance updates.
+
+Fixed (renderer):
+- GPU buffers of instanced meshes are released on every rebuild (they grew
+  with each graph update).
+- Orbits and shader animation no longer jump after the view was hidden or a
+  frame stalled.
+- Star and planet animation no longer degrades over long sessions (shader
+  time precision).
+- A zero-size (hidden) host no longer produces a NaN projection and pop-in.
+
+Security-relevant:
+- The Personal connection always requires its own token, by header only
+  (`Authorization: Bearer` or `x-api-key`); query-string tokens and the
+  existing profile's token are never accepted on it. Rotate token takes effect
+  immediately.
+- One read policy for every agent-facing path. It always excludes the
+  configuration folder, `.git`, Kosmos operational paths, files named
+  `AGENT-API.md` and selected Importer reports, rejects symlinked or
+  out-of-vault paths, and fails closed on invalid input. Hidden and missing
+  notes are indistinguishable.
+- A policy generation ends in-flight requests and batches after any profile,
+  scope, token or bind change.
+- Synced settings never start sharing on another device.
+- Local network mode listens on all interfaces over plain, unencrypted HTTP;
+  use it only on a trusted network, or a VPN or HTTPS reverse proxy.
+- Tagging writes only selected properties, after a hash re-check, with exact
+  backups for explicit applies; malformed properties are never rewritten.
+- Classification never downgrades a request with any modern marker to the
+  legacy path.
+
+Not included: OCR or handwriting transcription; embeddings or semantic search;
+sync with Google Keep or OneNote (imports are one-time copies) or two-way sync;
+qualification of Apple Notes or Evernote imports; deduplication of Keep notes
+renamed between imports; the deprecated HTTP+SSE (`/sse`) transport;
+attachment contents through the agent tools; encryption of plain HTTP; a
+restore command for tagging backups; a persistent or inverted search index.
+
+Unchanged: Engine pin (`7511233717cd5ab9ce8f6cec76e9623a21e3c728`), Three.js
+`0.186.1`, existing-profile tools and data rules, Graphiti export, Nextcloud
+sync, and every default of a pre-existing setting.
 
 ## 0.8.4 — 2026-10-21
 

@@ -13,9 +13,12 @@ full matrix, rules and evidence are in
   `2025-06-18`, `2025-03-26` (with JSON-RPC batches). `2024-11-05` is served
   only through the stdio bridge's internal adapter. Deprecated HTTP+SSE is not
   offered.
-- "Accept older MCP clients" (`agentLegacyMcp`) defaults on everywhere,
-  including a settings object that omits it; only an explicit `false` turns
-  it off, and then legacy requests fail with `-32022` while modern works.
+- "Accept older MCP clients" defaults on everywhere, including a settings
+  object that omits it; only an explicit `false` turns it off. Each profile
+  has its own value: `agentLegacyMcp` for the existing profile,
+  `personalNotes.connection.acceptOlderMcp` (set in Connect my AI) for
+  Personal Notes. Off means modern only on both transports: legacy requests
+  fail with HTTP 400 / `-32022`, through the bridge too, while modern works.
 - Any modern marker (a reserved `_meta` key, a modern-only method, a modern
   routing header or version) selects strict modern validation even when
   malformed; an unknown explicit version is refused; the rest is legacy at
@@ -25,16 +28,23 @@ full matrix, rules and evidence are in
   process only and forwards it as `MCP-Protocol-Version`.
 - Legacy results use a minimal shape valid on every legacy revision (text
   content plus `isError`; tools are name, description, inputSchema).
+- The modern path still answers every request with `application/json`. The
+  only `text/event-stream` response is the request-scoped reply to a native
+  March-2025 batch on the legacy path; it is not the deprecated HTTP+SSE
+  transport.
+- Both profiles (existing and Personal Notes) use the same transport code;
+  only the tool set differs.
 - Evidence: `test/mcp-compat.test.mjs`, `test/mcp-bridge-compat.test.mjs`,
   `test/mcp-legacy.test.mjs`. SDK qualification only; named product clients
   are owner trials.
 
-Reviewed 2026-09-09. Kosmos-Oden implements modern MCP only for the Agent API
-server. Legacy fallback and dual-era implementation are outside build scope.
+The sections below are the 2026-09-09 review of the modern path. Statements
+that the server is modern-only, advertises no other revision, or never opens
+an SSE response describe 0.8.3/0.8.4 and are superseded by the update above.
 
-## Current implementation
+## Modern path (reviewed 2026-09-09)
 
-The Agent API server implements revision 2026-07-28 and advertises no other.
+The Agent API server implements revision 2026-07-28 on its modern path.
 It requires per-request metadata, implements `server/discover`, validates the
 mirrored headers against the body, and answers `405` to the removed GET and
 DELETE mechanisms. `SUPPORTED_MCP_PROTOCOL_VERSIONS` is `["2026-07-28"]`, and
@@ -53,7 +63,7 @@ library still does not establish that a separate Engine service speaks modern
 MCP or serves the same corpus.
 
 **Not implemented.** The Engine retrieval client is unchanged and remains
-outside this work. The server always answers `application/json`; it opens no
+outside this work. The modern path always answers `application/json`; it opens no
 SSE response stream, which is conforming because the choice is the server's,
 but it means `notifications/progress` and `subscriptions/listen` are not
 offered. `x-mcp-header` is not used by any tool schema, so no

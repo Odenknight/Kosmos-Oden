@@ -15,6 +15,10 @@ Kosmos-Oden reads a local knowledge vault, builds a graph, and can expose it
 over a local (optionally LAN) read-only HTTP + MCP API. Security-relevant areas:
 
 - Agent API authentication, `Host`/`Origin` validation, rate/size limits.
+- The Personal Notes profile (0.9.0): its read policy and folder scope, the
+  device-local Personal token, and the optional tagging writer.
+- The MCP era classifier, the legacy (initialize-era) adapter and the stdio
+  bridge.
 - The plugin iframe trust boundary (sandboxed, `postMessage`-mediated).
 - The standalone viewer's read-only directory scanning.
 - Optional Nextcloud credentials, remote transport, conflict handling, and
@@ -38,12 +42,40 @@ and enforced by `npm run check:invariants` in CI:
 - Token comparison is **constant-time**.
 - The plugin iframe is **sandboxed without `allow-same-origin`**.
 - The standalone artifact has **no external runtime URL dependencies**.
+- Personal Notes (0.9.0) **shares nothing until folders are chosen**,
+  **fails closed without its runtime**, **never accepts a query-string
+  token**, and **never rewrites the existing Default sensitivity**.
+- Legacy MCP is served **only while Accept older MCP clients is on**, always
+  **without sessions**, and the deprecated **HTTP+SSE transport is not
+  served**.
+
+Additional 0.9.0 properties, covered by the Personal Notes and MCP test
+suites rather than the invariant file:
+
+- The Personal connection always requires its own device-local token by
+  header; the existing profile's token is never accepted on it.
+- In the Personal profile one read policy governs every agent-facing output;
+  hidden and missing notes are indistinguishable; a policy generation ends
+  in-flight answers after any scope, profile, token or bind change.
+- Requests carrying any modern MCP marker are never handled by the more
+  permissive legacy path.
+- Local network mode (either profile) listens on all IPv4 interfaces over
+  plain HTTP; it is opt-in, token-required and only for trusted networks.
+  Use a VPN otherwise.
 
 ## Handling of secrets
 
-The Agent API token is stored in the plugin's `data.json` (gitignored, never
-committed). Tokens are never logged and never placed in URLs by the default
-configuration. Regenerating the token invalidates existing clients immediately.
+The existing profile's Agent API token is stored in the plugin's `data.json`
+(gitignored, never committed). Tokens are never logged and never placed in
+URLs by the default configuration. Regenerating the token invalidates
+existing clients immediately.
+
+The Personal Notes token (0.9.0) is device-local: it is kept in Obsidian
+Secret Storage (or, where that is unavailable, vault-scoped local storage on
+that device), namespaced by plugin ID and the canonical vault path. It is
+never written to `data.json`, to notes, or to the guide written by **Write
+Agent API guide**, so it does not travel with synced settings. **Rotate
+token** invalidates it immediately.
 
 Nextcloud app passwords are stored under a per-vault identifier in Obsidian
 Secret Storage (Obsidian 1.11.4+), not in plugin `data.json`. Kosmos-Oden never

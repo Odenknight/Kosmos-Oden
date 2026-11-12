@@ -33,6 +33,21 @@ Chromium, mobile Chromium, Firefox and WebKit. Native Hermes acceptance,
 independent hardware GPU evidence and complete profile qualification remain
 separate gates. See [branch and data dispositions](docs/reviews/2026-09-12-branch-disposition.md).
 
+### 0.9.0 Personal Notes (alpha test candidate)
+
+The Personal Notes profile, Importer-guided onboarding, worker search,
+optional deterministic tags, five read-only tools with exact paged reads,
+dual-era MCP and Quick Connect for this or another computer are built and
+pass automated checks. Owner trials remain open (real Keep and OneNote
+imports, real MCP client applications, a second machine, the archive in a
+clean vault, measurements inside Obsidian); see
+[docs/v0.9.0/ALPHA-TEST.md](docs/v0.9.0/ALPHA-TEST.md).
+
+Later work, not in 0.9.0: OCR and handwriting transcription, embeddings or
+semantic search, live or two-way sync with source apps, Apple Notes and
+Evernote qualification, and an inverted or persistent search index (only if
+measurements on a larger corpus require it).
+
 ## Next
 
 - Replace any remaining vendored or duplicated active-core behavior with

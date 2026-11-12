@@ -14,7 +14,7 @@ and sync, out of the no-write measurement in step 2.
 
 | You want to | Open |
 | --- | --- |
-| Choose the profile | Settings, Kosmos-Oden, "Active profile" |
+| Choose the profile | Settings, Kosmos-Oden, "Agent API (HTTP + MCP)" tab, "Active profile" |
 | Bring notes in | command "Add notes from another app" |
 | Find notes | command "Search my notes" (also the search ribbon icon) |
 | Add optional tags | command "Optional tags (preview deterministic tags)" |
@@ -44,24 +44,28 @@ and sync, out of the no-write measurement in step 2.
    count of notes an agent can read should match what you expect.
 6. **Optional tags, on disposable copies.** "Optional tags": turn on "Use
    optional tags", pick a folder under "Folders to tag". Then, one at a
-   time: "Time stamps", "Unique IDs", "“Supersedes” links". For each:
-   "Preview deterministic tags", read the diff, "Apply selected tags". Check
-   the note body is unchanged, previewing again shows nothing to do, an ID
-   survives an edit and a rename, and a deliberate chain of "This note
-   supersedes…" shows the right order. Test "Automatic time stamps"
+   time: "Time stamps" and "Unique IDs": "Preview deterministic tags", read
+   the diff, "Apply selected tags". "“Supersedes” links": open the newer
+   note, run "This note supersedes…", choose the older note, "Add
+   supersedes". Check the note body is unchanged, previewing again shows
+   nothing to do, an ID survives an edit and a rename, and a deliberate chain
+   of "This note supersedes…" shows the right order. Test "Automatic time stamps"
    separately: edit a note in the folder and confirm only its updated time
    changes; reopening a note must not change it.
 7. **Import boundary.** With automatic time stamps on, start another import
-   into a tagged folder. Notes must not be stamped until you press
-   "Import finished — review tags".
+   into a tagged folder through "Add notes from another app", "Open
+   Importer". Notes must not be stamped until you press "Import finished —
+   review tags". (An import started in the Importer directly is not detected;
+   see KNOWN-LIMITATIONS.md.)
 8. **Connect on this computer.** "Connect my AI", "Connect", then "Test
    connection". "Quick Connect", "This computer", "Copy configuration" for
    your client. Ask the agent to search for a word in a shared note, read a
    long note to the end, and try to read a note from the "Never share"
    folder (it must report not found).
 9. **Connect from another computer.** "Network access": local network.
-   "Another computer / agent server": choose the address shown for this
-   computer, copy the configuration, use it on the agent machine (for
+   "Another computer / agent server": choose the IP address shown for this
+   computer (a typed host name is refused with "forbidden host"), copy the
+   configuration, use it on the agent machine (for
    example the agent LXC). Repeat step 8's three requests. Check the copied
    configuration contains a reachable address, never `0.0.0.0` or
    `127.0.0.1`. From the other machine in "This computer only" mode the

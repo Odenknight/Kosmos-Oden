@@ -47,9 +47,12 @@
 - "Files present" counts files in the folder. It is not proof that the last
   import created them. Open the Importer's own report for skipped and failed
   items; counts Kosmos-Oden cannot know are shown as unknown.
-- Kosmos-Oden cannot see when an import started outside it has finished.
-  Automatic time stamps stay off for that folder until you press
-  **Import finished — review tags**.
+- Kosmos-Oden cannot see when an import has finished. For a destination
+  folder opened through **Add notes → Open Importer**, automatic time stamps
+  stay off until you press **Import finished — review tags**. An import
+  started in the Importer directly is not detected at all, so it is not held
+  back: turn automatic time stamps off before such an import into a tagged
+  folder.
 
 ## Optional tags
 
@@ -60,8 +63,10 @@
   duplicate yourself.
 - A supersedes link is written on the newer note only. The older note is not
   edited; the reverse direction is computed when shown.
-- Backups cover explicit bulk applies. Automatic time stamps do not create a
-  backup for each edit.
+- Backups cover explicit applies (**Apply selected tags** and **Add
+  supersedes**). Automatic time stamps do not create a backup for each edit.
+- There is no restore command. A backup is the exact earlier text under
+  `.gkx/backup/tagging-*/files/`; copy it back by hand.
 
 ## Connection
 
@@ -69,6 +74,10 @@
 - Plain HTTP is not encrypted. Use local network mode only on a network you
   trust; for anything else use a VPN or an HTTPS reverse proxy.
 - Kosmos-Oden does not open firewall or router ports.
+- Another computer must address this one by one of its IPv4 addresses. A
+  host name, or a reverse proxy that forwards its own host name, is refused
+  with "forbidden host" by the DNS-rebinding check, even though Quick Connect
+  lets you type one.
 - A connection test run from this computer cannot prove that another computer
   can reach it.
 - An assistant that runs in the cloud processes the text it retrieves in its
