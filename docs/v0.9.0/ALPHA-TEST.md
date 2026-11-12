@@ -1,10 +1,11 @@
 # Kosmos-Oden 0.9.0 alpha 1 — owner test
 
 Status: **test candidate awaiting the named trials below.** Automated checks
-passed on the build machine (see [BUILD-PROGRESS.md](BUILD-PROGRESS.md)). The
-trials in "Pending owner trials" need Obsidian 1.13.0 or newer, real source
-exports or accounts, real MCP client applications, or a second machine. None
-of them has been run, and none is reported as passed.
+passed on the build machine (see [BUILD-PROGRESS.md](BUILD-PROGRESS.md)), and
+the packaged archive passed a scripted trial inside a real Obsidian (see
+"Trials run on the build machine"). The trials in "Pending owner trials" need
+real source exports or accounts, an older-protocol client application, or a
+second machine. None of those has been run, and none is reported as passed.
 
 Install first: [ALPHA-INSTALL.md](ALPHA-INSTALL.md). Use a copied vault and
 keep your original exports unchanged. Keep other plugins that write to notes,
@@ -82,20 +83,37 @@ and sync, out of the no-write measurement in step 2.
 Only after these, broaden to more of the copied notes. Do not import an
 updated export over your only locally edited copy.
 
+## Trials run on the build machine
+
+`npm run smoke:obsidian -- --zip release/kosmos-oden-0.9.0-alpha.1.zip`
+installs the archive into a throwaway vault, starts a separate Obsidian
+instance with its own user-data folder and drives it. It does not touch your
+own Obsidian, vaults or settings. You can rerun it; add `--hold 180` to keep
+the connection open for a client application.
+
+| What | Result |
+| --- | --- |
+| Obsidian 1.15.0 (Windows 11), unmodified archive | 40 of 40 checks passed |
+| Obsidian 1.12.7 with the minimum-version gate lowered in the throwaway copy | 40 of 40; runtime evidence only, not a supported version |
+| Covered | plugin loads from the archive; fresh install has nothing shared and the connection off; search worker runs from its Blob URL; a match after 200,000 characters; original-case excerpts; unclosed quote rejected; with tags off, load, index, search, connect and agent reads changed no file; preview writes nothing; apply adds only the selected fields and keeps body, comment and CRLF; a note with broken properties is left untouched; a second apply changes nothing; Connect resolves on a listening server; the built-in connection test; no token in saved settings; 401 without or with a wrong token; unapproved Host refused; exact REST read; the same not-found for unshared and missing notes; no unshared note in search; a `file:` path cannot reach an excluded note; existing-profile routes not served; a long note rebuilt byte for byte over pages; an older-protocol `initialize` and exactly five tools; bind address in both network modes (from this computer only); token rotation; Disconnect; clean unload |
+| Client application | Claude Code 2.1.322 against that Obsidian: `search_notes` over direct HTTP using the `.mcp.json` shape (`"type": "http"`) and `get_note` through the bundled stdio bridge both returned the right note. It negotiated `2026-07-28`, so it counts as the modern client only |
+| With Importer 3.1.17 installed in the throwaway vault (`--importer-dir`) | 42 of 42: Kosmos-Oden detects the Importer and its version, "Open Importer" opens the Importer's own window through its command, and the destination folder is held back from automatic time stamps |
+| Not covered by this trial | any actual conversion by the Importer, a second machine, an older-protocol client application, timings inside Obsidian |
+
 ## Pending owner trials
 
 | ID | Trial | Why it was not run on the build machine |
 | --- | --- | --- |
-| I01 | Google Keep Takeout ZIP becomes Markdown plus linked assets (text, checklist, labels, image, duplicate title, renamed note) | needs a real Takeout export and Obsidian 1.13.0+ with Importer 3.1.17 |
+| I01 | Google Keep Takeout ZIP becomes Markdown plus linked assets (text, checklist, labels, image, duplicate title, renamed note) | needs a real Takeout export; the Importer's file chooser is a native dialog the scripted trial does not drive |
 | I02 | OneNote `.one` / `.onepkg` import (text, subpages, table, attachment, image, ink) | needs real exporter-produced files |
 | I03 | OneNote account import | needs a Microsoft account with notebooks |
 | I04 | Re-import: identical export, local edit, later source edit, renamed note, with Skip | needs I01 or I02 first |
 | I05 | Importer report opens in your language; skipped and failed reasons readable | needs a real import |
-| N02 | Another machine connects with the copied configuration | needs a second machine on the LAN or VPN |
+| N02 | Another machine connects with the copied configuration | the build machine's firewall has no allow rule for Obsidian and the build does not change firewalls; bind addresses were checked from the same machine only |
 | N01 (remote half) | Localhost mode is unreachable from another machine | same |
-| C01 | One real older-protocol client and one real modern client | needs the client applications; automated tests used the official SDK client 2.4.0 and raw wire fixtures, which are not product clients |
-| B02 | The archive works installed in a clean vault in Obsidian | the build machine has Obsidian 1.12.7; the plugin requires 1.13.0 |
-| Runtime | Search worker starts under Obsidian; `parseYaml` rejects malformed properties; device token storage is per device; "Open Importer" opens the Importer | not observable outside Obsidian; covered in tests by stand-ins only |
+| C01 (older half) | One real older-protocol client application (one that opens with `initialize`) | Claude Code negotiated the modern revision; older revisions are covered by raw wire fixtures and the official SDK client 2.4.0, which are not product clients |
+| B02 (your vault) | The archive installed over your existing plugin and settings in a copied vault | the scripted trial used a fresh throwaway vault, so it did not exercise an upgrade of real saved settings |
+| Runtime | Device token storage is per device and does not sync; an edit in an open editor during "Apply selected tags" | needs two devices, or a person at the editor |
 | Performance | Indexing and search timings with the 3D view open and closed, inside Obsidian on an idle machine | measured outside Obsidian only; see [PERFORMANCE.md](PERFORMANCE.md) |
 | Visual | Review of the 3D view on your GPU; decision on refreshing the `star-focus` reference image | human approval is required for reference images |
 

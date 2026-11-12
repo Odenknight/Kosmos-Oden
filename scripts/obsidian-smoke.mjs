@@ -13,6 +13,7 @@
  *   node scripts/obsidian-smoke.mjs --zip release/kosmos-oden-0.9.0-alpha.1.zip
  *        [--obsidian "C:\\Program Files\\Obsidian\\Obsidian.exe"] [--port 48231]
  *        [--app-asar <obsidian-x.y.z.asar>] [--hold <seconds>]
+ *        [--importer-dir <folder with the Importer release files>]
  *        [--allow-older-app] [--keep]
  *
  * --allow-older-app lowers minAppVersion in the throwaway copy only, so the
@@ -63,6 +64,13 @@ note("Tag/crlf.md", "---\r\nkeep: \"as written\"  # comment stays\r\n---\r\nBody
 note("Tag/plain.md", "No properties here.\n");
 note("Tag/broken.md", "---\nkey: [unclosed\nkey: again\n---\nBody of a note with broken properties.\n");
 writeFileSync(join(vault, ".obsidian", "community-plugins.json"), JSON.stringify(["kosmos-oden"]));
+// Optional: a folder holding the Obsidian Importer release files (main.js, manifest.json, styles.css).
+const importerDir = arg("importer-dir");
+if (importerDir) {
+  const target = join(vault, ".obsidian", "plugins", "obsidian-importer");
+  mkdirSync(target, { recursive: true });
+  for (const f of readdirSync(importerDir)) copyFileSync(join(importerDir, f), join(target, f));
+}
 writeFileSync(join(userData, "obsidian.json"), JSON.stringify({ vaults: { kosmossmoke: { path: vault, ts: Date.now(), open: true } } }));
 // Obsidian updates itself by dropping obsidian-<version>.asar into its user-data
 // folder; the installer on disk can be older. Copy the newest one (read-only
@@ -243,7 +251,19 @@ try {
   check("rotated token: the old one is refused at once", (await request("/overview", { token })).status === 401);
   await P("(p) => p.disconnect()");
   check("Disconnect: nothing answers", (await request("/overview", { token })).status === 0);
-  check("Importer absent is reported, not thrown", ["missing", "unknown"].includes((await P("(p) => p.importer().state"))));
+  if (importerDir) {
+    // The Importer itself is not exercised: this only proves Kosmos finds it and can open it.
+    await page.evaluate(async () => { await window.app.plugins.loadManifests(); await window.app.plugins.enablePluginAndSave("obsidian-importer"); });
+    const imp = await P("(p) => p.importer()");
+    check("Importer is detected with its version", imp.state === "enabled" && /^\d+\.\d+\.\d+$/.test(imp.version || ""), JSON.stringify(imp));
+    const opened = await P("(p) => p.openImporter('Import')");
+    await page.waitForFunction(() => /import/i.test(document.querySelector(".modal")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
+    const modal = await page.evaluate(() => [...document.querySelectorAll(".modal")].map((m) => (m.textContent || "").slice(0, 80)).join(" | "));
+    const commands = await page.evaluate(() => Object.keys(window.app.commands.commands).filter((id) => /import/i.test(id)).join(","));
+    check("Open Importer opens the Importer window through its command", opened === true && /import/i.test(modal), `returned ${opened}; modal "${modal}"; commands ${commands}`);
+    check("the import folder is held back from automatic time stamps until marked finished", (await P("(p) => p.pendingImportFolders()")).includes("Import"));
+    await page.keyboard.press("Escape");
+  } else check("Importer absent is reported, not thrown", ["missing", "unknown"].includes((await P("(p) => p.importer().state"))));
   await page.evaluate(() => window.app.plugins.disablePlugin("kosmos-oden"));
   check("plugin unloads cleanly", await page.evaluate(() => !window.app.plugins.plugins["kosmos-oden"]));
 
