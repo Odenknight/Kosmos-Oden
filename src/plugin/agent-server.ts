@@ -443,6 +443,56 @@ export interface AgentDataProvider {
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]);
 
+type GkxLink = GkxGraph["links"][number];
+interface GraphIndex { nodes: GkxNode[]; links: GkxLink[]; byId: Map<string, GkxNode>; out: Map<string, GkxLink[]>; in: Map<string, GkxLink[]> }
+const graphIndexes = new WeakMap<GkxGraph, GraphIndex>();
+
+const validAtCache = new WeakMap<GkxNode, [string, number]>();
+
+/** Date.parse(node.validAt || ""), reused while validAt is unchanged. */
+function validAtMs(n: GkxNode): number {
+  const src = n.validAt || "";
+  const cached = validAtCache.get(n);
+  if (cached && cached[0] === src) return cached[1];
+  const ms = Date.parse(src);
+  validAtCache.set(n, [src, ms]);
+  return ms;
+}
+
+interface LowerCaseFields { src: [string, string[], string[], string, string]; label: string; aliases: string[]; tags: string[]; path: string; area: string }
+const lowerCaseCache = new WeakMap<GkxNode, LowerCaseFields>();
+
+/** Lower-cased search fields of a node, reused while the node's own fields
+ *  (compared by value/array identity) are unchanged. */
+function lowerCaseFields(n: GkxNode): LowerCaseFields {
+  const c = lowerCaseCache.get(n);
+  if (c && c.src[0] === n.label && c.src[1] === n.aliases && c.src[2] === n.tags && c.src[3] === n.path && c.src[4] === n.area) return c;
+  const fresh = {
+    src: [n.label, n.aliases, n.tags, n.path, n.area] as LowerCaseFields["src"],
+    label: n.label.toLowerCase(), aliases: n.aliases.map((a) => a.toLowerCase()), tags: n.tags.map((t) => t.toLowerCase()),
+    path: n.path.toLowerCase(), area: (n.area ?? "").toLowerCase(),
+  };
+  lowerCaseCache.set(n, fresh);
+  return fresh;
+}
+
+/** Structure-only indexes of one graph snapshot (id map, link adjacency in
+ *  graph.links order), built once per snapshot and dropped with it. They hold
+ *  no visibility decision, so settings changes need no invalidation; a
+ *  replaced nodes/links array rebuilds them. */
+function graphIndex(graph: GkxGraph): GraphIndex {
+  const cached = graphIndexes.get(graph);
+  if (cached && cached.nodes === graph.nodes && cached.links === graph.links) return cached;
+  const out = new Map<string, GkxLink[]>(), inc = new Map<string, GkxLink[]>();
+  for (const l of graph.links) {
+    (out.get(l.source) ?? out.set(l.source, []).get(l.source)!).push(l);
+    (inc.get(l.target) ?? inc.set(l.target, []).get(l.target)!).push(l);
+  }
+  const index = { nodes: graph.nodes, links: graph.links, byId: new Map(graph.nodes.map((n) => [n.id, n])), out, in: inc };
+  graphIndexes.set(graph, index);
+  return index;
+}
+
 interface AgentSession {
   name: string;
   visualId: string;
@@ -953,6 +1003,15 @@ export class KosmosAgentServer {
     return graph.nodes.filter((n) => n.kind === "file" && this.canRead(n));
   }
 
+  /** Readable file nodes and their id set, computed once per query.
+   *  Visibility is never cached across queries: it depends on settings and
+   *  on node metadata, and is cheap next to what it replaces (one rebuild per
+   *  returned note in brief()). */
+  private readable(graph: GkxGraph): { files: GkxNode[]; visible: Set<string> } {
+    const files = this.fileNodes(graph);
+    return { files, visible: new Set(files.map((n) => n.id)) };
+  }
+
   private visibleTemporal(
     n: GkxNode,
     graph: GkxGraph,
@@ -963,7 +1022,7 @@ export class KosmosAgentServer {
       .filter((id) => visible.has(id))
       .map((id) => byId.get(id))
       .filter(Boolean) as GkxNode[];
-    const times = successors.map((x) => Date.parse(x.validAt || "")).filter((x) => !Number.isNaN(x));
+    const times = successors.map((x) => validAtMs(x)).filter((x) => !Number.isNaN(x));
     const participates = successors.length > 0 || (n.gkx?.supersedesIds ?? []).some((id) => visible.has(id));
     return {
       head: participates && successors.length === 0,
@@ -984,8 +1043,7 @@ export class KosmosAgentServer {
     };
   }
 
-  private findNode(graph: GkxGraph, sel: { path?: string; title?: string; uid?: string }): GkxNode | null {
-    const files = this.fileNodes(graph);
+  private findNode(graph: GkxGraph, sel: { path?: string; title?: string; uid?: string }, files = this.fileNodes(graph)): GkxNode | null {
     if (sel.uid) {
       const uid = sel.uid.trim();
       const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
@@ -1016,12 +1074,11 @@ export class KosmosAgentServer {
     return null;
   }
 
-  private projectables(graph: GkxGraph): ProjectableNote[] {
+  private projectables(graph: GkxGraph, { files, visible } = this.readable(graph)): ProjectableNote[] {
     const out: ProjectableNote[] = [];
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    for (const n of this.fileNodes(graph)) {
-      const v = n.validAt ? Date.parse(n.validAt) : NaN;
+    const byId = graphIndex(graph).byId;
+    for (const n of files) {
+      const v = n.validAt ? validAtMs(n) : NaN;
       if (Number.isNaN(v)) continue;
       const visibleInvalidAt = this.visibleTemporal(n, graph, visible, byId).invalidAt;
       const inv = visibleInvalidAt ? Date.parse(visibleInvalidAt) : null;
@@ -1034,14 +1091,14 @@ export class KosmosAgentServer {
 
   async qOverview(): Promise<any> {
     const graph = await this.provider.getGraph();
-    const ns = this.fileNodes(graph);
-    const visible = new Set(ns.map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    const { files: ns, visible } = this.readable(graph);
+    const byId = graphIndex(graph).byId;
     const temporal = ns.map((n) => this.visibleTemporal(n, graph, visible, byId));
-    const points = ns.flatMap((n, i) => {
-      const out = n.validAt ? [Date.parse(n.validAt)] : [];
-      if (temporal[i].invalidAt) out.push(Date.parse(temporal[i].invalidAt as string));
-      return out.filter((x) => !Number.isNaN(x));
+    const points: number[] = [];
+    ns.forEach((n, i) => {
+      if (n.validAt) { const v = validAtMs(n); if (!Number.isNaN(v)) points.push(v); }
+      const invalidAt = temporal[i].invalidAt;
+      if (invalidAt) { const v = Date.parse(invalidAt); if (!Number.isNaN(v)) points.push(v); }
     });
     return {
       vault: this.provider.vaultName(),
@@ -1073,7 +1130,7 @@ export class KosmosAgentServer {
       lineageEdges: graph.links.filter((l) => l.kind === "lineage" && visible.has(l.source) && visible.has(l.target)).length,
       semanticEdges: graph.links.filter((l) => l.kind === "semantic" && visible.has(l.source) && visible.has(l.target)).length,
       timeSpan: points.length > 1 ? { min: Math.min(...points), max: Math.max(...points) } : null,
-      diagnostics: await this.safeDiagnostics(graph),
+      diagnostics: await this.safeDiagnostics(graph, { files: ns, visible }),
       indexBuiltAt: graph.stats.indexedAt,
     };
   }
@@ -1083,8 +1140,7 @@ export class KosmosAgentServer {
     return this.safeDiagnostics(graph);
   }
 
-  private safeDiagnostics(graph: GkxGraph): any {
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
+  private safeDiagnostics(graph: GkxGraph, { files, visible } = this.readable(graph)): any {
     const visibleLinks = graph.links.filter((l) => visible.has(l.source) && (visible.has(l.target) || l.target.startsWith("unresolved:")));
     return {
       notes: visible.size,
@@ -1098,7 +1154,7 @@ export class KosmosAgentServer {
       warningsRedacted: graph.diagnostics.lineageWarnings.length > 0,
       lastFullBuildMs: graph.diagnostics.lastFullBuildMs,
       lastIncrementalUpdateMs: graph.diagnostics.lastIncrementalUpdateMs,
-      gkx23Diagnostics: this.fileNodes(graph).reduce((sum, n) => sum + (n.gkx?.projection?.diagnostics.length ?? 0), 0),
+      gkx23Diagnostics: files.reduce((sum, n) => sum + (n.gkx?.projection?.diagnostics.length ?? 0), 0),
     };
   }
 
@@ -1106,18 +1162,22 @@ export class KosmosAgentServer {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
-    const scored: Array<[number, GkxNode]> = [];
+    // [score, node, validAt ms]: the date is parsed once per hit, not per comparison.
+    const scored: Array<[number, GkxNode, number]> = [];
     if (opts.body && !this.provider.getIndexedBody) throw new McpRpcError(-32602, "Body search is unavailable from this provider");
     let bodyCharacters = 0, bodyNotes = 0, bodyLimited = false;
-    for (const n of this.fileNodes(graph)) {
-      if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
-      if (opts.area && n.area.toLowerCase() !== String(opts.area).toLowerCase()) continue;
+    const { files, visible } = this.readable(graph);
+    const tag = opts.tag ? String(opts.tag).toLowerCase() : "", area = opts.area ? String(opts.area).toLowerCase() : "";
+    for (const n of files) {
+      const lc = lowerCaseFields(n);
+      if (opts.tag && !lc.tags.some((t) => t === tag)) continue;
+      if (opts.area && lc.area !== area) continue;
       let s = -1;
       if (!q) s = 0;
-      else if (n.label.toLowerCase().startsWith(q)) s = 3;
-      else if (n.label.toLowerCase().includes(q)) s = 2;
-      else if (n.aliases.some((a) => a.toLowerCase().includes(q)) || n.tags.some((t) => t.toLowerCase().includes(q))) s = 1.5;
-      else if (n.path.toLowerCase().includes(q)) s = 1;
+      else if (lc.label.startsWith(q)) s = 3;
+      else if (lc.label.includes(q)) s = 2;
+      else if (lc.aliases.some((a) => a.includes(q)) || lc.tags.some((t) => t.includes(q))) s = 1.5;
+      else if (lc.path.includes(q)) s = 1;
       if (s < 0 && opts.body) {
         const body = this.provider.getIndexedBody!(n.path, graph);
         const remaining = Math.max(0, 8_000_000 - bodyCharacters);
@@ -1127,30 +1187,32 @@ export class KosmosAgentServer {
         if (text.length) bodyNotes++;
         if (text.toLowerCase().includes(q)) s = 0.5;
       }
-      if (s >= 0) scored.push([s, n]);
+      if (s >= 0) scored.push([s, n, validAtMs(n) || 0]);
     }
-    scored.sort((a, b) => (b[0] - a[0]) || ((Date.parse(b[1].validAt || "") || 0) - (Date.parse(a[1].validAt || "") || 0)));
+    scored.sort((a, b) => (b[0] - a[0]) || (b[2] - a[2]));
     return {
       query,
       method: opts.body ? "lexical (title/alias/tag/path and bounded body substring; no embeddings)" : "lexical (title/alias/tag/path substring; no embeddings)",
       ...(opts.body ? { bodySearch: { coverage: "partial", notesScanned: bodyNotes, charactersScanned: bodyCharacters, truncated: bodyLimited, maxCharactersPerNote: 64_000, maxCharactersPerQuery: 8_000_000 } } : {}),
       total: scored.length,
-      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph)),
+      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph, visible, graphIndex(graph).byId)),
     };
   }
 
   async qNote(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found", hint: "pass path (e.g. Ideas/Engine v2.md) or title" };
-    const visible = new Set(this.fileNodes(graph).map((x) => x.id));
-    const nameOf = (id: string) => visible.has(id) ? (graph.nodes.find((x) => x.id === id)?.label ?? id) : null;
-    const outgoing = graph.links.filter((l) => l.source === n.id && visible.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
-    const backlinks = graph.links.filter((l) => l.target === n.id && visible.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
-    const semantic = graph.links.filter((l) => l.source === n.id && visible.has(l.target) && l.kind === "semantic").map((l) => l.target);
+    const index = graphIndex(graph);
+    const nameOf = (id: string) => visible.has(id) ? (index.byId.get(id)?.label ?? id) : null;
+    const from = index.out.get(n.id) ?? [], to = index.in.get(n.id) ?? [];
+    const outgoing = from.filter((l) => visible.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
+    const backlinks = to.filter((l) => visible.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
+    const semantic = from.filter((l) => visible.has(l.target) && l.kind === "semantic").map((l) => l.target);
     const content = await this.provider.getNoteContent(n.path);
     return {
-      ...this.brief(n, graph, visible),
+      ...this.brief(n, graph, visible, index.byId),
       aliases: n.aliases,
       gkx: n.gkx ? {
         gkx_version: n.gkx.gkxVersion,
@@ -1271,9 +1333,11 @@ export class KosmosAgentServer {
   /** Canonical lineage chain — identical to what the viewer displays (§33). */
   async qLineage(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found" };
-    const byId = new Map(this.fileNodes(graph).map((x) => [x.id, x]));
+    const byId = new Map(files.map((x) => [x.id, x]));
+    const allById = graphIndex(graph).byId;
     const seen = new Set<string>();
     const chain: GkxNode[] = [];
     const walk = (id: string) => {
@@ -1290,7 +1354,7 @@ export class KosmosAgentServer {
     return {
       for: n.path,
       chainLength: chain.length,
-      chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
+      chain: chain.map((x) => ({ ...this.brief(x, graph, visible, allById), current: x.id === n.id })),
       declarations: this.lineageDeclarations(graph, n, byId),
     };
   }
@@ -1313,13 +1377,16 @@ export class KosmosAgentServer {
 
   async qRelated(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found" };
-    const byId = new Map(this.fileNodes(graph).map((x) => [x.id, x]));
-    const b = (id: string) => { const x = byId.get(id); return x ? this.brief(x, graph) : { path: id }; };
-    const semantic = graph.links.filter((l) => l.source === n.id && byId.has(l.target) && l.kind === "semantic").map((l) => b(l.target));
-    const outgoing = graph.links.filter((l) => l.source === n.id && byId.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
-    const backlinks = graph.links.filter((l) => l.target === n.id && byId.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
+    const byId = new Map(files.map((x) => [x.id, x]));
+    const index = graphIndex(graph);
+    const b = (id: string) => { const x = byId.get(id); return x ? this.brief(x, graph, visible, index.byId) : { path: id }; };
+    const from = index.out.get(n.id) ?? [], to = index.in.get(n.id) ?? [];
+    const semantic = from.filter((l) => byId.has(l.target) && l.kind === "semantic").map((l) => b(l.target));
+    const outgoing = from.filter((l) => byId.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
+    const backlinks = to.filter((l) => byId.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
     return { for: n.path, semantic, outgoing, backlinks };
   }
 
@@ -1328,13 +1395,14 @@ export class KosmosAgentServer {
     const graph = await this.provider.getGraph();
     const T = Date.parse(time);
     if (Number.isNaN(T)) return { error: "invalid time; use ISO 8601, e.g. 2026-04-01 or 2026-04-01T00:00:00Z" };
-    const projection = projectAtTime(this.projectables(graph), T);
-    const byId = new Map(graph.nodes.map((x) => [x.id, x]));
+    const readable = this.readable(graph);
+    const projection = projectAtTime(this.projectables(graph, readable), T);
+    const byId = graphIndex(graph).byId;
     const briefs = (ids: string[]) => ids
       .map((id) => byId.get(id))
       .filter(Boolean)
       .sort((a: any, b: any) => String(b.validAt).localeCompare(String(a.validAt)))
-      .map((n: any) => this.brief(n, graph));
+      .map((n: any) => this.brief(n, graph, readable.visible, byId));
     const valid = briefs(projection.valid);
     const superseded = briefs(projection.superseded);
     const cap = Math.max(1, Math.min(MAX_SEARCH_RESULTS, Math.floor(Number.isFinite(limit) ? limit : 50)));
@@ -1460,9 +1528,9 @@ export class KosmosAgentServer {
 
   async qGraph(): Promise<any> {
     const graph = await this.provider.getGraph();
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const nodes = this.fileNodes(graph).map((n) => this.brief(n, graph, visible, byId));
+    const { files, visible } = this.readable(graph);
+    const byId = graphIndex(graph).byId;
+    const nodes = files.map((n) => this.brief(n, graph, visible, byId));
     const links: any[] = [];
     for (const l of graph.links) {
       if (l.kind === "contains" || !visible.has(l.source) || !visible.has(l.target)) continue;
