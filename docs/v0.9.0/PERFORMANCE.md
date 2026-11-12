@@ -31,7 +31,7 @@ Search is a lexical scan, so latency grows roughly linearly with the text it sca
 
 The worst single query (max 347–389 ms) is a common term. Its p50 was 121–293 ms across the two runs. The p95 target holds and the max does not. Run 1 was the more loaded run.
 
-Peak RSS covers the whole Node process: the main-thread corpus (raw text) plus the worker (raw text plus its NFC/lowercase copy, and the offset map only for text whose length changed). That is roughly 3× the raw corpus size plus the runtime.
+Peak RSS covers the whole Node process: the main-thread corpus (raw text) plus the worker (raw text plus its NFC/lowercase copy, and the offset map only for text whose length changed; see [Offset map memory](#offset-map-memory)). The run-level numbers in this table were measured before the compact offset map; this corpus is mostly ASCII, so its map was small either way. That is roughly 3× the raw corpus size plus the runtime.
 
 ### Main-thread long tasks while indexing (Chromium)
 
@@ -74,11 +74,25 @@ Both indexes ran synchronously on the Node main thread over the same 10,000 raw 
 - **Yield cadence:** kept at the specified ~8 ms or 64 records.
 - **Snapshot chunks:** 1 Mi characters per `postMessage`. Searching and edits showed no long tasks with this size.
 
+## Offset map memory
+
+The worker keeps, for each note, the raw text, its NFC/lowercase searchable copy, and an offset map for the characters whose length changed (a capital `İ` becomes two units; a decomposed `e` + U+0301 becomes one). A review found that the first map cost about 16 bytes per changed character, plus a temporary JavaScript number array while building it. The map is now a byte stream of LEB128 entries `(gap, normalized length, raw length, count)`. Consecutive pieces of the same shape and spacing merge into one entry. A checkpoint every 32 entries keeps a lookup to at most 32 decoded entries. Positions stay exact: a test compares every token of a 20,000-token irregular mix and every position class of a 150,000-character run against independently computed offsets, and the existing Q02 excerpt tests are unchanged.
+
+Measured with `node --expose-gc benchmarks/personal-search-offset-map.mjs` (after `node scripts/build.mjs --for-tests`), same machine, 2026-11-12. Each note is about 4.8 MiB of UTF-8. "Retained" is heap plus ArrayBuffer growth after `prepareDoc`, measured after GC, with the raw text already held before the measurement.
+
+| Note | Offset map before | Offset map after | Retained before | Retained after |
+| --- | --- | --- | --- | --- |
+| `İ` repeated (2,516,582 characters; the review case) | 38.40 MiB | one entry, a few bytes | 48.1 MiB | 9.7 MiB |
+| Seeded random mix of `İ` and decomposed `é` (every character changes length) | 30.47 MiB | 4.41 MiB | 31.3 MiB | 5.3 MiB |
+
+**Remaining worst case.** An entry whose values are all below 128 takes 4 bytes, and the checkpoints add about 0.4 bytes per entry. Merging fails only when neighbouring changed characters differ in shape or spacing, as in the random mix. The bound is therefore about 4.4 bytes per changed character. The smallest changed character is 2 UTF-8 bytes, so the map is at most about 2.2 bytes per UTF-8 byte of note text: at most about 11 MiB for a 5 MiB note. Over the whole 128 MiB corpus budget made of such text, the bound is about 280 MiB; the measured random mix extrapolates to about 118 MiB. The two text copies are not part of the map and remain: an all-`İ` corpus of 128 MiB holds about 128 MiB of raw text and 256 MiB of searchable copy in the worker. Both costs are linear in the text and bounded by the 5 MiB per-file and 128 MiB corpus limits, so the worker does not skip files for map size. While a note is being prepared, the per-character pieces of a changed run are still collected as short strings before they are joined; that is temporary and freed after the note is prepared.
+
 ## Reproducing
 
 ```bash
 npm run bench:personal-search                  # 10,000 notes, ~50 MiB, includes Chromium
 node --expose-gc benchmarks/personal-search-bench.mjs --notes 2000 --mib 10 --no-browser
+node --expose-gc benchmarks/personal-search-offset-map.mjs   # offset map memory (after a --for-tests build)
 npx playwright test --project=chromium test/browser/personal-search-worker.spec.ts
 ```
 

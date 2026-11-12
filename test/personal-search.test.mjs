@@ -111,6 +111,46 @@ test("Q02: offsets stay exact after many length-changing characters", () => {
   assert.equal(toSearchable("Привет МИР, ΟΔΟΣ").map, null, "length-preserving case mapping needs no offset map");
 });
 
+test("Q02: the compact offset map stays exact across long runs and irregular mixes", () => {
+  // Long run of one shape: a single map entry, every position still exact.
+  const raw = "İ".repeat(100_000) + "Needle" + "İ".repeat(50_000) + "End";
+  const s = toSearchable(raw);
+  assert.ok(s.map.bytes.length < 64, `one run is a few bytes, not 16 per character (${s.map.bytes.length})`);
+  const at = s.text.indexOf("needle");
+  assert.equal(at, 200_000);
+  assert.equal(raw.slice(toRawOffset(s.map, at), toRawOffset(s.map, at + 6, true)), "Needle");
+  assert.equal(raw.slice(toRawOffset(s.map, s.text.indexOf("end")), toRawOffset(s.map, s.text.length, true)), "End");
+  for (const k of [0, 1, 31, 32, 33, 99_999]) {
+    assert.equal(toRawOffset(s.map, 2 * k), k, `piece ${k} start`);
+    assert.equal(toRawOffset(s.map, 2 * k + 1), k, `inside piece ${k}, as a start`);
+    assert.equal(toRawOffset(s.map, 2 * k + 1, true), k + 1, `inside piece ${k}, as an end`);
+  }
+
+  // Irregular mix with an independently computed expectation for every token.
+  const tokens = [["İ", 1, 2], ["a", 1, 1], ["é", 2, 1], ["é", 1, 1], ["İİ", 2, 4]];
+  let seed = 7;
+  const rand = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32;
+  let mixed = "", rawAt = 0, normAt = 0;
+  const expected = [];
+  for (let i = 0; i < 20_000; i++) {
+    const [text, rawLen, normLen] = tokens[Math.floor(rand() * tokens.length)];
+    expected.push({ text, rawAt, normAt, rawLen, normLen });
+    mixed += text; rawAt += rawLen; normAt += normLen;
+  }
+  const m = toSearchable(mixed);
+  assert.equal(m.text.length, normAt);
+  for (const e of expected) {
+    if (e.text === "İİ") { // two pieces of one shape
+      assert.equal(toRawOffset(m.map, e.normAt + 2), e.rawAt + 1);
+      assert.equal(toRawOffset(m.map, e.normAt + 3, true), e.rawAt + 2);
+    }
+    assert.equal(toRawOffset(m.map, e.normAt), e.rawAt, `start of ${JSON.stringify(e.text)} at ${e.rawAt}`);
+    assert.equal(toRawOffset(m.map, e.normAt + e.normLen, true), e.rawAt + e.rawLen, `end of ${JSON.stringify(e.text)} at ${e.rawAt}`);
+    if (e.normLen > 1) assert.equal(toRawOffset(m.map, e.normAt + 1, true), e.rawAt + (e.text === "İİ" ? 1 : e.rawLen));
+  }
+  assert.ok(m.map.bytes.length < 5 * expected.length, `about four bytes per irregular piece at most (${m.map.bytes.length})`);
+});
+
 test("Q02: emoji, non-Latin scripts and surrogate-safe excerpts", () => {
   const docs = [
     doc("Party.md", "Party 🎉🎉 planning for the 👩‍👩‍👧 family"),

@@ -8,9 +8,9 @@
  *
  * Matching: every query term must appear in at least one field (title 3,
  * alias 2, tag 2, path 1, body 0.5). Quoted text is one contiguous phrase.
- * Searchable copies are NFC + lowercase; raw text is never changed. A sparse
- * offset map translates positions in the searchable copy back to the raw
- * text so excerpts show the original spelling.
+ * Searchable copies are NFC + lowercase; raw text is never changed. A compact
+ * offset map (OffsetMap) translates positions in the searchable copy back to
+ * the raw text so excerpts show the original spelling.
  */
 import { PERSONAL_LIMITS, PersonalError, type SearchField, type SearchHit } from "./types";
 
@@ -26,28 +26,82 @@ const NON_ASCII_RUNS = /[^\x00-\x7f]+/g;
 const CLUSTER = /[\s\S][\p{M}ᅠ-ᇿ]*/gu;
 
 /**
- * Searchable copy of `raw` plus a sparse offset map. `map` holds quadruples
- * (normStart, normEnd, rawStart, rawEnd) only for pieces whose length changed
- * under NFC + lowercase; every other position maps one-to-one, so pure ASCII
- * and most text cost no map memory at all. null means identity.
+ * Compact offset map: only pieces whose length changed under NFC + lowercase
+ * are recorded; every other position maps one-to-one.
+ *
+ * `bytes` is a stream of entries, each four unsigned LEB128 varints
+ * (gap, normLen, rawLen, count): `count` consecutive pieces of the same shape,
+ * each preceded by `gap` unchanged units. A run of identical pieces (a page
+ * of "İ") is one entry; an irregular mix costs about four bytes per piece.
+ * `checkpoints` holds (normCursor, rawCursor, byteOffset) before every
+ * CHECKPOINT_EVERY-th entry, so a lookup decodes at most that many entries.
  */
-export interface SearchableText {
-  text: string;
-  map: Int32Array | null;
+export interface OffsetMap {
+  bytes: Uint8Array;
+  checkpoints: Uint32Array;
 }
 
+/** Searchable copy of `raw` plus its offset map. null means identity (pure ASCII and most text). */
+export interface SearchableText {
+  text: string;
+  map: OffsetMap | null;
+}
+
+const CHECKPOINT_EVERY = 32;
 const lower = (s: string): string => s.normalize("NFC").toLowerCase();
+
+/** Appends map entries, merging consecutive pieces of the same shape. */
+class OffsetMapBuilder {
+  private bytes = new Uint8Array(64);
+  private len = 0;
+  private checkpoints: number[] = [];
+  private entries = 0;
+  private normCursor = 0; // end of the last flushed entry, normalized
+  private rawCursor = 0;
+  private prevNormEnd = 0; // end of the last piece, normalized
+  private pending: [gap: number, normLen: number, rawLen: number, count: number] | null = null;
+
+  piece(normStart: number, normLen: number, rawLen: number): void {
+    const gap = normStart - this.prevNormEnd;
+    this.prevNormEnd = normStart + normLen;
+    const p = this.pending;
+    if (p && p[0] === gap && p[1] === normLen && p[2] === rawLen) { p[3]++; return; }
+    this.flush();
+    this.pending = [gap, normLen, rawLen, 1];
+  }
+
+  private flush(): void {
+    const p = this.pending;
+    if (!p) return;
+    if (this.entries++ % CHECKPOINT_EVERY === 0) this.checkpoints.push(this.normCursor, this.rawCursor, this.len);
+    for (const v of p) this.varint(v);
+    this.normCursor += p[3] * (p[0] + p[1]);
+    this.rawCursor += p[3] * (p[0] + p[2]);
+    this.pending = null;
+  }
+
+  private varint(v: number): void {
+    if (this.len + 5 > this.bytes.length) { const grown = new Uint8Array(this.bytes.length * 2); grown.set(this.bytes); this.bytes = grown; }
+    while (v >= 0x80) { this.bytes[this.len++] = (v & 0x7f) | 0x80; v >>>= 7; }
+    this.bytes[this.len++] = v;
+  }
+
+  done(): OffsetMap | null {
+    this.flush();
+    return this.entries ? { bytes: this.bytes.slice(0, this.len), checkpoints: Uint32Array.from(this.checkpoints) } : null;
+  }
+}
 
 export function toSearchable(raw: string): SearchableText {
   if (!NON_ASCII.test(raw)) return { text: raw.toLowerCase(), map: null };
   const parts: string[] = [];
-  const quads: number[] = [];
+  const map = new OffsetMapBuilder();
   let rawAt = 0; // raw consumed so far
   let normAt = 0; // normalized length so far
   const pushSame = (s: string) => { parts.push(s); normAt += s.length; };
-  const pushPiece = (orig: string, origStart: number) => {
+  const pushPiece = (orig: string) => {
     const t = lower(orig);
-    if (t.length !== orig.length) quads.push(normAt, normAt + t.length, origStart, origStart + orig.length);
+    if (t.length !== orig.length) map.piece(normAt, t.length, orig.length);
     parts.push(t);
     normAt += t.length;
   };
@@ -66,26 +120,48 @@ export function toSearchable(raw: string): SearchableText {
       // Localize the length change to single clusters so excerpts stay precise.
       CLUSTER.lastIndex = 0;
       let c: RegExpExecArray | null;
-      while ((c = CLUSTER.exec(run)) !== null) pushPiece(c[0], start + c.index);
+      while ((c = CLUSTER.exec(run)) !== null) pushPiece(c[0]);
     }
     rawAt = end;
   }
   if (rawAt < raw.length) pushSame(raw.slice(rawAt).toLowerCase());
-  return { text: parts.join(""), map: quads.length ? Int32Array.from(quads) : null };
+  return { text: parts.join(""), map: map.done() };
 }
 
-/** Map a position in the searchable copy to the raw text. `end` maps a range end. */
-export function toRawOffset(map: Int32Array | null, pos: number, end = false): number {
+/**
+ * Map a position in the searchable copy to the raw text. `end` maps a range
+ * end. Inside a changed piece a start maps to the piece's raw start and an
+ * end to its raw end; elsewhere the mapping is one-to-one.
+ */
+export function toRawOffset(map: OffsetMap | null, pos: number, end = false): number {
   if (!map) return pos;
-  let lo = 0, hi = map.length / 4 - 1, k = -1;
+  const cp = map.checkpoints;
+  let lo = 0, hi = cp.length / 3 - 1, k = 0;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    if (map[mid * 4] <= pos) { k = mid; lo = mid + 1; } else hi = mid - 1;
+    if (cp[mid * 3] <= pos) { k = mid; lo = mid + 1; } else hi = mid - 1;
   }
-  if (k < 0) return pos;
-  const nStart = map[k * 4], nEnd = map[k * 4 + 1], oStart = map[k * 4 + 2], oEnd = map[k * 4 + 3];
-  if (pos >= nEnd) return oEnd + (pos - nEnd);
-  return end && pos > nStart ? oEnd : oStart;
+  let n = cp[k * 3], r = cp[k * 3 + 1], at = cp[k * 3 + 2];
+  const bytes = map.bytes;
+  const next = (): number => {
+    let v = 0, shift = 0, b: number;
+    do { b = bytes[at++]; v += (b & 0x7f) * 2 ** shift; shift += 7; } while (b & 0x80);
+    return v;
+  };
+  while (at < bytes.length) {
+    const gap = next(), normLen = next(), rawLen = next(), count = next();
+    const stride = gap + normLen;
+    if (pos < n + count * stride) {
+      const j = Math.floor((pos - n) / stride);
+      const rem = pos - n - j * stride;
+      const pieceRaw = r + j * (gap + rawLen) + gap;
+      if (rem < gap) return pieceRaw - gap + rem;
+      return end && rem > gap ? pieceRaw + rawLen : pieceRaw;
+    }
+    n += count * stride;
+    r += count * (gap + rawLen);
+  }
+  return r + (pos - n);
 }
 
 /* ---------------------------------------------------------------------- query */
@@ -143,7 +219,7 @@ export interface SearchDoc {
 export interface PreparedDoc {
   readonly doc: SearchDoc;
   readonly body: string;
-  readonly map: Int32Array | null;
+  readonly map: OffsetMap | null;
   readonly title: string;
   readonly aliases: string;
   readonly tags: string;
