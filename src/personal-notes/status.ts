@@ -1,8 +1,10 @@
 /**
- * Personal Notes (0.9.0) — plain-language status for imported notes.
+ * Personal Notes (0.9.0) — plain-language inventory of the import folders.
  *
- * Pure. Computed by Kosmos-Oden from the vault itself, so it does not depend
- * on parsing the Importer's localized log file.
+ * Pure. Counts are what is present in the vault now ("Files present"), not
+ * proof of what the last import created. Importer reports are the files the
+ * user selected (`importReportPaths`); nothing here guesses them from a
+ * localized file name.
  */
 import { isUnderAnyFolder } from "./scope";
 
@@ -15,23 +17,21 @@ export interface StatusNote {
 
 export interface PersonalNotesStatus {
   importFolders: string[];
-  /** Notes found inside the import folders (import logs excluded). */
-  imported: number;
-  /** Non-note files found inside the import folders. */
-  attachmentsSaved: number;
-  /** Imported notes that contain words a search can find. */
+  /** Markdown notes present in the import folders (selected reports not counted). */
+  notesPresent: number;
+  /** Other files present in the import folders (hidden "."-segments skipped). */
+  otherFilesPresent: number;
+  /** Notes present that contain words a search can find. */
   searchable: number;
-  /** Imported notes with no words: pictures, drawings or attachments only. */
+  /** Notes present with no words: pictures, drawings or attachments only. */
   needsAttentionTotal: number;
   /** First `maxListed` paths of the notes counted in needsAttentionTotal. */
   needsAttention: string[];
-  /** Importer log notes found inside the import folders. */
-  importLogs: string[];
+  /** The Importer reports the user selected, and whether each still exists. */
+  reports: { path: string; present: boolean }[];
 }
 
 const NOTE_FILE = /\.(md|markdown)$/i;
-/** Obsidian Importer names its report "<date> <importer> import log" (English UI). */
-const IMPORT_LOG = /\simport log\.md$/i;
 
 /** True when the text holds at least one letter or digit outside link syntax. */
 export function hasSearchableText(body: unknown): boolean {
@@ -48,18 +48,23 @@ export function summarizePersonalNotes(input: {
   /** Every file path in the vault, notes included. */
   files: readonly string[];
   importFolders: readonly string[];
+  /** Importer reports selected by the user. */
+  importReportPaths?: readonly string[];
   maxListed?: number;
 }): PersonalNotesStatus {
   const folders = [...input.importFolders];
+  const reportPaths = [...(input.importReportPaths ?? [])];
+  const reportSet = new Set(reportPaths);
+  const fileSet = new Set(input.files);
   const maxListed = Math.max(0, Math.floor(input.maxListed ?? 100));
   const status: PersonalNotesStatus = {
-    importFolders: folders, imported: 0, attachmentsSaved: 0, searchable: 0,
-    needsAttentionTotal: 0, needsAttention: [], importLogs: [],
+    importFolders: folders, notesPresent: 0, otherFilesPresent: 0, searchable: 0,
+    needsAttentionTotal: 0, needsAttention: [],
+    reports: reportPaths.map((path) => ({ path, present: fileSet.has(path) })),
   };
   for (const note of input.notes) {
-    if (!note || !isUnderAnyFolder(note.path, folders)) continue;
-    if (IMPORT_LOG.test(note.path)) { status.importLogs.push(note.path); continue; }
-    status.imported++;
+    if (!note || reportSet.has(note.path) || !isUnderAnyFolder(note.path, folders)) continue;
+    status.notesPresent++;
     if (hasSearchableText(note.body)) status.searchable++;
     else {
       status.needsAttentionTotal++;
@@ -67,10 +72,9 @@ export function summarizePersonalNotes(input: {
     }
   }
   for (const path of input.files) {
-    if (typeof path !== "string" || NOTE_FILE.test(path)) continue;
+    if (typeof path !== "string" || NOTE_FILE.test(path) || reportSet.has(path)) continue;
     if (path.split("/").some((segment) => segment.startsWith("."))) continue;
-    if (isUnderAnyFolder(path, folders)) status.attachmentsSaved++;
+    if (isUnderAnyFolder(path, folders)) status.otherFilesPresent++;
   }
-  status.importLogs.sort();
   return status;
 }

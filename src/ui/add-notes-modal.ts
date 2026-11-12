@@ -149,8 +149,7 @@ export class AddNotesModal extends Modal {
       const folders = status.importFolders.length ? status.importFolders.join(", ") : "(none)";
       body.createEl("p", { text: `Import folder: ${folders}`, cls: "setting-item-description" });
       const list = body.createEl("ul", { cls: "kosmos-personal-status" });
-      list.createEl("li", { text: `Imported: ${status.imported} ${status.imported === 1 ? "note" : "notes"}` });
-      list.createEl("li", { text: `Attachments saved: ${status.attachmentsSaved}` });
+      list.createEl("li", { text: `Files present: ${status.notesPresent} ${status.notesPresent === 1 ? "note" : "notes"}, ${status.otherFilesPresent} other ${status.otherFilesPresent === 1 ? "file" : "files"}` });
       list.createEl("li", { text: `Searchable: ${status.searchable}` });
       list.createEl("li", { text: `Needs attention: ${status.needsAttentionTotal}` });
       if (status.needsAttentionTotal > 0) {
@@ -159,12 +158,12 @@ export class AddNotesModal extends Modal {
         for (const path of status.needsAttention) attention.createEl("li", { text: path });
         if (status.needsAttentionTotal > status.needsAttention.length) attention.createEl("li", { text: `…and ${status.needsAttentionTotal - status.needsAttention.length} more` });
       }
-      if (status.importLogs.length) {
-        body.createEl("p", { text: "The Importer saved a log of anything it skipped or could not import:", cls: "setting-item-description" });
+      if (status.reports.length) {
+        body.createEl("p", { text: "Importer reports you selected (skipped or failed items are listed there):", cls: "setting-item-description" });
         const logs = body.createEl("ul");
-        for (const path of status.importLogs) logs.createEl("li", { text: path });
+        for (const report of status.reports) logs.createEl("li", { text: report.present ? report.path : `${report.path} (not found)` });
       }
-      if (status.imported === 0 && this.guide?.usesImporter !== false) {
+      if (status.notesPresent === 0 &&this.guide?.usesImporter !== false) {
         body.createEl("p", { text: "No notes found in the import folder yet. If you imported into a different folder, go back and change the folder name.", cls: "setting-item-description" });
       }
     } catch (_) {
