@@ -20,7 +20,6 @@ import { PersonalError, type ActiveProfile, type LineageInputNote, type Personal
 import type {
   ConnectionTestResult, ImporterState, PersonalConnectionStatus, PersonalPluginHost, PersonalSearchStatus, PersonalSettingsView, SupersedesCheck,
 } from "../personal-notes/plugin-host";
-import type { PersonalNotesHost } from "../personal-notes/host";
 import { isUnderAnyFolder, normalizeFolder, parseFolderList, type RejectedFolder } from "../personal-notes/scope";
 import { autoTimestampDecision, importReviewed, importStarted, planAutoTimestamp, planTagging, type TaggingImportState, type TaggingNoteInput, type TaggingPlan } from "../personal-notes/tagging";
 import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } from "../personal-notes/tagging-writer";
@@ -363,7 +362,7 @@ interface AppRegistries {
   setting?: { open?(): void; openTabById?(id: string): unknown };
 }
 
-export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost, PersonalNotesHost {
+export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
   nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
@@ -1182,13 +1181,6 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
 
   openAddNotes(): void { new AddNotesModal(this).open(); }
   openConnectAi(): void { new ConnectAiModal(this).open(); }
-
-  /** @deprecated Old PersonalNotesHost entry (removed after the UI branch merges).
-   *  Opens the optional Personal tagging entry; it no longer runs the full GKX
-   *  `upgrade-all` conversion. The full GKX workflow commands stay registered. */
-  async runGkxTagging(): Promise<void> {
-    this.openTagging();
-  }
 
   /** Optional GKX lineage: record that the open note replaces another note. */
   openSupersedes(): void {

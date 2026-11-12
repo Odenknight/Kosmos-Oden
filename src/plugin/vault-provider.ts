@@ -14,7 +14,6 @@ import { stripFrontmatter } from "gkos-engine";
 import type { AgentDataProvider, AgentSettings } from "./agent-server";
 import type { GkxGraph, GkxSensitivity, SourceFile } from "gkos-engine";
 import { isKosmosOperationalPath } from "../operational-paths";
-import { FullTextIndex, type TextDoc } from "../personal-notes/fulltext";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, readVaultBytes, VAULT_BUILD_TIMEOUT_MS, VAULT_READ_TIMEOUT_MS } from "./vault-operations";
 
@@ -89,7 +88,6 @@ export class VaultDataProvider implements AgentDataProvider {
   private sourceFiles = new Map<string, SourceFile>();
   /** Personal Notes (0.9.0): full text over the committed snapshot, rebuilt
    *  only when the graph object changes. Memory only; nothing is written. */
-  private textIndex: { graph: GkxGraph; index: FullTextIndex } | null = null;
 
   constructor(app: App, settings: AgentSettings, private limits = { readMs: VAULT_READ_TIMEOUT_MS, buildMs: VAULT_BUILD_TIMEOUT_MS }) {
     this.app = app;
@@ -198,23 +196,6 @@ export class VaultDataProvider implements AgentDataProvider {
     this.changedPaths.clear(); this.removedPaths.clear(); this.renamedPaths = [];
     return update.graph;
     }
-  }
-
-  /** Full text index for the committed graph. Never performs vault I/O.
-   *  Returns null when `graph` is not the current committed snapshot. */
-  getTextIndex(graph: GkxGraph): FullTextIndex | null {
-    if (graph !== this.index.graph) return null;
-    if (this.textIndex && this.textIndex.graph === graph) return this.textIndex.index;
-    const docs: TextDoc[] = [];
-    for (const n of graph.nodes) {
-      if (n.kind !== "file" || isKosmosOperationalPath(n.path)) continue;
-      const source = this.sourceFiles.get(n.path);
-      if (!source) continue;
-      docs.push({ path: n.path, title: n.label, aliases: n.aliases, tags: n.tags, body: stripFrontmatter(source.content ?? "") });
-    }
-    const index = new FullTextIndex(docs);
-    this.textIndex = { graph, index };
-    return index;
   }
 
   getIndexedBody(path: string, graph: GkxGraph): string | null {

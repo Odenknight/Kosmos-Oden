@@ -23,6 +23,7 @@ export class Notice { constructor(message) { notices.push(String(message)); } }
 export class ItemView { constructor(leaf) { this.app = leaf.app; this.containerEl = { offsetParent: {}, empty() {}, addClass() {} }; this.contentEl = this.containerEl; } registerDomEvent() {} }
 export class PluginSettingTab { constructor(app, plugin) { this.app = app; this.plugin = plugin; } }
 export class Modal { constructor(app) { this.app = app; } open() {} close() {} }
+export class FuzzySuggestModal extends Modal {}
 export class Setting {}
 export class Plugin {
   constructor(app, manifest) { this.app = app; this.manifest = manifest; this.registered = { events: [], intervals: [], views: [], commands: [] }; }

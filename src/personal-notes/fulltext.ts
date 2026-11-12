@@ -349,11 +349,11 @@ export interface TextSearchResult {
 }
 
 /**
- * Synchronous main-thread adapter kept so the starter call sites
- * (vault-provider, agent-server, search view) keep compiling until the
- * integrator moves them to the worker client. Same matching as the worker;
- * a body over the per-file limit is skipped whole, never cut to a prefix.
- * ponytail: remove once nothing imports it; the worker client replaces it.
+ * Synchronous reference matcher. Not used by the plugin (search runs in the
+ * worker and has no main-thread fallback); the Node tests and the benchmark
+ * use it to check the worker's results against a single-threaded run.
+ * Same matching as the worker; a body over the per-file limit is skipped
+ * whole, never cut to a prefix.
  */
 export class FullTextIndex {
   private readonly prepared: PreparedDoc[] = [];
