@@ -12,6 +12,7 @@
  *
  *   node scripts/obsidian-smoke.mjs --zip release/kosmos-oden-0.9.0-alpha.1.zip
  *        [--obsidian "C:\\Program Files\\Obsidian\\Obsidian.exe"] [--port 48231]
+ *        [--app-asar <obsidian-x.y.z.asar>] [--hold <seconds>]
  *        [--allow-older-app] [--keep]
  *
  * --allow-older-app lowers minAppVersion in the throwaway copy only, so the
@@ -21,10 +22,10 @@
  */
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import os from "node:os";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { chromium } from "@playwright/test";
 
 const arg = (name, fallback) => {
@@ -63,6 +64,13 @@ note("Tag/plain.md", "No properties here.\n");
 note("Tag/broken.md", "---\nkey: [unclosed\nkey: again\n---\nBody of a note with broken properties.\n");
 writeFileSync(join(vault, ".obsidian", "community-plugins.json"), JSON.stringify(["kosmos-oden"]));
 writeFileSync(join(userData, "obsidian.json"), JSON.stringify({ vaults: { kosmossmoke: { path: vault, ts: Date.now(), open: true } } }));
+// Obsidian updates itself by dropping obsidian-<version>.asar into its user-data
+// folder; the installer on disk can be older. Copy the newest one (read-only
+// use) so the throwaway instance runs the app version the user actually runs.
+const asarDir = process.platform === "win32" && process.env.APPDATA ? join(process.env.APPDATA, "obsidian") : null;
+const numeric = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+const appAsar = arg("app-asar", asarDir && existsSync(asarDir) ? readdirSync(asarDir).filter((f) => /^obsidian-[\d.]+\.asar$/.test(f)).sort(numeric).map((f) => join(asarDir, f)).pop() : undefined);
+if (appAsar) copyFileSync(appAsar, join(userData, basename(appAsar)));
 
 const hashTree = (dir) => {
   const out = {};
@@ -93,7 +101,13 @@ try {
     } catch { /* not listening yet */ }
   }
   if (!page) throw new Error("Obsidian did not open the throwaway vault within 60 s");
-  const appVersion = await page.evaluate(() => (navigator.userAgent.match(/obsidian\/([\d.]+)/i) || [])[1] || "unknown");
+  // The window title carries the app version; the user agent only carries the installer's.
+  const versions = await page.evaluate(() => {
+    let ipc; try { ipc = window.require("electron").ipcRenderer.sendSync("version"); } catch { /* not exposed */ }
+    return { ipc: typeof ipc === "string" ? ipc : undefined, title: (document.title.match(/Obsidian v([\d.]+)/) || [])[1], installer: (navigator.userAgent.match(/obsidian\/([\d.]+)/i) || [])[1] };
+  });
+  const appVersion = versions.ipc || versions.title || versions.installer || "unknown";
+  console.log(`app version: ipc ${versions.ipc ?? "?"}, title ${versions.title ?? "?"}, installer ${versions.installer ?? "?"}`);
   const older = appVersion.localeCompare(requiredApp, undefined, { numeric: true }) < 0;
   console.log(`Obsidian ${appVersion}; plugin ${manifest.version} requires ${requiredApp}`);
   if (older && !flag("allow-older-app")) throw new Error(`Obsidian ${appVersion} is older than the required ${requiredApp}. Update Obsidian, or pass --allow-older-app for runtime evidence only.`);
@@ -154,6 +168,13 @@ try {
   const leak = await request("/notes?query=zebrafinch-secret", { token });
   check("search over REST does not return an unshared note", leak.status === 200 && leak.json?.total === 0, `total ${leak.json?.total}`);
   check("existing-profile route is not served in the Personal profile", (await request("/graph", { token })).status === 404);
+
+  // Desktop Obsidian resolves "file:<absolute path>" to any file on disk. Even with
+  // the whole vault shared, such a path must not reach an excluded note.
+  await P("(p) => p.updatePersonalNotes((d) => { d.includeFolders = ['/']; d.excludeFolders = ['Private']; })");
+  const escape = await request(`/note?path=${encodeURIComponent("file:" + join(vault, "Private", "secret.md").replace(/\\/g, "/"))}`, { token });
+  check("a file: path cannot reach an excluded note", escape.status !== 200 && !escape.text.includes("zebrafinch"), `status ${escape.status}`);
+  await P("(p) => p.updatePersonalNotes((d) => { d.includeFolders = ['Notes']; d.excludeFolders = []; })");
 
   let long = "", offset = 0, hash, pages = 0;
   for (;;) {
