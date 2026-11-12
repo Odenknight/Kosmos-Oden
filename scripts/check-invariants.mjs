@@ -64,9 +64,14 @@ must(/agentAllowQueryToken:\s*false/.test(server), "default agentAllowQueryToken
 must(new RegExp(`agentSensitivityCeiling:\\s*"${sec.default_agent_sensitivity_ceiling}"`).test(server), "default agent sensitivity ceiling must match policy");
 must(sec.default_unlabeled_sensitivity === "secret", "policy: default_unlabeled_sensitivity must be secret (fail closed)");
 must(/defaultSensitivity:\s*FAIL_CLOSED_SENSITIVITY_DEFAULT/.test(server), "DEFAULT_AGENT_SETTINGS.defaultSensitivity must be the engine fail-closed default (secret)");
-must(sec.personal_notes_default_enabled === false && /personalNotesEnabled:\s*false/.test(server), "Personal Notes mode must be off by default");
-must(sec.personal_notes_default_folders_empty === true && /personalNotesFolders:\s*\[\]/.test(server), "Personal Notes must share no folders by default");
-must(/if \(this\.settings\.personalNotesEnabled && !inPersonalScope\(/.test(server), "canRead must apply the Personal Notes folder rule before the sensitivity rule");
+/* ---- Personal Notes profile boundary (0.9.0) ---- */
+const personalSettings = read("src/personal-notes/settings.ts");
+must(sec.personal_notes_default_folders_empty === true && /includeFolders:\s*\[\],/.test(personalSettings) && /autoStart:\s*false/.test(personalSettings), "Personal Notes must share no folders and not autostart by default");
+must(/activeProfile:\s*"existing"/.test(server), "DEFAULT_AGENT_SETTINGS.activeProfile must be the existing profile");
+must(sec.personal_fails_closed_without_runtime === true && /if \(this\.personalActive\(\) && !this\.personal\)/.test(server), "the Personal profile must fail closed when its runtime is absent");
+must(/if \(this\.personalActive\(\)\) return personalToolDefs\(\)/.test(server) && /if \(this\.personalActive\(\)\) \{ await this\.personalRest\(/.test(server), "the Personal profile must serve only the Personal tools and REST routes");
+must(/if \(!this\.personalActive\(\)\) return this\.settings\.agentToken;/.test(server), "the persisted agentToken must be used only by the existing profile");
+must(sec.personal_rewrites_default_sensitivity === false && !/enablePersonalNotes|disablePersonalNotes|PERSONAL_NOTES_UNLABELED_SENSITIVITY|personalNotesPriorDefaultSensitivity/.test(serverCode + stripComments(read("src/plugin/main.ts"))), "profile switching must never rewrite the saved defaultSensitivity");
 must(sec.mcp_legacy_requires_setting === true && /return this\.settings\.agentLegacyMcp !== false;/.test(server) && /if \(!this\.acceptsOlderMcp\(\)\)/.test(server) && /agentLegacyMcp:\s*true/.test(server), "legacy MCP must be gated by acceptsOlderMcp(), default on unless explicitly false");
 const compat = read("src/plugin/mcp-compat.ts");
 must(sec.mcp_native_sse_transport === false && !/["'`]\/(sse|messages)["'`]/.test(stripComments(server + compat)), "the deprecated HTTP+SSE /sse + /messages transport must not be served");
@@ -76,7 +81,7 @@ must(sec.mcp_legacy_sessions === false && !/["'`]Mcp-Session-Id["'`]\s*:/.test(s
 must(read("src/plugin/mcp-compat.ts").includes(`MODERN_MCP_PROTOCOL_VERSION = "${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
 must(sec.query_tokens_default_enabled === false, "policy: query_tokens_default_enabled must be false");
 must(/lanNeedsAuthButHasNone/.test(server) && /LAN mode requires an auth token/.test(server), "server must refuse to start LAN mode without a token");
-must(/agentBindMode !== "lan"/.test(server), "query-token auth must be gated out of LAN mode");
+must(sec.personal_query_tokens_allowed === false && /agentAllowQueryToken && !this\.personalActive\(\) && this\.effectiveBindMode\(\) !== "lan"/.test(server), "query-token auth must be gated out of LAN mode and the Personal connection");
 must(new RegExp(`MAX_BODY_BYTES\\s*=\\s*${sec.max_request_bytes / (1024 * 1024)} \\* 1024 \\* 1024`).test(server) || /4 \* 1024 \* 1024/.test(server), "MAX_BODY_BYTES must equal the policy's max_request_bytes");
 must(/getRandomValues/.test(server) && /new Uint8Array\(32\)/.test(server), "token must use crypto.getRandomValues with 32 bytes");
 must(!/Math\.random\s*\(/.test(serverCode), "no Math.random() may appear in the Agent API server");

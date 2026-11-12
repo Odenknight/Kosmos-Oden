@@ -17,7 +17,6 @@ import {
   GKX_TAGGING_CONVERT_DESC,
   GKX_TAGGING_INTRO,
   GKX_TAGGING_LINEAGE_DESC,
-  GKX_TAGGING_STAMP_DESC,
   IMPORTER_COMMAND_ID,
   IMPORTER_INSTALL_URI,
   IMPORTER_PLUGIN_ID,
@@ -41,7 +40,7 @@ export class AddNotesModal extends Modal {
   onClose(): void { this.contentEl.empty(); }
 
   private importFolder(): string {
-    return this.host.agentSettings.personalNotesImportFolders[0] || DEFAULT_IMPORT_FOLDER;
+    return this.host.agentSettings.personalNotes.importFolders[0] || DEFAULT_IMPORT_FOLDER;
   }
 
   /** Importer presence through Obsidian internals. Any failure reads as "unknown". */
@@ -75,7 +74,7 @@ export class AddNotesModal extends Modal {
   private renderChoose(el: HTMLElement): void {
     el.createEl("h2", { text: "Where are your notes?" });
     for (const line of PERSONAL_NOTES_PROMISES) el.createEl("p", { text: line, cls: "setting-item-description" });
-    if (!this.host.agentSettings.personalNotesEnabled) el.createEl("p", { text: PERSONAL_NOTES_MODE_NOTICE, cls: "setting-item-description" });
+    if (this.host.agentSettings.activeProfile !== "personal") el.createEl("p", { text: PERSONAL_NOTES_MODE_NOTICE, cls: "setting-item-description" });
     for (const guide of SOURCE_GUIDES) {
       new Setting(el).setName(guide.title).setDesc(guide.summary)
         .addButton((b) => b.setButtonText("Choose").setCta().onClick(() => void this.choose(guide)));
@@ -88,8 +87,8 @@ export class AddNotesModal extends Modal {
     this.guide = guide;
     // Personal Notes mode must be on BEFORE an import starts, so imported notes
     // are never timestamp-stamped by Kosmos-Oden.
-    if (!this.host.agentSettings.personalNotesEnabled) {
-      await this.host.setPersonalNotesMode(true);
+    if (this.host.agentSettings.activeProfile !== "personal") {
+      await this.host.setActiveProfile("personal");
       new Notice("Kosmos-Oden: Personal Notes is now on for this vault.");
     }
     this.step = guide.usesImporter ? "guide" : "status";
@@ -105,8 +104,8 @@ export class AddNotesModal extends Modal {
       .addText((t) => t.setPlaceholder(DEFAULT_IMPORT_FOLDER).setValue(this.importFolder()).onChange(async (value) => {
         const folder = normalizeFolder(value);
         if (!folder || folder === "/") return; // keep the last good value
-        const rest = this.host.agentSettings.personalNotesImportFolders.filter((f) => f.toLowerCase() !== folder.toLowerCase());
-        this.host.agentSettings.personalNotesImportFolders = [folder, ...rest.slice(0, 19)];
+        const rest = this.host.agentSettings.personalNotes.importFolders.filter((f) => f.toLowerCase() !== folder.toLowerCase());
+        this.host.agentSettings.personalNotes.importFolders = [folder, ...rest.slice(0, 19)];
         await this.host.saveAgentSettings();
       }));
 
@@ -180,11 +179,6 @@ export class AddNotesModal extends Modal {
   private renderGkxTagging(el: HTMLElement): void {
     el.createEl("h3", { text: "Optional: GKX tags" });
     for (const line of GKX_TAGGING_INTRO) el.createEl("p", { text: line, cls: "setting-item-description" });
-    new Setting(el).setName("Time stamps on imported notes").setDesc(GKX_TAGGING_STAMP_DESC)
-      .addToggle((t) => t.setValue(this.host.agentSettings.personalNotesStampImports).onChange(async (value) => {
-        this.host.agentSettings.personalNotesStampImports = value;
-        await this.host.saveAgentSettings();
-      }));
     new Setting(el).setName("Unique IDs and time stamps").setDesc(GKX_TAGGING_CONVERT_DESC)
       .addButton((b) => b.setButtonText("Preview GKX tags").onClick(() => { this.close(); void this.host.runGkxTagging(); }));
     new Setting(el).setName("This note replaces another note").setDesc(GKX_TAGGING_LINEAGE_DESC)

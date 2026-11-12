@@ -29,12 +29,12 @@ export class ConnectAiModal extends Modal {
 
   constructor(private host: PersonalNotesHost) {
     super(host.app);
-    const s = host.agentSettings;
-    this.wholeVault = s.personalNotesFolders.includes(PERSONAL_WHOLE_VAULT);
-    this.chosen = new Set(s.personalNotesFolders.filter((f) => f !== PERSONAL_WHOLE_VAULT));
-    this.excludedText = s.personalNotesExcludedFolders.join("\n");
-    this.bindMode = s.agentBindMode === "lan" ? "lan" : "localhost";
-    this.legacy = s.agentLegacyMcp !== false;
+    const pn = host.agentSettings.personalNotes;
+    this.wholeVault = pn.includeFolders.includes(PERSONAL_WHOLE_VAULT);
+    this.chosen = new Set(pn.includeFolders.filter((f) => f !== PERSONAL_WHOLE_VAULT));
+    this.excludedText = pn.excludeFolders.join("\n");
+    this.bindMode = pn.connection.bindMode === "lan" ? "lan" : "localhost";
+    this.legacy = pn.connection.acceptOlderMcp !== false;
   }
 
   onOpen(): void { this.render(); }
@@ -52,7 +52,7 @@ export class ConnectAiModal extends Modal {
   /** Address an assistant should use, given the saved network choice. */
   private baseUrl(): string {
     const s = this.host.agentSettings;
-    if (s.agentBindMode === "lan") {
+    if (s.personalNotes.connection.bindMode === "lan") {
       const lan = this.host.agentLanUrls();
       if (lan.length) return lan[0];
     }
@@ -122,12 +122,13 @@ export class ConnectAiModal extends Modal {
     if (!include.length) { this.resultEl?.setText("Choose at least one folder, or turn on All my notes."); return; }
     this.resultEl?.setText("Turning on…");
     try {
-      s.personalNotesFolders = include;
-      s.personalNotesExcludedFolders = exclude;
-      s.agentBindMode = this.bindMode;
-      s.agentLegacyMcp = this.legacy;
+      s.personalNotes.includeFolders = include;
+      s.personalNotes.excludeFolders = exclude;
+      s.personalNotes.connection.bindMode = this.bindMode;
+      s.personalNotes.connection.acceptOlderMcp = this.legacy;
       s.agentEnabled = true;
-      await this.host.setPersonalNotesMode(true);   // saves and re-projects
+      await this.host.saveAgentSettings();
+      await this.host.setActiveProfile("personal");
       // start() stops a running server first, so this also applies a changed
       // network choice.
       this.host.startAgentApi();
@@ -138,7 +139,7 @@ export class ConnectAiModal extends Modal {
       }
       const overview = await this.host.agentApi.qOverview();
       const count = Number(overview?.notes) || 0;
-      const where = s.agentBindMode === "lan" ? "on your local network" : "on this computer";
+      const where = s.personalNotes.connection.bindMode === "lan" ? "on your local network" : "on this computer";
       this.resultEl?.setText(count > 0
         ? `The connection is on ${where}. Your assistant can read ${count} ${count === 1 ? "note" : "notes"}.`
         : `The connection is on ${where}, but your assistant cannot read any notes yet. Check the folders you chose. Notes you have labeled as sensitive stay hidden.`);

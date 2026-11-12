@@ -7,14 +7,11 @@
 import type { App } from "obsidian";
 import type { FullTextIndex } from "./fulltext";
 import type { PersonalNotesStatus } from "./status";
+import type { ActiveProfile, PersonalNotesSettings } from "./types";
 
 export interface PersonalNotesSettingsView {
-  personalNotesEnabled: boolean;
-  personalNotesFolders: string[];
-  personalNotesExcludedFolders: string[];
-  personalNotesImportFolders: string[];
-  /** Opt in: let Kosmos-Oden add GKX time stamps to notes in import folders. */
-  personalNotesStampImports: boolean;
+  activeProfile: ActiveProfile;
+  personalNotes: PersonalNotesSettings;
   agentEnabled: boolean;
   agentPort: number;
   agentToken: string;
@@ -31,8 +28,8 @@ export interface PersonalNotesHost {
     getTextIndex(graph: unknown): FullTextIndex | null;
   };
   agentApi: { status: string; url?: string; qOverview(): Promise<{ notes?: number }> };
-  /** Turn Personal Notes mode on or off, save, and re-project. */
-  setPersonalNotesMode(on: boolean): Promise<void>;
+  /** Switch the profile that serves agents and save. Changes nothing else. */
+  setActiveProfile(profile: ActiveProfile): Promise<void>;
   saveAgentSettings(): Promise<void>;
   startAgentApi(): void;
   /** Base URLs other devices can use when the connection is open to the local network. */

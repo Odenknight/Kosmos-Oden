@@ -15,7 +15,8 @@ import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
-import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, disablePersonalNotes, enablePersonalNotes, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
+import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
+import type { ActiveProfile } from "../personal-notes/types";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
@@ -25,7 +26,6 @@ import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } fr
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
-import { isUnderAnyFolder } from "../personal-notes/scope";
 import { summarizePersonalNotes, type PersonalNotesStatus } from "../personal-notes/status";
 import { PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-view";
 import { AddNotesModal } from "../ui/add-notes-modal";
@@ -350,8 +350,8 @@ export default class KosmosOdenPlugin extends Plugin {
     // Obsidian emits create events for existing notes during startup discovery.
     // Those are not user edits and must not start frontmatter writes.
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
-    // Personal Notes (0.9.0): Kosmos-Oden does not stamp an imported note unless the user opted in.
-    if (this.agentSettings.personalNotesEnabled && !this.agentSettings.personalNotesStampImports && isUnderAnyFolder(file?.path, this.agentSettings.personalNotesImportFolders)) return;
+    // Personal Notes (0.9.0): the legacy automatic stamper never writes while the Personal profile is active.
+    if (this.agentSettings.activeProfile === "personal") return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
@@ -365,8 +365,8 @@ export default class KosmosOdenPlugin extends Plugin {
 
   async stampNote(file: any): Promise<void> {
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
-    // Personal Notes (0.9.0): Kosmos-Oden does not stamp an imported note unless the user opted in.
-    if (this.agentSettings.personalNotesEnabled && !this.agentSettings.personalNotesStampImports && isUnderAnyFolder(file?.path, this.agentSettings.personalNotesImportFolders)) return;
+    // Personal Notes (0.9.0): the legacy automatic stamper never writes while the Personal profile is active.
+    if (this.agentSettings.activeProfile === "personal") return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     this.timestampWrites.add(file);
     try {
@@ -564,11 +564,14 @@ export default class KosmosOdenPlugin extends Plugin {
 
   /* ---------------- Personal Notes (0.9.0) ---------------- */
 
-  /** Turn Personal Notes mode on or off, persist, and re-project unlabeled notes. */
-  async setPersonalNotesMode(on: boolean): Promise<void> {
-    if (on) enablePersonalNotes(this.agentSettings); else disablePersonalNotes(this.agentSettings);
+  /** Switch the profile that serves agents. Changes nothing else: the
+   *  existing profile's settings (defaultSensitivity included) stay as saved. */
+  async setActiveProfile(profile: ActiveProfile): Promise<void> {
+    if (this.agentSettings.activeProfile === profile) return;
+    this.agentSettings.activeProfile = profile;
     await this.saveAgentSettings();
-    this.provider.reprojectForSensitivity();
+    const { restartRequired } = this.agentApi.reconfigureAccess();
+    if (restartRequired && this.agentApi.server) this.startAgentApi();
   }
 
   /** Absolute path of the bundled stdio adapter, for quick connect blocks. */
@@ -581,7 +584,7 @@ export default class KosmosOdenPlugin extends Plugin {
       .filter((n) => n.kind === "file")
       .map((n) => ({ path: n.path, body: this.provider.getIndexedBody(n.path, graph) ?? "" }));
     const files = this.app.vault.getFiles().map((f) => f.path);
-    return summarizePersonalNotes({ notes, files, importFolders: this.agentSettings.personalNotesImportFolders });
+    return summarizePersonalNotes({ notes, files, importFolders: this.agentSettings.personalNotes.importFolders, importReportPaths: this.agentSettings.personalNotes.importReportPaths });
   }
 
   async openPersonalSearch(): Promise<void> {
@@ -600,7 +603,7 @@ export default class KosmosOdenPlugin extends Plugin {
   /** Optional GKX tagging: run the existing deterministic, previewed,
    *  backup-protected GKX formatting workflow over the import folders only. */
   async runGkxTagging(): Promise<void> {
-    await this.markNotesInGkx("upgrade-all", this.agentSettings.personalNotesImportFolders);
+    await this.markNotesInGkx("upgrade-all", this.agentSettings.personalNotes.importFolders);
   }
 
   /** Optional GKX lineage: record that the open note replaces another note. */

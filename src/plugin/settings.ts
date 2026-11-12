@@ -283,14 +283,15 @@ export class KosmosSettingTab extends PluginSettingTab {
     agentEl.createEl("p", { text: "Read-only access to the sensitivity-filtered Kosmos Governed Context Projection (KGCP) through REST and MCP Streamable HTTP. Localhost-only by default, token-protected, and available on desktop Obsidian." });
 
     // Personal Notes (0.9.0): a plain entry point above the governed controls.
-    const personalScope = s.personalNotesFolders.includes("/") ? "all notes" : (s.personalNotesFolders.length ? s.personalNotesFolders.join(", ") : "nothing yet");
+    const shared = s.personalNotes.includeFolders;
+    const personalScope = shared.includes("/") ? "all notes" : (shared.length ? shared.join(", ") : "nothing yet");
     new Setting(agentEl).setName("Personal Notes")
-      .setDesc(s.personalNotesEnabled
-        ? `On. Your assistant may read: ${personalScope}. Notes without a sensitivity label are treated as internal while this is on. Turning it off restores your previous Default sensitivity.`
+      .setDesc(s.activeProfile === "personal"
+        ? `On. Your assistant may read: ${personalScope}. Your other Agent API settings are kept unchanged for when you switch back.`
         : "Off. Turn this on to bring in notes from other apps, search them, and choose which folders an assistant may read.")
       .addButton((b) => b.setButtonText("Add notes").onClick(() => this.plugin.openAddNotes()))
       .addButton((b) => b.setButtonText("Connect my AI").setCta().onClick(() => this.plugin.openConnectAi()))
-      .addToggle((t) => t.setValue(s.personalNotesEnabled).onChange(async (v) => { await this.plugin.setPersonalNotesMode(v); this.display(); }));
+      .addToggle((t) => t.setValue(s.activeProfile === "personal").onChange(async (v) => { await this.plugin.setActiveProfile(v ? "personal" : "existing"); this.display(); }));
     new Setting(agentEl).setName("Accept older MCP clients")
       .setDesc(`On by default. Besides modern MCP ${LATEST_MCP_PROTOCOL_VERSION}, also answer clients that open with the older initialize handshake (${LEGACY_MCP_PROTOCOL_VERSIONS.join(", ")}). No session is created either way. Turn off to serve modern MCP only.`)
       .addToggle((t) => t.setValue(s.agentLegacyMcp !== false).onChange(async (v) => { s.agentLegacyMcp = v; await this.plugin.saveAgentSettings(); }));

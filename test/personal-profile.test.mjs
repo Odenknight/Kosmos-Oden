@@ -8,6 +8,7 @@ import {
   migrateProfileSettings,
 } from "../dist/kosmos-personal-notes.mjs";
 import { RANK } from "./helpers/personal-fixture.mjs";
+import { AGENT_SETTINGS_SCHEMA, getProfileSettingsMigration, migrateAgentSettings } from "../dist/kosmos-agent-server.mjs";
 
 const OPTS = { sensitivityRank: RANK, failClosedSensitivity: "secret" };
 const migrate = (raw) => migrateProfileSettings(raw, OPTS);
@@ -162,4 +163,88 @@ test("profile switching is not a migration concern: re-migrating migrated output
   assert.equal(second.restoredDefaultSensitivity, undefined);
   assert.deepEqual(second.personalNotes, first.personalNotes);
   assert.deepEqual(second.notices, []);
+});
+
+/* ---------- through the plugin's own migrateAgentSettings (schema 11) ---------- */
+
+const FLAT_KEYS = ["personalNotesEnabled", "personalNotesFolders", "personalNotesExcludedFolders", "personalNotesImportFolders", "personalNotesStampImports", "personalNotesPriorDefaultSensitivity"];
+
+test("migrateAgentSettings: fresh install is Personal, shares nothing, connector off", () => {
+  const s = migrateAgentSettings(undefined);
+  assert.equal(AGENT_SETTINGS_SCHEMA, 11);
+  assert.equal(s.schemaVersion, 11);
+  assert.equal(s.activeProfile, "personal");
+  assert.equal(s.agentEnabled, false);
+  assert.deepEqual(s.personalNotes, defaultPersonalNotesSettings());
+  assert.equal(s.defaultSensitivity, "secret", "the existing profile's fail-closed default is untouched");
+  assert.equal(getProfileSettingsMigration(s).fresh, true);
+  assert.deepEqual(getProfileSettingsMigration(s).notices, []);
+});
+
+test("migrateAgentSettings: baseline schema 9 keeps every saved value and unknown key", () => {
+  const raw = { ...structuredClone(BASELINE_9), agentToken: "legacy-token", agentLegacyMcp: false };
+  const s = migrateAgentSettings(structuredClone(raw));
+  for (const [key, value] of Object.entries(raw)) if (key !== "schemaVersion") assert.deepEqual(s[key], value, key);
+  assert.equal(s.schemaVersion, 11);
+  assert.equal(s.activeProfile, "existing");
+  assert.equal(s.personalNotes.connection.bindMode, "localhost", "the existing profile's LAN bind is not copied into Personal");
+  assert.equal(s.personalNotes.connection.acceptOlderMcp, false, "an explicit 'no older clients' choice carries over");
+  assert.deepEqual(s.personalNotes.includeFolders, []);
+  assert.deepEqual(getProfileSettingsMigration(s), { fresh: false, connectorMustStayStopped: false, notices: [] });
+});
+
+test("migrateAgentSettings: patch schema 10 restores the recorded default and removes the flat keys", () => {
+  const raw = {
+    ...structuredClone(BASELINE_9), schemaVersion: 10, defaultSensitivity: "internal", agentToken: "legacy-token",
+    personalNotesEnabled: true, personalNotesFolders: ["Import"], personalNotesExcludedFolders: ["Import/Private"],
+    personalNotesImportFolders: ["Import"], personalNotesStampImports: false, personalNotesPriorDefaultSensitivity: "confidential",
+  };
+  const s = migrateAgentSettings(raw);
+  assert.equal(s.defaultSensitivity, "confidential");
+  assert.equal(s.activeProfile, "personal");
+  assert.equal(s.agentEnabled, true, "a valid prior value is unambiguous: the connector choice stays");
+  assert.deepEqual(s.personalNotes.includeFolders, ["Import"]);
+  assert.deepEqual(s.personalNotes.excludeFolders, ["Import/Private"]);
+  for (const key of FLAT_KEYS) assert.equal(key in s, false, key);
+  assert.deepEqual(s.someFutureKey, { x: 1 });
+  assert.equal(getProfileSettingsMigration(s).restoredDefaultSensitivity, "confidential");
+});
+
+test("migrateAgentSettings: patch schema 10 without a valid prior value fails closed and stops the connector", () => {
+  for (const prior of [undefined, "", "bogus"]) {
+    const raw = { ...structuredClone(BASELINE_9), schemaVersion: 10, defaultSensitivity: "internal", personalNotesEnabled: true, personalNotesFolders: ["Import"] };
+    if (prior !== undefined) raw.personalNotesPriorDefaultSensitivity = prior;
+    const s = migrateAgentSettings(raw);
+    assert.equal(s.defaultSensitivity, "secret", JSON.stringify(prior));
+    assert.equal(s.agentEnabled, false);
+    const report = getProfileSettingsMigration(s);
+    assert.equal(report.connectorMustStayStopped, true);
+    assert.match(report.notices.join("\n"), /Default sensitivity/);
+  }
+});
+
+test("migrateAgentSettings: corrupt settings never leak into keys and stop the connector", () => {
+  for (const raw of ["garbage", [1, 2], 42]) {
+    const s = migrateAgentSettings(raw);
+    assert.equal("0" in s, false, `${JSON.stringify(raw)} must not be spread`);
+    assert.equal(s.activeProfile, "existing");
+    assert.equal(s.agentEnabled, false);
+    assert.equal(s.schemaVersion, 11);
+    assert.ok(getProfileSettingsMigration(s).notices.length > 0);
+  }
+  const s = migrateAgentSettings({ ...BASELINE_9, schemaVersion: 11, activeProfile: "personal", personalNotes: "Import" });
+  assert.equal(s.agentEnabled, false);
+  assert.deepEqual(s.personalNotes.includeFolders, []);
+});
+
+test("switching to Personal and back leaves the existing preferences byte-identical", () => {
+  const persist = (s) => JSON.parse(JSON.stringify(s));
+  const start = migrateAgentSettings({ ...structuredClone(BASELINE_9), agentToken: "legacy-token" });
+  const before = JSON.stringify(start);
+  // What setActiveProfile does: flip one field and save; the next launch migrates the saved data.
+  const personal = migrateAgentSettings(persist({ ...start, activeProfile: "personal" }));
+  assert.equal(personal.defaultSensitivity, start.defaultSensitivity);
+  assert.equal(personal.agentToken, "legacy-token");
+  const back = migrateAgentSettings(persist({ ...personal, activeProfile: "existing" }));
+  assert.equal(JSON.stringify(back), before);
 });

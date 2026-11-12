@@ -1,5 +1,7 @@
 /**
- * Personal Notes pure helpers (0.9.0): full-text search, attachments, status.
+ * Personal Notes pure helpers (0.9.0): full-text search, status.
+ * (The patch's regex attachment scanner was retired; resolved references are
+ * covered by personal-api.test.mjs.)
  * Scope tests moved to personal-scope.test.mjs (case-sensitive, reject-not-repair semantics).
  */
 import test from "node:test";
@@ -9,7 +11,6 @@ import {
   FullTextIndex,
   PERSONAL_LIMITS,
   PersonalError,
-  attachmentRefs,
   hasSearchableText,
   summarizePersonalNotes,
   asWikilink,
@@ -89,28 +90,6 @@ test("FullTextIndex bounds results, skips huge bodies whole, and survives odd in
   assert.equal(odd.notes, 2);
   assert.equal(odd.search("t.md").hits[0].title, "T.md");
   assert.equal(odd.search("şehir").total, 1);
-});
-
-test("attachmentRefs lists embedded and linked files but not notes or web links", () => {
-  const body = [
-    "![[Scan - Ink.svg]] and ![[photo.PNG|300]]",
-    "See [[Manual.pdf#page=2|the manual]] and [[Other note]] and [[Other note.md]]",
-    "![alt](attachments/pic%20one.jpg) [doc](<files/My Report.docx>) [t](files/a.pdf \"title\")",
-    "[web](https://example.com/file.pdf) [mail](mailto:a@b.c) [anchor](#top)",
-    "[[Manual.pdf]]",
-  ].join("\n");
-  assert.deepEqual(attachmentRefs(body), [
-    { target: "Scan - Ink.svg", kind: "embed" },
-    { target: "photo.PNG", kind: "embed" },
-    { target: "Manual.pdf", kind: "link" },
-    { target: "attachments/pic one.jpg", kind: "embed" },
-    { target: "files/My Report.docx", kind: "link" },
-    { target: "files/a.pdf", kind: "link" },
-  ]);
-  assert.deepEqual(attachmentRefs(""), []);
-  assert.deepEqual(attachmentRefs(undefined), []);
-  assert.equal(attachmentRefs(Array.from({ length: 300 }, (_, i) => `![[f${i}.png]]`).join(" ")).length, 200);
-  assert.deepEqual(attachmentRefs("[[a.pdf]] ![[a.pdf]]"), [{ target: "a.pdf", kind: "embed" }], "an embed outranks a link to the same file");
 });
 
 test("hasSearchableText ignores link syntax and needs a letter or digit", () => {
