@@ -134,7 +134,8 @@ try {
   await page.waitForFunction(() => !!window.app.plugins.plugins["kosmos-oden"], null, { timeout: 30000 });
   check("plugin loads from the installed archive", true, `Obsidian ${appVersion}${older ? ` (below required ${requiredApp}; gate lowered in the throwaway copy)` : ""}`);
 
-  const P = (fn, a) => page.evaluate(`(async (a) => { const p = window.app.plugins.plugins["kosmos-oden"]; return await (${fn})(p, a); })(${JSON.stringify(a ?? null)})`);
+  // `fn` is one of this script's own source literals; the argument travels as data, never as code.
+  const P = (fn, a) => page.evaluate(([source, arg]) => (0, eval)(`(${source})`)(window.app.plugins.plugins["kosmos-oden"], arg), [fn, a ?? null]);
   await page.waitForFunction(() => window.app.workspace.layoutReady, null, { timeout: 30000 });
 
   /* ---- profile, search, no-write ---- */
@@ -261,8 +262,12 @@ try {
       window.__smokeModals = [];
       new MutationObserver((records) => { for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1 && (n.matches?.(".modal-container, .modal") || n.querySelector?.(".modal"))) setTimeout(() => window.__smokeModals.push((n.textContent || "").slice(0, 80)), 50); }).observe(document.body, { childList: true, subtree: true });
     });
+    const pageErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(String(e.message).slice(0, 160)));
+    page.on("console", (m) => { if (m.type() === "error") pageErrors.push(m.text().slice(0, 160)); });
     const opened = await P("(p) => p.openImporter('Import')");
     await page.waitForFunction(() => window.__smokeModals.some((t) => /import/i.test(t)), null, { timeout: 8000 }).catch(() => {});
+    if (pageErrors.length) console.log("PAGE ERRORS " + JSON.stringify(pageErrors));
     const modal = await page.evaluate(() => window.__smokeModals.join(" | "));
     const still = await page.evaluate(() => document.querySelectorAll(".modal").length);
     const commands = await page.evaluate(() => Object.keys(window.app.commands.commands).filter((id) => /import/i.test(id)).join(","));
