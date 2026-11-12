@@ -89,9 +89,11 @@ test("bundled stdio adapter mirrors modern request metadata into headers", async
   assert.equal(called.error, undefined);
   assert.ok(called.result.structuredContent);
 
-  // A client that omits _meta gets the real server diagnostic, not a request
-  // the adapter silently repaired on its behalf.
-  send({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} });
+  // A client whose metadata is malformed gets the real server diagnostic, not
+  // a request the adapter silently repaired on its behalf. (Since 0.9.0 a
+  // request with NO modern metadata is initialize-era traffic; see
+  // mcp-bridge-compat.test.mjs.)
+  send({ jsonrpc: "2.0", id: 4, method: "tools/list", params: { _meta: { [MCP_META_CLIENT_CAPABILITIES]: {} } } });
   const unmetaed = await next();
   assert.equal(unmetaed.error.code, -32020);
   assert.match(unmetaed.error.message, /MCP-Protocol-Version header is required/);
@@ -101,8 +103,7 @@ test("bundled stdio adapter mirrors modern request metadata into headers", async
   } });
   const legacy = await next();
   assert.equal(legacy.id, 5);
-  assert.equal(legacy.error.code, -32020);
-  assert.match(legacy.error.message, /supported protocol versions: 2026-07-28/);
+  assert.equal(legacy.result.protocolVersion, "2025-11-25", "the legacy handshake is carried, not refused");
 
   send({ jsonrpc: "2.0", id: 6, method: "server/discover", params: { _meta: { ...meta, [MCP_META_PROTOCOL_VERSION]: "1900-01-01" } } });
   const unsupported = await next();
@@ -129,6 +130,7 @@ test("configured ship identity survives generic and omitted client names without
     let text = "";
     for await (const part of req) text += part;
     const message = JSON.parse(text);
+    message.headers = req.headers;
     received.push(message);
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: {} }));
@@ -149,18 +151,27 @@ test("configured ship identity survives generic and omitted client names without
     { [MCP_META_CLIENT_INFO]: 42 },
     undefined,
   ];
-  child.stdin.end(metas.map((_meta, id) => JSON.stringify({ jsonrpc: "2.0", id,
+  child.stdin.write(metas.map((_meta, id) => JSON.stringify({ jsonrpc: "2.0", id,
     method: id === 1 ? "ping" : id === 2 ? "tools/call" : "tools/list",
     params: { _meta, ...(id === 2 ? { name: "get_policy", arguments: { agent_name: "jeffrey" } } : {}) },
   })).join("\n") + "\n");
+  // Closing stdin aborts pending exchanges (0.9.0), so close only once all
+  // five messages have reached the upstream.
+  while (received.length < 5) await new Promise((r) => setTimeout(r, 10));
+  child.stdin.end();
   const [code] = await once(child, "exit");
   assert.equal(code, 0);
   assert.equal(received.length, 5);
-  assert.deepEqual(received.slice(0, 3).map(m => m.params._meta[MCP_META_CLIENT_INFO].name), ["JEFFREY", "JEFFREY", "JEFFREY"]);
+  assert.deepEqual([received[0], received[2]].map(m => m.params._meta[MCP_META_CLIENT_INFO].name), ["JEFFREY", "JEFFREY"]);
   assert.equal(received[0].params._meta[MCP_META_CLIENT_INFO].version, "1");
   assert.equal(received[2].params.arguments.agent_name, "jeffrey");
   assert.equal(received[3].params._meta[MCP_META_CLIENT_INFO], 42);
   assert.equal(received[4].params._meta, undefined);
-  assert.equal(received[1].params._meta[MCP_META_PROTOCOL_VERSION], undefined);
-  assert.equal(received[1].params._meta[MCP_META_CLIENT_CAPABILITIES], undefined);
+  // An empty _meta carries no modern marker: initialize-era traffic, so the
+  // name travels in a header and no reserved metadata is synthesized.
+  assert.deepEqual(received[1].params._meta, {});
+  assert.equal(received[1].headers["x-kosmos-agent-name"], "JEFFREY");
+  assert.equal(received[4].headers["x-kosmos-agent-name"], "JEFFREY");
+  assert.equal(received[1].headers["mcp-method"], undefined);
+  assert.equal(received[0].headers["mcp-method"], "tools/list");
 });
