@@ -86,5 +86,6 @@ test("plugin wiring is present in source", async () => {
   assert.doesNotMatch(main, /defaultSensitivity\s*=/, "switching profiles never writes defaultSensitivity");
   assert.match(await read("../src/plugin/gkx-migration.ts"), /onlyFolders\?: readonly string\[\]/, "the GKX workflow must accept a folder scope");
   const modal = await read("../src/ui/connect-ai-modal.ts");
-  assert.ok(modal.includes(`CONNECT_MCP_PROTOCOL_VERSION = "${LATEST_MCP_PROTOCOL_VERSION}"`), "the Connect window must offer the protocol version the server speaks");
+  assert.match(modal, /this\.host\.mcpProtocols\(\)/, "the Connect window must show the protocol revisions the server actually advertises");
+  assert.doesNotMatch(modal, /"\d{4}-\d{2}-\d{2}"/, "no hard-coded protocol revision in the Connect window");
 });

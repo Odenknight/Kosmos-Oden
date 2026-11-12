@@ -1,116 +1,126 @@
 /**
- * Personal Notes (0.9.0) — "Add notes": Where are your notes?
+ * Personal Notes (0.9.0) — "Add notes".
  *
- * Guides the user into the Obsidian Importer community plugin and then shows
- * a plain status of what arrived. Kosmos-Oden converts nothing itself and
- * never writes to a note from this window.
- *
- * Obsidian imports are limited to names the test stubs export
- * (see test/source-events.test.mjs): Modal, Notice, Setting.
+ * Add notes → source → official guide → Open Importer → review results →
+ * choose folders → search. Conversion is done by the Obsidian Importer
+ * plugin; this window writes no note. Choosing a source changes neither the
+ * active profile, sensitivity nor sharing.
  */
-import { Modal, Notice, Setting } from "obsidian";
-import type { PersonalNotesHost } from "../personal-notes/host";
-import { normalizeFolder } from "../personal-notes/scope";
+import { Modal, Notice, Setting, TFile } from "obsidian";
+import type { PersonalPluginHost } from "../personal-notes/plugin-host";
+import type { PersonalNotesStatus } from "../personal-notes/status";
+import { normalizeFolder, PERSONAL_WHOLE_VAULT } from "../personal-notes/scope";
 import {
-  DEFAULT_IMPORT_FOLDER,
-  GKX_TAGGING_AFTER,
-  GKX_TAGGING_CONVERT_DESC,
-  GKX_TAGGING_INTRO,
-  GKX_TAGGING_LINEAGE_DESC,
-  IMPORTER_COMMAND_ID,
-  IMPORTER_INSTALL_URI,
-  IMPORTER_PLUGIN_ID,
-  IMPORTER_TESTED_VERSION,
-  PERSONAL_NOTES_MODE_NOTICE,
-  PERSONAL_NOTES_PROMISES,
-  REIMPORT_ADVICE,
-  SOURCE_GUIDES,
-  type SourceGuide,
+  IMPORTER_INSTALL_URI, IMPORTER_PALETTE_FALLBACK, IMPORTER_TESTED_VERSION, PERSONAL_NOTES_PROMISES,
+  PERSONAL_PROFILE_EXPLAINER, REIMPORT_ADVICE, SOURCE_GUIDES, type SourceGuide,
 } from "../personal-notes/guides";
+import { FilePickerModal } from "./note-picker";
 
-type Step = "choose" | "guide" | "status";
+type Step = "choose" | "guide" | "review";
+
+/** Plain-language Importer state. Never throws. */
+export function importerGuidance(host: PersonalPluginHost): { ready: boolean; text: string; install: boolean } {
+  let info: ReturnType<PersonalPluginHost["importer"]>;
+  try { info = host.importer(); } catch { return { ready: false, install: false, text: "Could not check whether the Importer plugin is installed. You can still try Open Importer." }; }
+  const version = info.version ? ` (version ${info.version})` : "";
+  switch (info.state) {
+    case "enabled":
+      return info.tested
+        ? { ready: true, install: false, text: `The Importer plugin${version} is installed and turned on.` }
+        : { ready: true, install: false, text: `The Importer plugin${version} is turned on. These steps were checked with version ${IMPORTER_TESTED_VERSION}; its screens may look different.` };
+    case "installed":
+      return { ready: false, install: false, text: "The Importer plugin is installed but turned off. Turn it on in Settings → Community plugins, then come back." };
+    case "missing":
+      return { ready: false, install: true, text: "The Importer plugin is not installed. Install it from Community plugins (it is made by Obsidian), turn it on, then come back." };
+    default:
+      return { ready: false, install: false, text: "Could not check whether the Importer plugin is installed. You can still try Open Importer." };
+  }
+}
 
 export class AddNotesModal extends Modal {
   private step: Step = "choose";
   private guide: SourceGuide | null = null;
+  private folder = "";
+  private folderError = "";
+  private importerMessage = "";
+  private reportMessage = "";
 
-  constructor(private host: PersonalNotesHost) { super(host.app); }
+  constructor(private host: PersonalPluginHost) { super(host.app); }
 
   onOpen(): void { this.render(); }
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void { this.renderSeq++; this.contentEl.empty(); }
 
-  private importFolder(): string {
-    return this.host.agentSettings.personalNotes.importFolders[0] || DEFAULT_IMPORT_FOLDER;
-  }
+  private go(step: Step): void { this.step = step; this.render(); }
 
-  /** Importer presence through Obsidian internals. Any failure reads as "unknown". */
-  private importerState(): "enabled" | "installed" | "missing" | "unknown" {
-    try {
-      const plugins: any = (this.app as any).plugins;
-      if (!plugins) return "unknown";
-      if (plugins.enabledPlugins?.has?.(IMPORTER_PLUGIN_ID)) return "enabled";
-      if (plugins.manifests && Object.prototype.hasOwnProperty.call(plugins.manifests, IMPORTER_PLUGIN_ID)) return "installed";
-      return "missing";
-    } catch (_) { return "unknown"; }
-  }
-
-  /** Try to open the Importer. Returns false when Obsidian would not run the command. */
-  private openImporter(): boolean {
-    try {
-      const commands: any = (this.app as any).commands;
-      return commands?.executeCommandById?.(IMPORTER_COMMAND_ID) === true;
-    } catch (_) { return false; }
-  }
+  private renderSeq = 0;
 
   private render(): void {
     const el = this.contentEl;
+    this.renderSeq++;
     el.empty();
     el.addClass("kosmos-personal-modal");
     if (this.step === "choose") this.renderChoose(el);
     else if (this.step === "guide") this.renderGuide(el);
-    else void this.renderStatus(el);
+    else void this.renderReview(el);
   }
+
+  /* ------------------------------------------------------------- choose */
 
   private renderChoose(el: HTMLElement): void {
-    el.createEl("h2", { text: "Where are your notes?" });
+    el.createEl("h2", { text: "Add notes" });
     for (const line of PERSONAL_NOTES_PROMISES) el.createEl("p", { text: line, cls: "setting-item-description" });
-    if (this.host.agentSettings.activeProfile !== "personal") el.createEl("p", { text: PERSONAL_NOTES_MODE_NOTICE, cls: "setting-item-description" });
+    el.createEl("h3", { text: "Where are your notes now?" });
     for (const guide of SOURCE_GUIDES) {
-      new Setting(el).setName(guide.title).setDesc(guide.summary)
-        .addButton((b) => b.setButtonText("Choose").setCta().onClick(() => void this.choose(guide)));
+      const row = new Setting(el).setName(guide.title).setDesc(guide.summary);
+      if (guide.guideUrl) row.addButton((b) => b.setButtonText("Official guide").onClick(() => window.open(guide.guideUrl!)));
+      row.addButton((b) => b.setButtonText("Choose").setCta().onClick(() => this.choose(guide)));
     }
-    new Setting(el).setName("Already imported?").setDesc("See what arrived and what needs attention.")
-      .addButton((b) => b.setButtonText("Show status").onClick(() => { this.step = "status"; this.render(); }));
+    new Setting(el).setName("Already imported?").setDesc("Review what is in your import folders and the Importer's report.")
+      .addButton((b) => b.setButtonText("Review results").onClick(() => this.go("review")));
+
+    if (this.host.settings().activeProfile !== "personal") {
+      el.createEl("h3", { text: "Profile" });
+      el.createEl("p", { text: PERSONAL_PROFILE_EXPLAINER, cls: "setting-item-description" });
+      new Setting(el).setName("Use the Personal Notes profile").setDesc("Optional. You can switch back in Settings → Kosmos-Oden.")
+        .addButton((b) => b.setButtonText("Switch to Personal Notes").onClick(async () => {
+          try { await this.host.setActiveProfile("personal"); new Notice("Kosmos-Oden: Personal Notes profile is on. Nothing is shared until you choose folders."); }
+          catch (error: any) { new Notice(`Kosmos-Oden: could not switch: ${String(error?.message || error)}`); }
+          this.render();
+        }));
+    }
   }
 
-  private async choose(guide: SourceGuide): Promise<void> {
+  private choose(guide: SourceGuide): void {
     this.guide = guide;
-    // Personal Notes mode must be on BEFORE an import starts, so imported notes
-    // are never timestamp-stamped by Kosmos-Oden.
-    if (this.host.agentSettings.activeProfile !== "personal") {
-      await this.host.setActiveProfile("personal");
-      new Notice("Kosmos-Oden: Personal Notes is now on for this vault.");
-    }
-    this.step = guide.usesImporter ? "guide" : "status";
-    this.render();
+    this.folder = guide.suggestedFolder;
+    this.folderError = "";
+    this.importerMessage = "";
+    this.go(guide.usesImporter ? "guide" : "review");
   }
+
+  /* -------------------------------------------------------------- guide */
 
   private renderGuide(el: HTMLElement): void {
     const guide = this.guide!;
     el.createEl("h2", { text: guide.title });
+    if (guide.guideUrl) {
+      const p = el.createEl("p", { cls: "setting-item-description", text: "Official step-by-step guide: " });
+      const a = p.createEl("a", { text: guide.guideUrl, href: guide.guideUrl });
+      a.setAttribute("target", "_blank");
+      a.setAttribute("rel", "noopener");
+    }
 
-    new Setting(el).setName("Folder for imported notes")
-      .setDesc("Use the same name in the Importer's Output folder box. Kosmos-Oden never changes notes in this folder.")
-      .addText((t) => t.setPlaceholder(DEFAULT_IMPORT_FOLDER).setValue(this.importFolder()).onChange(async (value) => {
-        const folder = normalizeFolder(value);
-        if (!folder || folder === "/") return; // keep the last good value
-        const rest = this.host.agentSettings.personalNotes.importFolders.filter((f) => f.toLowerCase() !== folder.toLowerCase());
-        this.host.agentSettings.personalNotes.importFolders = [folder, ...rest.slice(0, 19)];
-        await this.host.saveAgentSettings();
-      }));
+    new Setting(el).setName("Destination folder")
+      .setDesc("A separate folder for this source, with its pictures and attachments inside it. Use the same folder in the Importer.")
+      .addText((t) => {
+        t.setPlaceholder(guide.suggestedFolder).setValue(this.folder);
+        t.inputEl.setAttribute("aria-label", "Destination folder");
+        t.onChange((v) => { this.folder = v; });
+      });
+    if (this.folderError) el.createEl("p", { cls: "kosmos-personal-warning", text: this.folderError });
 
     const steps = el.createEl("ol", { cls: "kosmos-personal-steps" });
-    for (const step of guide.steps) steps.createEl("li", { text: step.replace("{folder}", this.importFolder()) });
+    for (const step of guide.steps) steps.createEl("li", { text: step.replace("{folder}", this.folder.trim() || guide.suggestedFolder) });
     if (guide.notes.length) {
       el.createEl("h3", { text: "Good to know" });
       const notes = el.createEl("ul");
@@ -119,70 +129,159 @@ export class AddNotesModal extends Modal {
     el.createEl("h3", { text: "Importing again later" });
     for (const line of REIMPORT_ADVICE) el.createEl("p", { text: line, cls: "setting-item-description" });
 
-    const state = this.importerState();
-    const stateText = state === "enabled" ? "The Importer plugin is installed and turned on."
-      : state === "installed" ? "The Importer plugin is installed but turned off. Turn it on in Settings, Community plugins."
-      : state === "missing" ? "The Importer plugin is not installed yet."
-      : "Could not check whether the Importer plugin is installed.";
-    const importer = new Setting(el).setName("Importer").setDesc(`${stateText} These steps were written for Importer ${IMPORTER_TESTED_VERSION}.`);
-    if (state !== "enabled") {
-      importer.addButton((b) => b.setButtonText("Get the Importer").onClick(() => { window.open(IMPORTER_INSTALL_URI); }));
-    }
-    importer.addButton((b) => b.setButtonText("Open the Importer").setCta().onClick(() => {
-      if (this.openImporter()) { this.close(); return; }
-      new Notice("Kosmos-Oden: could not open the Importer. Open the command palette and run “Importer: Import notes”.", 10000);
-    }));
+    const state = importerGuidance(this.host);
+    const importer = new Setting(el).setName("Importer").setDesc(state.text);
+    if (state.install) importer.addButton((b) => b.setButtonText("Get the Importer").onClick(() => window.open(IMPORTER_INSTALL_URI)));
+    importer.addButton((b) => b.setButtonText("Open Importer").setCta().onClick(() => void this.openImporter()));
+    if (this.importerMessage) el.createEl("p", { cls: "kosmos-personal-warning", text: this.importerMessage }).setAttribute("role", "status");
 
     new Setting(el)
-      .addButton((b) => b.setButtonText("Back").onClick(() => { this.step = "choose"; this.render(); }))
-      .addButton((b) => b.setButtonText("I have finished importing").onClick(() => { this.step = "status"; this.render(); }));
+      .addButton((b) => b.setButtonText("Back").onClick(() => this.go("choose")))
+      .addButton((b) => b.setButtonText("Review results").setCta().onClick(() => this.go("review")));
   }
 
-  private async renderStatus(el: HTMLElement): Promise<void> {
-    el.createEl("h2", { text: "Your notes" });
-    const body = el.createEl("div");
-    body.createEl("p", { text: "Reading your notes…" });
+  /** Validated destination folder, or null with folderError set. */
+  private destination(): string | null {
+    const folder = normalizeFolder(this.folder);
+    if (!folder || folder === PERSONAL_WHOLE_VAULT) {
+      this.folderError = "Enter a folder inside the vault, for example Import/Google Keep (use / between folder names).";
+      return null;
+    }
+    this.folderError = "";
+    return folder;
+  }
+
+  private async openImporter(): Promise<void> {
+    const folder = this.destination();
+    if (!folder) { this.render(); return; }
     try {
-      const status = await this.host.personalNotesStatus();
-      body.empty();
-      const folders = status.importFolders.length ? status.importFolders.join(", ") : "(none)";
-      body.createEl("p", { text: `Import folder: ${folders}`, cls: "setting-item-description" });
-      const list = body.createEl("ul", { cls: "kosmos-personal-status" });
-      list.createEl("li", { text: `Files present: ${status.notesPresent} ${status.notesPresent === 1 ? "note" : "notes"}, ${status.otherFilesPresent} other ${status.otherFilesPresent === 1 ? "file" : "files"}` });
-      list.createEl("li", { text: `Searchable: ${status.searchable}` });
-      list.createEl("li", { text: `Needs attention: ${status.needsAttentionTotal}` });
-      if (status.needsAttentionTotal > 0) {
-        body.createEl("p", { text: "These notes hold only pictures, drawings or attachments. You can open and look at them. They are not searchable yet.", cls: "setting-item-description" });
-        const attention = body.createEl("ul");
-        for (const path of status.needsAttention) attention.createEl("li", { text: path });
-        if (status.needsAttentionTotal > status.needsAttention.length) attention.createEl("li", { text: `…and ${status.needsAttentionTotal - status.needsAttention.length} more` });
-      }
-      if (status.reports.length) {
-        body.createEl("p", { text: "Importer reports you selected (skipped or failed items are listed there):", cls: "setting-item-description" });
-        const logs = body.createEl("ul");
-        for (const report of status.reports) logs.createEl("li", { text: report.present ? report.path : `${report.path} (not found)` });
-      }
-      if (status.notesPresent === 0 &&this.guide?.usesImporter !== false) {
-        body.createEl("p", { text: "No notes found in the import folder yet. If you imported into a different folder, go back and change the folder name.", cls: "setting-item-description" });
-      }
-    } catch (_) {
-      body.empty();
-      body.createEl("p", { text: "Could not read your notes just now. Close this window and try again." });
+      const r = await this.host.updatePersonalNotes((d) => { if (!d.importFolders.includes(folder)) d.importFolders = [...d.importFolders, folder]; });
+      if (!r.saved) { this.folderError = "That folder name could not be saved. Use letters and / between folder names."; this.render(); return; }
+    } catch (error: any) {
+      this.folderError = `Could not save the folder: ${String(error?.message || error)}`;
+      this.render();
+      return;
     }
-    this.renderGkxTagging(el);
-    new Setting(el)
-      .addButton((b) => b.setButtonText("Back").onClick(() => { this.step = "choose"; this.render(); }))
-      .addButton((b) => b.setButtonText("Search my notes").setCta().onClick(() => { this.close(); void this.host.openPersonalSearch(); }))
-      .addButton((b) => b.setButtonText("Connect my AI").onClick(() => { this.close(); this.host.openConnectAi(); }));
+    let opened = false;
+    try { opened = this.host.openImporter(folder); } catch { opened = false; }
+    if (opened) {
+      this.importerMessage = `The Importer is open. Import into ${folder}, then come back to Add notes and choose Review results.`;
+      this.close();
+      new Notice(`Kosmos-Oden: import into ${folder}. When the Importer has finished, open Add notes → Review results.`, 10000);
+      return;
+    }
+    this.importerMessage = `The Importer could not be opened from here. ${IMPORTER_PALETTE_FALLBACK} Import into ${folder}.`;
+    this.render();
   }
-  /** Optional GKX tagging. Nothing here runs unless the user presses a control. */
-  private renderGkxTagging(el: HTMLElement): void {
-    el.createEl("h3", { text: "Optional: GKX tags" });
-    for (const line of GKX_TAGGING_INTRO) el.createEl("p", { text: line, cls: "setting-item-description" });
-    new Setting(el).setName("Unique IDs and time stamps").setDesc(GKX_TAGGING_CONVERT_DESC)
-      .addButton((b) => b.setButtonText("Preview GKX tags").onClick(() => { this.close(); void this.host.runGkxTagging(); }));
-    new Setting(el).setName("This note replaces another note").setDesc(GKX_TAGGING_LINEAGE_DESC)
-      .addButton((b) => b.setButtonText("Record a replacement").onClick(() => { this.close(); this.host.openSupersedes(); }));
-    el.createEl("p", { text: GKX_TAGGING_AFTER, cls: "setting-item-description" });
+
+  /* ------------------------------------------------------------- review */
+
+  private async renderReview(el: HTMLElement): Promise<void> {
+    el.createEl("h2", { text: "Review results" });
+    const body = el.createDiv();
+    body.createEl("p", { text: "Reading your import folders…", cls: "setting-item-description" });
+    const seq = this.renderSeq;
+    let status: PersonalNotesStatus | null = null;
+    try { status = await this.host.personalNotesStatus(); } catch { status = null; }
+    if (seq !== this.renderSeq) return; // re-rendered or closed meanwhile
+    body.empty();
+    if (!status) body.createEl("p", { cls: "kosmos-personal-warning", text: "Could not read your import folders just now. Try again in a moment." });
+    else this.renderInventory(body, status);
+    this.renderReports(el, status);
+    this.renderPending(el);
+    this.renderSearchState(el);
+
+    el.createEl("h3", { text: "Next" });
+    new Setting(el).setName("Choose folders to share").setDesc("Assistants can read only the Folders shared with agents. Imported notes are not shared until you choose them.")
+      .addButton((b) => b.setButtonText("Connect my AI").onClick(() => { this.close(); this.host.openConnectAi(); }));
+    new Setting(el).setName("Find something").setDesc("Your own search covers the whole vault.")
+      .addButton((b) => b.setButtonText("Search my notes").setCta().onClick(() => { this.close(); void this.host.openPersonalSearch(); }));
+    new Setting(el).setName("Optional tags").setDesc("Time stamps, permanent IDs and “supersedes” links, off unless you choose them.")
+      .addButton((b) => b.setButtonText("Optional tags").onClick(() => { this.close(); this.host.openTagging(); }));
+    new Setting(el).addButton((b) => b.setButtonText("Back").onClick(() => this.go(this.guide?.usesImporter ? "guide" : "choose")));
+  }
+
+  private renderInventory(body: HTMLElement, status: PersonalNotesStatus): void {
+    if (!status.importFolders.length) {
+      body.createEl("p", { cls: "setting-item-description", text: "No import folder is recorded yet. Choose a source and press Open Importer to record one." });
+      return;
+    }
+    body.createEl("p", { cls: "setting-item-description", text: `Import folders: ${status.importFolders.join(", ")}` });
+    const list = body.createEl("ul", { cls: "kosmos-personal-status" });
+    list.createEl("li", { text: `Files present: ${status.notesPresent} ${status.notesPresent === 1 ? "note" : "notes"} and ${status.otherFilesPresent} other ${status.otherFilesPresent === 1 ? "file" : "files"} (pictures, attachments). This counts what is in the folders now, not what the last import created.` });
+    list.createEl("li", { text: `Notes with searchable words: ${status.searchable}` });
+    list.createEl("li", { text: `Notes with no words (pictures, drawings or attachments only): ${status.needsAttentionTotal}` });
+    list.createEl("li", { text: "Items the Importer skipped or could not convert: unknown to Kosmos-Oden. The Importer's report lists them; select it below." });
+    if (status.needsAttention.length) {
+      const details = body.createEl("details");
+      details.createEl("summary", { text: "Notes with no words" });
+      const ul = details.createEl("ul");
+      for (const path of status.needsAttention) ul.createEl("li", { text: path });
+      if (status.needsAttentionTotal > status.needsAttention.length) ul.createEl("li", { text: `…and ${status.needsAttentionTotal - status.needsAttention.length} more` });
+    }
+    if (status.notesPresent === 0) body.createEl("p", { cls: "setting-item-description", text: "No notes are in the import folders yet. If the Importer used a different folder, choose the source again and enter that folder." });
+  }
+
+  private renderReports(el: HTMLElement, status: PersonalNotesStatus | null): void {
+    el.createEl("h3", { text: "Importer report" });
+    el.createEl("p", { cls: "setting-item-description", text: "The Importer can write a report of skipped and failed items. Select that file (whatever language it is in) to keep it one click away. Reports are never shared with assistants." });
+    const reports = status?.reports ?? this.host.settings().personalNotes.importReportPaths.map((path) => ({ path, present: true }));
+    for (const report of reports) {
+      const row = new Setting(el).setName(report.path).setDesc(report.present ? "" : "This file is no longer in the vault.");
+      if (report.present) row.addButton((b) => b.setButtonText("Open").onClick(() => this.openFile(report.path)));
+      row.addButton((b) => b.setButtonText("Remove").onClick(() => void this.setReports((list) => list.filter((p) => p !== report.path))));
+    }
+    if (this.reportMessage) el.createEl("p", { cls: "kosmos-personal-warning", text: this.reportMessage });
+    new Setting(el).addButton((b) => b.setButtonText("Select the Importer report").onClick(() => {
+      const files = this.app.vault.getFiles();
+      new FilePickerModal(this.app, files, "Type part of the report's file name", (file) => void this.setReports((list) => (list.includes(file.path) ? list : [...list, file.path]))).open();
+    }));
+  }
+
+  private async setReports(change: (list: string[]) => string[]): Promise<void> {
+    try {
+      const r = await this.host.updatePersonalNotes((d) => { d.importReportPaths = change([...d.importReportPaths]); });
+      this.reportMessage = r.saved ? "" : "The report selection was not saved.";
+    } catch (error: any) {
+      this.reportMessage = `The report selection was not saved: ${String(error?.message || error)}`;
+    }
+    this.render();
+  }
+
+  private openFile(path: string): void {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) { this.close(); void this.app.workspace.getLeaf("tab").openFile(file); }
+    else new Notice("Kosmos-Oden: that file is no longer in the vault.");
+  }
+
+  private renderPending(el: HTMLElement): void {
+    let pending: string[] = [];
+    try { pending = this.host.pendingImportFolders(); } catch { pending = []; }
+    if (!pending.length) return;
+    el.createEl("h3", { text: "Imports not marked finished" });
+    el.createEl("p", { cls: "setting-item-description", text: "Automatic tags stay off in these folders until you say the import is finished, so nothing is stamped while the Importer is still writing." });
+    for (const folder of pending) {
+      new Setting(el).setName(folder).addButton((b) => b.setButtonText("Import finished — review tags").setCta().onClick(async () => {
+        try {
+          await this.host.importFinished(folder);
+          new Notice(`Kosmos-Oden: ${folder} is marked finished. Nothing was tagged; review optional tags if you want them.`);
+        } catch (error: any) {
+          new Notice(`Kosmos-Oden: could not mark ${folder} finished: ${String(error?.message || error)}`);
+        }
+        this.render();
+      }));
+    }
+  }
+
+  private renderSearchState(el: HTMLElement): void {
+    let line = "";
+    try {
+      const s = this.host.searchStatus();
+      line = s.state === "indexing" ? `Search is reading your notes (${s.notes} so far). New imports appear as they are read.`
+        : s.state === "failed" ? "Search stopped working. Open Search my notes and press Retry."
+        : s.omitted > 0 ? `Search covers ${s.notes} notes. ${s.omitted} files were skipped (too large or unreadable); they still open in Obsidian.`
+        : `Search covers ${s.notes} notes.`;
+    } catch { return; }
+    el.createEl("p", { cls: "setting-item-description", text: line });
   }
 }

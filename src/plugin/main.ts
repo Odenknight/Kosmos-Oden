@@ -45,6 +45,7 @@ import { PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-
 import { AddNotesModal } from "../ui/add-notes-modal";
 import { ConnectAiModal } from "../ui/connect-ai-modal";
 import { SupersedesModal } from "../ui/supersedes-modal";
+import { TaggingModal } from "../ui/tagging-modal";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -396,7 +397,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
    * merging (e.g. `() => new TaggingModal(this).open()`); until then
    * `openTagging()` opens this plugin's settings tab.
    */
-  taggingUi: (() => void) | null = null;
+  taggingUi: (() => void) | null = () => new TaggingModal(this).open();
 
   scheduleTimestamp(file: any, delay = 350): void {
     // Obsidian emits create events for existing notes during startup discovery.
@@ -509,7 +510,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.addCommand({ id: "search-my-notes", name: "Search my notes", callback: () => void this.openPersonalSearch() });
     this.addCommand({ id: "add-notes", name: "Add notes from another app", callback: () => this.openAddNotes() });
     this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
-    this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });    this.addCommand({
+    this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });
+    this.addCommand({ id: "optional-tags", name: "Optional tags (preview deterministic tags)", callback: () => this.openTagging() });
+    this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
       callback: () => void this.markNotesInGkx(),
