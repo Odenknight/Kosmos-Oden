@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Personal search worker harness</title>
+</head>
+<body>
+<!--
+  Loads the real built worker text (dist/kosmos-personal-search-worker.txt) into
+  a Blob URL Web Worker, builds a MemoryCorpus from a seeded in-memory vault and
+  measures index/search time and main-thread long tasks. Used by
+  test/browser/personal-search-worker.spec.ts and benchmarks/personal-search-bench.mjs.
+-->
+<script type="module">
+import { MemoryCorpus, PersonalSearchClient, utf8Length } from "/dist/kosmos-personal-notes.mjs";
+import { generateCorpus, benchmarkQueries } from "/benchmarks/personal-search-corpus.mjs";
+
+const longTasks = [];
+new PerformanceObserver((list) => {
+  for (const e of list.getEntries()) longTasks.push({ start: e.startTime, duration: e.duration });
+}).observe({ type: "longtask" });
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+window.runPersonalSearch = async ({ notes, targetBytes, rounds = 3, editCount = 3 }) => {
+  const store = new Map(generateCorpus({ notes, targetBytes }).map((f) => [f.path, f.raw]));
+  // Obsidian's file list carries sizes; compute them here, during setup, not inside the measured build.
+  const sizes = new Map([...store].map(([p, raw]) => [p, utf8Length(raw)]));
+  const stat = (p) => (store.has(p) ? { path: p, mtimeMs: 1, sizeBytes: sizes.get(p) ?? utf8Length(store.get(p)) } : null);
+  const source = {
+    listMarkdown: () => [...store.keys()].map(stat),
+    stat,
+    // Vault reads are asynchronous I/O in Obsidian: resolve each in its own task.
+    readRaw: (p) => new Promise((resolve, reject) => setTimeout(() => (store.has(p) ? resolve(store.get(p)) : reject(new Error("ENOENT"))), 0)),
+    meta: (p, raw) => ({ title: p.replace(/^.*\//, "").replace(/\.md$/, ""), aliases: [], tags: (/^tags: \[(.*)\]$/m.exec(raw)?.[1] ?? "").split(", ").filter(Boolean), supersedes: [], supersededBy: [], links: [], attachments: [] }),
+    exists: (p) => store.has(p),
+    resolveLink: () => null,
+    physicallyContained: () => true,
+  };
+  const workerText = await (await fetch("/dist/kosmos-personal-search-worker.txt")).text();
+  const url = URL.createObjectURL(new Blob([workerText], { type: "text/javascript" }));
+  await pause(200); // corpus generation above is test setup; let its long tasks pass
+
+  const t0 = performance.now();
+  const corpus = new MemoryCorpus(source);
+  const client = new PersonalSearchClient({ corpus, createWorker: () => new Worker(url), release: () => URL.revokeObjectURL(url) });
+  await corpus.build();
+  const tCorpus = performance.now();
+  await client.whenApplied();
+  const tIndexed = performance.now();
+
+  const queries = benchmarkQueries();
+  const searchTimes = [];
+  const results = {};
+  const s0 = performance.now();
+  for (let round = 0; round < rounds; round++) {
+    for (const query of queries) {
+      const t = performance.now();
+      const r = await client.search({ query, allowedPaths: null });
+      searchTimes.push(performance.now() - t);
+      if (round === 0) results[query] = { total: r.total, paths: r.hits.map((h) => h.path), excerpt: r.hits[0]?.excerpt ?? null, coverage: r.coverage };
+    }
+  }
+  const s1 = performance.now();
+
+  // Edit-to-visible with the real 250 ms debounce.
+  const editTimes = [];
+  const paths = [...store.keys()];
+  for (let k = 0; k < editCount; k++) {
+    const p = paths[(k * 7919) % paths.length];
+    const token = `browsereditmarker${k}`;
+    store.set(p, store.get(p) + `\n${token}\n`);
+    const t = performance.now();
+    corpus.apply({ modified: [p] });
+    for (;;) {
+      const r = await client.search({ query: token, allowedPaths: null });
+      if (r.total === 1) break;
+      await pause(25);
+    }
+    editTimes.push(performance.now() - t);
+  }
+  const e1 = performance.now();
+
+  await pause(200); // long-task entries are delivered asynchronously
+  const between = (a, b) => longTasks.filter((t) => t.start >= a && t.start < b);
+  client.dispose();
+  corpus.dispose();
+  return {
+    corpusMs: tCorpus - t0,
+    indexMs: tIndexed - t0,
+    searchTimes,
+    editTimes,
+    results,
+    indexLongTasks: between(t0, tIndexed),
+    searchLongTasks: between(s0, s1),
+    editLongTasks: between(s1, e1),
+  };
+};
+window.harnessReady = true;
+</script>
+</body>
+</html>
