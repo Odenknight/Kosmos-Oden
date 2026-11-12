@@ -67,9 +67,13 @@ must(/defaultSensitivity:\s*FAIL_CLOSED_SENSITIVITY_DEFAULT/.test(server), "DEFA
 must(sec.personal_notes_default_enabled === false && /personalNotesEnabled:\s*false/.test(server), "Personal Notes mode must be off by default");
 must(sec.personal_notes_default_folders_empty === true && /personalNotesFolders:\s*\[\]/.test(server), "Personal Notes must share no folders by default");
 must(/if \(this\.settings\.personalNotesEnabled && !inPersonalScope\(/.test(server), "canRead must apply the Personal Notes folder rule before the sensitivity rule");
-must(sec.mcp_legacy_requires_setting === true && /if \(this\.settings\.agentLegacyMcp !== true\) return false;/.test(server), "legacy MCP must be answered only while agentLegacyMcp is exactly true");
+must(sec.mcp_legacy_requires_setting === true && /return this\.settings\.agentLegacyMcp !== false;/.test(server) && /if \(!this\.acceptsOlderMcp\(\)\)/.test(server) && /agentLegacyMcp:\s*true/.test(server), "legacy MCP must be gated by acceptsOlderMcp(), default on unless explicitly false");
+const compat = read("src/plugin/mcp-compat.ts");
+must(sec.mcp_native_sse_transport === false && !/["'`]\/(sse|messages)["'`]/.test(stripComments(server + compat)), "the deprecated HTTP+SSE /sse + /messages transport must not be served");
+must(/http: \[MODERN_MCP_PROTOCOL_VERSION, \.\.\.NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS\]/.test(compat) && !/NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS = \[[^\]]*2024-11-05/.test(compat), "native /mcp must not advertise the stdio-only 2024-11-05 revision");
+must(!/["'`]Mcp-Session-Id["'`]\s*:/.test(stripComments(compat)), "the legacy adapter must not issue an Mcp-Session-Id header");
 must(sec.mcp_legacy_sessions === false && !/["'`]Mcp-Session-Id["'`]\s*:/.test(serverCode), "the server must not issue an Mcp-Session-Id header in either era");
-must(server.includes(`"${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
+must(read("src/plugin/mcp-compat.ts").includes(`MODERN_MCP_PROTOCOL_VERSION = "${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
 must(sec.query_tokens_default_enabled === false, "policy: query_tokens_default_enabled must be false");
 must(/lanNeedsAuthButHasNone/.test(server) && /LAN mode requires an auth token/.test(server), "server must refuse to start LAN mode without a token");
 must(/agentBindMode !== "lan"/.test(server), "query-token auth must be gated out of LAN mode");

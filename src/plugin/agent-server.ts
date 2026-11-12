@@ -41,41 +41,50 @@ import type {
   NavigationEffectsSettingsMigration,
 } from "../navigation-effects/types";
 
-// Modern-era MCP only, per owner direction of 2026-09-09. "Modern" is the
-// spec's own term for revisions carrying version, identity and capabilities as
-// per-request metadata (2026-07-28 and later); "legacy" revisions (2025-11-25
-// and earlier) open with an `initialize` handshake and hold a server-issued
-// session. This server implements no legacy path and is not dual-era: it mints
-// no sessions, hosts no GET stream, and rejects a request that omits the
-// per-request metadata.
-//
-// A legacy client therefore cannot talk to this server and has no
-// fall-forward mechanism. The spec asks a modern-only server to name its
-// supported versions in any error it returns to `initialize`, so that such a
-// client can surface something actionable; mcpDispatch does that.
-export const MODERN_MCP_PROTOCOL_VERSION = "2026-07-28";
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = [MODERN_MCP_PROTOCOL_VERSION];
+// Dual-era MCP (0.9.0, owner direction of 2026-11-12, superseding the
+// modern-only direction of 2026-09-09). "Modern" revisions (2026-07-28) carry
+// version, identity and capabilities as per-request metadata and are handled
+// by mcpDispatch below, unchanged. "Legacy" revisions open with an
+// `initialize` handshake; classification and the legacy adapter live in
+// ./mcp-compat and are answered only while acceptsOlderMcp() is true, always
+// statelessly: no session is minted and no GET stream is hosted. The protocol
+// constants are defined there and re-exported here for existing importers.
+import {
+  MODERN_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  LEGACY_MCP_PROTOCOL_VERSIONS,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+  MCP_ERR_HEADER_MISMATCH,
+  MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+  McpRpcError,
+  advertisedMcpProtocolVersions,
+  classifyMcpRequest,
+  serveLegacyMcpHttp,
+  type McpToolService,
+} from "./mcp-compat";
+export {
+  MODERN_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  LEGACY_MCP_PROTOCOL_VERSIONS,
+  LATEST_LEGACY_MCP_PROTOCOL_VERSION,
+  NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS,
+  STDIO_ONLY_MCP_PROTOCOL_VERSIONS,
+  DEFAULT_LEGACY_HTTP_PROTOCOL_VERSION,
+  MCP_TRANSPORT_PROTOCOL_VERSIONS,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+  MCP_ERR_HEADER_MISMATCH,
+  MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+  MAX_LEGACY_BATCH_MEMBERS,
+  advertisedMcpProtocolVersions,
+  classifyMcpRequest,
+} from "./mcp-compat";
 export const LATEST_MCP_PROTOCOL_VERSION = MODERN_MCP_PROTOCOL_VERSION;
-
-// Legacy MCP (0.9.0, owner direction of 2026-11-12, which supersedes the
-// modern-only direction of 2026-09-09 for clients that cannot speak the modern
-// revision). "Legacy" revisions open with an `initialize` handshake. They are
-// answered ONLY when the agentLegacyMcp setting is true, and they are answered
-// statelessly: no session is minted, no Mcp-Session-Id is issued or required,
-// and no GET stream is hosted. The modern path above is unchanged.
-export const LEGACY_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
-export const LATEST_LEGACY_MCP_PROTOCOL_VERSION = LEGACY_MCP_PROTOCOL_VERSIONS[0];
-
-/** `_meta` keys the transport defines, spelled exactly as the spec spells
- *  them. These are wire identifiers, not internal names. */
-export const MCP_META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
-export const MCP_META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo";
-export const MCP_META_CLIENT_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
-export const MCP_META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
-
-/** Protocol-defined JSON-RPC error codes this transport returns. */
-export const MCP_ERR_HEADER_MISMATCH = -32020;
-export const MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
 /** Cache directives the 2026-07-28 wire REQUIRES on every cacheable result.
  *  The values are the spec's own defaults, chosen deliberately for a
@@ -173,9 +182,10 @@ export interface AgentSettings {
   gkxExcludePatterns: string[];
   /** Opt-in exact/common developer and agent-control file preset. */
   gkxDeveloperExclusions: boolean;
-  /** Also answer MCP clients that use the legacy handshake revisions
-   *  (LEGACY_MCP_PROTOCOL_VERSIONS). On by default for real installs; a
-   *  settings object that omits the field is modern-only. */
+  /** "Accept older MCP clients": also answer initialize-era revisions
+   *  (LEGACY_MCP_PROTOCOL_VERSIONS). On by default everywhere: defaults,
+   *  migration, and a settings object that omits the field. Only an explicit
+   *  false turns it off. Read through KosmosAgentServer.acceptsOlderMcp(). */
   agentLegacyMcp: boolean;
   /** Personal Notes mode (0.9.0). Off by default. When on, an assistant may
    *  read only notes inside personalNotesFolders, and notes with no
@@ -385,16 +395,6 @@ export const MAX_CONCURRENT_PER_AGENT = 12;
 export const AGENT_SESSION_TTL_MS = 30 * 60_000;
 export const MAX_AGENT_SESSIONS = 64;
 
-class McpRpcError extends Error {
-  code: number;
-  data?: unknown;
-  constructor(code: number, message: string, data?: unknown) {
-    super(message);
-    this.code = code;
-    this.data = data;
-  }
-}
-
 /**
  * Generate an auth token from a cryptographically secure source (§16).
  * 32 random bytes, base64url-encoded. Throws when no secure RNG exists —
@@ -464,6 +464,17 @@ export class KosmosAgentServer {
    *  are not reported — lighting up the entire vault isn't a trail. MCP calls
    *  include a separate server-minted visual identity; REST calls omit it. */
   onTraversal?: (paths: string[], tool: string, agent?: string, agentId?: string) => void;
+  /** Integration hook: the current access-policy generation (profile, scope,
+   *  token, bind). Read when a request starts and again before every response
+   *  write; a change makes the request inactive, so a held response, stream or
+   *  batch member cannot deliver data under the old policy. */
+  policyGeneration?: () => unknown;
+
+  /** The "Accept older MCP clients" setting. On unless explicitly false, the
+   *  same effective default as DEFAULT_AGENT_SETTINGS and migrateAgentSettings. */
+  private acceptsOlderMcp(): boolean {
+    return this.settings.agentLegacyMcp !== false;
+  }
 
   /** Paths a query result touched, for the live traversal overlay (best-effort, capped). */
   private traversalPaths(tool: string, r: any): string[] {
@@ -1691,96 +1702,37 @@ export class KosmosAgentServer {
 
   /* ---------------- Legacy MCP (0.9.0) ---------------- */
 
-  /** True when a POST to /mcp must be answered on the legacy path.
-   *  - Never when the agentLegacyMcp setting is not exactly true.
-   *  - Never when the body carries the modern protocol version in `_meta`:
-   *    that is a modern request and keeps the modern rules and diagnostics.
-   *  - Otherwise legacy when the MCP-Protocol-Version header is absent (the
-   *    handshake itself, and revisions before 2025-06-18, send none) or names
-   *    a legacy revision. A modern header without modern body metadata stays
-   *    on the modern path so it still gets the modern header/body error. */
-  isLegacyMcpRequest(req: any, parsed: any): boolean {
-    if (this.settings.agentLegacyMcp !== true) return false;
-    const meta = parsed?.params?._meta;
-    if (meta && typeof meta === "object" && !Array.isArray(meta) && typeof meta[MCP_META_PROTOCOL_VERSION] === "string") return false;
-    const raw = req?.headers?.["mcp-protocol-version"];
-    const header = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
-    if (header === undefined) return true;
-    return LEGACY_MCP_PROTOCOL_VERSIONS.includes(header);
-  }
-
   /** Display identity of a legacy caller. There is no session, so the name
    *  comes from the request in hand: an explicit agent_name, the Kosmos name
-   *  header, clientInfo.name on the handshake, else the User-Agent. Names are
-   *  self-reported and grant nothing. */
-  private legacyIdentity(parsed: any, req: any): { agent: string; agentId?: string; agentOverride?: string } {
+   *  header, clientInfo.name on the handshake, else the User-Agent. A batch
+   *  is identified by its headers. Names are self-reported and grant nothing. */
+  private legacyIdentity(parsed: any, req: any, version: string): { agent: string; agentId?: string; agentOverride?: string } {
     const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
     const initName = parsed?.method === "initialize" ? parsed?.params?.clientInfo?.name : undefined;
     const name = this.displayAgentName(declared, req?.headers?.["x-kosmos-agent-name"], initName, req?.headers?.["user-agent"]);
-    const key = this.registerSession(name, LATEST_LEGACY_MCP_PROTOCOL_VERSION);
+    const key = this.registerSession(name, version);
     const rec = this.getSession(key);
     return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId, agentOverride: name };
   }
 
-  /** Answer one legacy JSON-RPC request (never a notification). Stateless:
-   *  `initialize` negotiates a version and returns it; nothing is remembered.
-   *  Results use the legacy shapes: no resultType, no cache directives, and
-   *  serverInfo only in the handshake result. Tools and their behavior are
-   *  exactly the ones the modern path serves. */
-  async legacyMcpDispatch(
-    msg: any,
-    ctx?: { agent?: string; agentId?: string; agentOverride?: string; isActive?: () => boolean },
-  ): Promise<any> {
-    const id = msg?.id ?? null;
-    const ok = (result: any) => ({ jsonrpc: "2.0", id, result });
-    const error = (code: number, message: string, data?: unknown) => ({
-      jsonrpc: "2.0", id, error: { code, message, ...(data === undefined ? {} : { data }) },
-    });
-    if (msg?.params !== undefined && (!msg.params || typeof msg.params !== "object" || Array.isArray(msg.params))) {
-      return error(-32602, "Invalid params: expected an object");
-    }
-    const method: string = msg.method;
-    const params: any = msg.params ?? {};
-    try {
-      if (method === "initialize") {
-        const requested = params.protocolVersion;
-        const protocolVersion = typeof requested === "string" && LEGACY_MCP_PROTOCOL_VERSIONS.includes(requested)
-          ? requested
-          : LATEST_LEGACY_MCP_PROTOCOL_VERSION;
-        return ok({
-          protocolVersion,
-          capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION },
-          instructions: `Kosmos-Oden read-only notes connector (GKOS-Engine v${ENGINE_VERSION}). Call vault_overview first. ${this.settings.personalNotesEnabled ? PERSONAL_NOTES_CONTENT_RULE : "Source notes remain authoritative; this API is a sensitivity-filtered read projection."}`,
-        });
-      }
-      if (method === "ping") return ok({});
-      if (method === "tools/list") return ok({ tools: this.toolDefs() });
-      if (method === "tools/call") {
-        if (typeof params.name !== "string") throw new McpRpcError(-32602, "tools/call requires string name");
-        const args = this.validateToolArgs(params.name, params.arguments ?? {});
-        try {
-          const result = await this.callTool(params.name, args, ctx?.agent, ctx?.agentId, ctx?.isActive, ctx?.agentOverride);
-          const structuredContent = Array.isArray(result) ? { items: result } : result;
-          return ok({
-            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-            structuredContent,
-            isError: Boolean(result && typeof result === "object" && result.error),
-          });
-        } catch (e: any) {
-          if (e instanceof McpRpcError) throw e;
-          if (e instanceof ProviderError) return ok({ content: [{ type: "text", text: e.message }], structuredContent: { error: e.reason, retryable: false }, isError: true });
-          return ok({ content: [{ type: "text", text: "Error: " + (e?.message || String(e)) }], isError: true });
-        }
-      }
-      if (method === "resources/list") return ok({ resources: [] });
-      if (method === "resources/templates/list") return ok({ resourceTemplates: [] });
-      if (method === "prompts/list") return ok({ prompts: [] });
-      return error(-32601, "Method not found: " + method);
-    } catch (e: any) {
-      if (e instanceof McpRpcError) return error(e.code, e.message, e.data);
-      return error(-32603, e?.message || "Internal error");
-    }
+  /** The tool service the legacy adapter talks to: the same tool definitions
+   *  and query service the modern path uses, bound to one request's caller
+   *  identity and liveness. Another tool set plugs in by changing what
+   *  toolDefs()/callTool() serve; the wire code in ./mcp-compat is unchanged. */
+  private legacyToolService(ctx: { agent?: string; agentId?: string; agentOverride?: string; isActive: () => boolean }): McpToolService {
+    return {
+      toolDefs: () => this.toolDefs(),
+      callTool: (name, args) => this.callTool(name, args, ctx.agent, ctx.agentId, ctx.isActive, ctx.agentOverride),
+      isActive: ctx.isActive,
+    };
+  }
+
+  private legacyServerIdentity() {
+    return {
+      name: "kosmos-oden",
+      version: KOSMOS_VERSION,
+      instructions: `Kosmos-Oden read-only notes connector (GKOS-Engine v${ENGINE_VERSION}). Call vault_overview first. ${this.settings.personalNotesEnabled ? PERSONAL_NOTES_CONTENT_RULE : "Source notes remain authoritative; this API is a sensitivity-filtered read projection."}`,
+    };
   }
 
   /* ---------------- HTTP dispatch ---------------- */
@@ -1797,12 +1749,14 @@ export class KosmosAgentServer {
     const ceiling = settings.agentSensitivityCeiling, defaultSensitivity = settings.defaultSensitivity;
     const token = settings.agentToken, requireToken = settings.agentRequireToken;
     const until = performance.now() + this.operationTimeoutMs;
+    const policyGeneration = this.policyGeneration, generation = policyGeneration?.();
     let akey: string | undefined, finished = false;
     let releaseWait!: () => void;
     const ended = new Promise<void>(resolve => { releaseWait = resolve; });
     const isActive = () => !finished && epoch === this.epoch && this.provider === provider && this.settings === settings &&
       settings.agentSensitivityCeiling === ceiling && settings.defaultSensitivity === defaultSensitivity &&
-      settings.agentToken === token && settings.agentRequireToken === requireToken && performance.now() < until;
+      settings.agentToken === token && settings.agentRequireToken === requireToken && performance.now() < until &&
+      this.policyGeneration === policyGeneration && (!policyGeneration || policyGeneration() === generation);
     let timer: ReturnType<typeof setTimeout>;
     const finish = (reason?: "timeout" | "provider_unavailable") => {
       if (finished) return;
@@ -1912,16 +1866,21 @@ export class KosmosAgentServer {
       let parsed: any;
       try { parsed = JSON.parse(body || "null"); }
       catch (_) { this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); return; }
-      if (Array.isArray(parsed)) {
-        this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32600, message: "JSON-RPC batching is not supported by Streamable HTTP; send one message per POST" } });
+      // Era classification (./mcp-compat): presence of any modern marker keeps
+      // the strict modern path; an explicit unknown version is refused; the
+      // rest is initialize-era traffic at its header revision or 2025-03-26.
+      const route = classifyMcpRequest(req.headers, parsed);
+      if (Array.isArray(parsed) && route.era === "modern") {
+        this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32600, message: "JSON-RPC batching is not supported by modern MCP Streamable HTTP; send one message per POST" } });
         return;
       }
 
       // Validate the envelope before interpreting metadata or registering a
       // caller. A malformed request is not a metadata/header disagreement.
+      // Batch members are validated one by one by the legacy adapter.
       const validId = typeof parsed?.id === "string" || (typeof parsed?.id === "number" && Number.isInteger(parsed.id));
-      if (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
-          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed) {
+      if (!Array.isArray(parsed) && (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
+          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed)) {
         this.json(res, 400, { jsonrpc: "2.0", ...(validId ? { id: parsed.id } : {}), error: { code: -32600, message: "Invalid Request: expected one JSON-RPC 2.0 request or notification with a string or integer id" } });
         return;
       }
@@ -1933,16 +1892,32 @@ export class KosmosAgentServer {
       req.kosmosRequestId = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed.id : null;
       const isNotification = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id === undefined;
 
-      // Legacy MCP (0.9.0): a request without modern metadata is answered on
-      // the legacy path when the user allows it. JSON-RPC errors travel in a
-      // 200 body, as legacy clients expect. Legacy notifications need no
-      // branch: the notification path below already answers 202.
-      if (!isNotification && this.isLegacyMcpRequest(req, parsed)) {
-        const who = this.legacyIdentity(parsed, req);
+      if (route.era === "unsupported-version") {
+        this.json(res, 400, { jsonrpc: "2.0", id: validId ? parsed.id : null, error: {
+          code: MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+          message: `Unsupported protocol version: ${route.requested}`,
+          data: { supported: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()), requested: route.requested },
+        } });
+        return;
+      }
+      if (route.era === "legacy") {
+        if (!this.acceptsOlderMcp()) {
+          // Explicit refusal, never a silent modern reinterpretation. A bare
+          // notification carries nothing to refuse and is acknowledged.
+          if (isNotification) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
+          const requested = !Array.isArray(parsed) && parsed.method === "initialize" && typeof parsed.params?.protocolVersion === "string" ? parsed.params.protocolVersion : route.version;
+          this.json(res, 400, { jsonrpc: "2.0", id: validId ? parsed.id : null, error: {
+            code: MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+            message: `Unsupported protocol version: older MCP clients are turned off in Kosmos-Oden settings ("Accept older MCP clients"); this server answers modern MCP ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(", ")} only`,
+            data: { supported: [...SUPPORTED_MCP_PROTOCOL_VERSIONS], requested },
+          } });
+          return;
+        }
+        const who = isNotification ? { agent: this.agentLabel(req), agentId: undefined, agentOverride: undefined } : this.legacyIdentity(Array.isArray(parsed) ? null : parsed, req, route.version);
         if (!claimAgent(`${who.agentId ? "mcp" : "ua"}:${who.agent}`)) return;
-        const legacyOut = await this.legacyMcpDispatch(parsed, { ...who, isActive });
-        if (parsed.method === "ping" && !legacyOut?.error) { try { this.onTraversal?.([], "ping", who.agent, who.agentId); } catch (_) { /* presence never breaks requests */ } }
-        this.json(res, 200, legacyOut);
+        const accept = typeof req.headers["accept"] === "string" ? req.headers["accept"] : undefined;
+        await serveLegacyMcpHttp(parsed, route, this.legacyToolService({ ...who, isActive }), this.legacyServerIdentity(), res, accept);
+        if (!Array.isArray(parsed) && parsed.method === "ping" && isActive()) { try { this.onTraversal?.([], "ping", who.agent, who.agentId); } catch (_) { /* presence never breaks requests */ } }
         return;
       }
 
@@ -1988,7 +1963,7 @@ export class KosmosAgentServer {
           version: KOSMOS_VERSION,
           readOnly: true,
           auth: "Authorization: Bearer <token> or x-api-key: <token>",
-          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;

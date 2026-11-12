@@ -56,10 +56,15 @@ security:
   # served: no initialize handshake, no protocol session, no GET stream.
   mcp_latest_protocol: 2026-07-28
   # Legacy revisions (0.9.0, owner direction 2026-11-12): answered only while
-  # the agentLegacyMcp setting is true, and always statelessly. No session is
-  # minted and no Mcp-Session-Id is issued or required in either era.
+  # "Accept older MCP clients" (agentLegacyMcp) is on -- default on, off only
+  # when explicitly false -- and always statelessly. No session is minted and
+  # no Mcp-Session-Id is issued or required in either era. Native /mcp serves
+  # 2025-11-25, 2025-06-18 and 2025-03-26; 2024-11-05 reaches the server only
+  # through the stdio bridge's internal adapter. The deprecated HTTP+SSE
+  # transport (/sse + /messages) is not served.
   mcp_legacy_requires_setting: true
   mcp_legacy_sessions: false
+  mcp_native_sse_transport: false
 
 build:
   lockfile_required: package-lock.json

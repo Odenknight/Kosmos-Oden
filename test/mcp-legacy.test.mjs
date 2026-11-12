@@ -1,7 +1,8 @@
 /**
  * Dual-era MCP (0.9.0): the server keeps the modern 2026-07-28 path unchanged
- * and, only while agentLegacyMcp is true, also answers clients that open with
- * the legacy `initialize` handshake. Both eras are stateless.
+ * and, unless "Accept older MCP clients" is explicitly off, also answers
+ * clients that open with the legacy `initialize` handshake. Both eras are
+ * stateless. Full matrix: mcp-compat.test.mjs and mcp-bridge-compat.test.mjs.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -11,7 +12,7 @@ import { buildGraph, stripFrontmatter } from "../dist/kosmos-core.mjs";
 import {
   KosmosAgentServer,
   LATEST_LEGACY_MCP_PROTOCOL_VERSION,
-  LEGACY_MCP_PROTOCOL_VERSIONS,
+  NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS,
   MCP_META_CLIENT_CAPABILITIES,
   MCP_META_CLIENT_INFO,
   MCP_META_PROTOCOL_VERSION,
@@ -80,7 +81,9 @@ test("legacy handshake negotiates a version and creates no session", async (t) =
 
   const unknown = (await post(port, initialize("1999-01-01"))).json();
   assert.equal(unknown.result.protocolVersion, LATEST_LEGACY_MCP_PROTOCOL_VERSION, "an unsupported request gets the newest legacy version");
-  for (const version of LEGACY_MCP_PROTOCOL_VERSIONS) {
+  assert.equal((await post(port, initialize("2024-11-05"))).json().result.protocolVersion, LATEST_LEGACY_MCP_PROTOCOL_VERSION,
+    "2024-11-05 is carried by the stdio bridge, not served natively");
+  for (const version of NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS) {
     assert.equal((await post(port, initialize(version))).json().result.protocolVersion, version);
   }
 
@@ -107,7 +110,8 @@ test("legacy clients can list and call the same tools", async (t) => {
   const call = (await post(port, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "get_note", arguments: { path: "Notes/Hello.md" } } }, legacyHeader)).json();
   assert.equal(call.result.isError, false);
   assert.equal(call.result.content[0].type, "text");
-  assert.match(call.result.structuredContent.content, /Hello from the legacy test/);
+  assert.equal("structuredContent" in call.result, false, "legacy results use the minimal content-only shape");
+  assert.match(JSON.parse(call.result.content[0].text).content, /Hello from the legacy test/);
 
   const ping = (await post(port, { jsonrpc: "2.0", id: 5, method: "ping" }, legacyHeader)).json();
   assert.deepEqual(ping.result, {});
@@ -152,8 +156,12 @@ test("the modern path is unchanged while legacy is on", async (t) => {
   assert.equal(unauthorized, 401, "the token is required in both eras");
 });
 
-test("with the setting off, or absent, the server is modern-only", async (t) => {
-  for (const overrides of [{ agentLegacyMcp: false }, { agentLegacyMcp: undefined }]) {
+test("with the setting explicitly off the server is modern-only; an absent setting means on", async (t) => {
+  const absent = await start({ agentLegacyMcp: undefined });
+  const accepted = await post(absent.port, initialize("2025-06-18"));
+  absent.server.stop();
+  assert.equal(accepted.json().result.protocolVersion, "2025-06-18", "an omitted setting has the shipped default: on");
+  for (const overrides of [{ agentLegacyMcp: false }]) {
     const { server, port } = await start(overrides);
     const res = await post(port, initialize("2025-06-18"));
     server.stop();
@@ -202,5 +210,5 @@ test("a legacy stdio client works through the bundled adapter", async (t) => {
   assert.ok(list.result.tools.some((tool) => tool.name === "search_notes"));
   send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_note", arguments: { path: "Notes/Hello.md" } } });
   const call = await next();
-  assert.match(call.result.structuredContent.content, /Hello from the legacy test/);
+  assert.match(JSON.parse(call.result.content[0].text).content, /Hello from the legacy test/);
 });
