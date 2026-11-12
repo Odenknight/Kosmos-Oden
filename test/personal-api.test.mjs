@@ -275,6 +275,28 @@ test("lineage: hidden or missing targets appear only as the allowed note's own u
   await assert.rejects(leaky.service.getLineage({ path: "A/v2.md" }), code("search_unavailable"), "a builder bug cannot leak a hidden node");
 });
 
+test("lineage wire keys are snake_case; get_note returns the note's own declarations exactly as written", async () => {
+  const vault = makeVault({
+    "A/new.md": { raw: "new", meta: { uid: "u-new", updatedAt: "2026-11-12T10:00:00Z", supersedes: ["[[A/old|the old one]]"] } },
+    "A/old.md": { raw: "old", meta: { supersededBy: ["[[A/new]]"] } },
+    "A/plain.md": "plain",
+  });
+  const { service } = makeService(vault, { includeFolders: ["A"] });
+  const lineage = await service.call("get_lineage", { path: "A/new.md" }, "mcp");
+  assert.deepEqual(lineage.nodes.find((n) => n.path === "A/new.md"), { path: "A/new.md", uid: "u-new", updated_at: "2026-11-12T10:00:00Z", supersedes: ["A/old.md"], superseded_by: [] });
+  assert.ok(!/"[a-z]+[A-Z]/.test(JSON.stringify(lineage).replace(/"(?:A\/[^"]*|\[\[[^"]*)"/g, "")), "no camelCase key anywhere in the result");
+  assert.ok("next_cursor" in lineage);
+
+  const declared = await service.getNote({ path: "A/new.md" });
+  assert.deepEqual(declared.supersedes, ["[[A/old|the old one]]"]);
+  assert.equal("superseded_by" in declared, false, "absent when empty");
+  const reverse = await service.getNote({ path: "A/old.md" });
+  assert.deepEqual(reverse.superseded_by, ["[[A/new]]"]);
+  assert.equal("supersedes" in reverse, false, "derived reverse lineage stays in get_lineage");
+  const plain = await service.getNote({ path: "A/plain.md" });
+  assert.equal("supersedes" in plain || "superseded_by" in plain, false);
+});
+
 test("overview: scoped counts, tools, protocols and the content rule", async () => {
   const { service } = setup();
   const o = await service.call("vault_overview", {}, "rest");

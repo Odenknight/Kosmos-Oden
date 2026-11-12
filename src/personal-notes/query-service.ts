@@ -81,7 +81,7 @@ const TOOL_SPECS: Record<PersonalToolName, ToolSpec> = {
   },
   get_note: {
     title: "Get note",
-    description: `Exact Markdown of one shared note, in pages of UTF-16 code units (contract ${PERSONAL_CONTRACT}). Concatenating pages reproduces the note exactly. For the next page pass offset_chars = next_offset_chars and expected_hash = content_hash; note_changed means restart from 0. Attachment references are listed; their contents are not included. ${SELECT_NOTE} ${PERSONAL_CONTENT_RULE}`,
+    description: `Exact Markdown of one shared note, in pages of UTF-16 code units (contract ${PERSONAL_CONTRACT}). Concatenating pages reproduces the note exactly. For the next page pass offset_chars = next_offset_chars and expected_hash = content_hash; note_changed means restart from 0. Attachment references are listed; their contents are not included. Also returns uid, created_at, updated_at, tags and the note's own supersedes / superseded_by declarations exactly as written (each only when present); use get_lineage for resolved lineage. ${SELECT_NOTE} ${PERSONAL_CONTENT_RULE}`,
     fields: {
       path: PATH,
       uid: UID,
@@ -231,6 +231,9 @@ export interface GetNoteResult extends NotePage {
   created_at?: string;
   updated_at?: string;
   tags: string[];
+  /** The note's own authored declarations, exactly as written; present only when non-empty. */
+  supersedes?: string[];
+  superseded_by?: string[];
   modified_ms: number;
   /** References only; attachment contents are never included. */
   attachments: AttachmentView[];
@@ -248,7 +251,7 @@ export interface RelatedResult {
 export interface LineageResult {
   contract: typeof PERSONAL_CONTRACT;
   focus: string;
-  nodes: LineageView["nodes"];
+  nodes: Array<{ path: string; uid?: string; updated_at?: string; supersedes: string[]; superseded_by: string[] }>;
   edges: LineageView["edges"];
   heads: string[];
   unresolved: LineageView["unresolved"];
@@ -412,6 +415,8 @@ export class PersonalQueryService {
       ...(meta.createdAt !== undefined ? { created_at: meta.createdAt } : {}),
       ...(meta.updatedAt !== undefined ? { updated_at: meta.updatedAt } : {}),
       tags: [...meta.tags],
+      ...(meta.supersedes.length ? { supersedes: [...meta.supersedes] } : {}),
+      ...(meta.supersededBy.length ? { superseded_by: [...meta.supersededBy] } : {}),
       ...page,
       modified_ms: (source.stat(path) ?? before).mtimeMs,
       attachments: report.attachments,
@@ -490,7 +495,14 @@ export class PersonalQueryService {
     if (paths.some((p) => !visible.has(p))) throw new PersonalError("search_unavailable", "lineage referenced a note outside the shared notes; refusing to answer");
     const result: LineageResult = {
       contract: PERSONAL_CONTRACT, focus: record.path,
-      nodes: view.nodes, edges: view.edges, heads: view.heads, unresolved: view.unresolved,
+      // Wire keys are snake_case like every other Personal result; LineageView stays camelCase internally.
+      nodes: view.nodes.map((n) => ({
+        path: n.path,
+        ...(n.uid !== undefined ? { uid: n.uid } : {}),
+        ...(n.updatedAt !== undefined ? { updated_at: n.updatedAt } : {}),
+        supersedes: n.supersedes, superseded_by: n.supersededBy,
+      })),
+      edges: view.edges, heads: view.heads, unresolved: view.unresolved,
       cycles: view.cycles, contradictions: view.contradictions, truncated: view.truncated, next_cursor: view.nextCursor,
     };
     check();
