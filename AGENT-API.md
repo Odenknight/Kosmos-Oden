@@ -348,7 +348,11 @@ response is `Cache-Control: no-store`, and the server exposes no write tool.
 
 Contract identifier: **`kosmos-personal-notes/1`**. Every result carries it as
 `contract`. The user-facing description of this profile is in
-[docs/PERSONAL-NOTES.md](docs/PERSONAL-NOTES.md).
+[docs/PERSONAL-NOTES.md](docs/PERSONAL-NOTES.md). In this profile, **Write
+Agent API guide** writes a short Personal guide with no token in it (a
+placeholder instead): the five tools, their routes and arguments, the paging
+rule, and the MCP revisions served under the current setting. Configuration
+is copied from **Connect my AI → Copy configuration**.
 
 While the Personal profile is active, the server answers with exactly five
 read-only tools over the notes the user shares, through REST and every MCP
@@ -398,10 +402,12 @@ user asks you to."
 - Same listener and port as the existing profile (default 4816). "This
   computer only" binds `127.0.0.1`; "Local network" binds all IPv4 interfaces
   (`0.0.0.0`) with the existing Host/Origin checks: the `Host` header must
-  be `127.0.0.1`, `localhost`, `::1` or one of this computer's non-internal
-  IPv4 addresses, so a DNS host name (or a reverse proxy that forwards its own
-  host name) gets `403 forbidden host`. A browser `Origin` must name one of
-  the same hosts. Clients on another machine use this computer's LAN/VPN IP
+  be `127.0.0.1`, `localhost`, `::1`, one of this computer's non-internal
+  IPv4 addresses, or, in Local network mode, the host of the address for
+  other computers saved in Connect my AI
+  (`personalNotes.connection.advertisedBaseUrl`). Any other host name (or a
+  reverse proxy that forwards a different host name) gets `403 forbidden
+  host`. A browser `Origin` must name one of the same hosts. Clients on another machine use this computer's LAN/VPN IP
   address, never `0.0.0.0` or `127.0.0.1`. Plain HTTP is not encrypted.
 - MCP: `POST /mcp`, the same modern and initialize-era behavior as the
   existing profile, governed by the Personal setting **Accept older MCP
@@ -515,6 +521,7 @@ Exact Markdown of one readable note, in pages.
 | Field | Meaning |
 | --- | --- |
 | `path`, `uid?`, `created_at?`, `updated_at?`, `tags` | Note identity and authored metadata (`tags` without `#`) |
+| `supersedes?`, `superseded_by?` | The note's own authored declarations, exactly as written (for example `"[[Plans/Old plan]]"`); each present only when non-empty. Resolved and reverse lineage is in `get_lineage`. |
 | `content` | Exact slice of the raw Markdown, frontmatter and line endings included |
 | `content_hash` | SHA-256 of the whole note's UTF-8 bytes, 64 lowercase hex characters |
 | `offset_chars`, `returned_chars`, `total_chars` | UTF-16 code units |
@@ -552,7 +559,7 @@ Titles, timestamps, tags and similarity are never evidence.
 | Field | Meaning |
 | --- | --- |
 | `focus` | The selected note |
-| `nodes` | `{ path, uid?, updatedAt?, supersedes: [paths], supersededBy: [paths] }`, ordered by distance from the focus, then path. Inside nodes the keys are camelCase. |
+| `nodes` | `{ path, uid?, updated_at?, supersedes: [paths], superseded_by: [paths] }`, ordered by distance from the focus, then path |
 | `edges` | `{ from, to, source }`: `from` is the newer note, `to` the older; `source` is `declared` (authored `supersedes`) or `reverse` (authored `superseded_by`) |
 | `heads` | Notes on this page that nothing supersedes. More than one means branches; none is chosen as "the" latest. |
 | `unresolved` | `{ from, declared, reason }` with `reason` `unresolved`, `ambiguous` or `self`. A declaration pointing at a hidden or missing note is plain `unresolved`, with only the text as written. |

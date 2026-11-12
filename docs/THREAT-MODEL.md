@@ -37,7 +37,11 @@ Notes profile, device-local token, dual-era MCP, optional tagging writes).
 3. **Agent API network boundary (LAN mode).** Other machines on the subnet can
    reach the API when LAN mode is explicitly enabled. LAN mode binds all IPv4
    interfaces (`0.0.0.0`); the Host allowlist is loopback plus this
-   computer's addresses.
+   computer's addresses and, in the Personal profile, the host of the saved
+   address for other computers (`personalNotes.connection.advertisedBaseUrl`),
+   which the user typed in Connect my AI. Every other host is refused
+   (`403 forbidden host`), so a DNS-rebinding page cannot use a name the user
+   did not save.
 3a. **Profile boundary (0.9.0).** One listener serves either the existing
    profile or the Personal Notes profile, never both. In the Personal profile
    a single read policy (folder scope, always-excluded paths, physical

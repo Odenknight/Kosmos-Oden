@@ -196,7 +196,9 @@ property as a link. The older note is never edited; the reverse direction is
 worked out when shown. A note cannot supersede itself, a loop is refused, and
 an ambiguous name must be chosen again. Kosmos-Oden never decides by itself
 that one note replaces another. If **Unique IDs** is on, the newer note also
-gets a `uid` if it has none.
+gets a `uid` if it has none. **Use optional tags** and **“Supersedes” links**
+must be on; the open note does not have to be inside the folders to tag,
+because running the command on it is the selection.
 
 **Automatic time stamps.** Only while the Personal Notes profile is active,
 and only in the folders to tag. After you (or another program) really change a
@@ -205,14 +207,16 @@ note's content, `updated_at` is set to the time of that change, and
 indexing a note never stamps it, and Kosmos-Oden ignores its own writes.
 Automatic stamps make no backup and never add IDs or supersedes links.
 
-**Imports.** When you press **Open Importer**, that destination folder is held
-back from automatic time stamps, because Kosmos-Oden cannot see when the
-Importer finishes. When the import is done, press **Import finished — review
-tags** (in Add notes → Review results, or in Optional tags). That tags nothing
-by itself; it only ends the hold. An import you start in the Importer
-directly, not through **Open Importer**, is not detected and not held back:
-turn **Automatic time stamps** off before such an import into a folder to
-tag.
+**Imports.** When you add an import folder in **Add notes**, and each time you
+press **Open Importer** for it, that folder is held back from automatic time
+stamps, because Kosmos-Oden cannot see when the Importer finishes. This also
+covers an import you run in the Importer directly into that folder. When the
+import is done, press **Import finished — review tags** (in Add notes →
+Review results, or in Optional tags). That tags nothing by itself; it only
+ends the hold. An import into a folder that is not an import folder, or into
+one already marked finished, is not detected and not held back: turn
+**Automatic time stamps** off before such an import into a folder to tag.
+Import folders saved by an earlier version are not held back on upgrade.
 
 While the Personal Notes profile is active, the older **Stamp note creation
 and modification times** option under GKOS Note Formatting writes nothing.
@@ -254,11 +258,12 @@ never shown on screen; it is only copied, inside a configuration.
 1. **Where does the assistant run?** **This computer** uses `127.0.0.1`.
    **Another computer / agent server** needs Network access set to Local
    network; pick this computer's network or VPN address. `0.0.0.0` and
-   `127.0.0.1` are refused for another computer. The window also lets you
-   type a host name, but in this release the connection only answers requests
-   addressed to one of this computer's own IPv4 addresses (a protection
-   against DNS rebinding): a host name gets "forbidden host". Use the IP
-   address.
+   `127.0.0.1` are refused for another computer. You can also type a host
+   name or VPN name; it is saved, and in Local network mode the connection
+   then answers requests addressed to that name too. As a protection against
+   DNS rebinding, the connection answers only `127.0.0.1`, `localhost`,
+   `::1`, this computer's own network addresses and that saved name; any
+   other host name gets "forbidden host".
 2. **Connection type**: **Direct HTTP** (recommended; nothing to install) or
    **stdio bridge** for apps that only start a local command. The bridge needs
    Node.js 22 or 24 where the assistant runs. For another computer, copy
@@ -278,14 +283,17 @@ check on the other computer too.
 **Local network mode** listens on all of this computer's network addresses.
 Plain HTTP is not encrypted: use it only on a network you trust. Over the
 internet or an untrusted network, use a VPN. An HTTPS reverse proxy also
-works only if it passes this computer's IP address as the request's host;
-otherwise the connection answers "forbidden host". Kosmos-Oden does not change your firewall or
+works if the host it forwards is this computer's address or the address saved
+in Quick Connect; any other host gets "forbidden host". Kosmos-Oden does not change your firewall or
 router; if another computer cannot connect, allow the port for your local
 network only.
 
 The **Write Agent API guide** command never writes the Personal key into the
-file. In this release that file describes the existing profile; for the
-Personal profile use Quick Connect and the
+file. In the Personal profile it writes a Personal guide: the five tools with
+their REST routes and arguments, Bearer authentication with a placeholder for
+the key, the paging rule, and the MCP revisions served under the current
+**Accept older MCP clients** setting. Copy the configuration itself from
+Quick Connect. The full reference is the
 [Agent API reference](../AGENT-API.md#personal-notes-profile).
 
 ## What an assistant can do
@@ -303,7 +311,11 @@ An assistant connected to the Personal profile has five read-only tools:
 - It cannot change, create or delete anything.
 - `get_note` returns the note exactly as stored, properties included. A long
   note comes in pages that join back into the exact original; if the note
-  changes between pages, the assistant is told to start again.
+  changes between pages, the assistant is told to start again. It also
+  returns the note's tags, `uid`, `created_at`, `updated_at`, and its own
+  `supersedes` / `superseded_by` entries exactly as written (each only when
+  present). `get_lineage` resolves them into links between shared notes; its
+  fields use the same snake_case names (`updated_at`, `superseded_by`).
 - Attachments are listed as references (available, missing, or not shared).
   Their contents are never sent.
 - A note outside the shared folders looks exactly like a note that does not

@@ -58,11 +58,12 @@ security:
   # Host/Origin validation must be present.
   host_validation: required
   origin_validation: required
-  # Modern-era MCP only (owner direction 2026-09-09). Legacy revisions are not
-  # served: no initialize handshake, no protocol session, no GET stream.
+  # Latest (modern-era) MCP revision: no initialize handshake, no protocol
+  # session, no GET stream.
   mcp_latest_protocol: 2026-07-28
   # Legacy revisions (0.9.0, owner direction 2026-11-12): answered only while
-  # "Accept older MCP clients" (agentLegacyMcp) is on -- default on, off only
+  # "Accept older MCP clients" (agentLegacyMcp in the existing profile,
+  # personalNotes.connection.acceptOlderMcp in Personal Notes) is on -- default on, off only
   # when explicitly false -- and always statelessly. No session is minted and
   # no Mcp-Session-Id is issued or required in either era. Native /mcp serves
   # 2025-11-25, 2025-06-18 and 2025-03-26; 2024-11-05 reaches the server only

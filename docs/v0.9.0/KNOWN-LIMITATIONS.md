@@ -29,6 +29,12 @@
 - Matching ignores case by plain lowercasing. A capital dotted İ does not
   match a typed `i` (so `istanbul` does not find `İSTANBUL`); type the word
   as written.
+- Text whose lowercase or composed form changes length (a capital İ, or
+  accents typed as separate combining marks) needs an offset map so excerpts
+  keep the original spelling. A long run of one such character costs almost
+  nothing; an irregular mix costs up to about 4.4 bytes per changed character
+  in the search worker, on top of the two copies of the text. See
+  [PERFORMANCE.md](PERFORMANCE.md#offset-map-memory).
 - A renamed note can be missing from results for up to about two seconds.
 - "Search my notes" is your own search over the whole vault. Agents see only
   the folders you share.
@@ -47,12 +53,15 @@
 - "Files present" counts files in the folder. It is not proof that the last
   import created them. Open the Importer's own report for skipped and failed
   items; counts Kosmos-Oden cannot know are shown as unknown.
-- Kosmos-Oden cannot see when an import has finished. For a destination
-  folder opened through **Add notes → Open Importer**, automatic time stamps
-  stay off until you press **Import finished — review tags**. An import
-  started in the Importer directly is not detected at all, so it is not held
-  back: turn automatic time stamps off before such an import into a tagged
-  folder.
+- Kosmos-Oden cannot see when an import has finished. A folder becomes
+  pending when you add it as an import folder (**Add notes**), and again each
+  time you use **Open Importer** for it; automatic time stamps stay off there
+  until you press **Import finished — review tags**. This also holds back an
+  import run in the Importer directly into that folder. An import into a
+  folder that is not an import folder, or into one you already marked
+  finished, is not detected: turn automatic time stamps off before such an
+  import into a tagged folder. Import folders saved before 0.9.0 are not
+  marked pending on upgrade.
 
 ## Optional tags
 
@@ -74,10 +83,12 @@
 - Plain HTTP is not encrypted. Use local network mode only on a network you
   trust; for anything else use a VPN or an HTTPS reverse proxy.
 - Kosmos-Oden does not open firewall or router ports.
-- Another computer must address this one by one of its IPv4 addresses. A
-  host name, or a reverse proxy that forwards its own host name, is refused
-  with "forbidden host" by the DNS-rebinding check, even though Quick Connect
-  lets you type one.
+- The DNS-rebinding check answers only requests addressed to this computer
+  (`127.0.0.1`, `localhost`, `::1`), to one of its own network addresses, or,
+  in the Personal profile's local network mode, to the host of the address
+  for other computers saved in **Connect my AI**. Any other host name, for
+  example a second name for the same machine or a reverse proxy that forwards
+  its own host name, is refused with "forbidden host".
 - A connection test run from this computer cannot prove that another computer
   can reach it.
 - An assistant that runs in the cloud processes the text it retrieves in its

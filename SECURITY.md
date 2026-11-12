@@ -61,7 +61,11 @@ suites rather than the invariant file:
   permissive legacy path.
 - Local network mode (either profile) listens on all IPv4 interfaces over
   plain HTTP; it is opt-in, token-required and only for trusted networks.
-  Use a VPN otherwise.
+  Use a VPN otherwise. `Host` and `Origin` must name loopback
+  (`127.0.0.1`, `localhost`, `::1`), one of this computer's own addresses,
+  or, in the Personal profile's local network mode, the host of the saved
+  address for other computers (`personalNotes.connection.advertisedBaseUrl`);
+  every other host is refused with `403 forbidden host`.
 
 ## Handling of secrets
 
