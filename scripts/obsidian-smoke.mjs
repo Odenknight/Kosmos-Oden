@@ -171,6 +171,19 @@ try {
   const names = (legacyTools.json?.result?.tools || []).map((t) => t.name).sort().join(",");
   check("older MCP lists exactly the five Personal tools", names === "get_lineage,get_note,get_related,search_notes,vault_overview", names);
 
+  /* ---- optional: hold the connection open for a real client application ---- */
+  const hold = Number(arg("hold", "0"));
+  if (hold > 0) {
+    const url = `http://127.0.0.1:${apiPort}/mcp`;
+    writeFileSync(join(tmp, "client-http.json"), JSON.stringify({ mcpServers: { "kosmos-oden": { type: "http", url, headers: { Authorization: `Bearer ${token}` } } } }, null, 2));
+    writeFileSync(join(tmp, "client-stdio.json"), JSON.stringify({ mcpServers: { "kosmos-oden": { command: "node", args: [join(pluginDir, "kosmos-mcp-stdio.mjs")], env: { KOSMOS_MCP_URL: url, KOSMOS_MCP_TOKEN: token } } } }, null, 2));
+    console.log(`HOLD ${hold}s  client configs in ${tmp} (throwaway token; deleted with the vault)`);
+    await sleep(hold * 1000);
+    const clients = await P("(p) => [...p.agentApi.sessions.values()].map((s) => ({ name: s.name, protocolVersion: s.protocolVersion }))");
+    console.log("CLIENTS " + JSON.stringify(clients));
+    results.push({ name: "client applications seen during the hold", ok: true, detail: JSON.stringify(clients) });
+  }
+
   /* ---- bind address, from this computer only (not a second-machine test) ---- */
   const lan = (await P("(p) => p.reachableAddresses()"))[0];
   if (lan) {
