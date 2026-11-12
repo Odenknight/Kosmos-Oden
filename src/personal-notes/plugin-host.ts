@@ -100,7 +100,8 @@ export interface PersonalPluginHost {
 
   /* ---- optional deterministic tagging (off until the user selects it) ---- */
   /** Frozen preview over the tagging selection, or over `paths`. Re-preview of an unchanged pending proposal keeps its values. Writes nothing. */
-  previewTagging(paths?: string[]): Promise<TaggingPlan>;
+  previewTagging(paths?: string[], opts?: { /** Paths the user explicitly chose to give a new uid (duplicate-ID repair). */ uidRepairs?: readonly string[] }): Promise<TaggingPlan>;
+  /** Apply a previewed plan, or a subset of its notes with the same frozen values. Every file is hash-checked before writing. */
   applyTagging(plan: TaggingPlan): Promise<TaggingApplyResult>;
   /** Check and preview "this note supersedes…" for the replacement note. `plan` is null when the check fails. Writes nothing. */
   previewSupersedes(replacement: TFile, targetLinkText: string): Promise<{ check: SupersedesCheck; plan: TaggingPlan | null }>;

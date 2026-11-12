@@ -427,6 +427,54 @@ test("corpus: a metadata-only change (a link target appears) refreshes the recor
   } finally { unloadPlugin(plugin); }
 });
 
+test("UI contract: uidRepairs, subset apply, exclude-all, abort/query errors, worker-failure status, disabled supersession, stdio rows", async () => {
+  const dup = "---\nuid: 019a72b0-0000-7000-8000-00000000abcd\n---\n";
+  const app = makeApp({ "Notes/A.md": `${dup}a tomato\n`, "Notes/B.md": `${dup}b tomato\n`, "Notes/C.md": "c tomato\n" },
+    { persisted: personalSettings({ tagging: { enabled: true, folders: ["Notes"], timestamps: false, uniqueIds: true, supersession: false, automaticTimestamps: false } }) });
+  const plugin = await loadPlugin(app);
+  try {
+    app.layoutReady();
+    await indexed(plugin);
+    const plan = await plugin.previewTagging(undefined, { uidRepairs: ["Notes/B.md"] });
+    const finding = plan.findings.find((f) => f.kind === "duplicate_uid");
+    assert.deepEqual(finding.repairing, ["Notes/B.md"], "the explicit repair choice reaches the planner");
+    assert.ok(plan.notes.find((n) => n.path === "Notes/B.md").changes.some((c) => c.key === "uid"));
+
+    const subset = { ...plan, notes: plan.notes.filter((n) => n.path === "Notes/C.md") };
+    const applied = await plugin.applyTagging(subset);
+    assert.deepEqual(applied.written.map((w) => w.path), ["Notes/C.md"]);
+    assert.ok(!app.writes.some((w) => w[1] === "Notes/B.md"), "unticked notes are not written");
+
+    const off = await plugin.previewSupersedes(app.vault.getAbstractFileByPath("Notes/C.md"), "Notes/A");
+    assert.equal(off.check.ok, true);
+    assert.ok(off.plan.findings.some((f) => f.kind === "supersedes_rejected" && f.reason === "disabled"));
+    assert.equal((await plugin.previewSupersedes(app.vault.getAbstractFileByPath("Notes/C.md"), "Notes/C")).plan, null);
+
+    const aborted = new AbortController();
+    aborted.abort();
+    await assert.rejects(plugin.search("tomato", { limit: 50, signal: aborted.signal }), (e) => e.code === "cancelled");
+    await assert.rejects(plugin.search("\"unclosed"), (e) => e.code === "invalid_query");
+
+    let changes = 0;
+    const off2 = plugin.onSearchStatus(() => changes++);
+    workers.at(-1).onerror(new Error("worker crashed"));
+    assert.ok(changes >= 1, "a worker failure is a status change");
+    assert.equal(plugin.searchStatus().state, "failed");
+    await assert.rejects(plugin.search("tomato"), (e) => e.code === "search_unavailable");
+    plugin.retrySearch();
+    for (let i = 0; i < 100 && plugin.searchStatus().state === "failed"; i++) await delay(10);
+    await plugin.personal.search.whenApplied();
+    assert.equal((await plugin.search("tomato", { limit: 50 })).total, 3);
+    off2();
+
+    assert.ok(plugin.mcpProtocols().stdio.includes("2024-11-05"));
+    assert.ok(!plugin.mcpProtocols().http.includes("2024-11-05"));
+
+    assert.equal((await plugin.updatePersonalNotes((d) => { d.excludeFolders = ["/"]; })).saved, true, "\"/\" is exclude-everything, not an error");
+    assert.equal(plugin.sharedNoteCount(), 0);
+  } finally { unloadPlugin(plugin); }
+});
+
 /* ---------------------------------------------------------------- lifecycle */
 
 test("B01/B03: existing profile builds no Personal runtime; unload leaves no worker, Blob URL, timer, listener or server", async () => {

@@ -18,7 +18,7 @@ import { PolicyGeneration, createPersonalReadPolicy, decidePersonalRead } from "
 import { PersonalQueryService, type PersonalProtocolInfo } from "../personal-notes/query-service";
 import type { PersonalSearchStatus } from "../personal-notes/plugin-host";
 import type { PersonalReadPolicy, PersonalSearch, PersonalVaultSource } from "../personal-notes/types";
-import { PersonalSearchClient } from "../personal-notes/worker-client";
+import { PersonalSearchClient, type WorkerLike } from "../personal-notes/worker-client";
 import { isKosmosOperationalPath } from "../operational-paths";
 import { PERSONAL_REST_ROUTES, type AgentSettings, type PersonalAgentRuntime } from "./agent-server";
 import { advertisedMcpProtocolVersions } from "./mcp-compat";
@@ -43,7 +43,21 @@ export interface PersonalRuntimeOptions {
   onDiagnostic?: (message: string) => void;
 }
 
-const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+/** Forwards a worker unchanged and reports a failure (error, message error, fatal) to status listeners after the client has handled it. */
+class NotifyingWorker implements WorkerLike {
+  onmessage: WorkerLike["onmessage"] = null;
+  onerror: WorkerLike["onerror"] = null;
+  onmessageerror: ((event: unknown) => void) | null = null;
+  constructor(private readonly inner: WorkerLike, notify: () => void) {
+    inner.onmessage = (event) => { this.onmessage?.(event); if (event.data?.type === "fatal") notify(); };
+    inner.onerror = (event) => { this.onerror?.(event); notify(); };
+    inner.onmessageerror = (event) => { this.onmessageerror?.(event); notify(); };
+  }
+  postMessage(message: Parameters<WorkerLike["postMessage"]>[0]): void { this.inner.postMessage(message); }
+  terminate(): void { this.inner.terminate(); }
+}
+
+const sameSet =(a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((x) => b.has(x));
 
 export class PersonalRuntime {
   readonly generation = new PolicyGeneration();
@@ -61,7 +75,7 @@ export class PersonalRuntime {
 
   constructor(private readonly options: PersonalRuntimeOptions) {
     this.corpus = new MemoryCorpus(options.source, { include: (p) => !isKosmosOperationalPath(p) });
-    this.search = new PersonalSearchClient({ corpus: this.corpus, createWorker: () => options.workers.create(), release: () => options.workers.release() });
+    this.search = new PersonalSearchClient({ corpus: this.corpus, createWorker: () => new NotifyingWorker(options.workers.create(), () => this.notify()), release: () => options.workers.release() });
     const scoped: PersonalSearch = {
       search: (req) => this.search.search(req.allowedPaths ? { ...req, allowedPaths: this.canonical(req.allowedPaths) } : req),
     };
@@ -132,7 +146,11 @@ export class PersonalRuntime {
     return null;
   }
 
-  build(): Promise<void> { return this.corpus.build().catch(() => undefined); }
+  build(): Promise<void> {
+    const done = this.corpus.build().catch(() => undefined);
+    this.notify(); // a rebuild is "indexing" until its revision is published
+    return done;
+  }
 
   status(): PersonalSearchStatus {
     if (this.search.status === "failed") return { state: "failed", notes: this.corpus.paths().length, omitted: this.corpus.omitted().length, error: this.search.error ?? "search stopped" };

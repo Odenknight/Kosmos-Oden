@@ -392,8 +392,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   private searchStatusListeners = new Set<() => void>();
   private readonly yaml = strictYaml(parseYaml);
   /**
-   * Opens the Personal tagging view. The UI replaces it when its view is
-   * registered; until then `openTagging()` opens this plugin's settings tab.
+   * Opens the Personal tagging window. Point it at the UI's opener when
+   * merging (e.g. `() => new TaggingModal(this).open()`); until then
+   * `openTagging()` opens this plugin's settings tab.
    */
   taggingUi: (() => void) | null = null;
 
@@ -508,9 +509,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.addCommand({ id: "search-my-notes", name: "Search my notes", callback: () => void this.openPersonalSearch() });
     this.addCommand({ id: "add-notes", name: "Add notes from another app", callback: () => this.openAddNotes() });
     this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
-    this.addCommand({ id: "note-supersedes", name: "This note replaces another note (GKX supersedes)", callback: () => this.openSupersedes() });
-    this.addCommand({ id: "personal-tagging", name: "Optional tagging: preview deterministic tags", callback: () => this.openTagging() });
-    this.addCommand({
+    this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });    this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
       callback: () => void this.markNotesInGkx(),
@@ -1007,7 +1006,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     return { path, raw, hash: await sha256Hex(raw), ctimeMs: file.stat.ctime, mtimeMs: file.stat.mtime };
   }
 
-  async previewTagging(paths?: string[]): Promise<TaggingPlan> {
+  async previewTagging(paths?: string[], opts: { uidRepairs?: readonly string[] } = {}): Promise<TaggingPlan> {
     const t = this.agentSettings.personalNotes.tagging;
     this.local();
     const source = this.personalSource!;
@@ -1030,6 +1029,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       parse: this.yaml,
       timestamps: this.timestampKeys(),
       existingUids: this.existingUids(),
+      uidRepairs: opts.uidRepairs,
       pending: this.pendingTagging,
     });
     this.pendingTagging = plan;
