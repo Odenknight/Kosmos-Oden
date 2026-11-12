@@ -243,10 +243,13 @@ export class MemoryCorpus implements PersonalCorpus {
     if ((this.invalidated.get(path) ?? 0) > startTick) return { path, kind: "gone" };
     const bytes = utf8Length(raw);
     if (bytes > this.limits.maxFileBytes) return { path, kind: "omit", reason: "too_large" };
-    const old = this.byPath.get(path);
-    if (old && old.raw === raw) return { path, kind: "ok", record: old, bytes };
     let meta: PersonalNoteRecord["meta"];
     try { meta = this.source.meta(path, raw); } catch { return { path, kind: "omit", reason: "unreadable" }; }
+    // Same text and same metadata: keep the record (no revision). Metadata can
+    // change without a text change (a link target appears, the host's cache
+    // catches up), so the text alone is not enough.
+    const old = this.byPath.get(path);
+    if (old && old.raw === raw && JSON.stringify(old.meta) === JSON.stringify(meta)) return { path, kind: "ok", record: old, bytes };
     return { path, kind: "ok", record: freezeRecord(stat, raw, bytes, meta), bytes };
   }
 

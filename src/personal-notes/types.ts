@@ -44,6 +44,13 @@ export interface PersonalNotesSettings {
   importReportPaths: string[];
   tagging: PersonalTaggingSettings;
   connection: PersonalConnectionSettings;
+  /**
+   * Importer boundary for automatic tagging (tagging.ts TaggingImportState).
+   * Folders here are deferred until "Import finished — review tags". Kept in
+   * the synced settings so another device does not stamp an import in progress.
+   * Absent = nothing pending.
+   */
+  importState?: { running: string[]; awaitingReview: string[] };
 }
 
 /* -------------------------------------------------------------------- limits */
