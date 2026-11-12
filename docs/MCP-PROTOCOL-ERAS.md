@@ -4,24 +4,30 @@
 
 By owner direction of 2026-11-12 the Agent API server answers both eras. This
 supersedes the modern-only scope recorded below for the server; the rest of
-this document remains accurate for the modern path, which is unchanged.
+this document remains accurate for the modern path, which is unchanged. The
+full matrix, rules and evidence are in
+[v0.9.0/MCP-COMPATIBILITY.md](v0.9.0/MCP-COMPATIBILITY.md).
 
-- Modern (`2026-07-28`): as described below.
-- Legacy (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`): answered
-  only while the `agentLegacyMcp` setting is true (the default for real
-  installs; a settings object that omits the field is modern-only). A POST to
-  `/mcp` is treated as legacy when its body carries no modern protocol
-  version in `_meta` and its `MCP-Protocol-Version` header is absent or names
-  a legacy revision. `initialize` negotiates a version: a supported requested
-  version is echoed, otherwise the newest legacy version is returned.
-- Both eras are stateless. No `Mcp-Session-Id` is minted or required, no GET
-  stream is hosted, and GET and DELETE answer `405`. The stdio adapter is
-  unchanged: it forwards one message per POST and holds no state, which is
-  sufficient for a legacy stdio client because the legacy path needs none.
-- Legacy results use the legacy shapes (no `resultType`, no cache directives).
-  Legacy JSON-RPC errors travel in a `200` body.
-- Evidence: `test/mcp-legacy.test.mjs`. No named legacy client has been
-  qualified end to end.
+- Modern (`2026-07-28`): as described below, on native HTTP and the bridge.
+- Initialize era on native Streamable HTTP `/mcp`: `2025-11-25`,
+  `2025-06-18`, `2025-03-26` (with JSON-RPC batches). `2024-11-05` is served
+  only through the stdio bridge's internal adapter. Deprecated HTTP+SSE is not
+  offered.
+- "Accept older MCP clients" (`agentLegacyMcp`) defaults on everywhere,
+  including a settings object that omits it; only an explicit `false` turns
+  it off, and then legacy requests fail with `-32022` while modern works.
+- Any modern marker (a reserved `_meta` key, a modern-only method, a modern
+  routing header or version) selects strict modern validation even when
+  malformed; an unknown explicit version is refused; the rest is legacy at
+  the header revision or the `2025-03-26` default.
+- Both eras are stateless: no `Mcp-Session-Id`, no GET stream, GET and DELETE
+  answer `405`. The bridge remembers the negotiated legacy revision per
+  process only and forwards it as `MCP-Protocol-Version`.
+- Legacy results use a minimal shape valid on every legacy revision (text
+  content plus `isError`; tools are name, description, inputSchema).
+- Evidence: `test/mcp-compat.test.mjs`, `test/mcp-bridge-compat.test.mjs`,
+  `test/mcp-legacy.test.mjs`. SDK qualification only; named product clients
+  are owner trials.
 
 Reviewed 2026-09-09. Kosmos-Oden implements modern MCP only for the Agent API
 server. Legacy fallback and dual-era implementation are outside build scope.
