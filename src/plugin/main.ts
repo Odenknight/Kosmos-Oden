@@ -10,14 +10,28 @@
  * then debounced deltas; the iframe's shared GkxIndex re-parses only what
  * changed (§10). The Agent API answers from the same core index (§33).
  */
-import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf, normalizePath, parseYaml } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
-import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
-import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
-import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
+import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, getProfileSettingsMigration, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
+import { PersonalError, type ActiveProfile, type LineageInputNote, type PersonalNotesSettings, type SearchResponse } from "../personal-notes/types";
+import type {
+  ConnectionTestResult, ImporterState, PersonalConnectionStatus, PersonalPluginHost, PersonalSearchStatus, PersonalSettingsView, SupersedesCheck,
+} from "../personal-notes/plugin-host";
+import { isUnderAnyFolder, normalizeFolder, parseFolderList, type RejectedFolder } from "../personal-notes/scope";
+import { autoTimestampDecision, importReviewed, importStarted, planAutoTimestamp, planTagging, withoutUpdatedStamp, type TaggingImportState, type TaggingNoteInput, type TaggingPlan } from "../personal-notes/tagging";
+import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } from "../personal-notes/tagging-writer";
+import { checkSupersedesProposal } from "../personal-notes/lineage";
+import { sha256Hex } from "../personal-notes/hash";
+import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./personal-runtime";
+import { ObsidianPersonalSource, strictYaml } from "./personal-source";
+import { testPersonalConnection, waitForListener } from "./personal-connection";
+import { personalSearchWorkerFactory } from "./personal-search-worker-url";
+import { advertisedMcpProtocolVersions } from "./mcp-compat";
+import { KosmosSettingTab, buildAgentGuide, buildPersonalAgentGuide, installedBridgePath } from "./settings";
+import { applyNoteTimestamps, formatTimestamp, makeGkxUuidV7, stripFrontmatter, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
 import { validateRendererMessage, wrap } from "./protocol";
@@ -25,6 +39,12 @@ import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } fr
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
+import { summarizePersonalNotes, type PersonalNotesStatus } from "../personal-notes/status";
+import { PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-view";
+import { AddNotesModal } from "../ui/add-notes-modal";
+import { ConnectAiModal } from "../ui/connect-ai-modal";
+import { SupersedesModal } from "../ui/supersedes-modal";
+import { TaggingModal } from "../ui/tagging-modal";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -93,7 +113,13 @@ export class KosmosView extends ItemView {
   private maxwaitId = 0;
   private deferred = false;                    // a flush was skipped because the view was hidden
 
-  constructor(leaf: WorkspaceLeaf, private navigationEnabled: () => boolean) { super(leaf); }
+  /** `cachedText` may return a file's current text from the Personal corpus (null = read the vault as usual). */
+  constructor(leaf: WorkspaceLeaf, private navigationEnabled: () => boolean, private cachedText: (file: TFile) => string | null = () => null) { super(leaf); }
+
+  private readText(file: TFile): Promise<string> {
+    const cached = this.cachedText(file);
+    return cached !== null ? Promise.resolve(cached) : readVaultText(this.app.vault, file);
+  }
   getViewType(): string { return VIEW_TYPE; }
   getDisplayText(): string { return "Kosmos-Oden"; }
   getIcon(): string { return "orbit"; }
@@ -201,7 +227,7 @@ export class KosmosView extends ItemView {
       check();
       if (epoch !== this.viewEpoch || frame !== this.frame) throw new ProviderError("provider_unavailable");
       const path = f.path;
-      const c = await readVaultText(this.app.vault, f);
+      const c = await this.readText(f);
       hashes.set(path, hashContent(c));
       return { relativePath: path, content: c };
     });
@@ -291,7 +317,7 @@ export class KosmosView extends ItemView {
       const f = byPath.get(p);
       if (!f) continue;                          // deleted or non-markdown
       if (epoch !== this.viewEpoch || frame !== this.frame) throw new ProviderError("provider_unavailable");
-      const c = await readVaultText(this.app.vault, f);
+      const c = await this.readText(f);
       const h = hashContent(c);
       if (hashes.get(p) !== h) { hashes.set(p, h); changed.push({ relativePath: p, content: c }); }
     }
@@ -325,7 +351,18 @@ export class KosmosView extends ItemView {
   }
 }
 
-export default class KosmosOdenPlugin extends Plugin {
+const IMPORTER_ID = "obsidian-importer";
+const IMPORTER_TESTED_VERSION = "3.1.17";
+const AUTO_STAMP_DEBOUNCE_MS = 900;
+
+/** Community-plugin and command registries. Not in Obsidian's public typings; reached only through guarded reads. */
+interface AppRegistries {
+  plugins?: { manifests?: Record<string, { version?: unknown } | undefined>; enabledPlugins?: Set<string>; plugins?: Record<string, unknown> };
+  commands?: { executeCommandById?(id: string): boolean };
+  setting?: { open?(): void; openTabById?(id: string): unknown };
+}
+
+export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
   nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
@@ -340,10 +377,33 @@ export default class KosmosOdenPlugin extends Plugin {
   private timestampWrites = new Set<object>();
   private startupSyncTimer: number | null = null;
 
+  /* Personal Notes (0.9.0) runtime state. Nothing here is persisted. */
+  private personal: PersonalRuntime | null = null;
+  private personalSource: ObsidianPersonalSource | null = null;
+  private device: PersonalDeviceState | null = null;
+  private connecting = false;
+  private pendingTagging: TaggingPlan | null = null;
+  private pendingSupersedes: TaggingPlan | null = null;
+  /** Content hashes Kosmos itself wrote, per path (stamp-loop guard). */
+  private ownWrites = new Map<string, string[]>();
+  /** Last content hash the automatic stamper knows per path. */
+  private stampBaselines = new Map<string, string>();
+  private autoStamps = new Map<string, { timer: number; prevRaw: string | undefined; kind: "create" | "modify" }>();
+  private searchStatusListeners = new Set<() => void>();
+  private readonly yaml = strictYaml(parseYaml);
+  /**
+   * Opens the Personal tagging window. Point it at the UI's opener when
+   * merging (e.g. `() => new TaggingModal(this).open()`); until then
+   * `openTagging()` opens this plugin's settings tab.
+   */
+  taggingUi: (() => void) | null = () => new TaggingModal(this).open();
+
   scheduleTimestamp(file: any, delay = 350): void {
     // Obsidian emits create events for existing notes during startup discovery.
     // Those are not user edits and must not start frontmatter writes.
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
+    // Personal Notes (0.9.0): the legacy automatic stamper never writes while the Personal profile is active.
+    if (this.agentSettings.activeProfile === "personal") return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
@@ -357,6 +417,8 @@ export default class KosmosOdenPlugin extends Plugin {
 
   async stampNote(file: any): Promise<void> {
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
+    // Personal Notes (0.9.0): the legacy automatic stamper never writes while the Personal profile is active.
+    if (this.agentSettings.activeProfile === "personal") return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     this.timestampWrites.add(file);
     try {
@@ -385,6 +447,11 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   startAgentApi(): void {
+    // Personal profile: the connection starts only through its own token and enable action.
+    if (this.agentSettings.activeProfile === "personal") {
+      void this.connect().then((s) => { if (s.error) new Notice(`Kosmos-Oden: ${s.error}`); });
+      return;
+    }
     this.agentApi.start((msg) => new Notice("Kosmos-Oden Agent API: " + msg));
     if (this.agentApi.status.startsWith("unavailable")) {
       new Notice("Kosmos-Oden: the Agent API needs desktop Obsidian.");
@@ -420,15 +487,29 @@ export default class KosmosOdenPlugin extends Plugin {
     if (settingsChanged) await this.saveAgentSettings();
     this.provider = new VaultDataProvider(this.app, this.agentSettings);
     this.agentApi = new KosmosAgentServer(nodeRequire("http"), this.agentSettings, this.provider);
+    this.device = new PersonalDeviceState(this.app, deviceNamespace(this.manifest?.id ?? "kosmos-oden", this.vaultIdentity()));
     this.addSettingTab(new KosmosSettingTab(this.app, this));
-    if (this.agentSettings.agentEnabled) this.startAgentApi();
+    for (const notice of this.settingsNotices()) new Notice(`Kosmos-Oden: ${notice}`);
+    if (this.agentSettings.activeProfile === "personal") {
+      this.attachPersonal();
+      if (this.personalMayAutoConnect()) void this.connect();
+    } else if (this.agentSettings.agentEnabled) this.startAgentApi();
     this.addCommand({ id: "write-agent-api-guide", name: "Write Agent API guide (AGENT-API.md) to vault", callback: () => void this.writeAgentGuide() });
 
-    const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled);
+    const kosmosView = (leaf: WorkspaceLeaf) => new KosmosView(leaf, () => this.agentSettings.navigationEnabled, (file) => this.corpusText(file));
     this.registerView(VIEW_TYPE, kosmosView);
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
     this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
     this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
+    // Personal Notes (0.9.0). Only registerView, addRibbonIcon and addCommand
+    // are used here: the plugin test stub implements nothing else.
+    this.registerView(PERSONAL_SEARCH_VIEW, (leaf: WorkspaceLeaf) => new PersonalSearchView(leaf, this));
+    this.addRibbonIcon("search", "Search my notes", () => void this.openPersonalSearch());
+    this.addCommand({ id: "search-my-notes", name: "Search my notes", callback: () => void this.openPersonalSearch() });
+    this.addCommand({ id: "add-notes", name: "Add notes from another app", callback: () => this.openAddNotes() });
+    this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
+    this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });
+    this.addCommand({ id: "optional-tags", name: "Optional tags (preview deterministic tags)", callback: () => this.openTagging() });
     this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
@@ -453,6 +534,7 @@ export default class KosmosOdenPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.eventsLive = true;
       this.provider.markFullDirty();
+      if (this.personal) void this.personal.build();
       if (this.nextcloudSettings.enabled && this.nextcloudSettings.syncOnStartup) {
         this.startupSyncTimer = window.setTimeout(() => {
           this.startupSyncTimer = null;
@@ -501,25 +583,35 @@ export default class KosmosOdenPlugin extends Plugin {
     this.registerEvent(this.app.vault.on("create", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 150);
+      this.personalVaultEvent("create", file);
       if (!this.eventsLive || file.extension !== "md") return;
       for (const v of views()) v.noteCreated(file.path);
     }));
     this.registerEvent(this.app.vault.on("modify", (file: any) => {
       this.provider.markChanged(file.path);
       this.scheduleTimestamp(file, 900);
+      this.personalVaultEvent("modify", file);
       if (!this.eventsLive || file.extension !== "md") return;
       for (const v of views()) v.noteChanged(file.path);
     }));
     this.registerEvent(this.app.vault.on("delete", (file: any) => {
       this.provider.markRemoved(file.path);
+      this.personalVaultEvent("delete", file);
       if (!this.eventsLive) return;
       for (const v of views()) v.noteDeleted(file.path);
     }));
     this.registerEvent(this.app.vault.on("rename", (file: any, oldPath: string) => {
       this.provider.markRenamed(oldPath, file.path);
+      this.personalVaultEvent("rename", file, oldPath);
       if (!this.eventsLive) return;
       for (const v of views()) v.noteRenamed(file.path, oldPath);
     }));
+    // Metadata can change without a text change (a link target appears, the
+    // cache catches up). Only the Personal corpus listens; the Engine
+    // provider deliberately ignores these (see above).
+    const metadataChanged = (file: any) => { if (file?.extension === "md") this.personal?.corpus.apply({ modified: [file.path] }); };
+    this.registerEvent(this.app.metadataCache.on("changed", metadataChanged));
+    this.registerEvent(this.app.metadataCache.on("resolve", metadataChanged));
 
     // When leaf visibility changes: flush deferred data AND gate the iframe's render loop.
     const onShow = () => { for (const v of views()) { v.flushIfDeferred(); v.syncVisibility(); } };
@@ -542,6 +634,589 @@ export default class KosmosOdenPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
     }
     ws.revealLeaf(leaf);
+  }
+
+  /* ---------------- Personal Notes (0.9.0) ---------------- */
+
+  /** Switch the profile that serves agents. Changes nothing else: the
+   *  existing profile's settings (defaultSensitivity included) stay as saved.
+   *  The listener stops; each profile then starts only by its own rules. */
+  async setActiveProfile(profile: ActiveProfile): Promise<void> {
+    if (this.agentSettings.activeProfile === profile) return;
+    this.agentApi.stop();
+    this.agentSettings.activeProfile = profile;
+    await this.saveAgentSettings();
+    if (profile === "personal") this.attachPersonal(); else this.detachPersonal();
+    this.invalidatePersonal();
+    if (profile === "existing" && this.agentSettings.agentEnabled) this.startAgentApi();
+    if (profile === "personal" && this.personalMayAutoConnect()) await this.connect();
+  }
+
+  /** Synced settings never start sharing: only this device's own token and
+   *  autostart choice do, and never after a settings error forced the connector off. */
+  private personalMayAutoConnect(): boolean {
+    return !!this.device?.autoStart() && !!this.device.token() && !getProfileSettingsMigration(this.agentSettings).connectorMustStayStopped;
+  }
+
+  /** Canonical vault identity for device-local namespacing: the real vault folder on desktop, else the vault name. */
+  private vaultIdentity(): string {
+    const base = (this.app.vault.adapter as { getBasePath?: () => string }).getBasePath?.();
+    if (!base) return this.app.vault.getName();
+    try { return nodeRequire("fs")?.realpathSync(base) ?? base; } catch { return base; }
+  }
+
+  /** The local Personal runtime (corpus + search worker), created on first use in either profile. */
+  private local(): PersonalRuntime {
+    if (this.personal) return this.personal;
+    this.personalSource ??= new ObsidianPersonalSource(this.app, {
+      parse: this.yaml,
+      fs: nodeRequire("fs"),
+      path: nodeRequire("path"),
+      timestampKeys: () => ({ createdKey: this.agentSettings.timestampCreatedKey, updatedKey: this.agentSettings.timestampUpdatedKey }),
+    });
+    const runtime = new PersonalRuntime({
+      source: this.personalSource,
+      settings: () => this.agentSettings,
+      configDir: this.app.vault.configDir,
+      workers: personalSearchWorkerFactory(),
+      onDiagnostic: (message) => console.debug("Kosmos-Oden Personal Notes:", message),
+    });
+    runtime.onStatus(() => this.emitSearchStatus());
+    this.personal = runtime;
+    if (this.eventsLive) void runtime.build();
+    this.emitSearchStatus();
+    return runtime;
+  }
+
+  /** Hand the Personal runtime to the Agent API server (idempotent). */
+  private attachPersonal(): void {
+    const runtime = this.local();
+    const agent = runtime.agentRuntime(() => this.device?.token() ?? "");
+    if (this.agentApi.personal !== agent) this.agentApi.setPersonalRuntime(agent);
+    runtime.syncSearchGeneration();
+  }
+
+  /** Remove and dispose the Personal runtime: nothing from it keeps serving. */
+  private detachPersonal(): void {
+    if (this.agentApi?.personal) this.agentApi.setPersonalRuntime(null);
+    for (const pending of this.autoStamps.values()) window.clearTimeout(pending.timer);
+    this.autoStamps.clear();
+    this.pendingTagging = this.pendingSupersedes = null;
+    this.personal?.dispose();
+    this.personal = null;
+    this.emitSearchStatus();
+  }
+
+  /**
+   * The one invalidation path for profile, scope, token, bind and
+   * accept-older changes: bump the policy generation (the server does it when
+   * the runtime is attached), end held requests, reject stale searches and
+   * restart the listener when its address changed.
+   */
+  private invalidatePersonal(): void {
+    const { restartRequired } = this.agentApi.reconfigureAccess();
+    const runtime = this.personal;
+    if (runtime && this.agentApi.personal?.generation !== runtime.generation) runtime.generation.bump();
+    runtime?.syncSearchGeneration();
+    if (restartRequired && this.agentApi.server) void this.startListener();
+  }
+
+  private async startListener(): Promise<void> {
+    this.connecting = true;
+    try {
+      this.agentApi.start();
+      await waitForListener(this.agentApi.server);
+    } finally { this.connecting = false; }
+  }
+
+  /** Corpus text for the Kosmos view, only while the Personal runtime is active and the record matches the file on disk. */
+  private corpusText(file: TFile): string | null {
+    if (this.agentSettings.activeProfile !== "personal") return null;
+    const record = this.personal?.corpus.get(file.path);
+    return record && record.mtimeMs === file.stat?.mtime && record.sizeBytes === file.stat?.size ? record.raw : null;
+  }
+
+  /** Vault event → corpus, containment cache, and (opted in) automatic timestamps. */
+  private personalVaultEvent(kind: "create" | "modify" | "delete" | "rename", file: any, oldPath?: string): void {
+    const path = file?.path;
+    if (typeof path !== "string") return;
+    if (kind !== "modify") this.personalSource?.invalidate();
+    if (kind === "delete") { this.stampBaselines.delete(path); this.ownWrites.delete(path); }
+    if (kind === "rename" && oldPath) {
+      const baseline = this.stampBaselines.get(oldPath);
+      this.stampBaselines.delete(oldPath); this.ownWrites.delete(oldPath);
+      if (baseline) this.stampBaselines.set(path, baseline);
+    }
+    const corpus = this.personal?.corpus;
+    if (corpus) {
+      if (kind === "create") corpus.apply({ created: [path] });
+      else if (kind === "modify") corpus.apply({ modified: [path] });
+      else if (kind === "delete") corpus.apply({ deleted: [path] });
+      else if (oldPath) corpus.apply({ renamed: [{ from: oldPath, to: path }] });
+    }
+    if ((kind === "create" || kind === "modify") && file.extension === "md") this.scheduleAutoStamp(kind, file);
+  }
+
+  private timestampKeys() {
+    return { createdKey: this.agentSettings.timestampCreatedKey, updatedKey: this.agentSettings.timestampUpdatedKey, useLocalTimezone: this.agentSettings.timestampUseLocalTimezone };
+  }
+
+  /** Opted-in automatic timestamps (Personal profile only). Tagging off = nothing is scheduled or read. */
+  private scheduleAutoStamp(kind: "create" | "modify", file: TFile): void {
+    if (this.agentSettings.activeProfile !== "personal" || !this.eventsLive) return;
+    const t = this.agentSettings.personalNotes.tagging;
+    if (!(t.enabled && t.timestamps && t.automaticTimestamps)) return;
+    const eventTimeMs = Date.now(); // the content-event time, captured once
+    const previous = this.autoStamps.get(file.path);
+    if (previous) window.clearTimeout(previous.timer);
+    // The corpus still holds the text from before this burst of edits.
+    const prevRaw = previous ? previous.prevRaw : this.personal?.corpus.get(file.path)?.raw;
+    const firstKind = previous?.kind ?? kind;
+    const timer = window.setTimeout(() => {
+      this.autoStamps.delete(file.path);
+      void this.runAutoStamp(firstKind, file, eventTimeMs, prevRaw).catch((e) => console.warn("Kosmos-Oden: automatic timestamp skipped", file.path, e));
+    }, AUTO_STAMP_DEBOUNCE_MS);
+    this.autoStamps.set(file.path, { timer, prevRaw, kind: firstKind });
+  }
+
+  private async runAutoStamp(kind: "create" | "modify", file: TFile, eventTimeMs: number, prevRaw: string | undefined): Promise<void> {
+    if (!this.eventsLive || this.agentSettings.activeProfile !== "personal") return;
+    const raw = await this.app.vault.read(file);
+    const hash = await sha256Hex(raw).catch(() => null);
+    // Content identity ignores the updated stamp itself (see withoutUpdatedStamp).
+    const contentHash = await this.stampKey(raw).catch(() => null);
+    const baseline = this.stampBaselines.get(file.path) ?? (prevRaw !== undefined ? await this.stampKey(prevRaw).catch(() => undefined) : undefined);
+    const ownWrite = hash !== null && contentHash !== null && (this.ownWrites.get(file.path) ?? []).includes(hash);
+    const decision = autoTimestampDecision({ kind, path: file.path, contentHash, eventTimeMs }, {
+      tagging: this.agentSettings.personalNotes.tagging,
+      eventsLive: this.eventsLive,
+      isUnderAnyFolder,
+      isExcludedPath: (p) => isKosmosOperationalPath(p) || !timestampEligible(p, file.extension),
+      baselineHash: baseline,
+      ownWriteHashes: ownWrite ? new Set([contentHash!]) : new Set(),
+      imports: this.importState(),
+    });
+    if (decision.recordHash) this.stampBaselines.set(file.path, decision.recordHash);
+    if (decision.action !== "stamp" || hash === null) return;
+    const plan = planAutoTimestamp({
+      note: { path: file.path, raw, hash, ctimeMs: file.stat?.ctime, mtimeMs: file.stat?.mtime },
+      eventTimeMs: decision.eventTimeMs, formatTimestamp, parse: this.yaml, timestamps: this.timestampKeys(),
+    });
+    const result = await applyTaggingPlan(plan, this.writerHost(null), { backup: false });
+    await this.rememberStampBaselines(plan, result);
+  }
+
+  private stampKey(raw: string): Promise<string> {
+    return sha256Hex(withoutUpdatedStamp(raw, this.agentSettings.timestampUpdatedKey));
+  }
+
+  /** After a tagging write: the written text is the automatic stamper's new baseline. */
+  private async rememberStampBaselines(plan: TaggingPlan, result: TaggingApplyResult): Promise<void> {
+    for (const w of result.ownWrites) {
+      const written = plan.notes.find((n) => n.path === w.path)?.proposedRaw;
+      if (written != null) this.stampBaselines.set(w.path, await this.stampKey(written));
+    }
+  }
+
+  private noteFile(path: string): TFile | null {
+    const f = this.app.vault.getAbstractFileByPath(path);
+    return f && "stat" in f && (f as TFile).extension === "md" ? f as TFile : null;
+  }
+
+  private async ensureFolder(path: string): Promise<void> {
+    const adapter = this.app.vault.adapter;
+    let current = "";
+    for (const part of normalizePath(path).split("/").filter(Boolean)) {
+      current = current ? `${current}/${part}` : part;
+      if (!(await adapter.exists(current))) await adapter.mkdir(current);
+    }
+  }
+
+  /** Narrow writer for tagging: fresh reads, compare-and-write inside Vault.process, exact backups under `backupRoot`. */
+  private writerHost(backupRoot: string | null): TaggingWriterHost {
+    return {
+      readRaw: async (path) => {
+        const file = this.noteFile(path);
+        if (!file) throw new Error("missing");
+        return this.app.vault.read(file);
+      },
+      writeRaw: async (path, text, expectedRaw) => {
+        const file = this.noteFile(path);
+        if (!file) return false;
+        let written = false;
+        await this.app.vault.process(file, (current) => {
+          if (current !== expectedRaw) return current;
+          written = true;
+          return text;
+        });
+        return written;
+      },
+      saveBackup: async (path, beforeText) => {
+        if (!backupRoot) throw new Error("no backup location for this operation");
+        const target = normalizePath(`${backupRoot}/files/${path}.bak`);
+        await this.ensureFolder(target.slice(0, target.lastIndexOf("/")));
+        if (await this.app.vault.adapter.exists(target)) throw new Error(`backup already exists: ${target}`);
+        await this.app.vault.adapter.write(target, beforeText);
+        return target;
+      },
+      sha256: (text) => sha256Hex(text),
+      recordOwnWrite: (path, hash) => {
+        const list = this.ownWrites.get(path) ?? [];
+        list.push(hash);
+        this.ownWrites.set(path, list.slice(-8));
+      },
+    };
+  }
+
+  /* ---- PersonalPluginHost: profile and settings ---- */
+
+  /**
+   * A property, not a method: Obsidian 1.13 declares `Plugin.settings?: unknown`
+   * and a method cannot override a property. `host.settings()` is unchanged.
+   * Obsidian's declarative setting definitions read `plugin.settings` by
+   * default, so a settings tab using them must override getControlValue/setControlValue.
+   */
+  settings = (): PersonalSettingsView => ({
+    activeProfile: this.agentSettings.activeProfile,
+    personalNotes: structuredClone(this.agentSettings.personalNotes),
+    port: this.agentSettings.agentPort,
+  });
+
+  settingsNotices(): string[] { return [...getProfileSettingsMigration(this.agentSettings).notices]; }
+
+  async updatePersonalNotes(change: (draft: PersonalNotesSettings) => void): Promise<{ saved: boolean; rejected: RejectedFolder[] }> {
+    const draft = structuredClone(this.agentSettings.personalNotes);
+    change(draft);
+    const rejected: RejectedFolder[] = [];
+    const take = (value: unknown, allowRoot = true): string[] => {
+      const parsed = parseFolderList(value);
+      rejected.push(...parsed.rejected);
+      if (!allowRoot && parsed.folders.includes("/")) rejected.push({ index: parsed.folders.indexOf("/"), value: "/", reason: "absolute" });
+      return parsed.folders;
+    };
+    draft.includeFolders = take(draft.includeFolders);
+    draft.excludeFolders = take(draft.excludeFolders);
+    draft.importFolders = take(draft.importFolders);
+    draft.importReportPaths = take(draft.importReportPaths, false);
+    draft.tagging = {
+      ...draft.tagging,
+      folders: take(draft.tagging?.folders),
+      enabled: draft.tagging?.enabled === true,
+      timestamps: draft.tagging?.timestamps === true,
+      uniqueIds: draft.tagging?.uniqueIds === true,
+      supersession: draft.tagging?.supersession === true,
+      automaticTimestamps: draft.tagging?.automaticTimestamps === true,
+    };
+    draft.connection = {
+      ...draft.connection,
+      bindMode: draft.connection?.bindMode === "lan" ? "lan" : "localhost",
+      advertisedBaseUrl: typeof draft.connection?.advertisedBaseUrl === "string" ? draft.connection.advertisedBaseUrl : "",
+      autoStart: draft.connection?.autoStart === true,
+      acceptOlderMcp: draft.connection?.acceptOlderMcp !== false,
+    };
+    if (rejected.length) return { saved: false, rejected };
+    // §5: a newly registered import folder is held back from automatic time
+    // stamps until "Import finished — review tags", since Kosmos cannot see an
+    // Importer run (started here or directly in the Importer) finish.
+    const before = new Set(this.agentSettings.personalNotes.importFolders);
+    const added = draft.importFolders.filter((f) => !before.has(f));
+    if (added.length) {
+      let state: TaggingImportState = { running: parseFolderList(draft.importState?.running).folders, awaitingReview: parseFolderList(draft.importState?.awaitingReview).folders };
+      for (const folder of added) state = importStarted(state, folder, false);
+      draft.importState = state;
+    }
+    this.agentSettings.personalNotes = draft;
+    await this.saveAgentSettings();
+    this.invalidatePersonal();
+    return { saved: true, rejected: [] };
+  }
+
+  /* ---- PersonalPluginHost: local search ---- */
+
+  async search(query: string, opts: { limit?: number; signal?: AbortSignal } = {}): Promise<SearchResponse> {
+    const runtime = this.local();
+    try {
+      return await runtime.search.search({ query, limit: opts.limit, allowedPaths: null, signal: opts.signal });
+    } catch (error) {
+      if (error instanceof PersonalError && error.code === "search_unavailable") this.emitSearchStatus();
+      throw error;
+    }
+  }
+
+  searchStatus(): PersonalSearchStatus { return this.local().status(); }
+
+  onSearchStatus(listener: () => void): () => void {
+    this.searchStatusListeners.add(listener);
+    return () => { this.searchStatusListeners.delete(listener); };
+  }
+
+  private emitSearchStatus(): void {
+    for (const listener of [...this.searchStatusListeners]) { try { listener(); } catch (e) { console.warn("Kosmos-Oden: search status listener failed", e); } }
+  }
+
+  retrySearch(): void {
+    const runtime = this.local();
+    if (this.eventsLive && runtime.corpus.revision === 0) void runtime.build();
+    runtime.retry();
+  }
+
+  sharedNoteCount(): number { return this.local().sharedNoteCount(); }
+
+  /* ---- PersonalPluginHost: import ---- */
+
+  /** Guarded Importer detection. Never throws. */
+  importer(): { state: ImporterState; version: string | null; tested: boolean } {
+    try {
+      const plugins = (this.app as typeof this.app & AppRegistries).plugins;
+      if (!plugins || typeof plugins !== "object") return { state: "unknown", version: null, tested: false };
+      const manifest = plugins.manifests?.[IMPORTER_ID];
+      if (!manifest) return { state: "missing", version: null, tested: false };
+      const version = typeof manifest.version === "string" ? manifest.version : null;
+      const enabled = plugins.enabledPlugins instanceof Set ? plugins.enabledPlugins.has(IMPORTER_ID) : !!plugins.plugins?.[IMPORTER_ID];
+      return { state: enabled ? "enabled" : "installed", version, tested: version === IMPORTER_TESTED_VERSION };
+    } catch {
+      return { state: "unknown", version: null, tested: false };
+    }
+  }
+
+  openImporter(destinationFolder: string): boolean {
+    const folder = normalizeFolder(destinationFolder);
+    // Kosmos cannot observe the Importer finishing, so the folder waits for "Import finished — review tags".
+    if (folder) this.saveImportState(importStarted(this.importState(), folder, false));
+    try {
+      if (this.importer().state !== "enabled") return false;
+      return (this.app as typeof this.app & AppRegistries).commands?.executeCommandById?.(`${IMPORTER_ID}:open-modal`) === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private importState(): TaggingImportState {
+    const state = this.agentSettings.personalNotes.importState;
+    return { running: parseFolderList(state?.running).folders, awaitingReview: parseFolderList(state?.awaitingReview).folders };
+  }
+
+  private saveImportState(state: TaggingImportState): void {
+    this.agentSettings.personalNotes.importState = { running: [...state.running], awaitingReview: [...state.awaitingReview] };
+    void this.saveAgentSettings();
+  }
+
+  pendingImportFolders(): string[] {
+    const state = this.importState();
+    return [...new Set([...state.running, ...state.awaitingReview])];
+  }
+
+  async importFinished(folder: string): Promise<void> {
+    this.agentSettings.personalNotes.importState = importReviewed(this.importState(), folder);
+    await this.saveAgentSettings();
+  }
+
+  /** Plain status of the import folders, computed from the Personal corpus (not the Engine graph). */
+  async personalNotesStatus(): Promise<PersonalNotesStatus> {
+    const runtime = this.local();
+    await runtime.corpus.whenIdle();
+    const { importFolders, importReportPaths } = this.agentSettings.personalNotes;
+    const notes = [...runtime.corpus.records()]
+      .filter((r) => isUnderAnyFolder(r.path, importFolders))
+      .map((r) => ({ path: r.path, body: stripFrontmatter(r.raw) }));
+    const files = this.app.vault.getFiles().map((f) => f.path);
+    return summarizePersonalNotes({ notes, files, importFolders, importReportPaths });
+  }
+
+  /* ---- PersonalPluginHost: optional deterministic tagging ---- */
+
+  private existingUids(): Map<string, string[]> {
+    const uids = new Map<string, string[]>();
+    for (const r of this.local().corpus.records()) if (r.meta.uid) (uids.get(r.meta.uid) ?? uids.set(r.meta.uid, []).get(r.meta.uid)!).push(r.path);
+    return uids;
+  }
+
+  private async taggingInput(path: string): Promise<TaggingNoteInput | null> {
+    const file = this.noteFile(path);
+    if (!file || isKosmosOperationalPath(path)) return null;
+    const raw = await this.app.vault.read(file);
+    return { path, raw, hash: await sha256Hex(raw), ctimeMs: file.stat.ctime, mtimeMs: file.stat.mtime };
+  }
+
+  async previewTagging(paths?: string[], opts: { uidRepairs?: readonly string[] } = {}): Promise<TaggingPlan> {
+    const t = this.agentSettings.personalNotes.tagging;
+    this.local();
+    const source = this.personalSource!;
+    const selected = paths
+      ? [...new Set(paths)]
+      : this.app.vault.getMarkdownFiles().map((f) => f.path).filter((p) => isUnderAnyFolder(p, t.folders));
+    const notes: TaggingNoteInput[] = [];
+    // ponytail: sequential reads; batch them if previews of thousands of notes feel slow.
+    for (const path of selected.sort()) {
+      if (!source.physicallyContained(path)) continue;
+      const input = await this.taggingInput(path);
+      if (input) notes.push(input);
+    }
+    const plan = planTagging({
+      notes,
+      options: { timestamps: t.enabled && t.timestamps, uniqueIds: t.enabled && t.uniqueIds, supersession: false },
+      proposalTimeMs: Date.now(),
+      newUid: (nowMs) => makeGkxUuidV7(nowMs),
+      formatTimestamp,
+      parse: this.yaml,
+      timestamps: this.timestampKeys(),
+      existingUids: this.existingUids(),
+      uidRepairs: opts.uidRepairs,
+      pending: this.pendingTagging,
+    });
+    this.pendingTagging = plan;
+    return plan;
+  }
+
+  async applyTagging(plan: TaggingPlan): Promise<TaggingApplyResult> {
+    const t = this.agentSettings.personalNotes.tagging;
+    const allowed = t.enabled && (!plan.options.timestamps || t.timestamps) && (!plan.options.uniqueIds || t.uniqueIds) && (!plan.options.supersession || t.supersession);
+    if (!allowed) throw new Error("Optional tagging or one of the previewed options is off; preview again.");
+    const root = normalizePath(`.gkx/backup/tagging-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
+    const result = await applyTaggingPlan(plan, this.writerHost(root));
+    if (result.manifest) await this.app.vault.adapter.write(`${root}/manifest.json`, JSON.stringify(result.manifest, null, 2));
+    await this.rememberStampBaselines(plan, result);
+    if (plan === this.pendingTagging) this.pendingTagging = null;
+    if (plan === this.pendingSupersedes) this.pendingSupersedes = null;
+    return result;
+  }
+
+  async previewSupersedes(replacement: TFile, targetLinkText: string): Promise<{ check: SupersedesCheck; plan: TaggingPlan | null }> {
+    const runtime = this.local();
+    const source = this.personalSource!;
+    const input = await this.taggingInput(replacement.path);
+    const notes: LineageInputNote[] = [];
+    for (const r of runtime.corpus.records()) {
+      if (r.path === replacement.path) continue;
+      notes.push({ path: r.path, uid: r.meta.uid, updatedAt: r.meta.updatedAt, supersedes: [...r.meta.supersedes], supersededBy: [...r.meta.supersededBy] });
+    }
+    if (input) {
+      const meta = source.meta(input.path, input.raw);
+      notes.push({ path: input.path, uid: meta.uid, updatedAt: meta.updatedAt, supersedes: [...meta.supersedes], supersededBy: [...meta.supersededBy] });
+    }
+    const resolve = (text: string, from: string) => source.resolveLink(text, from);
+    const check = checkSupersedesProposal(replacement.path, targetLinkText, notes, resolve);
+    if (!check.ok || !input) return { check, plan: null };
+    const t = this.agentSettings.personalNotes.tagging;
+    const plan = planTagging({
+      notes: [input],
+      options: { timestamps: false, uniqueIds: t.enabled && t.uniqueIds, supersession: t.enabled && t.supersession },
+      proposalTimeMs: Date.now(),
+      newUid: (nowMs) => makeGkxUuidV7(nowMs),
+      formatTimestamp,
+      parse: this.yaml,
+      timestamps: this.timestampKeys(),
+      existingUids: this.existingUids(),
+      supersedes: { requests: [{ path: replacement.path, target: targetLinkText }], notes, resolve },
+      pending: this.pendingSupersedes,
+    });
+    this.pendingSupersedes = plan;
+    return { check, plan };
+  }
+
+  /* ---- PersonalPluginHost: connection ---- */
+
+  connection(): PersonalConnectionStatus {
+    const s = this.agentSettings;
+    const base = {
+      bindMode: s.personalNotes.connection.bindMode === "lan" ? "lan" as const : "localhost" as const,
+      port: s.agentPort,
+      hasToken: !!this.device?.token(),
+      autoStart: !!this.device?.autoStart(),
+    };
+    if (s.activeProfile !== "personal") return { ...base, state: "stopped", error: "The existing profile is active. Choose Personal Notes to use this connection." };
+    const status = String(this.agentApi?.status ?? "stopped");
+    if (this.connecting) return { ...base, state: "starting" };
+    if (status.startsWith("unavailable")) return { ...base, state: "unavailable", error: "The connection needs desktop Obsidian." };
+    if (status.startsWith("error")) return { ...base, state: "error", error: status.replace(/^error:\s*/, "") };
+    if (status === "running") return { ...base, state: "running" };
+    return { ...base, state: this.agentApi?.server ? "starting" : "stopped" };
+  }
+
+  /** Make sure this device has its own token; never copied from settings. */
+  private ensureToken(): string {
+    let token = this.device?.token() ?? "";
+    if (!token && this.device) { token = makeToken(); this.device.setToken(token); }
+    return token;
+  }
+
+  async connect(): Promise<PersonalConnectionStatus> {
+    if (this.agentSettings.activeProfile !== "personal") return this.connection();
+    try { this.ensureToken(); } catch (e: any) {
+      return { ...this.connection(), state: "error", error: `Could not create a token on this device: ${e?.message || e}` };
+    }
+    this.attachPersonal();
+    await this.startListener();
+    return this.connection();
+  }
+
+  async disconnect(): Promise<void> {
+    this.agentApi.stop();
+    this.connecting = false;
+  }
+
+  async rotateToken(): Promise<void> {
+    if (!this.device) throw new Error("device-local storage is unavailable");
+    this.device.setToken(makeToken());
+    this.invalidatePersonal();
+  }
+
+  async setAutoStart(on: boolean): Promise<void> { this.device?.setAutoStart(on); }
+
+  reachableAddresses(): string[] {
+    return [...new Set(this.provider.lanAddresses())].filter((ip) => ip && ip !== "0.0.0.0" && ip !== "::" && ip !== "::1" && !ip.startsWith("127.") && !ip.startsWith("169.254."));
+  }
+
+  async testConnection(baseUrl: string, canaryPath?: string): Promise<ConnectionTestResult> {
+    const runtime = this.personal;
+    let canary: { path: string; title: string } | null = null;
+    if (canaryPath) canary = { path: canaryPath, title: runtime?.corpus.get(canaryPath)?.meta.title ?? canaryPath.replace(/^.*\//, "").replace(/\.md$/i, "") };
+    else canary = runtime?.firstSharedNote() ?? null;
+    return testPersonalConnection({ http: nodeRequire("http"), https: nodeRequire("https"), baseUrl, token: this.device?.token() ?? "", canary });
+  }
+
+  connectionToken(): string {
+    try { return this.ensureToken(); } catch { return ""; }
+  }
+
+  /** Absolute path of the bundled stdio adapter, for quick connect blocks. */
+  bridgePath(): string { return installedBridgePath(this.app, this); }
+
+  mcpProtocols(): { http: string[]; stdio: string[] } {
+    const s = this.agentSettings;
+    const older = s.activeProfile === "personal" ? s.personalNotes.connection.acceptOlderMcp !== false : s.agentLegacyMcp !== false;
+    return { http: advertisedMcpProtocolVersions("http", older), stdio: advertisedMcpProtocolVersions("stdio", older) };
+  }
+
+  /* ---- navigation ---- */
+
+  openTagging(): void {
+    if (this.taggingUi) { this.taggingUi(); return; }
+    try {
+      const setting = (this.app as typeof this.app & AppRegistries).setting;
+      if (setting?.open && setting.openTabById) { setting.open(); setting.openTabById(this.manifest.id); return; }
+    } catch { /* settings internals vary by Obsidian version */ }
+    new Notice("Kosmos-Oden: open Settings → Kosmos-Oden → Personal Notes → Optional tagging.");
+  }
+
+  async openPersonalSearch(): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(PERSONAL_SEARCH_VIEW)[0];
+    if (!leaf) {
+      leaf = ws.getLeaf(true);
+      await leaf.setViewState({ type: PERSONAL_SEARCH_VIEW, active: true });
+    }
+    ws.revealLeaf(leaf);
+  }
+
+  openAddNotes(): void { new AddNotesModal(this).open(); }
+  openConnectAi(): void { new ConnectAiModal(this).open(); }
+
+  /** Optional GKX lineage: record that the open note replaces another note. */
+  openSupersedes(): void {
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.extension !== "md") { new Notice("Kosmos-Oden: open the newer note first, then run this again."); return; }
+    new SupersedesModal(this, file).open();
   }
 
   async saveAgentSettings(): Promise<void> { await this.savePluginData(); }
@@ -633,8 +1308,8 @@ export default class KosmosOdenPlugin extends Plugin {
 
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
-  async markNotesInGkx(mode: GkxMigrationMode = "safe-onboarding"): Promise<void> {
-    await openGkxMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings);
+  async markNotesInGkx(mode: GkxMigrationMode = "safe-onboarding", onlyFolders?: readonly string[]): Promise<void> {
+    await openGkxMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings, onlyFolders);
   }
 
   async proposeGkxEnrichment(): Promise<void> {
@@ -642,12 +1317,21 @@ export default class KosmosOdenPlugin extends Plugin {
   }
 
   async writeAgentGuide(): Promise<void> {
+    if (this.agentSettings.activeProfile === "personal") {
+      // Personal tokens are device-local: never export one into a note.
+      const conn = this.agentSettings.personalNotes.connection;
+      const md = buildPersonalAgentGuide(this.agentSettings.agentPort, conn.bindMode, conn.acceptOlderMcp !== false);
+      await this.app.vault.adapter.write("AGENT-API.md", md);
+      new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (without a token; copy it from Connect my AI)");
+      return;
+    }
     const md = buildAgentGuide(
       this.agentSettings.agentPort,
       this.agentSettings.agentToken || "<enable the API to generate a token>",
       this.agentSettings.agentBindMode,
       this.agentLanUrls(),
-      installedBridgePath(this.app, this)
+      installedBridgePath(this.app, this),
+      this.agentSettings.agentLegacyMcp !== false,
     );
     await this.app.vault.adapter.write("AGENT-API.md", md);
     new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (with your address + token filled in)");
@@ -656,6 +1340,8 @@ export default class KosmosOdenPlugin extends Plugin {
   onunload(): void {
     this.eventsLive = false;
     this.agentApi?.stop();
+    this.detachPersonal();
+    this.searchStatusListeners.clear();
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);
     this.timestampTimers.clear();

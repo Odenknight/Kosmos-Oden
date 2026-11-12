@@ -61,10 +61,18 @@ development/build dependencies only; they are not redistributed in the plugin
 or standalone artifacts. Exact versions are pinned in `package.json` and
 `package-lock.json`.
 
+`@modelcontextprotocol/client` 2.4.0 (Apache-2.0, the official MCP TypeScript
+SDK client), added in 0.9.0, is likewise a development dependency used only by
+the MCP conformance tests. It and the packages it installs
+(`@modelcontextprotocol/core` Apache-2.0; `zod`, `cross-spawn`, `path-key`,
+`shebang-command`, `shebang-regex`, `eventsource`, `eventsource-parser`,
+`jose`, `pkce-challenge` MIT; `which`, `isexe` ISC) are not bundled into
+`main.js`, the stdio bridge or the release archive.
+
 ## GKOS-Engine
 
-Kosmos-Oden bundles the **GKOS-Engine 2.2.0 development candidate**, © OdenKnight contributors, under
-the Apache License 2.0. The exact commit (`650eab4a6752227cae336d7556a57826c22a0d5a`) is recorded in
+Kosmos-Oden bundles the **GKOS-Engine 2.2.0 development line**, © OdenKnight contributors, under
+the Apache License 2.0. The exact commit (`7511233717cd5ab9ce8f6cec76e9623a21e3c728`) is recorded in
 `package.json` and `package-lock.json`. Navigation is consumed only through
 the source-content-read-only Engine surface; Kosmos-Oden does not configure a
 Governance Store or expose source-content write capabilities through it.

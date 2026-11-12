@@ -2,9 +2,12 @@
 
 ## Scope and status vocabulary
 
-Kosmos-Oden 0.8.3 candidate consumes the TypeScript Engine 2.2.0 development candidate
-at exact commit `650eab4a6752227cae336d7556a57826c22a0d5a`. Navigation Effects remain
-experimental and default-disabled. See [candidate evidence](docs/REVIEW-0.8.3.md).
+Kosmos-Oden 0.9.0 (alpha test candidate) consumes the TypeScript Engine 2.2.0
+development line at exact commit `7511233717cd5ab9ce8f6cec76e9623a21e3c728`.
+It adds the Personal Notes profile and dual-era MCP; see
+[docs/v0.9.0/](docs/v0.9.0/BUILD-PROGRESS.md) for build evidence and pending
+trials. Navigation Effects remain experimental and default-disabled. Earlier
+candidate evidence: [REVIEW-0.8.3.md](docs/REVIEW-0.8.3.md).
 
 Use these states independently:
 
@@ -23,7 +26,8 @@ makes no GKOS conformance or certification claim.
 | Local Cluster renderer | Shared cosmology, hierarchical layout, WebGL2 shaders, controls, Chrono, search, playback, agent trails | Viewer starts after a graph is loaded | Visual projection only |
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
-| Obsidian Agent API | Read-only REST and Streamable HTTP MCP, stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
+| Obsidian Agent API | Read-only REST and Streamable HTTP MCP (modern and initialize-era), stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
+| Personal Notes profile (0.9.0) | Folder-scoped read policy, in-memory worker search, five read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; trials in `docs/v0.9.0/ALPHA-TEST.md` pending |
 | Standalone service client | Loopback address validation, bearer graph fetch, capability negotiation, authenticated event stream | Requires an external compatible service and viewer credential | Client validates Draft.1; service is not bundled |
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
@@ -68,12 +72,14 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.8.3 candidate**; minimum Obsidian: **1.11.4**.
+Product version: **0.9.0** (alpha test candidate); minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
-`github:Odenknight/GKOS-Engine#650eab4a6752227cae336d7556a57826c22a0d5a` (2.2.0 candidate).
-The dependency guard verifies the exact lock coordinate. Three.js remains
-0.185.1. Supported build runtimes are Node 22 and 24. No Rust runtime or
+`github:Odenknight/GKOS-Engine#7511233717cd5ab9ce8f6cec76e9623a21e3c728` (2.2.0 development line).
+The dependency guard verifies the exact lock coordinate. Three.js is
+0.186.1. Supported build runtimes are Node 22 and 24. The only dependency
+added in 0.9.0 is the development-only MCP test client
+`@modelcontextprotocol/client@2.4.0`; it is not bundled. No Rust runtime or
 Node Effects executor is added to the browser or Obsidian plugin.
 Historical Effects evidence remains in docs/navigation-effects; current
 consumer validation is in [REVIEW-0.8.2.md](docs/REVIEW-0.8.2.md).
@@ -336,6 +342,30 @@ errors (`-32020`, `-32022`, `-32601`); see `AGENT-API.md`.
 send HTTP headers, mirroring the body fields into those headers. It
 deliberately does not synthesize `_meta` a client omitted.
 
+Since 0.9.0 the same endpoint also answers initialize-era clients while
+**Accept older MCP clients** is on (default): `2025-11-25`, `2025-06-18` and
+`2025-03-26` natively (March-2025 batches included), and `2024-11-05` only
+through the bridge. `src/plugin/mcp-compat.ts` classifies each POST by the
+presence of modern markers and serves the legacy path statelessly. See
+[MCP-COMPATIBILITY.md](docs/v0.9.0/MCP-COMPATIBILITY.md).
+
+### Personal Notes profile (0.9.0)
+
+`activeProfile` (settings schema 11) selects which profile the listener
+serves. In the Personal profile the server exposes exactly five read-only
+tools (`vault_overview`, `search_notes`, `get_note`, `get_related`,
+`get_lineage`) and the matching REST routes; every existing-profile tool and
+route is unknown. Access is decided by one read policy (shared folders,
+always-excluded paths, physical containment, authored sensitivity against the
+existing ceiling) with a monotonic policy generation that ends in-flight
+answers after any access change. The bearer token is device-local and never
+persisted in plugin data. `get_note` returns exact UTF-16 pages with SHA-256
+continuation (`kosmos-personal-notes/1`). Search runs in a bundled Web Worker
+over an in-memory corpus rebuilt at startup. Optional deterministic tags are
+the only note writer the profile adds; the legacy automatic timestamp writer
+stands down while it is active. Reference: [AGENT-API.md](AGENT-API.md);
+user guide: [docs/PERSONAL-NOTES.md](docs/PERSONAL-NOTES.md).
+
 Security controls include:
 
 - CSPRNG bearer tokens and constant-time comparison;
@@ -436,7 +466,9 @@ and is not a replacement for independent backup.
 | Renderer, search, Chrono, heat, replay | No source or sidecar write |
 | Standalone folder/snapshot scan | Read-only source access |
 | Graph/Graphiti/session export | Explicit download outside the source workflow |
-| Obsidian REST/MCP API | Read-only; no write routes or tools |
+| Obsidian REST/MCP API (both profiles) | Read-only; no write routes or tools |
+| Personal Notes search, import review, connection | No source write |
+| Personal Notes optional tags | Off by default; preview, hash re-check, exact backup, selected keys only; opted-in automatic time stamps on real content changes in tagging folders |
 | Navigation 1.0 | Selects existing visual centers; apply capability false |
 | Navigation Effects feature-branch planner/settings/status | Pure capability, configuration, policy, and authority-validation values; no source or sidecar write |
 | Navigation Effects execution | Not implemented or configured in Kosmos; unavailable and off |

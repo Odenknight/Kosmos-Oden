@@ -28,8 +28,24 @@ Releases are built **from the tag in CI**, not copied from a workstation
    - `BUILD-INFO.json` — provenance: commit, tag, workflow, run id, Node version,
      lockfile SHA-256, dirty flag, build time.
    - `SHA256SUMS` — integrity hashes over every release file.
+   Since 0.9.0 it also writes an installable archive,
+   `release/kosmos-oden-<version>-<label>.zip` (label `alpha.1` by default;
+   `--label=` changes it, `--label=` with no value drops it) and
+   `<archive>.zip.sha256`. The archive holds a `kosmos-oden/` plugin folder
+   (`main.js`, `manifest.json`, `styles.css`, `kosmos-mcp-stdio.mjs`), every
+   `docs/v<version>/*.md` file under `docs/`, `LICENSE`,
+   `THIRD-PARTY-NOTICES.md`, `BUILD-INFO.json` and its own `SHA256SUMS`. The
+   packager fails if `docs/v<version>/` lacks `ALPHA-INSTALL.md`,
+   `ALPHA-TEST.md`, `KNOWN-LIMITATIONS.md`, `MCP-COMPATIBILITY.md` or
+   `BUILD-PROGRESS.md`. The archive name's label does not change the manifest
+   version.
 5. `sha256sum -c SHA256SUMS` — verify the staged checksums.
 6. Publish a GitHub release with `release/*` attached and generated notes.
+
+An alpha test candidate (such as `0.9.0-alpha.1`) is built with the same
+command and handed to the owner with its checksum, together with the pending
+trials listed in its `ALPHA-TEST.md`. It is not tagged or published unless
+the owner separately asks for that.
 
 `GITHUB_TOKEN` permission for the release job is `contents: write`; CI
 validation runs with `contents: read`.

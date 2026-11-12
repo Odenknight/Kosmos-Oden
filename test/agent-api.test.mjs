@@ -345,15 +345,17 @@ test("agent api", async (t) => {
     assert.deepEqual(err.data.supported, ["2026-07-28"]);
   });
 
-  await t.test("real legacy initialize preserves header validation and names supported versions", async () => {
+  await t.test("real legacy initialize is answered statelessly (Accept older MCP clients defaults on)", async () => {
+    // 0.9.0 contract change: a settings object that omits agentLegacyMcp has
+    // the shipped default (on). The modern-only refusal is covered in
+    // mcp-compat.test.mjs with the setting explicitly off.
     const r = await mcp({ jsonrpc: "2.0", id: "legacy", method: "initialize", params: {
       protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "legacy", version: "1" },
     } }, { raw: true });
-    assert.equal(r.status, 400);
+    assert.equal(r.status, 200);
     assert.equal(r.json().id, "legacy");
-    assert.equal(r.json().error.code, -32020);
-    assert.match(r.json().error.message, /MCP-Protocol-Version header is required/);
-    assert.match(r.json().error.message, /supported protocol versions: 2026-07-28/);
+    assert.equal(r.json().result.protocolVersion, "2025-11-25");
+    assert.equal(r.json().result.resultType, undefined);
     assert.equal(r.headers["mcp-session-id"], undefined);
   });
 
@@ -772,7 +774,9 @@ test("modern clients sharing User-Agent have independent bounded execution slots
 test("invalid modern metadata and authentication do not claim execution slots", async () => {
   const { server, port } = await startServer();
   try {
-    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+    // 0.9.0: a bare request without modern markers is initialize-era traffic,
+    // so the invalid modern request here carries a reserved key with no version.
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: { [MCP_META_CLIENT_CAPABILITIES]: {} } } });
     assert.equal((await request(port, { method: "POST", path: "/mcp", headers: auth, body })).status, 400);
     assert.equal((await request(port, { method: "POST", path: "/mcp", body })).status, 401);
     assert.equal(server.inFlight, 0);

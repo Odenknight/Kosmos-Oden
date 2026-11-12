@@ -4,8 +4,9 @@ import { build } from "esbuild";
 
 const obsidianStub = `
 export class ItemView { constructor(leaf) { this.app = leaf.app; this.containerEl = { offsetParent: {}, empty() {}, addClass() {} }; this.contentEl = this.containerEl; } registerDomEvent() {} }
-export class Notice {} export class Plugin {} export class PluginSettingTab {} export class Modal {} export class Setting {} export class TFile {} export class TFolder {} export class WorkspaceLeaf {}
+export class Notice {} export class Plugin {} export class PluginSettingTab {} export class Modal {} export class FuzzySuggestModal extends Modal {} export class Setting {} export class TFile {} export class TFolder {} export class WorkspaceLeaf {}
 export const Platform = {}; export const normalizePath = (p) => p; export const requestUrl = async () => ({ status: 200, text: "", json: {} });
+export const parseYaml = () => ({});
 `;
 const bundled = await build({
   entryPoints: ["src/plugin/main.ts"], bundle: true, platform: "node", format: "esm", write: false,

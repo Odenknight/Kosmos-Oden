@@ -86,6 +86,8 @@ export class VaultDataProvider implements AgentDataProvider {
   private renamedPaths: Array<{ from: string; to: string }> = [];
   private building: Promise<GkxGraph> | null = null;
   private sourceFiles = new Map<string, SourceFile>();
+  /** Personal Notes (0.9.0): full text over the committed snapshot, rebuilt
+   *  only when the graph object changes. Memory only; nothing is written. */
 
   constructor(app: App, settings: AgentSettings, private limits = { readMs: VAULT_READ_TIMEOUT_MS, buildMs: VAULT_BUILD_TIMEOUT_MS }) {
     this.app = app;

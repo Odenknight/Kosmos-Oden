@@ -31,6 +31,16 @@ security:
   default_unlabeled_sensitivity: secret
   invalid_sensitivity_fails_closed_as: secret
   invalid_v23_sensitivity_fails_closed_as: secret
+  # Personal Notes profile (0.9.0). It shares nothing until the user chooses
+  # folders (an empty folder list reads nothing) and never autostarts by
+  # default. Without its injected runtime it fails closed instead of falling
+  # back to the existing profile's vault-wide tools. Its token is device-local
+  # (never the persisted agentToken) and never accepted from a query string.
+  # Switching profiles never rewrites the existing profile's defaultSensitivity.
+  personal_notes_default_folders_empty: true
+  personal_fails_closed_without_runtime: true
+  personal_query_tokens_allowed: false
+  personal_rewrites_default_sensitivity: false
   # The Agent API is read-only: no write routes exist.
   api_write_routes_allowed: false
   # Request body cap, in bytes.
@@ -48,9 +58,20 @@ security:
   # Host/Origin validation must be present.
   host_validation: required
   origin_validation: required
-  # Modern-era MCP only (owner direction 2026-09-09). Legacy revisions are not
-  # served: no initialize handshake, no protocol session, no GET stream.
+  # Latest (modern-era) MCP revision: no initialize handshake, no protocol
+  # session, no GET stream.
   mcp_latest_protocol: 2026-07-28
+  # Legacy revisions (0.9.0, owner direction 2026-11-12): answered only while
+  # "Accept older MCP clients" (agentLegacyMcp in the existing profile,
+  # personalNotes.connection.acceptOlderMcp in Personal Notes) is on -- default on, off only
+  # when explicitly false -- and always statelessly. No session is minted and
+  # no Mcp-Session-Id is issued or required in either era. Native /mcp serves
+  # 2025-11-25, 2025-06-18 and 2025-03-26; 2024-11-05 reaches the server only
+  # through the stdio bridge's internal adapter. The deprecated HTTP+SSE
+  # transport (/sse + /messages) is not served.
+  mcp_legacy_requires_setting: true
+  mcp_legacy_sessions: false
+  mcp_native_sse_transport: false
 
 build:
   lockfile_required: package-lock.json

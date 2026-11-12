@@ -151,3 +151,39 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Personal Notes (0.9.0) */
+.kosmos-notes-search { padding: 0.75rem; overflow-y: auto; }
+.kosmos-notes-search-input { width: 100%; }
+.kosmos-notes-search-status { color: var(--text-muted); font-size: var(--font-ui-small); margin: 0.5rem 0; }
+.kosmos-notes-search-scope { color: var(--text-muted); font-size: var(--font-ui-small); margin: 0 0 0.5rem; }
+.kosmos-notes-search-index { color: var(--text-muted); font-size: var(--font-ui-small); display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.kosmos-notes-search-row { padding: 0.5rem; border-bottom: 1px solid var(--background-modifier-border); border-radius: var(--radius-s, 4px); cursor: pointer; }
+.kosmos-notes-search-row:hover,
+.kosmos-notes-search-row[aria-selected="true"] { background: var(--background-modifier-hover); }
+.kosmos-notes-search-row:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+.kosmos-notes-search-title { font-weight: var(--font-semibold, 600); color: var(--text-normal); }
+.kosmos-notes-search-path,
+.kosmos-notes-search-fields { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.kosmos-notes-search-snippet { color: var(--text-muted); font-size: var(--font-ui-small); margin-top: 0.2rem; }
+.kosmos-personal-modal .kosmos-personal-steps li { margin-bottom: 0.35rem; }
+.kosmos-personal-result { font-weight: var(--font-semibold, 600); }
+.kosmos-personal-warning { color: var(--text-warning); }
+.kosmos-personal-warning:empty { display: none; }
+.kosmos-personal-facts li,
+.kosmos-personal-states li { margin-bottom: 0.25rem; color: var(--text-muted); }
+.kosmos-quick-connect-endpoint { font-family: var(--font-monospace); overflow-wrap: anywhere; }
+.kosmos-personal-modal button:focus-visible,
+.kosmos-personal-modal a:focus-visible,
+.kosmos-personal-modal summary:focus-visible,
+.kosmos-settings-panel button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+.kosmos-test-steps .is-ok { color: var(--text-success); }
+.kosmos-test-steps .is-failed { color: var(--text-error); }
+.kosmos-tagging-findings li { color: var(--text-warning); margin-bottom: 0.25rem; }
+.kosmos-tagging-note { border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 0.5rem; }
+.kosmos-tagging-diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.kosmos-tagging-diff pre { margin: 0.25rem 0; padding: 0.5rem; max-height: 16rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--background-secondary); color: var(--text-normal); border-radius: var(--radius-s, 4px); font-size: var(--font-ui-smaller); }
+.kosmos-tagging-diff-label { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+@media (max-width: 700px) {
+  .kosmos-tagging-diff { grid-template-columns: minmax(0, 1fr); }
+}
