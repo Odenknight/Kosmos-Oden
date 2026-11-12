@@ -2,7 +2,7 @@
   "id": "kosmos-oden",
   "name": "Kosmos-Oden",
   "version": "0.9.0",
-  "minAppVersion": "1.11.4",
+  "minAppVersion": "1.13.0",
   "description": "Explore your vault as a 3D knowledge view. Gives AI agents read-only access through MCP, powered by GKOS-Engine. Optional Graphiti export and Nextcloud sync.",
   "author": "OdenKnight",
   "authorUrl": "https://github.com/Odenknight/Kosmos-Oden",
