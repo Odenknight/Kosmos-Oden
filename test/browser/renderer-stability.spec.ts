@@ -128,6 +128,7 @@ test("close-up tier: promoted bodies are drawn once, at their body's position", 
 });
 
 test("the same vault lays out identically across reloads", async ({ page }) => {
+  test.slow(); // loads the scene twice; timed out at 30 s beside another worker on software GL
   const ids = vault(200).files.map((f) => "file:" + f.relativePath);
   await load(page, FROZEN, 200);
   const a = (await inspect(page, ids)).positions;

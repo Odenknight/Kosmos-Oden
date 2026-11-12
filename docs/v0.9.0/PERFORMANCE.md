@@ -29,7 +29,27 @@ Search is a lexical scan, so latency grows roughly linearly with the text it sca
 | Chromium: main-thread long tasks during edits | 0 | 0 | |
 | Chromium: edit to visible, max | 319 ms | 304 ms | ≤ 3 s ✅ |
 
-The worst single query (max 347–389 ms) is a common term. Its p50 was 121–293 ms across the two runs. The p95 target holds and the max does not. Run 1 was the more loaded run.
+### Run 3: idle machine, final build
+
+Runs 1 and 2 shared the machine with other builds. Run 3 was taken on the same machine with nothing else running, on the final build (compact offset map included).
+
+| Measurement | Run 3 | Target |
+| --- | --- | --- |
+| First build: searchable in the worker | **4.1 s** | ≤ 120 s ✅ |
+| Rebuild after restart | 3.8 s | ≤ 120 s ✅ |
+| Warm search p50 / p95 / max | 40 / **102** / 133 ms | p95 ≤ 300 ms ✅ |
+| Scoped search (half the vault) p50 / p95 | 21 / 53 ms | |
+| Edit to visible, p50 / max | 287 / **292** ms | ≤ 3 s ✅ |
+| Peak process RSS: before / indexed / searching / restart | 232 / 459 / 470 / 464 MiB | |
+| Starter patch matcher, main thread: search p50 / p95 | 47 / 138 ms | before |
+| This matcher, main thread: search p50 / p95 | 37 / 96 ms | after |
+| Chromium: searchable after | 11.4 s | |
+| Chromium: search p50 / p95 | 50 / 122 ms | |
+| Chromium: main-thread long tasks during indexing, search and edits | **0, 0, 0** | none > 50 ms ✅ |
+
+On the idle machine the slowest single query was 133 ms, and indexing produced no long task. This is still outside Obsidian: timings inside Obsidian with the 3D view open are an owner trial.
+
+The worst single query (max 347–389 ms) in runs 1 and 2 is a common term. Its p50 was 121–293 ms across the two runs. The p95 target holds and the max does not. Run 1 was the more loaded run.
 
 Peak RSS covers the whole Node process: the main-thread corpus (raw text) plus the worker (raw text plus its NFC/lowercase copy, and the offset map only for text whose length changed; see [Offset map memory](#offset-map-memory)). The run-level numbers in this table were measured before the compact offset map; this corpus is mostly ASCII, so its map was small either way. That is roughly 3× the raw corpus size plus the runtime.
 

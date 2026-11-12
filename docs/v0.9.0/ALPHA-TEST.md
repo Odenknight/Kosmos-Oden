@@ -65,7 +65,9 @@ and sync, out of the no-write measurement in step 2.
    folder (it must report not found).
 9. **Connect from another computer.** "Network access": local network.
    "Another computer / agent server": choose the IP address shown for this
-   computer (a typed host name is refused with "forbidden host"), copy the
+   computer, or type the host name or VPN address the agent will use (only
+   the address you save here is accepted; any other host name is refused
+   with "forbidden host"), copy the
    configuration, use it on the agent machine (for
    example the agent LXC). Repeat step 8's three requests. Check the copied
    configuration contains a reachable address, never `0.0.0.0` or
