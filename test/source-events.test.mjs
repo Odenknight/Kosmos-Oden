@@ -8,6 +8,7 @@ export class Notice {} export class PluginSettingTab {} export class Modal {} ex
 export class Plugin { constructor(app) { this.app = app; } async loadData() { return {}; } async saveData() {} registerView() {} registerEvent() {} registerInterval() {} addSettingTab() {} addRibbonIcon() {} addCommand() {} }
 export class TFile {} export class TFolder {} export class WorkspaceLeaf {}
 export const Platform = {}; export const normalizePath = (p) => p; export const requestUrl = async () => ({ status: 200, text: "", json: {} });
+export const parseYaml = () => ({});
 `;
 const bundled = await build({
   entryPoints: ["src/plugin/main.ts"], bundle: true, platform: "node", format: "esm", write: false,
