@@ -1,6 +1,6 @@
 {
   "name": "kosmos-oden",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "Kosmos-Oden — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS-Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",

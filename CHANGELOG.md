@@ -4,6 +4,46 @@
 
 - Naming pass: use the GKOS-Engine and GKOS-Engine-Lite spellings in UI text and docs, rename local scratch-directory ignores to `kosmos-oden_v*`, and rewrite the manifest description in plain language. The existing read-only compatibility for the pre-rename `vault-kosmos-view` view type and `vault-kosmos-nextcloud-*` secret key is kept, so saved layouts and stored WebDAV passwords still carry over.
 
+## 0.9.0 (alpha) — 2026-11-12
+
+Personal Notes (alpha, opt in, desktop):
+- New **Add notes from another app** window: guided Google Keep and OneNote
+  import through the Obsidian Importer community plugin, which extracts notes
+  to Markdown with their attachments, followed by a plain status of what
+  arrived. Kosmos-Oden converts nothing itself.
+- New **Search my notes** view: full text search over every note, with
+  snippets. No embeddings and no index file on disk.
+- New **Connect my AI** window: choose the folders an assistant may read,
+  choose this computer or the local network, turn on the existing read only
+  Agent API, and copy a quick connect block.
+- Personal Notes access rule: while the mode is on, an assistant can read only
+  notes inside the chosen folders. Notes with no sensitivity label are treated
+  as `internal`; explicit labels and the agent ceiling still apply. The mode is
+  off by default and shares nothing until folders are chosen.
+- Optional GKX tags for personal notes: a time stamp opt in for import
+  folders, the existing deterministic GKX formatting workflow scoped to the
+  import folders, and a new **This note replaces another note** command that
+  writes a `supersedes` property. Notes inside an import folder are not
+  stamped unless the user opts in.
+
+Agent API:
+- Dual-era MCP by owner direction of 2026-11-12. The modern `2026-07-28` path
+  is unchanged. While the new **Accept older MCP clients** setting is on (the
+  default), clients that open with the legacy `initialize` handshake
+  (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`) are answered on a
+  stateless legacy path. No session is minted in either era.
+- `search_notes` performs full text search with `snippet`, `matchedIn` and
+  `score` per result while Personal Notes mode is on. With the mode off, or
+  with `body: false`, search is unchanged.
+- `get_note` accepts `offset` and `expected_hash` and returns
+  `contentTotalChars`, `contentOffset`, `truncated`, `nextOffset`,
+  `contentHash` and `attachments` in both modes.
+- `vault_overview` returns a `personalNotes` block.
+- Settings schema 10 adds the Personal Notes fields and `agentLegacyMcp`.
+
+Unchanged: Engine pin, renderer, Graphiti export, Nextcloud sync, loopback and
+local network bind modes, and every default of a pre-existing setting.
+
 ## 0.8.4 — 2026-10-21
 
 Engine:

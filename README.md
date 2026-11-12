@@ -1,4 +1,4 @@
-# Kosmos-Oden — v0.8.4
+# Kosmos-Oden — v0.9.0
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
@@ -17,6 +17,16 @@ knowledge from a new angle.
 Your Markdown remains the source of truth. Ordinary viewing is local and
 read-only, and the standalone viewer works without Obsidian or the internet.
 
+> **Version 0.9.0 (alpha):** adds Personal Notes, an optional mode for everyday
+> notes with no GKX formatting. It guides you through bringing in Google Keep
+> and OneNote notes with the Obsidian Importer community plugin, adds a full
+> text **Search my notes** view, and adds **Connect my AI**, where you choose
+> which folders an assistant may read and whether it connects from this
+> computer or your local network. GKX time stamps, IDs and supersedes lineage
+> stay available and optional. The Agent API now also answers older MCP
+> clients. Off by default. Desktop only. See
+> [Personal Notes](docs/PERSONAL-NOTES.md).
+>
 > **Version 0.8.4:** sharper close-ups (a finer close-up mesh tier with extra surface
 > detail and relief, closer zoom on a selected body), a lighter per-frame renderer
 > (the hidden minimap is no longer painted), and Engine-resolved lineage
@@ -287,9 +297,10 @@ relationship, and paginated Graphiti query surfaces.
 The MCP endpoint uses Streamable HTTP in the stateless per-request ("modern")
 shape defined by MCP revision `2026-07-28`: no handshake, no session, no GET
 stream, with the protocol version and client identity carried per request in
-`_meta` and validated against the mirrored HTTP headers. Legacy revisions
-(`2025-11-25` and earlier) are not served, so a client that speaks only those
-cannot connect. `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
+`_meta` and validated against the mirrored HTTP headers. As of 0.9.0, clients
+that speak only legacy revisions (`2025-11-25` and earlier) are answered too,
+also without a session, while **Accept older MCP clients** is on (the
+default). `kosmos-mcp-stdio.mjs` is included for stdio-only clients. Request,
 response, rate, concurrency, and episode-page limits bound resource use.
 Sensitivity filtering applies before serialization; invalid explicit labels
 fail closed.
@@ -446,8 +457,10 @@ licensing structure.
 
 ## MCP qualification scope
 
-The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
-connect. The separate Engine retrieval client is not upgraded by this candidate;
+The Agent API implements modern MCP `2026-07-28` and, while **Accept older MCP
+clients** is on, a stateless legacy path for `2025-11-25` and earlier. The
+legacy path is new in 0.9.0 and is covered by automated tests only; no named
+legacy client has been qualified. The separate Engine retrieval client is not upgraded by this candidate;
 its service must be qualified independently of the bundled library version.
 
 Kosmos-Oden's read-only viewing behavior does not by itself qualify the GKOS

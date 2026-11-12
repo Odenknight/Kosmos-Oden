@@ -31,6 +31,10 @@ security:
   default_unlabeled_sensitivity: secret
   invalid_sensitivity_fails_closed_as: secret
   invalid_v23_sensitivity_fails_closed_as: secret
+  # Personal Notes mode (0.9.0) is opt-in. Turning it on shares nothing until
+  # the user chooses folders, and an empty folder list reads nothing.
+  personal_notes_default_enabled: false
+  personal_notes_default_folders_empty: true
   # The Agent API is read-only: no write routes exist.
   api_write_routes_allowed: false
   # Request body cap, in bytes.
@@ -51,6 +55,11 @@ security:
   # Modern-era MCP only (owner direction 2026-09-09). Legacy revisions are not
   # served: no initialize handshake, no protocol session, no GET stream.
   mcp_latest_protocol: 2026-07-28
+  # Legacy revisions (0.9.0, owner direction 2026-11-12): answered only while
+  # the agentLegacyMcp setting is true, and always statelessly. No session is
+  # minted and no Mcp-Session-Id is issued or required in either era.
+  mcp_legacy_requires_setting: true
+  mcp_legacy_sessions: false
 
 build:
   lockfile_required: package-lock.json

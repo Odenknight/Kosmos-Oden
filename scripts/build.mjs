@@ -111,6 +111,9 @@ async function buildNodeBundles() {
   // standalone live Agent-API feed glue is DOM-free and unit-testable
   const apiFeed = await bundle("src/standalone/api-feed.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-api-feed.mjs"), apiFeed);
+  // Personal Notes (0.9.0) pure helpers are dependency-free and unit-testable
+  const personalNotes = await bundle("src/personal-notes/index.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-personal-notes.mjs"), personalNotes);
   console.log("built dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-agent-lineage-test.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-version-metadata.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
 }
 

@@ -64,6 +64,11 @@ must(/agentAllowQueryToken:\s*false/.test(server), "default agentAllowQueryToken
 must(new RegExp(`agentSensitivityCeiling:\\s*"${sec.default_agent_sensitivity_ceiling}"`).test(server), "default agent sensitivity ceiling must match policy");
 must(sec.default_unlabeled_sensitivity === "secret", "policy: default_unlabeled_sensitivity must be secret (fail closed)");
 must(/defaultSensitivity:\s*FAIL_CLOSED_SENSITIVITY_DEFAULT/.test(server), "DEFAULT_AGENT_SETTINGS.defaultSensitivity must be the engine fail-closed default (secret)");
+must(sec.personal_notes_default_enabled === false && /personalNotesEnabled:\s*false/.test(server), "Personal Notes mode must be off by default");
+must(sec.personal_notes_default_folders_empty === true && /personalNotesFolders:\s*\[\]/.test(server), "Personal Notes must share no folders by default");
+must(/if \(this\.settings\.personalNotesEnabled && !inPersonalScope\(/.test(server), "canRead must apply the Personal Notes folder rule before the sensitivity rule");
+must(sec.mcp_legacy_requires_setting === true && /if \(this\.settings\.agentLegacyMcp !== true\) return false;/.test(server), "legacy MCP must be answered only while agentLegacyMcp is exactly true");
+must(sec.mcp_legacy_sessions === false && !/["'`]Mcp-Session-Id["'`]\s*:/.test(serverCode), "the server must not issue an Mcp-Session-Id header in either era");
 must(server.includes(`"${sec.mcp_latest_protocol}"`) && /SUPPORTED_MCP_PROTOCOL_VERSIONS/.test(server), "latest MCP revision must match policy");
 must(sec.query_tokens_default_enabled === false, "policy: query_tokens_default_enabled must be false");
 must(/lanNeedsAuthButHasNone/.test(server) && /LAN mode requires an auth token/.test(server), "server must refuse to start LAN mode without a token");

@@ -3,7 +3,7 @@ import { App, Notice, PluginSettingTab, Platform, Setting } from "obsidian";
 import { COMMON_GKX_DEVELOPER_EXCLUSIONS, ENGINE_VERSION, normalizeGkxExclusionPatterns, SENSITIVITY_RANK } from "gkos-engine";
 import type { GkxSensitivity } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
-import { LATEST_MCP_PROTOCOL_VERSION, makeToken, type AgentSettings } from "./agent-server";
+import { LATEST_MCP_PROTOCOL_VERSION, LEGACY_MCP_PROTOCOL_VERSIONS, makeToken, type AgentSettings } from "./agent-server";
 import { DEFAULT_SYNC_EXCLUDES, PROTECTED_SYNC_EXCLUDES } from "./nextcloud-sync";
 
 export function installedBridgePath(app: App, plugin: any): string {
@@ -108,7 +108,7 @@ and a designated name creates separate ships; names never grant authority.
 ### Cursor / Windsurf / any Streamable-HTTP MCP client
 Add a remote/HTTP MCP server with URL \`${URLB}/mcp\` and header \`Authorization: Bearer ${token}\`.
 
-The endpoint supports MCP \`${LATEST_MCP_PROTOCOL_VERSION}\` only. There is no initialization handshake or protocol session. Each request must include \`params._meta["io.modelcontextprotocol/protocolVersion"]\` and a \`params._meta["io.modelcontextprotocol/clientCapabilities"]\` object (\`{}\` if no optional capabilities). Client identity in \`io.modelcontextprotocol/clientInfo\` is optional. Mirror the version into \`MCP-Protocol-Version\`, the method into \`Mcp-Method\`, and the tool/prompt name or resource URI into \`Mcp-Name\` for \`tools/call\`, \`prompts/get\`, or \`resources/read\`. Call \`server/discover\` for supported versions and capabilities. Clients using legacy initialization cannot connect; the stdio adapter also requires modern requests.
+The endpoint speaks modern MCP \`${LATEST_MCP_PROTOCOL_VERSION}\` natively, with no initialization handshake or protocol session. While "Accept older MCP clients" is on (the default), clients that open with the legacy initialize handshake are answered too, also without a session. Each modern request must include \`params._meta["io.modelcontextprotocol/protocolVersion"]\` and a \`params._meta["io.modelcontextprotocol/clientCapabilities"]\` object (\`{}\` if no optional capabilities). Client identity in \`io.modelcontextprotocol/clientInfo\` is optional. Mirror the version into \`MCP-Protocol-Version\`, the method into \`Mcp-Method\`, and the tool/prompt name or resource URI into \`Mcp-Name\` for \`tools/call\`, \`prompts/get\`, or \`resources/read\`. Call \`server/discover\` for supported versions and capabilities. With "Accept older MCP clients" off, clients using legacy initialization cannot connect. The stdio adapter forwards both kinds of request unchanged.
 
 ### No MCP? Plain HTTP works too
 \`\`\`bash
@@ -281,6 +281,19 @@ export class KosmosSettingTab extends PluginSettingTab {
 
     agentEl.createEl("h2", { text: "Agent API (HTTP + MCP)" });
     agentEl.createEl("p", { text: "Read-only access to the sensitivity-filtered Kosmos Governed Context Projection (KGCP) through REST and MCP Streamable HTTP. Localhost-only by default, token-protected, and available on desktop Obsidian." });
+
+    // Personal Notes (0.9.0): a plain entry point above the governed controls.
+    const personalScope = s.personalNotesFolders.includes("/") ? "all notes" : (s.personalNotesFolders.length ? s.personalNotesFolders.join(", ") : "nothing yet");
+    new Setting(agentEl).setName("Personal Notes")
+      .setDesc(s.personalNotesEnabled
+        ? `On. Your assistant may read: ${personalScope}. Notes without a sensitivity label are treated as internal while this is on. Turning it off restores your previous Default sensitivity.`
+        : "Off. Turn this on to bring in notes from other apps, search them, and choose which folders an assistant may read.")
+      .addButton((b) => b.setButtonText("Add notes").onClick(() => this.plugin.openAddNotes()))
+      .addButton((b) => b.setButtonText("Connect my AI").setCta().onClick(() => this.plugin.openConnectAi()))
+      .addToggle((t) => t.setValue(s.personalNotesEnabled).onChange(async (v) => { await this.plugin.setPersonalNotesMode(v); this.display(); }));
+    new Setting(agentEl).setName("Accept older MCP clients")
+      .setDesc(`On by default. Besides modern MCP ${LATEST_MCP_PROTOCOL_VERSION}, also answer clients that open with the older initialize handshake (${LEGACY_MCP_PROTOCOL_VERSIONS.join(", ")}). No session is created either way. Turn off to serve modern MCP only.`)
+      .addToggle((t) => t.setValue(s.agentLegacyMcp !== false).onChange(async (v) => { s.agentLegacyMcp = v; await this.plugin.saveAgentSettings(); }));
 
     // Default sensitivity sits ABOVE the enable control so it can be set before
     // any network-facing surface is switched on. The vocabulary is imported from

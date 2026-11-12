@@ -15,7 +15,7 @@ import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
 import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
-import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
+import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, disablePersonalNotes, enablePersonalNotes, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
@@ -25,6 +25,12 @@ import { VaultDataProvider, attachmentListFrom, folderListFrom, nodeRequire } fr
 import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
+import { isUnderAnyFolder } from "../personal-notes/scope";
+import { summarizePersonalNotes, type PersonalNotesStatus } from "../personal-notes/status";
+import { PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-view";
+import { AddNotesModal } from "../ui/add-notes-modal";
+import { ConnectAiModal } from "../ui/connect-ai-modal";
+import { SupersedesModal } from "../ui/supersedes-modal";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -344,6 +350,8 @@ export default class KosmosOdenPlugin extends Plugin {
     // Obsidian emits create events for existing notes during startup discovery.
     // Those are not user edits and must not start frontmatter writes.
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
+    // Personal Notes (0.9.0): Kosmos-Oden does not stamp an imported note unless the user opted in.
+    if (this.agentSettings.personalNotesEnabled && !this.agentSettings.personalNotesStampImports && isUnderAnyFolder(file?.path, this.agentSettings.personalNotesImportFolders)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     if ((this.timestampWriteUntil.get(file.path) ?? 0) > Date.now()) return;
     const previous = this.timestampTimers.get(file.path);
@@ -357,6 +365,8 @@ export default class KosmosOdenPlugin extends Plugin {
 
   async stampNote(file: any): Promise<void> {
     if (!this.eventsLive || this.timestampWrites.has(file)) return;
+    // Personal Notes (0.9.0): Kosmos-Oden does not stamp an imported note unless the user opted in.
+    if (this.agentSettings.personalNotesEnabled && !this.agentSettings.personalNotesStampImports && isUnderAnyFolder(file?.path, this.agentSettings.personalNotesImportFolders)) return;
     if (isKosmosOperationalPath(file?.path) || !this.agentSettings.noteTimestampsEnabled || !timestampEligible(file?.path || "", file?.extension || "")) return;
     this.timestampWrites.add(file);
     try {
@@ -429,6 +439,14 @@ export default class KosmosOdenPlugin extends Plugin {
     this.registerView(LEGACY_VIEW_TYPE, kosmosView);
     this.addRibbonIcon("orbit", "Open Kosmos-Oden", () => void this.activate());
     this.addCommand({ id: "open-kosmos-oden", name: "Open Kosmos-Oden", callback: () => void this.activate() });
+    // Personal Notes (0.9.0). Only registerView, addRibbonIcon and addCommand
+    // are used here: the plugin test stub implements nothing else.
+    this.registerView(PERSONAL_SEARCH_VIEW, (leaf: WorkspaceLeaf) => new PersonalSearchView(leaf, this));
+    this.addRibbonIcon("search", "Search my notes", () => void this.openPersonalSearch());
+    this.addCommand({ id: "search-my-notes", name: "Search my notes", callback: () => void this.openPersonalSearch() });
+    this.addCommand({ id: "add-notes", name: "Add notes from another app", callback: () => this.openAddNotes() });
+    this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
+    this.addCommand({ id: "note-supersedes", name: "This note replaces another note (GKX supersedes)", callback: () => this.openSupersedes() });
     this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
@@ -544,6 +562,54 @@ export default class KosmosOdenPlugin extends Plugin {
     ws.revealLeaf(leaf);
   }
 
+  /* ---------------- Personal Notes (0.9.0) ---------------- */
+
+  /** Turn Personal Notes mode on or off, persist, and re-project unlabeled notes. */
+  async setPersonalNotesMode(on: boolean): Promise<void> {
+    if (on) enablePersonalNotes(this.agentSettings); else disablePersonalNotes(this.agentSettings);
+    await this.saveAgentSettings();
+    this.provider.reprojectForSensitivity();
+  }
+
+  /** Absolute path of the bundled stdio adapter, for quick connect blocks. */
+  bridgePath(): string { return installedBridgePath(this.app, this); }
+
+  /** Plain status of imported notes, computed from the vault itself. */
+  async personalNotesStatus(): Promise<PersonalNotesStatus> {
+    const graph = await this.provider.getGraph();
+    const notes = graph.nodes
+      .filter((n) => n.kind === "file")
+      .map((n) => ({ path: n.path, body: this.provider.getIndexedBody(n.path, graph) ?? "" }));
+    const files = this.app.vault.getFiles().map((f) => f.path);
+    return summarizePersonalNotes({ notes, files, importFolders: this.agentSettings.personalNotesImportFolders });
+  }
+
+  async openPersonalSearch(): Promise<void> {
+    const ws = this.app.workspace;
+    let leaf = ws.getLeavesOfType(PERSONAL_SEARCH_VIEW)[0];
+    if (!leaf) {
+      leaf = ws.getLeaf(true);
+      await leaf.setViewState({ type: PERSONAL_SEARCH_VIEW, active: true });
+    }
+    ws.revealLeaf(leaf);
+  }
+
+  openAddNotes(): void { new AddNotesModal(this).open(); }
+  openConnectAi(): void { new ConnectAiModal(this).open(); }
+
+  /** Optional GKX tagging: run the existing deterministic, previewed,
+   *  backup-protected GKX formatting workflow over the import folders only. */
+  async runGkxTagging(): Promise<void> {
+    await this.markNotesInGkx("upgrade-all", this.agentSettings.personalNotesImportFolders);
+  }
+
+  /** Optional GKX lineage: record that the open note replaces another note. */
+  openSupersedes(): void {
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.extension !== "md") { new Notice("Kosmos-Oden: open the newer note first, then run this again."); return; }
+    new SupersedesModal(this, file).open();
+  }
+
   async saveAgentSettings(): Promise<void> { await this.savePluginData(); }
 
   async saveNextcloudSettings(): Promise<void> {
@@ -633,8 +699,8 @@ export default class KosmosOdenPlugin extends Plugin {
 
   /** Audit the vault and open the explicit backup/approval gate. No LLM or
    * network route is involved; the core planner refuses ambiguous metadata. */
-  async markNotesInGkx(mode: GkxMigrationMode = "safe-onboarding"): Promise<void> {
-    await openGkxMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings);
+  async markNotesInGkx(mode: GkxMigrationMode = "safe-onboarding", onlyFolders?: readonly string[]): Promise<void> {
+    await openGkxMigrationWorkflow(this.app, mode, () => this.provider.markFullDirty(), this.agentSettings, onlyFolders);
   }
 
   async proposeGkxEnrichment(): Promise<void> {

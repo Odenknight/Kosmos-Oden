@@ -1,5 +1,28 @@
 # MCP protocol: implemented era and remaining work
 
+## Update 2026-11-12 (0.9.0): dual era
+
+By owner direction of 2026-11-12 the Agent API server answers both eras. This
+supersedes the modern-only scope recorded below for the server; the rest of
+this document remains accurate for the modern path, which is unchanged.
+
+- Modern (`2026-07-28`): as described below.
+- Legacy (`2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`): answered
+  only while the `agentLegacyMcp` setting is true (the default for real
+  installs; a settings object that omits the field is modern-only). A POST to
+  `/mcp` is treated as legacy when its body carries no modern protocol
+  version in `_meta` and its `MCP-Protocol-Version` header is absent or names
+  a legacy revision. `initialize` negotiates a version: a supported requested
+  version is echoed, otherwise the newest legacy version is returned.
+- Both eras are stateless. No `Mcp-Session-Id` is minted or required, no GET
+  stream is hosted, and GET and DELETE answer `405`. The stdio adapter is
+  unchanged: it forwards one message per POST and holds no state, which is
+  sufficient for a legacy stdio client because the legacy path needs none.
+- Legacy results use the legacy shapes (no `resultType`, no cache directives).
+  Legacy JSON-RPC errors travel in a `200` body.
+- Evidence: `test/mcp-legacy.test.mjs`. No named legacy client has been
+  qualified end to end.
+
 Reviewed 2026-09-09. Kosmos-Oden implements modern MCP only for the Agent API
 server. Legacy fallback and dual-era implementation are outside build scope.
 

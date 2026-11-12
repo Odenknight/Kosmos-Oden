@@ -151,3 +151,14 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Personal Notes (0.9.0) */
+.kosmos-notes-search { padding: 0.75rem; overflow-y: auto; }
+.kosmos-notes-search-input { width: 100%; }
+.kosmos-notes-search-status { color: var(--text-muted); font-size: var(--font-ui-small); margin: 0.5rem 0; }
+.kosmos-notes-search-row { padding: 0.5rem 0; border-bottom: 1px solid var(--background-modifier-border); }
+.kosmos-notes-search-title { font-weight: var(--font-semibold, 600); }
+.kosmos-notes-search-path { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.kosmos-notes-search-snippet { color: var(--text-muted); font-size: var(--font-ui-small); margin-top: 0.2rem; }
+.kosmos-personal-modal .kosmos-personal-steps li { margin-bottom: 0.35rem; }
+.kosmos-personal-result { font-weight: var(--font-semibold, 600); }
