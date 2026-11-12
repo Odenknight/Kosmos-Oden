@@ -5,3 +5,6 @@ export * from "./fulltext";
 export * from "./attachments";
 export * from "./status";
 export * from "./lineage";
+export * from "./frontmatter-patch";
+export * from "./tagging";
+export * from "./tagging-writer";
