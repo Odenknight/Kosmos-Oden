@@ -26,6 +26,9 @@
   how many files were left out. Those notes still open normally in Obsidian.
 - No fuzzy matching and no regular expressions. A quoted phrase matches text
   on one line; it does not match across a line break.
+- Matching ignores case by plain lowercasing. A capital dotted İ does not
+  match a typed `i` (so `istanbul` does not find `İSTANBUL`); type the word
+  as written.
 - A renamed note can be missing from results for up to about two seconds.
 - "Search my notes" is your own search over the whole vault. Agents see only
   the folders you share.
