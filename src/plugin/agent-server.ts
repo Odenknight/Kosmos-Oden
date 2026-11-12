@@ -914,6 +914,15 @@ export class KosmosAgentServer {
       const now = Date.now();
       if (now - this.lanCache.at > 60_000) this.lanCache = { at: now, ips: this.provider.lanAddresses() };
       for (const ip of this.lanCache.ips) allowed.add(ip.toLowerCase());
+      // The address Quick Connect hands to clients (an explicitly configured hostname or VPN name).
+      const advertised = this.personalActive() ? this.settings.personalNotes?.connection?.advertisedBaseUrl : undefined;
+      if (typeof advertised === "string" && advertised.trim()) {
+        try {
+          const raw = advertised.trim();
+          const host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+          if (host && host !== "0.0.0.0" && host !== "::") allowed.add(host);
+        } catch { /* not a usable address: nothing added */ }
+      }
     }
     return allowed;
   }

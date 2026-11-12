@@ -39,7 +39,9 @@ export function vaultPathProblem(path: unknown): VaultPathProblem | null {
   if (path.includes("\u0000")) return "nul";
   if (CONTROL.test(path)) return "control_character";
   if (path.startsWith("//") || path.startsWith("\\\\")) return "unc";
-  if (path.startsWith("/")) return "absolute";
+  // "file:<path>" is desktop Obsidian's external-file form: vault.getAbstractFileByPath
+  // resolves it to any file on disk, outside the vault and its folder selection.
+  if (path.startsWith("/") || path.startsWith("file:")) return "absolute";
   if (/^[A-Za-z]:/.test(path)) return "drive";
   if (path.includes("\\")) return "backslash";
   for (const segment of path.split("/")) {

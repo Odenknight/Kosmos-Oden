@@ -108,7 +108,14 @@ export function migrateProfileSettings(raw: unknown, opts: ProfileMigrationOptio
       const root = parsed.folders.indexOf("/");
       if (root >= 0) { parsed.folders.splice(root, 1); parsed.rejected.push({ index: -1, value: "/", reason: "absolute" }); }
     }
-    if (parsed.rejected.length) fail(describeRejected(label, parsed));
+    if (parsed.rejected.length) {
+      fail(describeRejected(label, parsed));
+      // Dropping an exclusion would widen the selection: exclude everything until reviewed.
+      if (key === "excludeFolders" && !parsed.folders.includes("/")) {
+        parsed.folders.push("/");
+        notices.push(`Everything is excluded from sharing until you replace the rejected excluded folders. ${FIX}`);
+      }
+    }
     personalNotes[key] = parsed.folders;
   };
 

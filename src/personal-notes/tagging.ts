@@ -417,6 +417,24 @@ export type AutoTimestampDecision =
   | { action: "stamp"; eventTimeMs: number; recordHash: string }
   | { action: "skip"; reason: string; recordHash: string | null };
 
+/**
+ * `raw` with the value of the top-level `updatedKey` frontmatter line blanked.
+ * Automatic timestamps compare content in this form, so a change to that
+ * stamp alone (another device's automatic stamp arriving by sync, or a manual
+ * correction) is not a content change and cannot start a stamp ping-pong.
+ */
+export function withoutUpdatedStamp(raw: string, updatedKey = "updated_at"): string {
+  if (!/^﻿?---\r?\n/.test(raw)) return raw;
+  const key = new RegExp(`^${updatedKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[ \\t]*:`);
+  const lines = raw.split("\n");
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, "");
+    if (line === "---") break;
+    if (key.test(line)) lines[i] = `${updatedKey}:${lines[i].endsWith("\r") ? "\r" : ""}`;
+  }
+  return lines.join("\n");
+}
+
 /** Decide whether one vault event earns an automatic timestamp update. Pure. */
 export function autoTimestampDecision(event: AutoTimestampEvent, state: AutoTimestampState): AutoTimestampDecision {
   const hash = typeof event.contentHash === "string" && event.contentHash ? event.contentHash : null;

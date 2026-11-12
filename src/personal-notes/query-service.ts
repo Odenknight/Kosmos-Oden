@@ -273,6 +273,9 @@ export interface OverviewResult {
 
 const NOT_FOUND = () => new PersonalError("not_found", "note not found");
 
+/** The corpus is "partial" when any file in the vault was omitted; an agent sees "partial" only for omissions in its own scope. */
+const scopedState = (state: string, omittedInScope: number) => (state === "indexing" ? state : omittedInScope > 0 ? "partial" : "ready");
+
 /** Strip `[[ ]]`, `|alias` and `#heading` from a declared link before asking the host to resolve it. */
 function linkPath(linkText: string): string {
   let text = linkText.trim();
@@ -371,7 +374,7 @@ export class PersonalQueryService {
         ...(hit.createdAt !== undefined ? { created_at: hit.createdAt } : {}),
         ...(hit.updatedAt !== undefined ? { updated_at: hit.updatedAt } : {}),
       })),
-      coverage: { state: response.coverage.state, searched: response.coverage.searched, omitted: response.coverage.omitted },
+      coverage: { state: scopedState(response.coverage.state, response.coverage.omitted), searched: response.coverage.searched, omitted: response.coverage.omitted },
       corpus_revision: response.corpusRevision,
     };
     check();
@@ -466,8 +469,14 @@ export class PersonalQueryService {
     // reported only as the allowed note's own unresolved declaration text.
     const resolve = (linkText: string, fromPath: string): string | null | "ambiguous" => {
       if (!visible.has(fromPath)) return null;
-      const target = this.deps.source.resolveLink(linkPath(linkText), fromPath);
-      if (target === "ambiguous") return "ambiguous";
+      const text = linkPath(linkText);
+      const target = this.deps.source.resolveLink(text, fromPath);
+      if (target === "ambiguous") {
+        // Count only shared notes: a hidden namesake must not turn a resolved link ambiguous.
+        const name = text.replace(/\.md$/i, "");
+        const matches = [...visible].filter((p) => p.slice(p.lastIndexOf("/") + 1).replace(/\.md$/i, "") === name);
+        return matches.length > 1 ? "ambiguous" : matches[0] ?? null;
+      }
       return target !== null && visible.has(target) ? target : null;
     };
     const view = this.deps.lineage(notes, resolve, { focus: record.path, limit: args.limit ?? PERSONAL_LIMITS.lineageDefaultNodes, cursor: args.cursor ?? null });
@@ -491,12 +500,13 @@ export class PersonalQueryService {
   async vaultOverview(): Promise<OverviewResult> {
     const { policy, check } = this.begin();
     const { corpus } = this.deps;
+    const omitted = this.omittedInScope(policy).length;
     const result: OverviewResult = {
       contract: PERSONAL_CONTRACT,
       profile: "personal",
       notes: this.visiblePaths(policy).size,
-      omitted: this.omittedInScope(policy).length,
-      state: corpus.state,
+      omitted,
+      state: scopedState(corpus.state, omitted),
       corpus_revision: corpus.revision,
       tools: [...PERSONAL_TOOL_NAMES],
       protocols: this.deps.protocols(),

@@ -21,7 +21,7 @@ import type {
   ConnectionTestResult, ImporterState, PersonalConnectionStatus, PersonalPluginHost, PersonalSearchStatus, PersonalSettingsView, SupersedesCheck,
 } from "../personal-notes/plugin-host";
 import { isUnderAnyFolder, normalizeFolder, parseFolderList, type RejectedFolder } from "../personal-notes/scope";
-import { autoTimestampDecision, importReviewed, importStarted, planAutoTimestamp, planTagging, type TaggingImportState, type TaggingNoteInput, type TaggingPlan } from "../personal-notes/tagging";
+import { autoTimestampDecision, importReviewed, importStarted, planAutoTimestamp, planTagging, withoutUpdatedStamp, type TaggingImportState, type TaggingNoteInput, type TaggingPlan } from "../personal-notes/tagging";
 import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } from "../personal-notes/tagging-writer";
 import { checkSupersedesProposal } from "../personal-notes/lineage";
 import { sha256Hex } from "../personal-notes/hash";
@@ -778,14 +778,17 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     if (!this.eventsLive || this.agentSettings.activeProfile !== "personal") return;
     const raw = await this.app.vault.read(file);
     const hash = await sha256Hex(raw).catch(() => null);
-    const baseline = this.stampBaselines.get(file.path) ?? (prevRaw !== undefined ? await sha256Hex(prevRaw).catch(() => undefined) : undefined);
-    const decision = autoTimestampDecision({ kind, path: file.path, contentHash: hash, eventTimeMs }, {
+    // Content identity ignores the updated stamp itself (see withoutUpdatedStamp).
+    const contentHash = await this.stampKey(raw).catch(() => null);
+    const baseline = this.stampBaselines.get(file.path) ?? (prevRaw !== undefined ? await this.stampKey(prevRaw).catch(() => undefined) : undefined);
+    const ownWrite = hash !== null && contentHash !== null && (this.ownWrites.get(file.path) ?? []).includes(hash);
+    const decision = autoTimestampDecision({ kind, path: file.path, contentHash, eventTimeMs }, {
       tagging: this.agentSettings.personalNotes.tagging,
       eventsLive: this.eventsLive,
       isUnderAnyFolder,
       isExcludedPath: (p) => isKosmosOperationalPath(p) || !timestampEligible(p, file.extension),
       baselineHash: baseline,
-      ownWriteHashes: new Set(this.ownWrites.get(file.path) ?? []),
+      ownWriteHashes: ownWrite ? new Set([contentHash!]) : new Set(),
       imports: this.importState(),
     });
     if (decision.recordHash) this.stampBaselines.set(file.path, decision.recordHash);
@@ -795,7 +798,19 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       eventTimeMs: decision.eventTimeMs, formatTimestamp, parse: this.yaml, timestamps: this.timestampKeys(),
     });
     const result = await applyTaggingPlan(plan, this.writerHost(null), { backup: false });
-    for (const w of result.ownWrites) this.stampBaselines.set(w.path, w.hash);
+    await this.rememberStampBaselines(plan, result);
+  }
+
+  private stampKey(raw: string): Promise<string> {
+    return sha256Hex(withoutUpdatedStamp(raw, this.agentSettings.timestampUpdatedKey));
+  }
+
+  /** After a tagging write: the written text is the automatic stamper's new baseline. */
+  private async rememberStampBaselines(plan: TaggingPlan, result: TaggingApplyResult): Promise<void> {
+    for (const w of result.ownWrites) {
+      const written = plan.notes.find((n) => n.path === w.path)?.proposedRaw;
+      if (written != null) this.stampBaselines.set(w.path, await this.stampKey(written));
+    }
   }
 
   private noteFile(path: string): TFile | null {
@@ -1045,7 +1060,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     const root = normalizePath(`.gkx/backup/tagging-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
     const result = await applyTaggingPlan(plan, this.writerHost(root));
     if (result.manifest) await this.app.vault.adapter.write(`${root}/manifest.json`, JSON.stringify(result.manifest, null, 2));
-    for (const w of result.ownWrites) this.stampBaselines.set(w.path, w.hash);
+    await this.rememberStampBaselines(plan, result);
     if (plan === this.pendingTagging) this.pendingTagging = null;
     if (plan === this.pendingSupersedes) this.pendingSupersedes = null;
     return result;
