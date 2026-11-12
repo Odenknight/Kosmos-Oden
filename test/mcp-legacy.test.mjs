@@ -78,9 +78,11 @@ test("legacy handshake negotiates a version and creates no session", async (t) =
   assert.equal(typeof out.result.instructions, "string");
   assert.equal(res.headers["mcp-session-id"], undefined, "no session is minted");
   assert.equal("resultType" in out.result, false, "legacy results carry no modern fields");
+  assert.equal(server.sessions.get("Legacy Client").protocolVersion, "2025-06-18", "the agent record keeps the negotiated revision, not the header default 2025-03-26");
 
   const unknown = (await post(port, initialize("1999-01-01"))).json();
   assert.equal(unknown.result.protocolVersion, LATEST_LEGACY_MCP_PROTOCOL_VERSION, "an unsupported request gets the newest legacy version");
+  assert.equal(server.sessions.get("Legacy Client").protocolVersion, LATEST_LEGACY_MCP_PROTOCOL_VERSION);
   assert.equal((await post(port, initialize("2024-11-05"))).json().result.protocolVersion, LATEST_LEGACY_MCP_PROTOCOL_VERSION,
     "2024-11-05 is carried by the stdio bridge, not served natively");
   for (const version of NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS) {

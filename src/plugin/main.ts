@@ -30,7 +30,7 @@ import { ObsidianPersonalSource, strictYaml } from "./personal-source";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
 import { advertisedMcpProtocolVersions } from "./mcp-compat";
-import { KosmosSettingTab, buildAgentGuide, installedBridgePath } from "./settings";
+import { KosmosSettingTab, buildAgentGuide, buildPersonalAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, formatTimestamp, makeGkxUuidV7, stripFrontmatter, timestampEligible } from "gkos-engine";
 import { openGkxMigrationWorkflow } from "./gkx-migration";
 import { openGkxEnrichmentWorkflow } from "./gkx-enrichment";
@@ -492,8 +492,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     for (const notice of this.settingsNotices()) new Notice(`Kosmos-Oden: ${notice}`);
     if (this.agentSettings.activeProfile === "personal") {
       this.attachPersonal();
-      // Synced settings never start sharing: only this device's own token and autostart choice do.
-      if (this.device.autoStart() && this.device.token() && !getProfileSettingsMigration(this.agentSettings).connectorMustStayStopped) void this.connect();
+      if (this.personalMayAutoConnect()) void this.connect();
     } else if (this.agentSettings.agentEnabled) this.startAgentApi();
     this.addCommand({ id: "write-agent-api-guide", name: "Write Agent API guide (AGENT-API.md) to vault", callback: () => void this.writeAgentGuide() });
 
@@ -650,7 +649,13 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     if (profile === "personal") this.attachPersonal(); else this.detachPersonal();
     this.invalidatePersonal();
     if (profile === "existing" && this.agentSettings.agentEnabled) this.startAgentApi();
-    if (profile === "personal" && this.device?.autoStart() && this.device.token()) await this.connect();
+    if (profile === "personal" && this.personalMayAutoConnect()) await this.connect();
+  }
+
+  /** Synced settings never start sharing: only this device's own token and
+   *  autostart choice do, and never after a settings error forced the connector off. */
+  private personalMayAutoConnect(): boolean {
+    return !!this.device?.autoStart() && !!this.device.token() && !getProfileSettingsMigration(this.agentSettings).connectorMustStayStopped;
   }
 
   /** Canonical vault identity for device-local namespacing: the real vault folder on desktop, else the vault name. */
@@ -910,6 +915,16 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       acceptOlderMcp: draft.connection?.acceptOlderMcp !== false,
     };
     if (rejected.length) return { saved: false, rejected };
+    // §5: a newly registered import folder is held back from automatic time
+    // stamps until "Import finished — review tags", since Kosmos cannot see an
+    // Importer run (started here or directly in the Importer) finish.
+    const before = new Set(this.agentSettings.personalNotes.importFolders);
+    const added = draft.importFolders.filter((f) => !before.has(f));
+    if (added.length) {
+      let state: TaggingImportState = { running: parseFolderList(draft.importState?.running).folders, awaitingReview: parseFolderList(draft.importState?.awaitingReview).folders };
+      for (const folder of added) state = importStarted(state, folder, false);
+      draft.importState = state;
+    }
     this.agentSettings.personalNotes = draft;
     await this.saveAgentSettings();
     this.invalidatePersonal();
@@ -1304,13 +1319,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   async writeAgentGuide(): Promise<void> {
     if (this.agentSettings.activeProfile === "personal") {
       // Personal tokens are device-local: never export one into a note.
-      const md = buildAgentGuide(
-        this.agentSettings.agentPort,
-        "<copy the token from Connect my AI; it is not written to notes>",
-        this.agentSettings.personalNotes.connection.bindMode,
-        this.agentLanUrls(),
-        installedBridgePath(this.app, this),
-      );
+      const conn = this.agentSettings.personalNotes.connection;
+      const md = buildPersonalAgentGuide(this.agentSettings.agentPort, conn.bindMode, conn.acceptOlderMcp !== false);
       await this.app.vault.adapter.write("AGENT-API.md", md);
       new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (without a token; copy it from Connect my AI)");
       return;
@@ -1320,7 +1330,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       this.agentSettings.agentToken || "<enable the API to generate a token>",
       this.agentSettings.agentBindMode,
       this.agentLanUrls(),
-      installedBridgePath(this.app, this)
+      installedBridgePath(this.app, this),
+      this.agentSettings.agentLegacyMcp !== false,
     );
     await this.app.vault.adapter.write("AGENT-API.md", md);
     new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (with your address + token filled in)");

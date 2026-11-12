@@ -20,7 +20,7 @@ export function supersedesProblem(check: SupersedesCheck): string {
     case "cycle": return "The chosen note already supersedes this note (directly or through other notes). Recording this would make a loop.";
     case "ambiguous": return "More than one note matches that name. Choose the note again; its full path will be used.";
     case "unresolved": return "No matching note was found.";
-    case "unknown_replacement": return "This note is not available for tagging. Check that it is inside the folders chosen for optional tags.";
+    case "unknown_replacement": return "This note could not be read. Check that it still exists and is not a Kosmos-Oden internal file.";
     case "empty": return "Choose the older note first.";
     default: return check.detail;
   }
@@ -62,7 +62,7 @@ export class SupersedesModal extends Modal {
       const box = el.createDiv({ cls: "kosmos-tagging-preview" });
       renderPlan(box, plan, false);
       if (plan.findings.some((f) => f.kind === "supersedes_rejected" && f.reason === "disabled")) {
-        new Setting(el).setName("Turn on “Supersedes” links").setDesc("This option is off in Optional tags.")
+        new Setting(el).setName("Turn on “Supersedes” links").setDesc("“Use optional tags” and “Supersedes” links must both be on in Optional tags. The open note does not need to be inside the folders chosen for tags.")
           .addButton((b) => b.setButtonText("Optional tags").onClick(() => { this.close(); this.host.openTagging(); }));
       }
     }

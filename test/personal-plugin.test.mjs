@@ -158,6 +158,42 @@ test("device-local token and autostart: namespaced, secret storage first, never 
   } finally { unloadPlugin(again); }
 });
 
+test("Write Agent API guide: the Personal profile gets its own token-free guide; both follow the older-clients setting", async () => {
+  const app = makeApp(FIXTURE, { persisted: { ...personalSettings(), agentPort: 4999 } });
+  const plugin = await loadPlugin(app);
+  try {
+    await plugin.writeAgentGuide();
+    let guide = app.adapterFiles.get("AGENT-API.md");
+    for (const [tool, route] of [["vault_overview", "/overview"], ["search_notes", "/notes"], ["get_note", "/note"], ["get_related", "/related"], ["get_lineage", "/lineage"]]) {
+      assert.ok(guide.includes(`| \`${tool}\` | \`GET ${route}\``), tool);
+    }
+    assert.ok(guide.includes("`offset_chars`, `limit_chars`, `expected_hash`") && guide.includes("`limit`, `cursor`"), "arguments as implemented");
+    assert.ok(guide.includes("Bearer <access key from Connect my AI>") && guide.includes("Copy configuration"));
+    assert.ok(guide.includes("next_offset_chars") && guide.includes("Node.js 22 or 24"));
+    assert.ok(guide.includes("Streamable HTTP 2026-07-28, 2025-11-25, 2025-06-18, 2025-03-26; stdio adapter 2026-07-28, 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05"));
+    for (const stale of ["/lineage?title=", "/at?", "?token=", "graph_at_time", "18+"]) assert.ok(!guide.includes(stale), stale);
+    assert.ok(!guide.includes(plugin.agentSettings.agentToken), "no existing-profile token either");
+
+    await plugin.updatePersonalNotes((d) => { d.connection.acceptOlderMcp = false; });
+    await plugin.writeAgentGuide();
+    guide = app.adapterFiles.get("AGENT-API.md");
+    assert.ok(guide.includes("Streamable HTTP 2026-07-28; stdio adapter 2026-07-28."));
+    assert.ok(!guide.includes("2025-06-18"));
+
+    await plugin.setActiveProfile("existing");
+    plugin.agentSettings.agentLegacyMcp = false;
+    await plugin.writeAgentGuide();
+    guide = app.adapterFiles.get("AGENT-API.md");
+    assert.ok(guide.includes("/lineage?title="), "the existing profile keeps its guide");
+    assert.ok(guide.includes('"Accept older MCP clients" is off, so only 2026-07-28 is served.') && !guide.includes("2025-06-18"));
+    assert.ok(guide.includes("Node.js 22 or 24") && !guide.includes("Node.js 18+"));
+    plugin.agentSettings.agentLegacyMcp = true;
+    await plugin.writeAgentGuide();
+    guide = app.adapterFiles.get("AGENT-API.md");
+    assert.ok(guide.includes("2025-11-25, 2025-06-18, 2025-03-26 directly on `/mcp`, and 2024-11-05 only through the stdio adapter"));
+  } finally { unloadPlugin(plugin); }
+});
+
 /* --------------------------------------------------------------- settings */
 
 test("updatePersonalNotes: any rejected folder saves nothing; a valid change saves and bumps the policy generation", async () => {
@@ -366,6 +402,29 @@ test("T08: automatic tagging is deferred for an import folder until Import finis
   } finally { unloadPlugin(plugin); }
 });
 
+test("T08: registering an import folder holds it back until Import finished; folders already listed are not marked", async () => {
+  const app = makeApp(FIXTURE, { persisted: personalSettings({ tagging: { enabled: true, folders: ["Imports", "Later"], timestamps: true, uniqueIds: false, supersession: false, automaticTimestamps: true } }) });
+  const plugin = await loadPlugin(app);
+  try {
+    app.layoutReady();
+    await indexed(plugin);
+    assert.deepEqual(plugin.pendingImportFolders(), [], "an upgrade does not retroactively mark listed folders");
+    const r = await plugin.updatePersonalNotes((d) => { d.importFolders = [...d.importFolders, "Later"]; });
+    assert.equal(r.saved, true);
+    assert.deepEqual(plugin.pendingImportFolders(), ["Later"]);
+    assert.deepEqual(app.saved.at(-1).personalNotes.importState, { running: [], awaitingReview: ["Later"] });
+
+    // An import run directly in the Importer into that folder is held back.
+    app.edit("Later/Page.md", "Imported page\n");
+    await delay(1100);
+    assert.deepEqual(app.writes, [], "nothing stamped in a newly registered import folder");
+
+    await plugin.importFinished("Later");
+    await plugin.updatePersonalNotes((d) => { d.excludeFolders = []; });
+    assert.deepEqual(plugin.pendingImportFolders(), [], "saving an unchanged list does not mark it again");
+  } finally { unloadPlugin(plugin); }
+});
+
 test("supersedes preview: explicit target, frozen uid, cycle rejected", async () => {
   const app = makeApp({ "Notes/Old.md": "old plan\n", "Notes/New.md": "new plan\n", "Notes/Newer.md": "---\nsupersedes:\n  - \"[[New]]\"\n---\nnewer\n" },
     { persisted: personalSettings({ tagging: { enabled: true, folders: ["Notes"], timestamps: false, uniqueIds: true, supersession: true, automaticTimestamps: false } }) });
@@ -409,6 +468,35 @@ test("S04: switching profile stops the listener and drops the Personal runtime; 
     assert.notEqual(plugin.personal, runtime, "a fresh runtime");
     assert.equal(plugin.agentApi.personal, plugin.personal.agentRuntime(() => ""));
   } finally { unloadPlugin(plugin); }
+});
+
+test("S04: switching to Personal does not auto-connect after a settings error forced the connector off", async () => {
+  const port = await freePort();
+  const app = makeApp(FIXTURE, { persisted: { ...personalSettings(), agentPort: port } });
+  const first = await loadPlugin(app);
+  try {
+    await first.connect();
+    await first.setAutoStart(true);
+    await first.setActiveProfile("existing");
+  } finally { unloadPlugin(first); }
+  const saved = app.saved.at(-1);
+
+  // Control: same device state, no settings error → switching connects.
+  const ok = await loadPlugin(Object.assign(app, { persisted: saved }));
+  try {
+    await ok.setActiveProfile("personal");
+    assert.equal(ok.connection().state, "running");
+    await ok.setActiveProfile("existing");
+  } finally { unloadPlugin(ok); }
+
+  // An unrecognised saved profile is a settings error: the connector must stay stopped.
+  const stopped = await loadPlugin(Object.assign(app, { persisted: { ...saved, activeProfile: "bogus" } }));
+  try {
+    assert.equal(stopped.settings().activeProfile, "existing");
+    await stopped.setActiveProfile("personal");
+    assert.equal(stopped.agentApi.server, null, "no auto-connect while the stop flag holds");
+    assert.notEqual(stopped.connection().state, "running");
+  } finally { unloadPlugin(stopped); }
 });
 
 test("corpus: a metadata-only change (a link target appears) refreshes the record without a text change", async () => {

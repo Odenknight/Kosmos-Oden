@@ -62,6 +62,7 @@ import {
   MCP_ERR_HEADER_MISMATCH,
   MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
   McpRpcError,
+  NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS,
   advertisedMcpProtocolVersions,
   classifyMcpRequest,
   serveLegacyMcpHttp,
@@ -1816,7 +1817,10 @@ export class KosmosAgentServer {
     const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
     const initName = parsed?.method === "initialize" ? parsed?.params?.clientInfo?.name : undefined;
     const name = this.displayAgentName(declared, req?.headers?.["x-kosmos-agent-name"], initName, req?.headers?.["user-agent"]);
-    const key = this.registerSession(name, version);
+    // initialize carries no version header: record the revision it negotiates (echo if supported, else the newest), as serveLegacyMcpHttp answers.
+    const requested = parsed?.method === "initialize" ? parsed?.params?.protocolVersion : undefined;
+    const negotiated = typeof requested !== "string" ? version : NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS.includes(requested) ? requested : NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS[0];
+    const key = this.registerSession(name, negotiated);
     const rec = this.getSession(key);
     return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId, agentOverride: name };
   }

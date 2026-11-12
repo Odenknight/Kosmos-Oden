@@ -29,9 +29,9 @@ export function describeFinding(f: TaggingFinding): string {
       return `${f.path}: the properties at the top of the note could not be read safely (${f.message}). This note will not be changed.`;
     case "supersedes_rejected":
       return f.reason === "disabled"
-        ? `${f.path}: “supersedes” is turned off in Optional tags.`
+        ? `${f.path}: “Use optional tags” and “Supersedes” links must both be on in Optional tags.`
         : f.reason === "not_selected"
-          ? `${f.path}: this note is outside the folders chosen for tagging, so it cannot be changed.`
+          ? `${f.path}: this note is not part of this preview, so it cannot be changed.`
           : `${f.path} → ${f.target}: ${f.detail}.`;
   }
 }
