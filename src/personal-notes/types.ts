@@ -197,6 +197,12 @@ export interface SearchRequest {
    * counting or coverage. null means the local-human collection (whole corpus).
    */
   allowedPaths: ReadonlySet<string> | null;
+  /**
+   * Policy generation the request was built under. Omitted = the searcher's
+   * current generation. A request or result from an older generation is
+   * rejected with "policy_changed".
+   */
+  policyGeneration?: number;
   signal?: AbortSignal;
 }
 

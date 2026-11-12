@@ -161,6 +161,34 @@ async function buildEmbed() {
   console.log(`built dist/kosmos-embed.html (${(html.length / 1024).toFixed(0)} KB)`);
 }
 
+/**
+ * Personal Notes search worker (0.9.0): a self-contained browser IIFE written
+ * as text. main.js embeds it via the `.txt` loader and starts it from a Blob
+ * URL (src/plugin/personal-search-worker-url.ts); tests run the same text in
+ * a worker_threads shim. Must be built before main.js.
+ */
+async function buildSearchWorker() {
+  const res = await esbuild.build({
+    stdin: {
+      contents: 'import { installSearchWorker } from "./src/personal-notes/search-worker";\ninstallSearchWorker(self);\n',
+      resolveDir: root,
+      sourcefile: "kosmos-personal-search-worker-entry.ts",
+      loader: "ts",
+    },
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    minify: production,
+    sourcemap: false,
+    logLevel: "silent",
+  });
+  const text = res.outputFiles[0].text;
+  writeFileSync(resolve(root, "dist/kosmos-personal-search-worker.txt"), text);
+  console.log(`built dist/kosmos-personal-search-worker.txt (${(text.length / 1024).toFixed(0)} KB)`);
+}
+
 async function buildPlugin() {
   await esbuild.build({
     entryPoints: [resolve(root, "src/plugin/main.ts")],
@@ -170,7 +198,7 @@ async function buildPlugin() {
     platform: "browser",
     // Provided by Obsidian at runtime — never bundle these:
     external: ["obsidian", "electron", "@codemirror/*", "@lezer/*", "node:*"],
-    loader: { ".html": "base64" },
+    loader: { ".html": "base64", ".txt": "text" },
     sourcemap: production ? false : "inline",
     minify: production,
     treeShaking: true,
@@ -183,12 +211,14 @@ async function buildPlugin() {
 try {
   if (forTests) {
     await buildNodeBundles();
+    await buildSearchWorker(); // worker tests run the real built worker text
     await buildStandalone(); // artifact checks are part of the test suite (§25)
   } else if (standaloneOnly) {
     await buildStandalone();
   } else {
     await buildNodeBundles();
     await buildEmbed();     // must precede the plugin bundle (main.ts imports it)
+    await buildSearchWorker(); // likewise embedded into main.js as text
     await buildStandalone();
     await buildPlugin();
   }

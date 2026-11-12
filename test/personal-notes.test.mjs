@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import {
   parseQuery,
   FullTextIndex,
-  MAX_INDEXED_BODY_CHARS,
+  PERSONAL_LIMITS,
+  PersonalError,
   attachmentRefs,
   hasSearchableText,
   summarizePersonalNotes,
@@ -18,8 +19,9 @@ import {
 test("parseQuery lowercases, keeps quoted phrases whole, and removes duplicates", () => {
   assert.deepEqual(parseQuery('Shopping "Olive Oil" shopping'), ["shopping", "olive oil"]);
   assert.deepEqual(parseQuery("   "), []);
-  assert.deepEqual(parseQuery(undefined), []);
-  assert.equal(parseQuery(Array.from({ length: 40 }, (_, i) => `t${i}`).join(" ")).length, 16);
+  // 0.9.0: malformed and over-limit queries are rejected, not silently changed.
+  assert.throws(() => parseQuery(undefined), PersonalError);
+  assert.throws(() => parseQuery(Array.from({ length: 40 }, (_, i) => `t${i}`).join(" ")), PersonalError);
 });
 
 const DOCS = [
@@ -58,7 +60,7 @@ test("FullTextIndex snippets surround the first body match", () => {
   const long = new FullTextIndex([{ path: "L.md", title: "L", body: "a ".repeat(500) + "needle" + " b".repeat(500) }]);
   const s = long.search("needle").hits[0].snippet;
   assert.ok(s.startsWith("… ") && s.endsWith(" …"), s);
-  assert.ok(s.length < 260);
+  assert.ok(s.length <= PERSONAL_LIMITS.excerptChars);
   const titleOnly = index.search("tomatoes").hits[0];
   assert.match(titleOnly.snippet, /^Planted in May/);
 });
@@ -72,16 +74,16 @@ test("FullTextIndex accept filter runs before matching and hides excluded notes"
   assert.equal(seen.length, 4);
 });
 
-test("FullTextIndex bounds results, truncates huge bodies, and survives odd input", () => {
+test("FullTextIndex bounds results, skips huge bodies whole, and survives odd input", () => {
   const many = new FullTextIndex(Array.from({ length: 300 }, (_, i) => ({ path: `N/${String(i).padStart(3, "0")}.md`, title: `Note ${i}`, body: "common word" })));
   assert.equal(many.search("common").hits.length, 20);
-  assert.equal(many.search("common", { limit: 1000 }).hits.length, 200);
+  assert.equal(many.search("common", { limit: 1000 }).hits.length, PERSONAL_LIMITS.maxResults);
   assert.equal(many.search("common").total, 300);
   assert.equal(many.search("common").hits[0].path, "N/000.md", "ties break by path for stable output");
 
-  const huge = new FullTextIndex([{ path: "H.md", title: "H", body: "x".repeat(MAX_INDEXED_BODY_CHARS) + " tailword" }]);
+  const huge = new FullTextIndex([{ path: "H.md", title: "H", body: "x".repeat(PERSONAL_LIMITS.maxFileBytes) + " tailword" }]);
   assert.equal(huge.truncatedNotes, 1);
-  assert.equal(huge.search("tailword").total, 0);
+  assert.equal(huge.search("tailword").total, 0, "an over-limit note is skipped whole, never indexed as a prefix");
 
   const odd = new FullTextIndex([null, { path: "" }, { path: "T.md", title: "", body: undefined }, { path: "I.md", title: "İstanbul", body: "İİİ büyük şehir" }]);
   assert.equal(odd.notes, 2);
@@ -159,15 +161,15 @@ test("summarizePersonalNotes reports files present and only the reports the user
   assert.equal(capped.needsAttention.length, 2);
 });
 
-test("search matches composed and decomposed spellings and forgives a stray quote", () => {
+test("search matches composed and decomposed spellings and rejects an unclosed quote", () => {
   const index = new FullTextIndex([
     { path: "Cafe.md", title: "Cafe\u0301 list", body: "Meet at the cafe\u0301 on Tuesday." },
     { path: "Oil.md", title: "Oil", body: "olive oil" },
   ]);
   assert.equal(index.search("caf\u00e9").total, 1, "composed query finds decomposed text");
   assert.equal(index.search("cafe\u0301").total, 1, "decomposed query finds it too");
-  assert.deepEqual(parseQuery('"olive'), ["olive"], "an unclosed quote is dropped");
-  assert.equal(index.search('"olive').total, 1);
+  assert.throws(() => parseQuery('"olive'), (e) => e instanceof PersonalError && e.code === "invalid_query", "an unclosed quote is an error");
+  assert.throws(() => index.search('"olive'), PersonalError);
 });
 
 test("mergeSupersedes adds one wikilink and keeps what the user wrote", () => {
