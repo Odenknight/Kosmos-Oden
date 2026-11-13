@@ -48,7 +48,7 @@
     "@huggingface/tokenizers": "0.2.0",
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "1.64.1",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "esbuild": "0.28.2",
     "obsidian": "1.14.4",
     "onnxruntime-web": "1.31.1",
