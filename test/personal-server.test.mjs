@@ -160,6 +160,12 @@ test("REST: the six Personal routes answer from the shared scope only", async ()
     assert.deepEqual(lineage.json().edges, [{ from: "Notes/B.md", to: "Notes/A.md", source: "declared" }]);
 
     for (const r of [overview, search, note, related, lineage]) assertNoHidden(r.text, "REST");
+    const ui = await rest(port, "/ui");
+    assert.equal(ui.status, 200);
+    assert.match(ui.text, /Kosmos Librarian/);
+    assert.match(ui.text, /\/librarian\?question=/);
+    assert.doesNotMatch(ui.text, /Notes\/|PrivateVaultName/, "the page is static: no note, path or vault name");
+
     for (const path of ["/", "/health"]) {
       const r = await rest(port, path);
       assert.equal(r.status, 200);
