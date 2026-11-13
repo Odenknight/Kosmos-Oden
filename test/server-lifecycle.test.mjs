@@ -58,7 +58,9 @@ test('partial request body receives a bounded transport error and cannot resume 
 test('authorization change during a read prevents late content and traversal',async()=>{
  const pending=deferred();const graph=buildGraph([{relativePath:'one.md',content:'---\nsensitivity: public\n---\n# one'}], [], undefined, {defaultSensitivity:'internal'});
  let started;const reached=new Promise(r=>{started=r;});
- const h=await start({getGraph:async()=>graph,getNoteContent:()=>{started();return pending.promise;},vaultName:()=> 'Synthetic',lanAddresses:()=>[]});
+ // This case is about the authorization change, not the deadline: the default 70 ms
+ // operation timeout can expire first on a busy machine and answer 504 instead.
+ const h=await start({getGraph:async()=>graph,getNoteContent:()=>{started();return pending.promise;},vaultName:()=> 'Synthetic',lanAddresses:()=>[]},1000);
  const seen=[];h.server.onTraversal=(...args)=>seen.push(args);
  try{
   const response=request(h.port,'/note?path=one.md');await Promise.race([reached,new Promise((_,reject)=>setTimeout(()=>reject(new Error('read not reached')),1000))]);

@@ -22,6 +22,12 @@
  *    endpoints exist (§18).
  */
 import { ProviderError } from "./vault-operations";
+import { PersonalError, type ActiveProfile, type PersonalNotesSettings, type PersonalReadPolicy } from "../personal-notes/types";
+import { migrateProfileSettings, defaultPersonalNotesSettings, PERSONAL_SETTINGS_SCHEMA } from "../personal-notes/settings";
+import type { PolicyGeneration } from "../personal-notes/policy";
+import { parseRestQuery } from "../personal-notes/scope";
+import { PERSONAL_CONTENT_RULE, PERSONAL_TOOL_NAMES, personalToolDefs, type PersonalQueryService } from "../personal-notes/query-service";
+import { PERSONAL_UI_HTML } from "./personal-ui";
 import { inspectScopedLineage, projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
@@ -38,32 +44,51 @@ import type {
   NavigationEffectsSettingsMigration,
 } from "../navigation-effects/types";
 
-// Modern-era MCP only, per owner direction of 2026-09-09. "Modern" is the
-// spec's own term for revisions carrying version, identity and capabilities as
-// per-request metadata (2026-07-28 and later); "legacy" revisions (2025-11-25
-// and earlier) open with an `initialize` handshake and hold a server-issued
-// session. This server implements no legacy path and is not dual-era: it mints
-// no sessions, hosts no GET stream, and rejects a request that omits the
-// per-request metadata.
-//
-// A legacy client therefore cannot talk to this server and has no
-// fall-forward mechanism. The spec asks a modern-only server to name its
-// supported versions in any error it returns to `initialize`, so that such a
-// client can surface something actionable; mcpDispatch does that.
-export const MODERN_MCP_PROTOCOL_VERSION = "2026-07-28";
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = [MODERN_MCP_PROTOCOL_VERSION];
+// Dual-era MCP (0.9.0, owner direction of 2026-11-12, superseding the
+// modern-only direction of 2026-09-09). "Modern" revisions (2026-07-28) carry
+// version, identity and capabilities as per-request metadata and are handled
+// by mcpDispatch below, unchanged. "Legacy" revisions open with an
+// `initialize` handshake; classification and the legacy adapter live in
+// ./mcp-compat and are answered only while acceptsOlderMcp() is true, always
+// statelessly: no session is minted and no GET stream is hosted. The protocol
+// constants are defined there and re-exported here for existing importers.
+import {
+  MODERN_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  LEGACY_MCP_PROTOCOL_VERSIONS,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+  MCP_ERR_HEADER_MISMATCH,
+  MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+  McpRpcError,
+  NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS,
+  advertisedMcpProtocolVersions,
+  classifyMcpRequest,
+  serveLegacyMcpHttp,
+  type McpToolService,
+} from "./mcp-compat";
+export {
+  MODERN_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+  LEGACY_MCP_PROTOCOL_VERSIONS,
+  LATEST_LEGACY_MCP_PROTOCOL_VERSION,
+  NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS,
+  STDIO_ONLY_MCP_PROTOCOL_VERSIONS,
+  DEFAULT_LEGACY_HTTP_PROTOCOL_VERSION,
+  MCP_TRANSPORT_PROTOCOL_VERSIONS,
+  MCP_META_PROTOCOL_VERSION,
+  MCP_META_CLIENT_INFO,
+  MCP_META_CLIENT_CAPABILITIES,
+  MCP_META_SERVER_INFO,
+  MCP_ERR_HEADER_MISMATCH,
+  MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+  MAX_LEGACY_BATCH_MEMBERS,
+  advertisedMcpProtocolVersions,
+  classifyMcpRequest,
+} from "./mcp-compat";
 export const LATEST_MCP_PROTOCOL_VERSION = MODERN_MCP_PROTOCOL_VERSION;
-
-/** `_meta` keys the transport defines, spelled exactly as the spec spells
- *  them. These are wire identifiers, not internal names. */
-export const MCP_META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion";
-export const MCP_META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo";
-export const MCP_META_CLIENT_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
-export const MCP_META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
-
-/** Protocol-defined JSON-RPC error codes this transport returns. */
-export const MCP_ERR_HEADER_MISMATCH = -32020;
-export const MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION = -32022;
 
 /** Cache directives the 2026-07-28 wire REQUIRES on every cacheable result.
  *  The values are the spec's own defaults, chosen deliberately for a
@@ -103,8 +128,10 @@ export const MAX_SOURCE_EVIDENCE_BYTES = 4 * 1024 * 1024;
 
 export type AgentBindMode = "localhost" | "lan";
 
-/** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7). */
-export const AGENT_SETTINGS_SCHEMA = 9;
+/** Settings schema version — bump when the shape changes so old data migrates (Doc1 §3.7).
+ *  11 (0.9.0): `activeProfile` + nested `personalNotes`; the revised patch's
+ *  flat schema-10 Personal keys are migrated and removed. */
+export const AGENT_SETTINGS_SCHEMA = PERSONAL_SETTINGS_SCHEMA;
 
 export interface AgentSettings {
   /** Settings schema version for migration on load. */
@@ -161,6 +188,19 @@ export interface AgentSettings {
   gkxExcludePatterns: string[];
   /** Opt-in exact/common developer and agent-control file preset. */
   gkxDeveloperExclusions: boolean;
+  /** "Accept older MCP clients": also answer initialize-era revisions
+   *  (LEGACY_MCP_PROTOCOL_VERSIONS). On by default everywhere: defaults,
+   *  migration, and a settings object that omits the field. Only an explicit
+   *  false turns it off. Applies to the existing profile; read through
+   *  KosmosAgentServer.acceptsOlderMcp(). */
+  agentLegacyMcp: boolean;
+  /** Which profile serves agents (0.9.0). Anything but "personal" is the
+   *  existing profile, unchanged. Switching never touches the existing
+   *  profile's settings (defaultSensitivity included). */
+  activeProfile: ActiveProfile;
+  /** Personal Notes profile settings (0.9.0). Its bearer token is NOT here:
+   *  it is device-local and injected at runtime (PersonalAgentRuntime.token). */
+  personalNotes: PersonalNotesSettings;
 }
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -199,6 +239,9 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   gkxEnrichmentLanCeiling: "internal",
   gkxExcludePatterns: [],
   gkxDeveloperExclusions: false,
+  agentLegacyMcp: true,
+  activeProfile: "existing",
+  personalNotes: defaultPersonalNotesSettings(),
 };
 
 const navigationEffectsMigrations = new WeakMap<AgentSettings, NavigationEffectsSettingsMigration>();
@@ -208,14 +251,47 @@ export function getNavigationEffectsSettingsMigration(settings: AgentSettings): 
   return navigationEffectsMigrations.get(settings) ?? migrateNavigationEffectsSettings(settings.navigationEffects);
 }
 
+/** What the schema-11 profile migration found, for the settings tab / a Notice. */
+export interface ProfileSettingsMigration {
+  /** No persisted data existed: Personal onboarding, nothing shared, connector off. */
+  fresh: boolean;
+  /** The connector was forced off (malformed or ambiguous saved state). */
+  connectorMustStayStopped: boolean;
+  /** Set when the patch's lowered defaultSensitivity was undone. */
+  restoredDefaultSensitivity?: string;
+  /** Actionable, local-only messages. Never sent to an agent. */
+  notices: string[];
+}
+
+const profileMigrations = new WeakMap<AgentSettings, ProfileSettingsMigration>();
+
+/** Return the profile-migration report retained for this in-memory settings instance. */
+export function getProfileSettingsMigration(settings: AgentSettings): ProfileSettingsMigration {
+  return profileMigrations.get(settings) ?? { fresh: false, connectorMustStayStopped: false, notices: [] };
+}
+
 /** Migrate persisted settings from any prior schema to the current one (Doc1 §3.7). */
 export function migrateAgentSettings(raw: any): AgentSettings {
+  // A non-object (corrupt data) is not spread into the settings: its indexed
+  // characters would otherwise become keys. The profile migration reports it.
+  const persisted = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : undefined;
+  const profile = migrateProfileSettings(raw, { sensitivityRank: SENSITIVITY_RANK, failClosedSensitivity: FAIL_CLOSED_SENSITIVITY_DEFAULT });
   // A missing nested value is an older/fresh install, not a repair condition.
   // Supplied malformed values are sanitized by the dedicated fail-closed
   // migrator and their diagnostics remain associated with this in-memory object.
-  const navigationEffectsMigration = migrateNavigationEffectsSettings(raw?.navigationEffects);
-  const s: AgentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, raw || {});
+  const navigationEffectsMigration = migrateNavigationEffectsSettings(persisted?.navigationEffects);
+  const s: AgentSettings = Object.assign({}, DEFAULT_AGENT_SETTINGS, persisted || {});
   s.navigationEffects = navigationEffectsMigration.settings;
+  // Schema 11: the patch's flat Personal keys are replaced by the nested
+  // profile settings. Unknown keys stay. The only existing-profile values
+  // touched are the patch's lowered defaultSensitivity (restored from its
+  // recorded prior value, or failed closed) and agentEnabled when the saved
+  // state is ambiguous.
+  for (const key of profile.removedKeys) delete (s as any)[key];
+  s.activeProfile = profile.activeProfile;
+  s.personalNotes = profile.personalNotes;
+  if (profile.restoredDefaultSensitivity !== undefined) s.defaultSensitivity = profile.restoredDefaultSensitivity as GkxSensitivity;
+  if (profile.connectorMustStayStopped) s.agentEnabled = false;
   // v1 had no agentAllowQueryToken and accepted query tokens implicitly. Migrating
   // to v2 turns that OFF by default; the user can re-enable it explicitly.
   if (!raw || raw.schemaVersion == null) s.agentAllowQueryToken = false;
@@ -248,10 +324,55 @@ export function migrateAgentSettings(raw: any): AgentSettings {
   s.gkxEnrichmentMaxTotalInputChars = Math.max(4000, Math.min(250000, Number(s.gkxEnrichmentMaxTotalInputChars) || 50000));
   s.gkxEnrichmentMaxSuggestions = Math.max(1, Math.min(24, Number(s.gkxEnrichmentMaxSuggestions) || 12));
   s.gkxEnrichmentTimeoutMs = Math.max(5000, Math.min(120000, Number(s.gkxEnrichmentTimeoutMs) || 30000));
+  s.agentLegacyMcp = s.agentLegacyMcp !== false;
   s.schemaVersion = AGENT_SETTINGS_SCHEMA;
   navigationEffectsMigrations.set(s, navigationEffectsMigration);
+  profileMigrations.set(s, {
+    fresh: profile.fresh,
+    connectorMustStayStopped: profile.connectorMustStayStopped,
+    ...(profile.restoredDefaultSensitivity !== undefined ? { restoredDefaultSensitivity: profile.restoredDefaultSensitivity } : {}),
+    notices: [...profile.notices],
+  });
   return s;
 }
+
+/**
+ * Personal Notes runtime the plugin injects (0.9.0). Nothing here is persisted.
+ *  - `service`: the one query service behind REST and every MCP era.
+ *  - `policy()`: the current read policy. It MUST be built for
+ *    `generation.current` (build lazily and cache per generation), because the
+ *    server bumps `generation` itself in reconfigureAccess().
+ *  - `generation`: the monotonic policy generation shared with the service.
+ *  - `token()`: the device-local bearer token for the Personal connection;
+ *    "" means none, and then every request is refused. The existing profile's
+ *    `agentToken` is never accepted on the Personal connection.
+ */
+export interface PersonalAgentRuntime {
+  service: Pick<PersonalQueryService, "call">;
+  policy(): PersonalReadPolicy;
+  generation: PolicyGeneration;
+  token(): string;
+}
+
+/** REST routes served in the Personal profile, with the tool each one calls. */
+export const PERSONAL_REST_ROUTES: Readonly<Record<string, (typeof PERSONAL_TOOL_NAMES)[number]>> = {
+  "/overview": "vault_overview",
+  "/notes": "search_notes",
+  "/librarian": "ask_librarian",
+  "/note": "get_note",
+  "/related": "get_related",
+  "/lineage": "get_lineage",
+};
+
+const PERSONAL_INSTRUCTIONS = `Kosmos-Oden Personal Notes: read-only access to the notes the user chose to share. Call vault_overview first; it reports what is shared and whether semantic search is on. To answer a question, call ask_librarian with the whole question: it searches by words and, when semantic search is on, by meaning, and returns the passages, the steps they list and "related" notes. When the task is a process, do not stop at the first note: read the steps, open the notes it links to and the "related" notes with get_note, and tell the user which step comes next. Use search_notes for exact words or a tag, and get_related to move outward from one note. A result whose "found_by" lists only "meaning" is the closest note, not a confirmed match: read it, and say so if it does not answer the question. If "semantic.state" is not ready, the answer used words only: say so when nothing was found, and try the user's likely wording. ${PERSONAL_CONTENT_RULE}`;
+const PERSONAL_NOT_READY ="Personal Notes is not ready on this computer yet. Open Obsidian, finish Personal Notes setup, then connect again.";
+
+/** HTTP status for a Personal service error on REST. */
+const PERSONAL_ERROR_STATUS: Record<string, number> = {
+  invalid_argument: 400, invalid_query: 400, selector_mismatch: 400,
+  not_found: 404, ambiguous_uid: 409, note_changed: 409, note_too_large: 413,
+  hash_unavailable: 503, policy_changed: 503, search_unavailable: 503, cancelled: 503, not_ready: 503,
+};
 
 /** Output caps returned by the read-only API (Doc2 §5.6). */
 export const MAX_NOTE_CONTENT_CHARS = 200_000;
@@ -285,16 +406,6 @@ export const MAX_CONCURRENT_PER_AGENT = 12;
  *  unbounded. */
 export const AGENT_SESSION_TTL_MS = 30 * 60_000;
 export const MAX_AGENT_SESSIONS = 64;
-
-class McpRpcError extends Error {
-  code: number;
-  data?: unknown;
-  constructor(code: number, message: string, data?: unknown) {
-    super(message);
-    this.code = code;
-    this.data = data;
-  }
-}
 
 /**
  * Generate an auth token from a cryptographically secure source (§16).
@@ -335,6 +446,56 @@ export interface AgentDataProvider {
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0.0.0.0"]);
 
+type GkxLink = GkxGraph["links"][number];
+interface GraphIndex { nodes: GkxNode[]; links: GkxLink[]; byId: Map<string, GkxNode>; out: Map<string, GkxLink[]>; in: Map<string, GkxLink[]> }
+const graphIndexes = new WeakMap<GkxGraph, GraphIndex>();
+
+const validAtCache = new WeakMap<GkxNode, [string, number]>();
+
+/** Date.parse(node.validAt || ""), reused while validAt is unchanged. */
+function validAtMs(n: GkxNode): number {
+  const src = n.validAt || "";
+  const cached = validAtCache.get(n);
+  if (cached && cached[0] === src) return cached[1];
+  const ms = Date.parse(src);
+  validAtCache.set(n, [src, ms]);
+  return ms;
+}
+
+interface LowerCaseFields { src: [string, string[], string[], string, string]; label: string; aliases: string[]; tags: string[]; path: string; area: string }
+const lowerCaseCache = new WeakMap<GkxNode, LowerCaseFields>();
+
+/** Lower-cased search fields of a node, reused while the node's own fields
+ *  (compared by value/array identity) are unchanged. */
+function lowerCaseFields(n: GkxNode): LowerCaseFields {
+  const c = lowerCaseCache.get(n);
+  if (c && c.src[0] === n.label && c.src[1] === n.aliases && c.src[2] === n.tags && c.src[3] === n.path && c.src[4] === n.area) return c;
+  const fresh = {
+    src: [n.label, n.aliases, n.tags, n.path, n.area] as LowerCaseFields["src"],
+    label: n.label.toLowerCase(), aliases: n.aliases.map((a) => a.toLowerCase()), tags: n.tags.map((t) => t.toLowerCase()),
+    path: n.path.toLowerCase(), area: (n.area ?? "").toLowerCase(),
+  };
+  lowerCaseCache.set(n, fresh);
+  return fresh;
+}
+
+/** Structure-only indexes of one graph snapshot (id map, link adjacency in
+ *  graph.links order), built once per snapshot and dropped with it. They hold
+ *  no visibility decision, so settings changes need no invalidation; a
+ *  replaced nodes/links array rebuilds them. */
+function graphIndex(graph: GkxGraph): GraphIndex {
+  const cached = graphIndexes.get(graph);
+  if (cached && cached.nodes === graph.nodes && cached.links === graph.links) return cached;
+  const out = new Map<string, GkxLink[]>(), inc = new Map<string, GkxLink[]>();
+  for (const l of graph.links) {
+    (out.get(l.source) ?? out.set(l.source, []).get(l.source)!).push(l);
+    (inc.get(l.target) ?? inc.set(l.target, []).get(l.target)!).push(l);
+  }
+  const index = { nodes: graph.nodes, links: graph.links, byId: new Map(graph.nodes.map((n) => [n.id, n])), out, in: inc };
+  graphIndexes.set(graph, index);
+  return index;
+}
+
 interface AgentSession {
   name: string;
   visualId: string;
@@ -363,6 +524,75 @@ export class KosmosAgentServer {
    *  are not reported — lighting up the entire vault isn't a trail. MCP calls
    *  include a separate server-minted visual identity; REST calls omit it. */
   onTraversal?: (paths: string[], tool: string, agent?: string, agentId?: string) => void;
+  /** Integration hook: the current access-policy generation (profile, scope,
+   *  token, bind). Read when a request starts and again before every response
+   *  write; a change makes the request inactive, so a held response, stream or
+   *  batch member cannot deliver data under the old policy. */
+  policyGeneration?: () => unknown;
+  /** Personal Notes runtime, injected by the plugin. null = not ready: with
+   *  the Personal profile active every agent request then fails closed. */
+  personal: PersonalAgentRuntime | null = null;
+  /** Bumped by reconfigureAccess(); part of every request's liveness check. */
+  private accessEpoch = 0;
+  /** Bind host/port the current listener was started with. */
+  private listening: { host: string; port: number } | null = null;
+
+  /* ---------------- effective connection (one accessor each) ---------------- */
+
+  private personalActive(): boolean { return this.settings.activeProfile === "personal"; }
+
+  /** Effective bind mode: the active profile's own choice. */
+  private effectiveBindMode(): AgentBindMode {
+    if (!this.personalActive()) return this.settings.agentBindMode;
+    return this.settings.personalNotes?.connection?.bindMode === "lan" ? "lan" : "localhost";
+  }
+
+  /** The "Accept older MCP clients" setting of the active profile. On unless
+   *  explicitly false, the same effective default as DEFAULT_AGENT_SETTINGS
+   *  and migrateAgentSettings. */
+  private acceptsOlderMcp(): boolean {
+    if (this.personalActive()) return this.settings.personalNotes?.connection?.acceptOlderMcp !== false;
+    return this.settings.agentLegacyMcp !== false;
+  }
+
+  /** Effective bearer token. Personal: only the injected device-local token,
+   *  never the persisted agentToken. "" = none (every request refused). */
+  private effectiveToken(): string {
+    if (!this.personalActive()) return this.settings.agentToken;
+    const token = this.personal?.token();
+    return typeof token === "string" ? token : "";
+  }
+
+  /** The Personal connection always requires its token. */
+  private effectiveRequireToken(): boolean {
+    return this.personalActive() || this.settings.agentRequireToken;
+  }
+
+  /** Install (or remove, with null) the Personal runtime. Invalidates
+   *  in-flight requests like any other access change. */
+  setPersonalRuntime(runtime: PersonalAgentRuntime | null): { restartRequired: boolean } {
+    this.personal = runtime;
+    return this.reconfigureAccess();
+  }
+
+  /**
+   * Call after ANY change to the active profile, Personal scope, a token
+   * (rotation or disconnect), bind mode, port, "Accept older MCP clients", or
+   * the injected runtime. Bumps the policy generation, ends held requests and
+   * streams with 503, forgets agent identities, and reports whether the
+   * listener must be restarted (stop() then start()) because the effective
+   * bind address or port changed.
+   */
+  reconfigureAccess(): { restartRequired: boolean } {
+    this.accessEpoch++;
+    this.personal?.generation.bump();
+    for (const finish of [...this.activeRequests]) finish("provider_unavailable");
+    this.sessions.clear();
+    // Idle keep-alive sockets carry no authorization (every request is
+    // authenticated), so they are left open.
+    const restartRequired = !!this.listening && (this.listening.host !== this.bindHost || this.listening.port !== this.settings.agentPort);
+    return { restartRequired };
+  }
 
   /** Paths a query result touched, for the live traversal overlay (best-effort, capped). */
   private traversalPaths(tool: string, r: any): string[] {
@@ -378,9 +608,25 @@ export class KosmosAgentServer {
     } catch (_) { return []; }
   }
 
+  /** Personal results: paths the Personal tools returned, each re-checked
+   *  against the current read policy. Nothing comes from the Engine graph. */
+  private personalTraversalPaths(tool: string, r: any): string[] {
+    try {
+      if (!r || r.error || !this.personal) return [];
+      const cap = (a: any[], n: number) => (Array.isArray(a) ? a : []).slice(0, n).map((x: any) => x?.path);
+      const raw = tool === "get_note" ? [r.path]
+        : tool === "search_notes" ? cap(r.results, 8)
+        : tool === "get_related" ? [r.path, ...cap(r.results, 10)]
+        : tool === "get_lineage" ? cap(r.nodes, 12)
+        : [];
+      const policy = this.personal.policy();
+      return raw.filter((p): p is string => typeof p === "string" && policy.allowsPath(p));
+    } catch (_) { return []; }
+  }
+
   emitTraversal(tool: string, r: any, agent?: string, agentId?: string): void {
     if (!this.onTraversal) return;
-    const paths = this.traversalPaths(tool, r);
+    const paths = this.personalActive() ? this.personalTraversalPaths(tool, r) : this.traversalPaths(tool, r);
     if (paths.length) { try { this.onTraversal(paths, tool, agent, agentId); } catch (_) { /* never break a request */ } }
   }
 
@@ -571,13 +817,13 @@ export class KosmosAgentServer {
     this.provider = provider;
   }
 
-  get bindHost(): string { return this.settings.agentBindMode === "lan" ? "0.0.0.0" : "127.0.0.1"; }
+  get bindHost(): string { return this.effectiveBindMode() === "lan" ? "0.0.0.0" : "127.0.0.1"; }
   get url(): string { return `http://127.0.0.1:${this.settings.agentPort}`; }
 
   /** LAN mode must never run without authentication (Doc1 §3.8, Doc2 §5.3). */
   private lanNeedsAuthButHasNone(): boolean {
-    if (this.settings.agentBindMode !== "lan") return false;
-    return !this.settings.agentRequireToken || !this.settings.agentToken;
+    if (this.effectiveBindMode() !== "lan") return false;
+    return !this.effectiveRequireToken() || !this.effectiveToken();
   }
 
   start(onError?: (msg: string) => void): void {
@@ -609,6 +855,7 @@ export class KosmosAgentServer {
       onError?.(this.status);
     });
     this.server = srv;
+    this.listening = { host: this.bindHost, port: this.settings.agentPort };
     srv.listen(this.settings.agentPort, this.bindHost, () => { if (this.server === srv) this.status = "running"; });
   }
 
@@ -617,6 +864,7 @@ export class KosmosAgentServer {
     this.epoch++;
     try { this.server && this.server.close(); } catch (_) { /* already closed */ }
     this.server = null;
+    this.listening = null;
     this.status = "stopped";
     this.inFlight = 0;
     this.hits.clear();
@@ -665,10 +913,19 @@ export class KosmosAgentServer {
 
   private allowedHostnames(): Set<string> {
     const allowed = new Set(LOCAL_HOSTNAMES);
-    if (this.settings.agentBindMode === "lan") {
+    if (this.effectiveBindMode() === "lan") {
       const now = Date.now();
       if (now - this.lanCache.at > 60_000) this.lanCache = { at: now, ips: this.provider.lanAddresses() };
       for (const ip of this.lanCache.ips) allowed.add(ip.toLowerCase());
+      // The address Quick Connect hands to clients (an explicitly configured hostname or VPN name).
+      const advertised = this.personalActive() ? this.settings.personalNotes?.connection?.advertisedBaseUrl : undefined;
+      if (typeof advertised === "string" && advertised.trim()) {
+        try {
+          const raw = advertised.trim();
+          const host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+          if (host && host !== "0.0.0.0" && host !== "::") allowed.add(host);
+        } catch { /* not a usable address: nothing added */ }
+      }
     }
     return allowed;
   }
@@ -699,16 +956,17 @@ export class KosmosAgentServer {
 
   authorized(req: any, urlObj: URL): boolean {
     const s = this.settings;
-    if (!s.agentRequireToken) return true;
-    if (!s.agentToken) return false;
-    const token = s.agentToken;
+    if (!this.effectiveRequireToken()) return true;
+    const token = this.effectiveToken();
+    if (!token) return false;
     // Header auth is the documented default (Doc1 §3.6). Constant-time compare.
     const h = String(req.headers["authorization"] || "");
     if (h.toLowerCase().startsWith("bearer ") && this.timingSafeEqual(h.slice(7).trim(), token)) return true;
     if (this.timingSafeEqual(String(req.headers["x-api-key"] || ""), token)) return true;
-    // Query-string tokens are deprecated: opt-in only, and NEVER accepted in LAN
-    // mode (query strings leak through history/proxies/logs, Doc1 §3.6).
-    if (s.agentAllowQueryToken && s.agentBindMode !== "lan") {
+    // Query-string tokens are deprecated: opt-in only, NEVER accepted in LAN
+    // mode (query strings leak through history/proxies/logs, Doc1 §3.6), and
+    // never on the Personal connection.
+    if (s.agentAllowQueryToken && !this.personalActive() && this.effectiveBindMode() !== "lan") {
       const q = urlObj.searchParams.get("token");
       if (q != null && this.timingSafeEqual(q, token)) return true;
     }
@@ -757,6 +1015,15 @@ export class KosmosAgentServer {
     return graph.nodes.filter((n) => n.kind === "file" && this.canRead(n));
   }
 
+  /** Readable file nodes and their id set, computed once per query.
+   *  Visibility is never cached across queries: it depends on settings and
+   *  on node metadata, and is cheap next to what it replaces (one rebuild per
+   *  returned note in brief()). */
+  private readable(graph: GkxGraph): { files: GkxNode[]; visible: Set<string> } {
+    const files = this.fileNodes(graph);
+    return { files, visible: new Set(files.map((n) => n.id)) };
+  }
+
   private visibleTemporal(
     n: GkxNode,
     graph: GkxGraph,
@@ -767,7 +1034,7 @@ export class KosmosAgentServer {
       .filter((id) => visible.has(id))
       .map((id) => byId.get(id))
       .filter(Boolean) as GkxNode[];
-    const times = successors.map((x) => Date.parse(x.validAt || "")).filter((x) => !Number.isNaN(x));
+    const times = successors.map((x) => validAtMs(x)).filter((x) => !Number.isNaN(x));
     const participates = successors.length > 0 || (n.gkx?.supersedesIds ?? []).some((id) => visible.has(id));
     return {
       head: participates && successors.length === 0,
@@ -788,8 +1055,7 @@ export class KosmosAgentServer {
     };
   }
 
-  private findNode(graph: GkxGraph, sel: { path?: string; title?: string; uid?: string }): GkxNode | null {
-    const files = this.fileNodes(graph);
+  private findNode(graph: GkxGraph, sel: { path?: string; title?: string; uid?: string }, files = this.fileNodes(graph)): GkxNode | null {
     if (sel.uid) {
       const uid = sel.uid.trim();
       const hits = files.filter((n) => n.gkx?.projection?.authored.uid === uid || n.gkx?.uid === uid);
@@ -820,12 +1086,11 @@ export class KosmosAgentServer {
     return null;
   }
 
-  private projectables(graph: GkxGraph): ProjectableNote[] {
+  private projectables(graph: GkxGraph, { files, visible } = this.readable(graph)): ProjectableNote[] {
     const out: ProjectableNote[] = [];
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    for (const n of this.fileNodes(graph)) {
-      const v = n.validAt ? Date.parse(n.validAt) : NaN;
+    const byId = graphIndex(graph).byId;
+    for (const n of files) {
+      const v = n.validAt ? validAtMs(n) : NaN;
       if (Number.isNaN(v)) continue;
       const visibleInvalidAt = this.visibleTemporal(n, graph, visible, byId).invalidAt;
       const inv = visibleInvalidAt ? Date.parse(visibleInvalidAt) : null;
@@ -838,14 +1103,14 @@ export class KosmosAgentServer {
 
   async qOverview(): Promise<any> {
     const graph = await this.provider.getGraph();
-    const ns = this.fileNodes(graph);
-    const visible = new Set(ns.map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    const { files: ns, visible } = this.readable(graph);
+    const byId = graphIndex(graph).byId;
     const temporal = ns.map((n) => this.visibleTemporal(n, graph, visible, byId));
-    const points = ns.flatMap((n, i) => {
-      const out = n.validAt ? [Date.parse(n.validAt)] : [];
-      if (temporal[i].invalidAt) out.push(Date.parse(temporal[i].invalidAt as string));
-      return out.filter((x) => !Number.isNaN(x));
+    const points: number[] = [];
+    ns.forEach((n, i) => {
+      if (n.validAt) { const v = validAtMs(n); if (!Number.isNaN(v)) points.push(v); }
+      const invalidAt = temporal[i].invalidAt;
+      if (invalidAt) { const v = Date.parse(invalidAt); if (!Number.isNaN(v)) points.push(v); }
     });
     return {
       vault: this.provider.vaultName(),
@@ -877,7 +1142,7 @@ export class KosmosAgentServer {
       lineageEdges: graph.links.filter((l) => l.kind === "lineage" && visible.has(l.source) && visible.has(l.target)).length,
       semanticEdges: graph.links.filter((l) => l.kind === "semantic" && visible.has(l.source) && visible.has(l.target)).length,
       timeSpan: points.length > 1 ? { min: Math.min(...points), max: Math.max(...points) } : null,
-      diagnostics: await this.safeDiagnostics(graph),
+      diagnostics: await this.safeDiagnostics(graph, { files: ns, visible }),
       indexBuiltAt: graph.stats.indexedAt,
     };
   }
@@ -887,8 +1152,7 @@ export class KosmosAgentServer {
     return this.safeDiagnostics(graph);
   }
 
-  private safeDiagnostics(graph: GkxGraph): any {
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
+  private safeDiagnostics(graph: GkxGraph, { files, visible } = this.readable(graph)): any {
     const visibleLinks = graph.links.filter((l) => visible.has(l.source) && (visible.has(l.target) || l.target.startsWith("unresolved:")));
     return {
       notes: visible.size,
@@ -902,7 +1166,7 @@ export class KosmosAgentServer {
       warningsRedacted: graph.diagnostics.lineageWarnings.length > 0,
       lastFullBuildMs: graph.diagnostics.lastFullBuildMs,
       lastIncrementalUpdateMs: graph.diagnostics.lastIncrementalUpdateMs,
-      gkx23Diagnostics: this.fileNodes(graph).reduce((sum, n) => sum + (n.gkx?.projection?.diagnostics.length ?? 0), 0),
+      gkx23Diagnostics: files.reduce((sum, n) => sum + (n.gkx?.projection?.diagnostics.length ?? 0), 0),
     };
   }
 
@@ -910,18 +1174,22 @@ export class KosmosAgentServer {
     const graph = await this.provider.getGraph();
     const q = String(query || "").toLowerCase();
     const lim = Math.max(1, Math.min(MAX_SEARCH_RESULTS, opts.limit || 20));
-    const scored: Array<[number, GkxNode]> = [];
+    // [score, node, validAt ms]: the date is parsed once per hit, not per comparison.
+    const scored: Array<[number, GkxNode, number]> = [];
     if (opts.body && !this.provider.getIndexedBody) throw new McpRpcError(-32602, "Body search is unavailable from this provider");
     let bodyCharacters = 0, bodyNotes = 0, bodyLimited = false;
-    for (const n of this.fileNodes(graph)) {
-      if (opts.tag && !n.tags.some((t) => t.toLowerCase() === String(opts.tag).toLowerCase())) continue;
-      if (opts.area && n.area.toLowerCase() !== String(opts.area).toLowerCase()) continue;
+    const { files, visible } = this.readable(graph);
+    const tag = opts.tag ? String(opts.tag).toLowerCase() : "", area = opts.area ? String(opts.area).toLowerCase() : "";
+    for (const n of files) {
+      const lc = lowerCaseFields(n);
+      if (opts.tag && !lc.tags.some((t) => t === tag)) continue;
+      if (opts.area && lc.area !== area) continue;
       let s = -1;
       if (!q) s = 0;
-      else if (n.label.toLowerCase().startsWith(q)) s = 3;
-      else if (n.label.toLowerCase().includes(q)) s = 2;
-      else if (n.aliases.some((a) => a.toLowerCase().includes(q)) || n.tags.some((t) => t.toLowerCase().includes(q))) s = 1.5;
-      else if (n.path.toLowerCase().includes(q)) s = 1;
+      else if (lc.label.startsWith(q)) s = 3;
+      else if (lc.label.includes(q)) s = 2;
+      else if (lc.aliases.some((a) => a.includes(q)) || lc.tags.some((t) => t.includes(q))) s = 1.5;
+      else if (lc.path.includes(q)) s = 1;
       if (s < 0 && opts.body) {
         const body = this.provider.getIndexedBody!(n.path, graph);
         const remaining = Math.max(0, 8_000_000 - bodyCharacters);
@@ -931,30 +1199,32 @@ export class KosmosAgentServer {
         if (text.length) bodyNotes++;
         if (text.toLowerCase().includes(q)) s = 0.5;
       }
-      if (s >= 0) scored.push([s, n]);
+      if (s >= 0) scored.push([s, n, validAtMs(n) || 0]);
     }
-    scored.sort((a, b) => (b[0] - a[0]) || ((Date.parse(b[1].validAt || "") || 0) - (Date.parse(a[1].validAt || "") || 0)));
+    scored.sort((a, b) => (b[0] - a[0]) || (b[2] - a[2]));
     return {
       query,
       method: opts.body ? "lexical (title/alias/tag/path and bounded body substring; no embeddings)" : "lexical (title/alias/tag/path substring; no embeddings)",
       ...(opts.body ? { bodySearch: { coverage: "partial", notesScanned: bodyNotes, charactersScanned: bodyCharacters, truncated: bodyLimited, maxCharactersPerNote: 64_000, maxCharactersPerQuery: 8_000_000 } } : {}),
       total: scored.length,
-      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph)),
+      results: scored.slice(0, lim).map(([, n]) => this.brief(n, graph, visible, graphIndex(graph).byId)),
     };
   }
 
   async qNote(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found", hint: "pass path (e.g. Ideas/Engine v2.md) or title" };
-    const visible = new Set(this.fileNodes(graph).map((x) => x.id));
-    const nameOf = (id: string) => visible.has(id) ? (graph.nodes.find((x) => x.id === id)?.label ?? id) : null;
-    const outgoing = graph.links.filter((l) => l.source === n.id && visible.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
-    const backlinks = graph.links.filter((l) => l.target === n.id && visible.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
-    const semantic = graph.links.filter((l) => l.source === n.id && visible.has(l.target) && l.kind === "semantic").map((l) => l.target);
+    const index = graphIndex(graph);
+    const nameOf = (id: string) => visible.has(id) ? (index.byId.get(id)?.label ?? id) : null;
+    const from = index.out.get(n.id) ?? [], to = index.in.get(n.id) ?? [];
+    const outgoing = from.filter((l) => visible.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.target);
+    const backlinks = to.filter((l) => visible.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => l.source);
+    const semantic = from.filter((l) => visible.has(l.target) && l.kind === "semantic").map((l) => l.target);
     const content = await this.provider.getNoteContent(n.path);
     return {
-      ...this.brief(n, graph, visible),
+      ...this.brief(n, graph, visible, index.byId),
       aliases: n.aliases,
       gkx: n.gkx ? {
         gkx_version: n.gkx.gkxVersion,
@@ -1075,9 +1345,11 @@ export class KosmosAgentServer {
   /** Canonical lineage chain — identical to what the viewer displays (§33). */
   async qLineage(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found" };
-    const byId = new Map(this.fileNodes(graph).map((x) => [x.id, x]));
+    const byId = new Map(files.map((x) => [x.id, x]));
+    const allById = graphIndex(graph).byId;
     const seen = new Set<string>();
     const chain: GkxNode[] = [];
     const walk = (id: string) => {
@@ -1094,7 +1366,7 @@ export class KosmosAgentServer {
     return {
       for: n.path,
       chainLength: chain.length,
-      chain: chain.map((x) => ({ ...this.brief(x, graph), current: x.id === n.id })),
+      chain: chain.map((x) => ({ ...this.brief(x, graph, visible, allById), current: x.id === n.id })),
       declarations: this.lineageDeclarations(graph, n, byId),
     };
   }
@@ -1117,13 +1389,16 @@ export class KosmosAgentServer {
 
   async qRelated(sel: { path?: string; title?: string }): Promise<any> {
     const graph = await this.provider.getGraph();
-    const n = this.findNode(graph, sel);
+    const { files, visible } = this.readable(graph);
+    const n = this.findNode(graph, sel, files);
     if (!n) return { error: "note not found" };
-    const byId = new Map(this.fileNodes(graph).map((x) => [x.id, x]));
-    const b = (id: string) => { const x = byId.get(id); return x ? this.brief(x, graph) : { path: id }; };
-    const semantic = graph.links.filter((l) => l.source === n.id && byId.has(l.target) && l.kind === "semantic").map((l) => b(l.target));
-    const outgoing = graph.links.filter((l) => l.source === n.id && byId.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
-    const backlinks = graph.links.filter((l) => l.target === n.id && byId.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
+    const byId = new Map(files.map((x) => [x.id, x]));
+    const index = graphIndex(graph);
+    const b = (id: string) => { const x = byId.get(id); return x ? this.brief(x, graph, visible, index.byId) : { path: id }; };
+    const from = index.out.get(n.id) ?? [], to = index.in.get(n.id) ?? [];
+    const semantic = from.filter((l) => byId.has(l.target) && l.kind === "semantic").map((l) => b(l.target));
+    const outgoing = from.filter((l) => byId.has(l.target) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.target));
+    const backlinks = to.filter((l) => byId.has(l.source) && l.kind !== "contains" && l.kind !== "lineage").map((l) => b(l.source));
     return { for: n.path, semantic, outgoing, backlinks };
   }
 
@@ -1132,13 +1407,14 @@ export class KosmosAgentServer {
     const graph = await this.provider.getGraph();
     const T = Date.parse(time);
     if (Number.isNaN(T)) return { error: "invalid time; use ISO 8601, e.g. 2026-04-01 or 2026-04-01T00:00:00Z" };
-    const projection = projectAtTime(this.projectables(graph), T);
-    const byId = new Map(graph.nodes.map((x) => [x.id, x]));
+    const readable = this.readable(graph);
+    const projection = projectAtTime(this.projectables(graph, readable), T);
+    const byId = graphIndex(graph).byId;
     const briefs = (ids: string[]) => ids
       .map((id) => byId.get(id))
       .filter(Boolean)
       .sort((a: any, b: any) => String(b.validAt).localeCompare(String(a.validAt)))
-      .map((n: any) => this.brief(n, graph));
+      .map((n: any) => this.brief(n, graph, readable.visible, byId));
     const valid = briefs(projection.valid);
     const superseded = briefs(projection.superseded);
     const cap = Math.max(1, Math.min(MAX_SEARCH_RESULTS, Math.floor(Number.isFinite(limit) ? limit : 50)));
@@ -1264,9 +1540,9 @@ export class KosmosAgentServer {
 
   async qGraph(): Promise<any> {
     const graph = await this.provider.getGraph();
-    const visible = new Set(this.fileNodes(graph).map((n) => n.id));
-    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-    const nodes = this.fileNodes(graph).map((n) => this.brief(n, graph, visible, byId));
+    const { files, visible } = this.readable(graph);
+    const byId = graphIndex(graph).byId;
+    const nodes = files.map((n) => this.brief(n, graph, visible, byId));
     const links: any[] = [];
     for (const l of graph.links) {
       if (l.kind === "contains" || !visible.has(l.source) || !visible.has(l.target)) continue;
@@ -1278,13 +1554,20 @@ export class KosmosAgentServer {
   /* ---------------- MCP (Streamable HTTP sessions, read tools only) ---------------- */
 
   toolDefs(): any[] {
+    const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+    const outputSchema = { type: "object", additionalProperties: true };
+    // Personal profile: exactly the five Personal tools. The legacy path
+    // reduces these to name/description/inputSchema (./mcp-compat).
+    if (this.personalActive()) return personalToolDefs().map((def) => ({ ...def, outputSchema, annotations }));
+    return this.existingToolDefs(annotations, outputSchema);
+  }
+
+  private existingToolDefs(annotations: Record<string, boolean>, outputSchema: Record<string, unknown>): any[] {
     const sel = {
       path: { type: "string", description: "Vault-relative path, e.g. Ideas/Engine v2.md" },
       title: { type: "string", description: "Note title / basename / alias" },
       uid: { type: "string", description: "Canonical GKX UID" },
     };
-    const annotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-    const outputSchema = { type: "object", additionalProperties: true };
     const tool = (name: string, title: string, description: string, inputSchema: any) => ({
       name, title, description, inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, agent_name: { type: "string", description: "Your designated ship name, e.g. Codex Game Research. Send the same name on each call; display only, not authority.", minLength: 1, maxLength: 80 } } }, outputSchema, annotations,
     });
@@ -1313,6 +1596,12 @@ export class KosmosAgentServer {
 
   private validateToolArgs(name: string, args: unknown): Record<string, any> {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new McpRpcError(-32602, "tools/call arguments must be an object");
+    // Personal profile: a tool outside the five is unknown, exactly as if it
+    // did not exist. Arguments are validated by the Personal query service.
+    if (this.personalActive()) {
+      if (!(PERSONAL_TOOL_NAMES as readonly string[]).includes(name)) throw new McpRpcError(-32602, `Unknown tool: ${String(name).slice(0, 100)}`);
+      return args as Record<string, any>;
+    }
     const a = args as Record<string, any>;
     const def = this.toolDefs().find((t) => t.name === name);
     if (!def) throw new McpRpcError(-32602, `Unknown tool: ${name}`);
@@ -1346,8 +1635,38 @@ export class KosmosAgentServer {
     return a;
   }
 
+  /** One Personal service call. Invalid arguments are a JSON-RPC
+   *  invalid-params error; every other Personal error is a tool result
+   *  `{ error: code, message }` (isError on the wire). Messages come from the
+   *  service and never name a path outside the caller's scope; anything else
+   *  is reported generically. */
+  private async callPersonalTool(name: string, args: Record<string, any>, origin: "rest" | "mcp"): Promise<any> {
+    const runtime = this.personal;
+    if (!runtime) return { error: "not_ready", message: PERSONAL_NOT_READY };
+    try {
+      return await runtime.service.call(name, args, origin);
+    } catch (e: any) {
+      // By name as well as class: a service bundled separately (tests, a
+      // future worker) throws its own copy of the class.
+      const pe = e as PersonalError;
+      if (e instanceof PersonalError || (e instanceof Error && e.name === "PersonalError" && typeof pe.code === "string")) {
+        if (origin === "mcp" && pe.code === "invalid_argument") throw new McpRpcError(-32602, pe.message);
+        return { error: pe.code, message: pe.message };
+      }
+      return { error: "internal_error", message: "the request could not be completed" };
+    }
+  }
+
   async callTool(name: string, args: any, agent?: string, agentId?: string, isActive: () => boolean = () => true, agentOverride?: string): Promise<any> {
     args = this.validateToolArgs(name, args || {});
+    if (this.personalActive()) {
+      const r = await this.callPersonalTool(name, args, "mcp");
+      if (isActive()) {
+        this.emitTraversal(name, r, agent, agentId);
+        if (agent && !r?.error && !this.personalTraversalPaths(name, r).length) { try { this.onTraversal?.([], "ping", agent, agentId); } catch (_) { /* best effort */ } }
+      }
+      return r;
+    }
     if (agentOverride || args.agent_name) {
       const key = this.registerSession(this.displayAgentName(args.agent_name, agentOverride, agent), MODERN_MCP_PROTOCOL_VERSION);
       const session = this.getSession(key);
@@ -1450,7 +1769,7 @@ export class KosmosAgentServer {
           supportedVersions: [...SUPPORTED_MCP_PROTOCOL_VERSIONS],
           capabilities: { tools: { listChanged: false } },
           _meta: { [MCP_META_SERVER_INFO]: { name: "kosmos-oden", title: "Kosmos-Oden", version: KOSMOS_VERSION } },
-          instructions: `GKOS-Engine v${ENGINE_VERSION} read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.`,
+          instructions: this.personalActive() ? PERSONAL_INSTRUCTIONS : `GKOS-Engine v${ENGINE_VERSION} read-only, sensitivity-filtered GKX v2.3 Validating Projection Profile. Authored, derived, proposed, approved, and effective values remain distinct. Scores measure documentation/support quality, not truth or authorization. Use get_gkx_note/get_assessment/get_diagnostics for governance projections and get_lineage/graph_at_time for temporal views. Graphiti exports are non-authoritative projections. The server never modifies notes.`,
         });
       }
       // Legacy handshake. Not implemented, and the error names the supported
@@ -1490,6 +1809,44 @@ export class KosmosAgentServer {
     }
   }
 
+  /* ---------------- Legacy MCP (0.9.0) ---------------- */
+
+  /** Display identity of a legacy caller. There is no session, so the name
+   *  comes from the request in hand: an explicit agent_name, the Kosmos name
+   *  header, clientInfo.name on the handshake, else the User-Agent. A batch
+   *  is identified by its headers. Names are self-reported and grant nothing. */
+  private legacyIdentity(parsed: any, req: any, version: string): { agent: string; agentId?: string; agentOverride?: string } {
+    const declared = parsed?.method === "tools/call" ? parsed?.params?.arguments?.agent_name : undefined;
+    const initName = parsed?.method === "initialize" ? parsed?.params?.clientInfo?.name : undefined;
+    const name = this.displayAgentName(declared, req?.headers?.["x-kosmos-agent-name"], initName, req?.headers?.["user-agent"]);
+    // initialize carries no version header: record the revision it negotiates (echo if supported, else the newest), as serveLegacyMcpHttp answers.
+    const requested = parsed?.method === "initialize" ? parsed?.params?.protocolVersion : undefined;
+    const negotiated = typeof requested !== "string" ? version : NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS.includes(requested) ? requested : NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS[0];
+    const key = this.registerSession(name, negotiated);
+    const rec = this.getSession(key);
+    return { agent: rec?.name ?? this.cleanAgentName(name), agentId: rec?.visualId, agentOverride: name };
+  }
+
+  /** The tool service the legacy adapter talks to: the same tool definitions
+   *  and query service the modern path uses, bound to one request's caller
+   *  identity and liveness. Another tool set plugs in by changing what
+   *  toolDefs()/callTool() serve; the wire code in ./mcp-compat is unchanged. */
+  private legacyToolService(ctx: { agent?: string; agentId?: string; agentOverride?: string; isActive: () => boolean }): McpToolService {
+    return {
+      toolDefs: () => this.toolDefs(),
+      callTool: (name, args) => this.callTool(name, args, ctx.agent, ctx.agentId, ctx.isActive, ctx.agentOverride),
+      isActive: ctx.isActive,
+    };
+  }
+
+  private legacyServerIdentity() {
+    return {
+      name: "kosmos-oden",
+      version: KOSMOS_VERSION,
+      instructions: this.personalActive() ? PERSONAL_INSTRUCTIONS : `Kosmos-Oden read-only notes connector (GKOS-Engine v${ENGINE_VERSION}). Call vault_overview first. Source notes remain authoritative; this API is a sensitivity-filtered read projection.`,
+    };
+  }
+
   /* ---------------- HTTP dispatch ---------------- */
 
   /** Public entry: enforce rate/concurrency limits, then dispatch. */
@@ -1502,14 +1859,21 @@ export class KosmosAgentServer {
     }
     const epoch = this.epoch, provider = this.provider, settings = this.settings;
     const ceiling = settings.agentSensitivityCeiling, defaultSensitivity = settings.defaultSensitivity;
-    const token = settings.agentToken, requireToken = settings.agentRequireToken;
+    const token = this.effectiveToken(), requireToken = this.effectiveRequireToken();
     const until = performance.now() + this.operationTimeoutMs;
+    const policyGeneration = this.policyGeneration, generation = policyGeneration?.();
+    // Profile, scope, token, bind and runtime changes: any of them ends the request.
+    const accessEpoch = this.accessEpoch, profile = settings.activeProfile;
+    const personal = this.personal, personalGeneration = personal?.generation.current;
     let akey: string | undefined, finished = false;
     let releaseWait!: () => void;
     const ended = new Promise<void>(resolve => { releaseWait = resolve; });
     const isActive = () => !finished && epoch === this.epoch && this.provider === provider && this.settings === settings &&
       settings.agentSensitivityCeiling === ceiling && settings.defaultSensitivity === defaultSensitivity &&
-      settings.agentToken === token && settings.agentRequireToken === requireToken && performance.now() < until;
+      this.effectiveToken() === token && this.effectiveRequireToken() === requireToken && performance.now() < until &&
+      this.accessEpoch === accessEpoch && settings.activeProfile === profile &&
+      this.personal === personal && personal?.generation.current === personalGeneration &&
+      this.policyGeneration === policyGeneration && (!policyGeneration || policyGeneration() === generation);
     let timer: ReturnType<typeof setTimeout>;
     const finish = (reason?: "timeout" | "provider_unavailable") => {
       if (finished) return;
@@ -1562,7 +1926,7 @@ export class KosmosAgentServer {
     // Capture the old provider/settings context. A restarted server cannot
     // redirect an old suspended dispatch into a replacement provider.
     const context = Object.create(this) as KosmosAgentServer;
-    context.provider = provider; context.settings = settings;
+    context.provider = provider; context.settings = settings; context.personal = personal;
     const guarded = new Proxy(res, { get(target, key) {
       const value = Reflect.get(target, key, target);
       if (typeof value !== "function") return value;
@@ -1593,9 +1957,17 @@ export class KosmosAgentServer {
     const u = new URL(req.url || "/", "http://127.0.0.1");
     const path = u.pathname.replace(/\/+$/, "") || "/";
     if (req.method === "OPTIONS") { res.writeHead(204, { "Cache-Control": "no-store" }); res.end(); return; }
+    // Personal profile without its runtime: fail closed. Never fall back to
+    // the existing profile's vault-wide tools.
+    if (this.personalActive() && !this.personal) {
+      this.json(res, 503, path === "/mcp"
+        ? { jsonrpc: "2.0", id: null, error: { code: -32603, message: PERSONAL_NOT_READY, data: { reason: "not_ready", retryable: true } } }
+        : { error: "not_ready", message: PERSONAL_NOT_READY });
+      return;
+    }
     if (!this.authorized(req, u)) {
       // Generic message — does not distinguish missing from incorrect token (Doc1 §3.6).
-      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token> or x-api-key: <token>" });
+      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer TOKEN or x-api-key: TOKEN" });
       return;
     }
 
@@ -1619,16 +1991,21 @@ export class KosmosAgentServer {
       let parsed: any;
       try { parsed = JSON.parse(body || "null"); }
       catch (_) { this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }); return; }
-      if (Array.isArray(parsed)) {
-        this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32600, message: "JSON-RPC batching is not supported by Streamable HTTP; send one message per POST" } });
+      // Era classification (./mcp-compat): presence of any modern marker keeps
+      // the strict modern path; an explicit unknown version is refused; the
+      // rest is initialize-era traffic at its header revision or 2025-03-26.
+      const route = classifyMcpRequest(req.headers, parsed);
+      if (Array.isArray(parsed) && route.era === "modern") {
+        this.json(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32600, message: "JSON-RPC batching is not supported by modern MCP Streamable HTTP; send one message per POST" } });
         return;
       }
 
       // Validate the envelope before interpreting metadata or registering a
       // caller. A malformed request is not a metadata/header disagreement.
+      // Batch members are validated one by one by the legacy adapter.
       const validId = typeof parsed?.id === "string" || (typeof parsed?.id === "number" && Number.isInteger(parsed.id));
-      if (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
-          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed) {
+      if (!Array.isArray(parsed) && (!parsed || typeof parsed !== "object" || parsed.jsonrpc !== "2.0" || typeof parsed.method !== "string" ||
+          (parsed.id !== undefined && !validId) || "result" in parsed || "error" in parsed)) {
         this.json(res, 400, { jsonrpc: "2.0", ...(validId ? { id: parsed.id } : {}), error: { code: -32600, message: "Invalid Request: expected one JSON-RPC 2.0 request or notification with a string or integer id" } });
         return;
       }
@@ -1639,6 +2016,35 @@ export class KosmosAgentServer {
       // is not demanded of one. Accepted notifications answer 202 with no body.
       req.kosmosRequestId = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed.id : null;
       const isNotification = parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.id === undefined;
+
+      if (route.era === "unsupported-version") {
+        this.json(res, 400, { jsonrpc: "2.0", id: validId ? parsed.id : null, error: {
+          code: MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+          message: `Unsupported protocol version: ${route.requested}`,
+          data: { supported: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()), requested: route.requested },
+        } });
+        return;
+      }
+      if (route.era === "legacy") {
+        if (!this.acceptsOlderMcp()) {
+          // Explicit refusal, never a silent modern reinterpretation. A bare
+          // notification carries nothing to refuse and is acknowledged.
+          if (isNotification) { res.writeHead(202, { "Cache-Control": "no-store" }); res.end(); return; }
+          const requested = !Array.isArray(parsed) && parsed.method === "initialize" && typeof parsed.params?.protocolVersion === "string" ? parsed.params.protocolVersion : route.version;
+          this.json(res, 400, { jsonrpc: "2.0", id: validId ? parsed.id : null, error: {
+            code: MCP_ERR_UNSUPPORTED_PROTOCOL_VERSION,
+            message: `Unsupported protocol version: older MCP clients are turned off in Kosmos-Oden settings ("Accept older MCP clients"); this server answers modern MCP ${SUPPORTED_MCP_PROTOCOL_VERSIONS.join(", ")} only`,
+            data: { supported: [...SUPPORTED_MCP_PROTOCOL_VERSIONS], requested },
+          } });
+          return;
+        }
+        const who = isNotification ? { agent: this.agentLabel(req), agentId: undefined, agentOverride: undefined } : this.legacyIdentity(Array.isArray(parsed) ? null : parsed, req, route.version);
+        if (!claimAgent(`${who.agentId ? "mcp" : "ua"}:${who.agent}`)) return;
+        const accept = typeof req.headers["accept"] === "string" ? req.headers["accept"] : undefined;
+        await serveLegacyMcpHttp(parsed, route, this.legacyToolService({ ...who, isActive }), this.legacyServerIdentity(), res, accept);
+        if (!Array.isArray(parsed) && parsed.method === "ping" && isActive()) { try { this.onTraversal?.([], "ping", who.agent, who.agentId); } catch (_) { /* presence never breaks requests */ } }
+        return;
+      }
 
       if (!isNotification) {
         const bad = this.validateRequestMetadata(req, parsed);
@@ -1674,6 +2080,7 @@ export class KosmosAgentServer {
 
     if (!claimAgent(`ua:${this.agentLabel(req)}`)) return;
     if (req.method !== "GET") { this.json(res, 405, { error: "GET only (read-only API)" }); return; }
+    if (this.personalActive()) { await this.personalRest(req, res, path, isActive); return; }
     const q = (k: string) => u.searchParams.get(k) || undefined;
     switch (path) {
       case "/":
@@ -1681,8 +2088,8 @@ export class KosmosAgentServer {
           name: "Kosmos-Oden Agent API",
           version: KOSMOS_VERSION,
           readOnly: true,
-          auth: "Authorization: Bearer <token> or x-api-key: <token>",
-          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: SUPPORTED_MCP_PROTOCOL_VERSIONS },
+          auth: "Authorization: Bearer TOKEN or x-api-key: TOKEN",
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
         return;
@@ -1708,5 +2115,49 @@ export class KosmosAgentServer {
       case "/graphiti/status": this.json(res, 200, await this.qGraphitiIngestionStatus()); return;
       default: this.json(res, 404, { error: "not found", see: "/" });
     }
+  }
+
+  /** Personal profile REST: the five tool routes plus a minimal root and
+   *  health. Every other path, including every existing-profile route, gets
+   *  the same not-found as an unknown route. Query strings are decoded once
+   *  by parseRestQuery and validated by the Personal service. */
+  private async personalRest(req: any, res: any, path: string, isActive: () => boolean): Promise<void> {
+      if (path === "/ui" || path === "/ui/") {
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+        });
+        res.end(PERSONAL_UI_HTML);
+        return;
+      }
+      if (path === "/") {
+        this.json(res, 200, {
+          name: "Kosmos-Oden Agent API",
+          version: KOSMOS_VERSION,
+          profile: "personal",
+          readOnly: true,
+          auth: "Authorization: Bearer TOKEN or x-api-key: TOKEN",
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
+          rest: ["/health", "/ui", "/overview", "/notes?query=&limit=&tag=", "/librarian?question=&limit=&format=", "/note?path=|uid=&offset_chars=&limit_chars=&expected_hash=", "/related?path=|uid=&limit=", "/lineage?path=|uid=&limit=&cursor="],
+          contentRule: PERSONAL_CONTENT_RULE,
+        });
+        return;
+      }
+    if (path === "/health") { this.json(res, 200, { ok: true, name: "kosmos-oden", version: KOSMOS_VERSION, profile: "personal" }); return; }
+    const tool = Object.hasOwn(PERSONAL_REST_ROUTES, path) ? PERSONAL_REST_ROUTES[path] : undefined;
+    if (!tool) { this.json(res, 404, { error: "not found", see: "/" }); return; }
+    const rawUrl = String(req.url || "");
+    const queryAt = rawUrl.indexOf("?");
+    let params: Record<string, string>;
+    try { params = parseRestQuery(queryAt < 0 ? "" : rawUrl.slice(queryAt + 1)); }
+    catch (e: any) { this.json(res, 400, { error: "invalid_argument", message: e instanceof PersonalError ? e.message : "malformed query string" }); return; }
+    const r = await this.callPersonalTool(tool, params, "rest");
+    if (!isActive()) return;
+    if (r?.error) { this.json(res, PERSONAL_ERROR_STATUS[r.error] ?? 500, r); return; }
+    this.emitTraversal(tool, r, this.agentLabel(req));
+    this.json(res, 200, r);
   }
 }

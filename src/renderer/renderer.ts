@@ -26,7 +26,7 @@ import { KOSMOS_VERSION } from "../kosmos-version";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";
-import { nextQuality } from "./quality";
+import { frameDt, nextQuality, shaderTime } from "./quality";
 import { TrafficHeatmap, type MonotonicClock } from "../standalone/observability";
 
 /** Renderer descriptor exposed for browser tests / diagnostics (§7.4). */
@@ -298,6 +298,11 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   }
 
   function disposeAll() {
+    // An InstancedMesh owns its instanceMatrix GPU buffer, which is released
+    // only by mesh.dispose(); disposing the geometry does not free it. Every
+    // instanced layer lives under `world`, so one traversal covers them all
+    // (they leaked ~6 GL buffers per rebuild before).
+    world.traverse((o: any) => { if (o.isInstancedMesh) o.dispose(); });
     for (const o of disposables) { try { o.dispose && o.dispose(); } catch (e) { /* already disposed */ } }
     disposables = [];
   }
@@ -398,7 +403,8 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
         // aBand carries the NASA planet-type style code (0 terrestrial, 1 gas, 2 neptunian, 3 super-earth)
         L.attrs.aBand.setX(i, (b === "planet" && node.__pstyle != null) ? node.__pstyle : 0);
         L.attrs.aDetail.setX(i, 1);
-        const rec = { node, layer: L, idx: i, body: b };
+        // pos/r/vis/mat are stable references for the hot per-frame loops.
+        const rec = { node, layer: L, idx: i, body: b, pos: node.position, r: r || 0.4, vis: L.attrs.aVisible.array, mat: L.mesh.instanceMatrix.array, __hero: false };
         L.recByIdx[i] = rec;
         nodeRender.push(rec); idToRender.set(node.id, rec);
       });
@@ -545,56 +551,69 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   // instead of rescanning every node once per role on every frame.
   const ORBIT_ORDER = ["galaxy", "star", "planet", "moon", "moonlet", "asteroid", "oort"];
   let orbiters: any[] = [];
+  // Per-orbit constants packed once per scene build. Graph nodes carry dozens
+  // of dynamically added fields, so reading ~12 of them per body per frame
+  // dominated the frame at 15k notes; the loop below reads only this array.
+  const OK = 10;   // ox, oy, oz, |ov_xz|, ecc, speed, wobble amp, freq, phase, sin(phase)
+  let orbitK = new Float64Array(0), orbitParentPos: number[][] = [];
   function buildOrbiters() {
-    orbiters = [];
-    if (!G || !G.__cosmos) return;
+    orbiters = []; orbitParentPos = [];
+    if (!G || !G.__cosmos) { orbitK = new Float64Array(0); return; }
     for (const role of ORBIT_ORDER) for (const rec of nodeRender) { const n = rec.node; if (n.body === role && n.__opNode && n.__ov) orbiters.push(rec); }
+    orbitK = new Float64Array(orbiters.length * OK);
+    orbiters.forEach((rec, i) => {
+      const n = rec.node, v = n.__ov, o = i * OK, wph = n.__wob_phase || 0;
+      orbitK[o] = v[0]; orbitK[o + 1] = v[1]; orbitK[o + 2] = v[2]; orbitK[o + 3] = Math.hypot(v[0], v[2]);
+      orbitK[o + 4] = n.__ecc || 0; orbitK[o + 5] = n.__os || 0; orbitK[o + 6] = n.__wob_amp || 0;
+      orbitK[o + 7] = n.__wob_freq || 0; orbitK[o + 8] = wph; orbitK[o + 9] = Math.sin(wph);
+      orbitParentPos.push(n.__opNode.position);
+    });
   }
   function animateOrbits(t: number) {
     if (!G || !G.__cosmos || !orbiters.length) return;
-    for (const rec of orbiters) {
-      const n = rec.node; if (n.__hidden) continue;
-      const pn = n.__opNode; const p = pn.position;
-      const ox = n.__ov[0], oy = n.__ov[1], oz = n.__ov[2];
-      const e = n.__ecc || 0;
-      if (e > 0) {
+    const K = orbitK;
+    for (let i = 0; i < orbiters.length; i++) {
+      const rec = orbiters[i]; if (rec.node.__hidden) continue;
+      const p = orbitParentPos[i], q = rec.pos, o = i * OK;
+      const ox = K[o], oy = K[o + 1], oz = K[o + 2];
+      const e = K[o + 4], aH = K[o + 3];
+      if (e > 0 && aH > 0) {
         // Elliptical orbit: apoapsis is pinned to the original |ov_horiz|,
         // so the max distance from the parent never exceeds the packed radius
         // (collision-safe). Periapsis is a(1-e) inward. At t=0 the object is
         // at apoapsis (matches its layout-time position exactly).
-        const aH = Math.hypot(ox, oz);
-        if (aH > 0) {
-          const semi = aH / (1 + e);                // semi-major axis
-          let theta = Math.PI + (n.__os || 0) * t;  // start at apoapsis
-          // Sibling perturbation (theta jitter): the heaviest sibling tugs
-          // this body slightly along its orbit — no perpendicular offset,
-          // so max radius stays exactly aH. Zero at t=0 by construction.
-          const wa = n.__wob_amp;
-          if (wa) {
-            const wph = n.__wob_phase || 0;
-            theta += wa * (Math.sin((n.__wob_freq || 0) * t + wph) - Math.sin(wph));
-          }
-          const rOrbit = semi * (1 - e * e) / (1 + e * Math.cos(theta));
-          const dth = theta - Math.PI, cd = Math.cos(dth), sd = Math.sin(dth);
-          const ux = ox / aH, uz = oz / aH;         // apoapsis unit direction
-          const rx = ux * cd - uz * sd;             // rotate around Y by dθ
-          const rz = ux * sd + uz * cd;
-          n.position[0] = p[0] + rx * rOrbit;
-          n.position[1] = p[1] + oy;
-          n.position[2] = p[2] + rz * rOrbit;
-          continue;
-        }
+        const semi = aH / (1 + e);                // semi-major axis
+        let theta = Math.PI + K[o + 5] * t;       // start at apoapsis
+        // Sibling perturbation (theta jitter): the heaviest sibling tugs
+        // this body slightly along its orbit — no perpendicular offset,
+        // so max radius stays exactly aH. Zero at t=0 by construction.
+        const wa = K[o + 6];
+        if (wa) theta += wa * (Math.sin(K[o + 7] * t + K[o + 8]) - K[o + 9]);
+        const ct = Math.cos(theta), rOrbit = semi * (1 - e * e) / (1 + e * ct);
+        const cd = -ct, sd = -Math.sin(theta);    // cos/sin of dθ = θ - π
+        const ux = ox / aH, uz = oz / aH;         // apoapsis unit direction
+        const rx = ux * cd - uz * sd;             // rotate around Y by dθ
+        const rz = ux * sd + uz * cd;
+        q[0] = p[0] + rx * rOrbit;
+        q[1] = p[1] + oy;
+        q[2] = p[2] + rz * rOrbit;
+        continue;
       }
       // fallback: perfect circle (unchanged from prior behaviour)
-      const a = (n.__os || 0) * t, c = Math.cos(a), s = Math.sin(a);
-      n.position[0] = p[0] + ox * c + oz * s; n.position[1] = p[1] + oy; n.position[2] = p[2] - ox * s + oz * c;
+      const a = K[o + 5] * t, c = Math.cos(a), s = Math.sin(a);
+      q[0] = p[0] + ox * c + oz * s; q[1] = p[1] + oy; q[2] = p[2] - ox * s + oz * c;
     }
   }
   /** Writes one body's instance matrix. A body promoted to the close-up layer is
    *  collapsed to zero scale here so it is shaded once, by the finer mesh. */
   function writeInstanceMatrix(rec: any) {
-    const n = rec.node, r = rec.__hero ? 0 : (n.__r || 0.4);
-    MAT.compose(VEC.fromArray(n.position), QID, SCALE.set(r, r, r)); rec.layer.mesh.setMatrixAt(rec.idx, MAT); rec.layer.__dirty = 1;
+    // Body instances never rotate (spin/tumble happen in the vertex shader), so
+    // only the uniform scale and the translation change: write those 6 floats
+    // instead of composing and copying a full matrix for every orbiter per frame.
+    const p = rec.pos, r = rec.__hero ? 0 : rec.r;
+    const a = rec.mat, o = rec.idx * 16;
+    a[o] = r; a[o + 5] = r; a[o + 10] = r; a[o + 12] = p[0]; a[o + 13] = p[1]; a[o + 14] = p[2];
+    rec.layer.__dirty = 1;
   }
   function flushInstanceMatrices() {
     for (const bb in layers) { const L = layers[bb]; if (L.__dirty) { L.__dirty = 0; L.mesh.instanceMatrix.needsUpdate = true; } }   // skip GPU uploads for untouched layers
@@ -605,14 +624,15 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     // culled) needs no matrix until it is drawn again; cullLOD and playback
     // write it at the moment it reappears.
     for (const rec of orbiters) {
-      if (rec.node.__hidden || rec.layer.attrs.aVisible.getX(rec.idx) < 0.5) continue;
+      if (rec.vis[rec.idx] < 0.5 || rec.node.__hidden) continue;
       writeInstanceMatrix(rec);
     }
     flushInstanceMatrices();
     if (glow && lumNodes.length) {
+      const a = glow.mesh.instanceMatrix.array;   // pure translations (see buildScene)
       for (const n of lumNodes) {
         if (n.__glow == null) continue;
-        MAT.makeTranslation(n.position[0], n.position[1], n.position[2]); glow.mesh.setMatrixAt(n.__glow, MAT);
+        const o = n.__glow * 16, p = n.position; a[o + 12] = p[0]; a[o + 13] = p[1]; a[o + 14] = p[2];
       }
       glow.mesh.instanceMatrix.needsUpdate = true;
     }
@@ -625,6 +645,10 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     }
   }
   function updateCosmosLinks() {
+    // Every link layer is hidden unless "All links" is on (applyConnVisibility):
+    // do not rewrite and re-upload endpoints nobody can see. The toggle calls
+    // this once on the way back in, so the first visible frame is current.
+    if (!showAllConnections) return;
     for (const L of [chainLines, thinLines]) {
       if (!L || !L.pairs || !L.pos) continue;
       const pos = L.pos, pr = L.pairs;
@@ -1224,7 +1248,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     if (thinLines) thinLines.mat.opacity = 0.5;
     if (chainLines) chainLines.mat.opacity = 0.6;
   }
-  function toggleAllConnections() { showAllConnections = !showAllConnections; const b = document.getElementById("allLinksBtn"); if (b) b.classList.toggle("on", showAllConnections); applyConnVisibility(); }
+  function toggleAllConnections() { showAllConnections = !showAllConnections; const b = document.getElementById("allLinksBtn"); if (b) b.classList.toggle("on", showAllConnections); applyConnVisibility(); if (G && G.__cosmos) updateCosmosLinks(); }
   function toggleAllObjects() { showAllObjects = !showAllObjects; const b = document.getElementById("allObjBtn"); if (b) b.classList.toggle("on", showAllObjects); setAllObjectsGlow(showAllObjects); applyFilters(); }
   document.getElementById("allLinksBtn") && document.getElementById("allLinksBtn").addEventListener("click", toggleAllConnections);
   document.getElementById("allObjBtn") && document.getElementById("allObjBtn").addEventListener("click", toggleAllObjects);
@@ -2070,13 +2094,18 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   /* ---- resize + render loop + explicit hidden-view suspension (§27) ---- */
   let focalH = 600;
   function resize() {
-    const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+    const w = window.innerWidth, h = window.innerHeight;
+    // A hidden host (display:none iframe/leaf) reports 0x0. Keep the last real
+    // size: 0/0 made the projection NaN, and the LOD pass (focalH = 0) then
+    // culled every small body until the next cull after the view came back.
+    if (!(w > 0 && h > 0)) return;
+    renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
     focalH = (h * 0.5) / Math.tan((camera.fov * Math.PI / 180) / 2);
   }
   window.addEventListener("resize", resize); resize();
 
   // FPS-adaptive pixel-ratio (keeps mobile smooth)
-  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0, slowWindows = 0;
+  let fpsAccum = 0, fpsFrames = 0, lastAdjust = 0, slowWindows = 0, dprCap = MAXDPR, dprCapWindows = 0;
   function adaptQuality(dt: number, now: number) {
     fpsAccum += dt; fpsFrames++;
     if (now - lastAdjust < 1.2) return;
@@ -2085,35 +2114,47 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     // is not resolvable while bodies are small on screen. The policy lives in
     // ./quality so it can be unit tested; this function only measures and
     // applies. See test/renderer-quality.test.mjs.
+    // Never ramp past the display's own ratio: on a 1x screen the old ceiling
+    // of 2 rendered up to 4x the pixels the display can show. Read per window
+    // so moving the window to another monitor or zooming is followed.
+    const maxDpr = Math.min(MAXDPR, Math.max(1, window.devicePixelRatio || 1));
     const decision = nextQuality({
       fps,
       dpr,
-      floor: LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0),
-      maxDpr: MAXDPR,
+      floor: Math.min(maxDpr, LOWPOWER ? 1.0 : (MOBILE ? 1.25 : 1.0)),
+      maxDpr,
       closeDetail: !!selectedId || !!hoveredId || !!cam.flight || cam.radius < overviewRadius * 0.62,
       mobile: MOBILE,
       slowWindows,
       lodScale,
       pinnedDpr: CAPTURE.dpr,
+      cap: dprCap,
+      capWindows: dprCapWindows,
     });
     slowWindows = decision.slowWindows;
+    dprCap = decision.cap; dprCapWindows = decision.capWindows;
     lodScale = decision.lodScale;
     if (decision.dpr !== dpr) { dpr = decision.dpr; renderer.setPixelRatio(dpr); }
   }
 
-  const clock = new THREE.Clock();
+  // Simulation time advances only by clamped frame steps (see quality.ts
+  // frameDt), so hidden periods and stalled frames never jump the orbits.
+  let simTime = 0, lastFrameMs: number | null = null;
   let raf = 0, mmFrame = 0, lodFrame = 0, linkFrame = 0;
   const renderStats = { frames: 0, running: false };
   function frame() {
     raf = requestAnimationFrame(frame);
     renderStats.frames++;
     // Capture mode freezes shader time (uTime) and suppresses per-frame drift so
-    // screenshots are deterministic; otherwise use the real elapsed clock.
-    const dt = CAPTURE.frozen ? 0 : Math.min(clock.getDelta(), 0.05);
-    const t = CAPTURE.frozen ? CAPTURE.time : clock.elapsedTime;
+    // screenshots are deterministic.
+    const nowMs = performance.now();
+    const dt = CAPTURE.frozen ? 0 : frameDt(lastFrameMs, nowMs);
+    lastFrameMs = nowMs; simTime += dt;
+    const t = CAPTURE.frozen ? CAPTURE.time : simTime;
+    const tShader = shaderTime(t);
     for (const m of matsWithTime) {
       if (m.uniforms) {
-        if (m.uniforms.uTime) m.uniforms.uTime.value = t;
+        if (m.uniforms.uTime) m.uniforms.uTime.value = tShader;
         if (m.uniforms.uCamPos && m.uniforms.uCamPos.value && m.uniforms.uCamPos.value.set) m.uniforms.uCamPos.value.set(camera.position.x, camera.position.y, camera.position.z);
       }
     }
@@ -2157,7 +2198,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   function startLoop() {
     if (renderStats.running) return;
     renderStats.running = true;
-    clock.getDelta(); // swallow the hidden interval so dt stays sane
+    lastFrameMs = null; // the first frame after a (re)start advances nothing
     raf = requestAnimationFrame(frame);
   }
   function stopLoop() {
@@ -2212,6 +2253,29 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
     mobile: MOBILE,
     maxDpr: MAXDPR,
     pixelRatio: () => renderer.getPixelRatio(),
+    /** Read-only stability probe for browser tests: instance-buffer integrity,
+     *  hero tier, camera planes, shader time and selected body positions. */
+    inspect(ids?: string[]) {
+      const e = new Float32Array(16), out: any = { layers: {}, heroes: [], near: camera.near, far: camera.far, aspect: camera.aspect, dpr, lodScale, uTime: matsWithTime[0]?.uniforms?.uTime?.value ?? null, nodes: nodeRender.length };
+      for (const b in (layers || {})) {
+        const L = layers[b], arr = L.mesh.instanceMatrix.array as Float32Array; let nan = 0, zeroVisible = 0, atOrigin = 0, visible = 0;
+        for (const rec of L.recByIdx) {
+          if (!rec) continue; const o = rec.idx * 16; for (let k = 0; k < 16; k++) e[k] = arr[o + k];
+          if (!e.every(Number.isFinite)) nan++;
+          if (L.attrs.aVisible.getX(rec.idx) < 0.5) continue; visible++;
+          if (e[0] === 0 && !rec.__hero) zeroVisible++;
+          if (e[12] === 0 && e[13] === 0 && e[14] === 0 && rec.node.id !== G.clusterId) atOrigin++;
+        }
+        out.layers[b] = { count: L.mesh.count, capacity: L.mesh.instanceMatrix.count, records: L.recByIdx.filter(Boolean).length, visible, nan, zeroVisible, atOrigin, inScene: L.mesh.parent === world };
+      }
+      const slot: any = {};
+      for (const r of heroRecs) {
+        const i = slot[r.body] = (slot[r.body] ?? -1) + 1, h = heroLayers[r.body].mesh.instanceMatrix.array as Float32Array, p = r.node.position;
+        out.heroes.push({ id: r.node.id, body: r.body, instancedScale: (layers[r.body].mesh.instanceMatrix.array as Float32Array)[r.idx * 16], heroScale: h[i * 16], offset: Math.hypot(h[i * 16 + 12] - p[0], h[i * 16 + 13] - p[1], h[i * 16 + 14] - p[2]), drawn: i < heroLayers[r.body].mesh.count });
+      }
+      if (ids) out.positions = Object.fromEntries(ids.map((id) => { const r = idToRender.get(id); return [id, r ? r.node.position.slice() : null]; }));
+      return out;
+    },
   };
 
   function teardown() {

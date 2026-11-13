@@ -1,8 +1,238 @@
 # Changelog
 
+## 0.9.5 — unreleased (Librarian + deterministic MoC + semantic search)
+
+Added — semantic search, inside the plugin ([guide](docs/v0.9.5/SEMANTIC-SEARCH.md)):
+- **Search by meaning**, off until turned on. A question that shares no word
+  with the right note can now find it. Nothing else is installed: no Python,
+  no Ollama, no server, no database program, no account.
+- **Embedding model list** in Settings: five models, every one published under
+  MIT or Apache-2.0, each pinned to one repository commit with the size and
+  SHA-256 of every file. One **Download** button with progress and cancel; the
+  file is verified before use and again at every load. Default: Snowflake
+  Arctic Embed S (Apache-2.0, 35 MB).
+- **Use my own model files…**: select an ONNX embedding model and its
+  tokenizer that are already on the computer. Nothing is downloaded.
+- The model runs in a Web Worker on ONNX Runtime WebAssembly; the index is a
+  real **SQLite** database (`semantic/index-<model>.sqlite` in the plugin's
+  folder) created by the plugin through SQLite WebAssembly. Both runtimes are
+  bundled in `main.js`. The index holds paths, positions and vectors and **no
+  note text**. Only changed notes are embedded again; Pause, Resume and
+  Rebuild are in Settings.
+- **Hybrid `ask_librarian`**: the notes closest in meaning join the three
+  word-based lists as a fourth fused list. Each result carries `found_by` (its
+  rank in each list) and `semantic_score`; the response carries `semantic`
+  (`ready`, `partial`, `off`, `loading`, `error`) so an assistant knows how the
+  search ran. Off, loading, slow or failing semantic search yields exactly the
+  word-based answer.
+- **Guidance through related processes**: `ask_librarian` returns `related` —
+  the notes the answer links to and the notes close to it in meaning — and the
+  brief lists them as what to read next. `get_related` gains the reason
+  `similar_meaning`. The MCP server instructions and the tool description tell
+  the assistant to follow steps and related notes and to say which step comes
+  next. `vault_overview` reports `capabilities.semantic_search`.
+- Access is unchanged: every semantic request names the requester's readable
+  notes, and a candidate outside them is dropped in the index and again in the
+  Librarian. A note found by meaning alone is labelled "found by meaning only";
+  closest is never presented as matching.
+- The only network use is the model download the user starts, from
+  `huggingface.co`, carrying no note text, path or token. New guard rules in
+  `kosmos-invariants.yml` (`semantic:`) enforce the licence list, the single
+  download site, the pinned catalog, no note text in the index, and off by
+  default.
+- `/ui` says whether a question was searched by words and by meaning or by
+  words only.
+
+Changed by semantic search:
+- `main.js` grows from about 2 MB to about 7.8 MB (the two WebAssembly
+  runtimes, compressed).
+- New build dependencies, exact-pinned: `onnxruntime-web` 1.31.1 (MIT),
+  `sql.js` 1.16.0 (MIT), `@huggingface/tokenizers` 0.2.0 (Apache-2.0).
+
+Measured on the build host (one CPU thread, headless Chromium): 2 to 14
+passages embedded per second depending on the model (Arctic Embed S 6.2,
+all-MiniLM-L6-v2 14.0), a question in 6 to 60 ms, an index of about 1.6 KB per
+passage. The first index of a large vault is therefore slow; it runs in the
+background and resumes.
+
+Not yet tried: the settings section, a download and a first index inside a
+running Obsidian; memory use on a large vault. See
+[docs/v0.9.5/ALPHA-TEST.md](docs/v0.9.5/ALPHA-TEST.md).
+
+Added — the Librarian, a deterministic hybrid search tool (`ask_librarian`):
+- One question, not keywords. Three ranked lists are fused by reciprocal rank:
+  stemmed BM25 over the note (title, aliases, tags, file name and headings
+  count extra), a pseudo-relevance expansion of words the best matches share,
+  and character-trigram similarity over names and titles.
+- Any word may match, so a sentence is no longer an AND filter. Word forms,
+  plurals, `-ation`/`-ing`/`-ed`, mild typos (edit distance, reported as a
+  correction) and names are handled; `"quoted text"` ranks notes containing
+  that phrase higher.
+- Each hit carries its best passages with the heading above them, the list
+  steps it contains, its web links with forms flagged, and its note links;
+  `format` chooses structured results, a markdown brief, or both.
+- Deterministic and token-free: no model, no network, nothing on disk. Scope is
+  applied inside the search worker before anything is examined, and a reply
+  computed under an older corpus revision or policy generation is reissued or
+  refused.
+- The same answer is served three ways: MCP tool `ask_librarian`, REST
+  `GET /librarian?question=&limit=&format=`, and a self-contained page at
+  `GET /ui` that uses no model at all.
+
+Added — deterministic Map of Content (`kosmos-moc/1`):
+- One folder's notes become one index note, byte-identical for the same input
+  in any order: NFC + lowercase code-unit order, subfolder groups, superseded
+  notes in their own section, and links that fall back from `[[Base name]]` to
+  `[[folder/note|Title]]` to a Markdown link only when they must.
+- Only the block between `<!-- kosmos-moc:begin v1 -->` and
+  `<!-- kosmos-moc:end -->` is replaced; text outside it, the BOM and the
+  dominant line ending are preserved. A file without a block is refused, never
+  adopted. An update writes an exact backup first and compare-and-writes, so a
+  concurrent edit skips instead of being overwritten.
+- Command: **Update this folder's map of content (deterministic)**.
+
+Changed:
+- The Personal profile now lists six tools; `vault_overview`, the served
+  instructions and the REST index report `ask_librarian` and `/librarian`.
+
 ## Unreleased
 
 - Naming pass: use the GKOS-Engine and GKOS-Engine-Lite spellings in UI text and docs, rename local scratch-directory ignores to `kosmos-oden_v*`, and rewrite the manifest description in plain language. The existing read-only compatibility for the pre-rename `vault-kosmos-view` view type and `vault-kosmos-nextcloud-*` secret key is kept, so saved layouts and stored WebDAV passwords still carry over.
+
+## 0.9.0 (alpha test candidate) — 2026-11-12
+
+**Status: alpha test candidate, not a qualified release.** Automated checks
+pass on the build machine. The trials that need Obsidian 1.13.0+, real
+exports or accounts, real MCP client applications or a second machine have
+not been run: Google Keep import (I01), OneNote file import (I02), OneNote
+account import (I03), re-import with Skip (I04), Importer report (I05), another
+machine connecting and localhost mode being unreachable from it (N02, N01
+remote half), real older and modern MCP clients (C01), the archive installed
+in a clean vault (B02), runtime checks inside Obsidian, performance inside
+Obsidian, and the visual review on the owner's GPU. See
+[docs/v0.9.0/ALPHA-TEST.md](docs/v0.9.0/ALPHA-TEST.md). The installable
+archive is `kosmos-oden-0.9.0-alpha.1.zip` (`npm run package:release`); the
+manifest version is `0.9.0`.
+
+Added — Personal Notes profile ([guide](docs/PERSONAL-NOTES.md)):
+- A second profile, **Personal Notes**, next to the existing (governed)
+  profile, chosen with **Active profile**. In it an assistant reads only the
+  **Folders shared with agents**; ordinary notes need no labels. Notes that
+  author a `sensitivity` are shared only at or below the existing Agent
+  sensitivity ceiling; an invalid label or unreadable properties block hides
+  the note. A fresh installation starts in Personal Notes with nothing shared
+  and the connection off; an upgraded installation stays on the existing
+  profile. Switching profiles never changes the existing profile's settings.
+- **Add notes from another app**: guided Google Keep (Takeout) and OneNote
+  (account or `.one`/`.onepkg`) imports through the Obsidian Importer
+  community plugin (steps written for Importer 3.1.17), which does the
+  conversion. Review results shows files present, notes without words, and an
+  Importer report the user selects; reports are never shared. Advice to use
+  **Skip existing notes** on re-import.
+- **Search my notes**: full-text search over the whole vault in a bundled
+  background worker. Lexical substring matching on NFC/lowercase copies with
+  excerpts in the original spelling, quoted phrases, at most 500 characters
+  and 16 terms. In memory only, rebuilt at startup; files over 5 MiB or beyond
+  128 MiB of text are skipped and reported as partial coverage. No embeddings,
+  no index on disk, no main-thread fallback.
+- **Optional tags** (off by default, rule-based, no model): independent time
+  stamps (`created_at`/`updated_at`), permanent `uid` (UUIDv7) and
+  **This note supersedes…** links, each previewed before **Apply selected
+  tags**, re-checked by hash before writing, with exact backups under
+  `.gkx/backup/`. Opt-in automatic time stamps after real content changes,
+  held back for import folders until **Import finished — review tags**. A
+  tagged note stays a plain note: no `gkx_version`, no conversion. Lineage is
+  read from explicit `supersedes`/`superseded_by` only.
+- Five read-only tools for this profile: `vault_overview`, `search_notes`,
+  `get_note`, `get_related`, `get_lineage`, through REST (`/overview`,
+  `/notes`, `/note`, `/related`, `/lineage`) and every MCP era. Contract
+  `kosmos-personal-notes/1`.
+- Exact paged reads: `get_note` returns exact UTF-16 slices of the raw
+  Markdown with `content_hash` (SHA-256), `next_offset_chars`, and
+  `note_changed` / `note_too_large` errors; attachment references only.
+- **Connect my AI**: shared folders, Connect/Disconnect, Rotate token, Start
+  when Obsidian opens (per device, off by default), network access, Accept
+  older MCP clients, and a real **Test connection** (key, MCP opening, tool
+  list, search, read).
+- **Quick Connect** for **This computer** and **Another computer / agent
+  server**, from one shared generator used by the settings tab, the Connect
+  window and the Agent API guide: Claude Code (command and `.mcp.json`),
+  OpenAI Codex, other MCP clients, stdio bridge and an HTTP health check.
+  `0.0.0.0` and loopback addresses are refused for another computer.
+- A **device-local Personal token**, kept in Obsidian secret storage and never
+  in `data.json`, notes or synced settings.
+
+Added — MCP:
+- Dual-era MCP on both profiles. Modern `2026-07-28` is unchanged. While
+  **Accept older MCP clients** is on (default), initialize-era clients are
+  answered statelessly: `2025-11-25`, `2025-06-18` and `2025-03-26` natively
+  on `/mcp`, including March-2025 JSON-RPC batches (up to 100 messages,
+  request-scoped event-stream reply), and `2024-11-05` only through the stdio
+  bridge's internal adapter. Off means modern only on both transports.
+- The stdio bridge carries both eras, remembers the negotiated legacy revision
+  per process, splits March-2025 batches, and keeps stdout to protocol
+  messages only.
+- Development dependency `@modelcontextprotocol/client@2.4.0` (Apache-2.0)
+  for conformance tests only; it is not shipped.
+
+Changed:
+- Settings schema 11: `activeProfile` and a nested `personalNotes` object. The
+  starter patch's flat schema-10 keys are migrated and removed; a lowered
+  Default sensitivity recorded by that patch is restored, and if it cannot be
+  restored the connector stays stopped with a notice. Unknown keys are kept.
+- Minimum Obsidian version 1.13.0 (was 1.11.4).
+- The Claude Code `.mcp.json` template uses `"type": "http"` (was
+  `"streamable-http"`).
+- Existing-profile Agent API retrieval is faster with byte-identical results
+  (for example `qSearch` p95 at 15,000 notes 86.66 → 9.68 ms on one machine);
+  see [PERFORMANCE-AGENT-API.md](docs/v0.9.0/PERFORMANCE-AGENT-API.md).
+- While the Personal profile is active, the existing automatic timestamp
+  option writes nothing.
+- Renderer ([RENDERER-STABILITY.md](docs/v0.9.0/RENDERER-STABILITY.md)): the
+  adaptive pixel ratio never exceeds the display's own ratio (capped at 2), so
+  close-ups on standard-density screens are slightly less smooth than in
+  0.8.4; the adaptive ratio no longer flaps; hidden link layers are no longer
+  rewritten every frame; faster orbit and instance updates.
+
+Fixed (renderer):
+- GPU buffers of instanced meshes are released on every rebuild (they grew
+  with each graph update).
+- Orbits and shader animation no longer jump after the view was hidden or a
+  frame stalled.
+- Star and planet animation no longer degrades over long sessions (shader
+  time precision).
+- A zero-size (hidden) host no longer produces a NaN projection and pop-in.
+
+Security-relevant:
+- The Personal connection always requires its own token, by header only
+  (`Authorization: Bearer` or `x-api-key`); query-string tokens and the
+  existing profile's token are never accepted on it. Rotate token takes effect
+  immediately.
+- One read policy for every agent-facing path. It always excludes the
+  configuration folder, `.git`, Kosmos operational paths, files named
+  `AGENT-API.md` and selected Importer reports, rejects symlinked or
+  out-of-vault paths, and fails closed on invalid input. Hidden and missing
+  notes are indistinguishable.
+- A policy generation ends in-flight requests and batches after any profile,
+  scope, token or bind change.
+- Synced settings never start sharing on another device.
+- Local network mode listens on all interfaces over plain, unencrypted HTTP;
+  use it only on a trusted network, or a VPN or HTTPS reverse proxy.
+- Tagging writes only selected properties, after a hash re-check, with exact
+  backups for explicit applies; malformed properties are never rewritten.
+- Classification never downgrades a request with any modern marker to the
+  legacy path.
+
+Not included: OCR or handwriting transcription; embeddings or semantic search;
+sync with Google Keep or OneNote (imports are one-time copies) or two-way sync;
+qualification of Apple Notes or Evernote imports; deduplication of Keep notes
+renamed between imports; the deprecated HTTP+SSE (`/sse`) transport;
+attachment contents through the agent tools; encryption of plain HTTP; a
+restore command for tagging backups; a persistent or inverted search index.
+
+Unchanged: Engine pin (`7511233717cd5ab9ce8f6cec76e9623a21e3c728`), Three.js
+`0.186.1`, existing-profile tools and data rules, Graphiti export, Nextcloud
+sync, and every default of a pre-existing setting.
 
 ## 0.8.4 — 2026-10-21
 

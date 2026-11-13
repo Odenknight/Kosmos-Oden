@@ -13,6 +13,7 @@ import {
 import type { AgentSettings } from "./agent-server";
 import { openGkxBlockedReview } from "./gkx-blocked-review";
 import { isKosmosOperationalPath } from "../operational-paths";
+import { isUnderAnyFolder } from "../personal-notes/scope";
 
 export interface GkxMigrationApplyResult {
   runId: string;
@@ -41,9 +42,11 @@ async function ensureFolder(app: App, path: string): Promise<void> {
 
 export interface GkxMigrationScanResult { plan: GkxMigrationPlan; excluded: Array<{ path: string; pattern: string }> }
 
-export async function scanVaultForGkx(app: App, mode: GkxMigrationMode = "safe-onboarding", settings?: AgentSettings): Promise<GkxMigrationScanResult> {
+export async function scanVaultForGkx(app: App, mode: GkxMigrationMode = "safe-onboarding", settings?: AgentSettings, onlyFolders?: readonly string[]): Promise<GkxMigrationScanResult> {
   const files = app.vault.getMarkdownFiles()
-    .filter((file) => !isKosmosOperationalPath(file.path));
+    .filter((file) => !isKosmosOperationalPath(file.path))
+    // 0.9.0: an optional folder list narrows the scan. Omitted = whole vault, as before.
+    .filter((file) => !onlyFolders || isUnderAnyFolder(file.path, onlyFolders));
   const sources: GkxMigrationSource[] = [];
   const excluded: Array<{ path: string; pattern: string }> = [];
   for (const file of files) {
@@ -273,10 +276,11 @@ export async function openGkxMigrationWorkflow(
   mode: GkxMigrationMode = "safe-onboarding",
   onApplied?: (result: GkxMigrationApplyResult) => void,
   settings?: AgentSettings,
+  onlyFolders?: readonly string[],
 ): Promise<void> {
   const scanning = new Notice("Kosmos-Oden: scanning notes for GKX frontmatter…", 0);
   try {
-    const scan = await scanVaultForGkx(app, mode, settings);
+    const scan = await scanVaultForGkx(app, mode, settings, onlyFolders);
     const plan = scan.plan;
     scanning.hide();
     new GkxMigrationPreviewModal(app, plan, async (approved) => {
