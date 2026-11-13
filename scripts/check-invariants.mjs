@@ -5,9 +5,9 @@
  *
  * No YAML dependency: a tiny scalar reader handles this flat policy file.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(resolve(root, p), "utf8");
@@ -149,6 +149,45 @@ must(mig.byte_exact_backup === true && /readBinary/.test(migrationHost) && /writ
 must(mig.source_match_before_write === true && /current !== entry\.originalContent/.test(migrationHost), "GKX migration must skip sources changed after the plan");
 must(mig.body_preserved === true && /fm\.body/.test(migrationCore), "GKX migration must preserve the human-authored body");
 must(mig.llm_required === false && mig.network_dispatch_allowed === false && !/\bfetch\s*\(|XMLHttpRequest|WebSocket/.test(migrationCode), "GKX migration must remain LLM-free and make no network dispatch");
+
+/* ---- semantic search (0.9.5) ---- */
+const sem = policy.semantic || {};
+const semDir = "src/semantic";
+const semFiles = readdirSync(resolve(root, semDir)).filter((f) => f.endsWith(".ts")).map((f) => `${semDir}/${f}`);
+const NETWORK = /\bfetch\s*\(|\brequestUrl\s*\(|XMLHttpRequest|WebSocket|EventSource|\bimportScripts\s*\(|sendBeacon/;
+must(sem.default_enabled === false && /return \{ enabled: false, modelId: DEFAULT_MODEL_ID/.test(read(`${semDir}/settings.ts`)), "semantic search must be off by default");
+const licences = sem.allowed_model_licenses?.__list || [];
+const catalogSrc = read(`${semDir}/catalog.ts`);
+must(licences.join(",") === "MIT,Apache-2.0" && /ALLOWED_MODEL_LICENSES = \["MIT", "Apache-2\.0"\] as const/.test(catalogSrc), "the model catalog must allow exactly MIT and Apache-2.0");
+for (const m of catalogSrc.matchAll(/^\s*license:\s*"([^"]+)"/gm)) must(licences.includes(m[1]), `catalog model licence ${m[1]} is not MIT or Apache-2.0`);
+for (const f of [...semFiles, "src/ui/semantic-settings.ts", "src/personal-notes/librarian.ts"]) {
+  must(!NETWORK.test(stripComments(read(f))), `${f} must make no network request (only src/plugin/semantic-host.ts may download a model file)`);
+}
+const semHost = stripComments(read("src/plugin/semantic-host.ts"));
+must(sem.network_call_sites === 1 && (semHost.match(/\bfetch\s*\(/g) || []).length === 1 && (semHost.match(/\brequestUrl\s*\(/g) || []).length === 1
+  && (semHost.match(/Downloader = async/g) || []).length === 1, "semantic-host.ts must download in exactly one function (one stream request and its one fallback)");
+must(typeof sem.model_host === "string" && semHost.includes(`const MODEL_HOST = "${sem.model_host}";`) && /if \(!url\.startsWith\(MODEL_HOST\)\) throw/.test(semHost)
+  && catalogSrc.includes(`const HF = "${String(sem.model_host).replace(/\/$/, "")}";`), "model downloads must be confined to the declared model host");
+must(!/credentials:\s*"(include|same-origin)"|Authorization|agentToken/.test(semHost), "a model download must carry no credential");
+must(sem.worker_network === false && /numThreads = 1/.test(read(`${semDir}/embedder.ts`)) && /wasmBinary/.test(read(`${semDir}/embedder.ts`)),
+  "the embedding worker must run from bytes it carries or is given (no runtime fetched, no threads)");
+const schema = /const DDL = `([\s\S]*?)`;/.exec(read(`${semDir}/store.ts`))?.[1] ?? "";
+must(sem.index_stores_note_text === false && /CREATE TABLE chunks/.test(schema) && (schema.match(/\bTEXT\b/g) || []).length === 4 && /path TEXT NOT NULL UNIQUE/.test(schema) && /content_key TEXT NOT NULL/.test(schema) && /key TEXT PRIMARY KEY, value TEXT NOT NULL/.test(schema),
+  "the semantic index must not store note text");
+const queryService = read("src/personal-notes/query-service.ts");
+must(sem.widens_read_scope === false && /found\.filter\(\(c\) => allowed\.has\(c\.path\)\)/.test(queryService) && /!visible\.has\(hit\.path\)/.test(queryService) && /only notes in this requester's pool count/.test(read("src/personal-notes/librarian.ts")),
+  "semantic candidates must be filtered to the requester's readable notes");
+if (sem.catalog_pinned_and_hashed === true) {
+  if (existsSync(resolve(root, "dist/kosmos-semantic.mjs"))) {
+    const built = await import(pathToFileURL(resolve(root, "dist/kosmos-semantic.mjs")).href);
+    for (const problem of built.validateCatalog()) problems.push(`model catalog: ${problem}`);
+    must(built.MODEL_CATALOG.length >= 1, "the model catalog is empty");
+  } else {
+    problems.push("dist/kosmos-semantic.mjs missing — run npm run build");
+  }
+} else {
+  problems.push("policy: semantic.catalog_pinned_and_hashed must be true");
+}
 
 /* ---- standalone invariants (artifact must exist and be self-contained) ---- */
 if (existsSync(resolve(root, "kosmos-oden-stand-alone.html"))) {

@@ -30,6 +30,11 @@ tools, and clients that cached the five-tool list should refresh it
 
 - `GET /ui` answers, and a question returns a brief with at least one note.
 - `tools/list` shows `ask_librarian` beside the five 0.9.0 tools.
+- Semantic search (optional): Settings → Kosmos-Oden → **Semantic search** →
+  on → **Download**. When the Index line says the notes are embedded,
+  `vault_overview` reports `semantic_search.state: "ready"` and a question in
+  words your notes do not use still finds the right note. See
+  [SEMANTIC-SEARCH.md](SEMANTIC-SEARCH.md).
 - The **Update this folder's map of content (deterministic)** command, run
   twice on the same folder, reports "already up to date" the second time.
 - Nothing in `.gkx/backup/` grows unless a MoC file actually changed (updates

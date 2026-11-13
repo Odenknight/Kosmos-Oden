@@ -73,6 +73,31 @@ security:
   mcp_legacy_sessions: false
   mcp_native_sse_transport: false
 
+semantic:
+  # Semantic search (0.9.5) is off until the user turns it on, and nothing is
+  # downloaded until the user presses Download.
+  default_enabled: false
+  # The download list holds only models published under these licences. Each
+  # is pinned to one commit, with the size and SHA-256 of every file, checked
+  # after download and again at every load.
+  allowed_model_licenses:
+    - MIT
+    - Apache-2.0
+  catalog_pinned_and_hashed: true
+  # The only network use is one function that fetches a file of the chosen
+  # model from this host. No note text, path or token is sent anywhere.
+  model_host: https://huggingface.co/
+  network_call_sites: 1
+  # The embedding worker carries its two WebAssembly runtimes inside its own
+  # bundle and receives the model and the stored index as bytes; it has no
+  # vault access and makes no request of its own.
+  worker_network: false
+  # The index stores positions and vectors, never note text.
+  index_stores_note_text: false
+  # Semantic results can only reorder and add evidence within the notes the
+  # requester may already read.
+  widens_read_scope: false
+
 build:
   lockfile_required: package-lock.json
   no_latest_dependencies: true

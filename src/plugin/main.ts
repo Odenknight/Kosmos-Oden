@@ -29,6 +29,10 @@ import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./persona
 import { ObsidianPersonalSource, strictYaml } from "./personal-source";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
+import { createSemantic, type SemanticHandle } from "./semantic-host";
+import { normalizeSemanticSettings, type SemanticSettings } from "../semantic/settings";
+import type { SemanticOverview } from "../semantic/controller";
+import type { SemanticSettingsHost } from "../ui/semantic-settings";
 import { advertisedMcpProtocolVersions } from "./mcp-compat";
 import { KosmosSettingTab, buildAgentGuide, buildPersonalAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, formatTimestamp, makeGkxUuidV7, stripFrontmatter, timestampEligible } from "gkos-engine";
@@ -364,7 +368,7 @@ interface AppRegistries {
   setting?: { open?(): void; openTabById?(id: string): unknown };
 }
 
-export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost {
+export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost, SemanticSettingsHost {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
   nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
@@ -392,6 +396,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   private stampBaselines = new Map<string, string>();
   private autoStamps = new Map<string, { timer: number; prevRaw: string | undefined; kind: "create" | "modify" }>();
   private searchStatusListeners = new Set<() => void>();
+  /** Semantic search (0.9.5): created on first use, kept until unload. */
+  private semanticHandle: SemanticHandle | null = null;
+  private semanticListeners = new Set<() => void>();
   private readonly yaml = strictYaml(parseYaml);
   /**
    * Opens the Personal tagging window. Point it at the UI's opener when
@@ -538,6 +545,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       this.eventsLive = true;
       this.provider.markFullDirty();
       if (this.personal) void this.personal.build();
+      // Semantic search that was left on resumes by itself (it never downloads by itself).
+      if (this.semanticSettings().enabled) { this.local(); void this.semantic().controller.apply(); }
       if (this.nextcloudSettings.enabled && this.nextcloudSettings.syncOnStartup) {
         this.startupSyncTimer = window.setTimeout(() => {
           this.startupSyncTimer = null;
@@ -683,12 +692,59 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       configDir: this.app.vault.configDir,
       workers: personalSearchWorkerFactory(),
       onDiagnostic: (message) => console.debug("Kosmos-Oden Personal Notes:", message),
+      semantic: this.semantic().controller,
     });
     runtime.onStatus(() => this.emitSearchStatus());
     this.personal = runtime;
     if (this.eventsLive) void runtime.build();
     this.emitSearchStatus();
     return runtime;
+  }
+
+  /**
+   * Semantic search (0.9.5). One controller for the plugin's lifetime; it
+   * reads notes from whichever Personal runtime exists and waits when there
+   * is none. Access is decided per question by the query service, not here.
+   */
+  private semantic(): SemanticHandle {
+    return this.semanticHandle ??= createSemantic(
+      this.app,
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
+      {
+        notes: () => this.personal?.semanticNotes.notes() ?? [],
+        get: (path) => this.personal?.semanticNotes.get(path) ?? null,
+        ready: () => this.personal?.semanticNotes.ready() ?? false,
+      },
+      () => this.semanticSettings(),
+      () => { for (const listener of [...this.semanticListeners]) { try { listener(); } catch (e) { console.warn("Kosmos-Oden: semantic status listener failed", e); } } },
+    );
+  }
+
+  /* ---- SemanticSettingsHost ---- */
+
+  semanticSettings(): SemanticSettings { return normalizeSemanticSettings(this.agentSettings.personalNotes.semantic); }
+
+  /** Save the semantic choices and bring the running index in line. Sharing is untouched, so nothing is invalidated. */
+  async updateSemantic(change: (draft: SemanticSettings) => void): Promise<void> {
+    const draft = this.semanticSettings();
+    change(draft);
+    this.agentSettings.personalNotes = { ...this.agentSettings.personalNotes, semantic: normalizeSemanticSettings(draft) };
+    await this.saveAgentSettings();
+    if (this.semanticSettings().enabled) this.local();
+    await this.semantic().controller.apply();
+  }
+
+  semanticOverview(): SemanticOverview { return this.semantic().controller.overview(); }
+  semanticInstalled(): Promise<Record<string, boolean>> { return this.semantic().controller.installed(); }
+  downloadSemanticModel(modelId: string): Promise<void> { return this.semantic().controller.download(modelId); }
+  cancelSemanticDownload(): void { this.semantic().controller.cancelDownload(); }
+  importSemanticModel(files: ReadonlyArray<{ name: string; data: ArrayBuffer }>): Promise<{ saved: string[]; ignored: string[] }> { return this.semantic().controller.importCustom(files); }
+  removeSemanticModel(modelId: string): Promise<void> { return this.semantic().controller.removeModel(modelId); }
+  rebuildSemanticIndex(): Promise<void> { return this.semantic().controller.rebuild(); }
+  setSemanticPaused(paused: boolean): void { this.semantic().controller.setPaused(paused); }
+  onSemanticStatus(listener: () => void): () => void {
+    this.semanticListeners.add(listener);
+    return () => { this.semanticListeners.delete(listener); };
   }
 
   /** Hand the Personal runtime to the Agent API server (idempotent). */
@@ -1414,6 +1470,10 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.agentApi?.stop();
     this.detachPersonal();
     this.searchStatusListeners.clear();
+    // Saves the semantic index and stops its worker.
+    this.semanticListeners.clear();
+    void this.semanticHandle?.dispose().catch(() => undefined);
+    this.semanticHandle = null;
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);
     this.timestampTimers.clear();

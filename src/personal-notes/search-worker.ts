@@ -9,7 +9,7 @@
  * A revision becomes visible to queries only when all of its chunks are prepared.
  */
 import { parseQuery, prepareDoc, SearchRun, type PreparedDoc, type SearchDoc } from "./fulltext";
-import { LibrarianIndex, indexDoc, runLibrarian, type DocVector, type LibrarianEntry, type LibrarianResponse } from "./librarian";
+import { LibrarianIndex, indexDoc, runLibrarian, type DocVector, type LibrarianEntry, type LibrarianResponse, type SemanticCandidate } from "./librarian";
 import { PERSONAL_CONTRACT, PERSONAL_LIMITS, PersonalError, type CorpusOmission, type CorpusState, type PersonalErrorCode, type SearchResponse } from "./types";
 
 /* ------------------------------------------------------------------ protocol */
@@ -23,7 +23,7 @@ export type ToWorker =
   | { type: "scope"; scopeId: number; paths: string[] }
   | { type: "search"; id: number; revision: number; generation: number; scopeId: number | null; query: string; limit: number; tag?: string }
   /** One hybrid Librarian question over the same scope, notes and text. */
-  | { type: "librarian"; id: number; revision: number; generation: number; scopeId: number | null; question: string; limit: number }
+  | { type: "librarian"; id: number; revision: number; generation: number; scopeId: number | null; question: string; limit: number; semantic?: readonly SemanticCandidate[] }
   | { type: "cancel"; id: number };
 
 export type FromWorker =
@@ -243,7 +243,7 @@ export class SearchWorkerEngine {
     }
     let body: Omit<LibrarianResponse, "coverage" | "corpusRevision">;
     try {
-      body = runLibrarian(op.question, pool, this.librarianIndex, { limit: op.limit });
+      body = runLibrarian(op.question, pool, this.librarianIndex, { limit: op.limit, semantic: op.semantic });
     } catch (error) {
       if (error instanceof PersonalError) { fail(error.code, error.message); return; }
       throw error;

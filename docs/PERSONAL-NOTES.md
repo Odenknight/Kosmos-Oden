@@ -304,17 +304,19 @@ An assistant connected to the Personal profile has six read-only tools:
 | --- | --- |
 | `vault_overview` | How many notes it can read, whether search is ready, and what the connection supports |
 | `search_notes` | The same matching rules as your own search, but only over the shared folders |
-| `ask_librarian` | Answers a whole question: the notes that fit, their answering passages, steps and links (forms flagged), plus a markdown brief |
+| `ask_librarian` | Answers a whole question, by words and (if you turn it on) by meaning: the notes that fit, their answering passages, steps and links (forms flagged), the related notes to read next, plus a markdown brief |
 | `get_note` | The exact text of one note, in pages for long notes |
-| `get_related` | Notes linked to or from a note, or sharing a tag |
+| `get_related` | Notes linked to or from a note, or sharing a tag — and, with semantic search on, notes close to it in meaning |
 | `get_lineage` | Which shared notes supersede which, including branches |
 
-`ask_librarian` is the Librarian. It is deterministic and free: no model runs,
-nothing leaves the machine, and the same question over the same notes always
-returns the same answer. Three rankings are fused — stemmed keyword matching
-with titles, aliases, tags and headings counted extra; an expansion of the
-words your best matches share; and name/title similarity for typos and partial
-names. Every word is optional, so a sentence works where `search_notes` (which
+`ask_librarian` is the Librarian. It is free: no AI assistant runs, no tokens
+are spent and nothing leaves the machine. Three rankings by words are fused —
+stemmed keyword matching with titles, aliases, tags and headings counted extra;
+an expansion of the words your best matches share; and name/title similarity
+for typos and partial names. With [semantic search](#semantic-search) on, a
+fourth ranking joins them: the notes closest in meaning to the question. With
+it off, the same question over the same notes always returns the same answer.
+Every word is optional, so a sentence works where `search_notes` (which
 requires every term) would return nothing. Each result carries the passages
 that answer the question, any numbered or checkbox steps in them, the web links
 they contain with forms marked, and the notes they link to. `format` chooses
@@ -342,11 +344,41 @@ it in `sessionStorage`).
 
 Agent authors: see the [Agent API reference](../AGENT-API.md#personal-notes-profile).
 
+## Semantic search
+
+New in 0.9.5, and off until you turn it on. Searching by words cannot find a
+note that says the same thing in other words: "my computer will not start"
+does not contain "boot". Semantic search can.
+
+1. Settings → Kosmos-Oden → **Semantic search** → switch **Search by meaning**
+   on.
+2. Pick an **Embedding model** and press **Download** (24 to 135 MB, once). All
+   listed models are MIT or Apache-2.0 licensed. Or pick **Use my own model
+   files…** and select an ONNX model and its tokenizer that you already have.
+3. The index builds in the background. Nothing else is needed: no other
+   program, no account, no server.
+
+The model runs inside Obsidian. The index is one SQLite file in the plugin's
+folder that the plugin creates itself; it holds note paths and numbers, never
+note text. Your assistant needs no new setup: `ask_librarian` and `get_related`
+use it automatically, and say in every answer whether they searched by words
+and by meaning or by words only.
+
+Sharing rules do not change. An assistant is only ever shown notes in the
+Folders shared with agents, however a note was found.
+
+Full guide, the model list and the limits:
+[v0.9.5/SEMANTIC-SEARCH.md](v0.9.5/SEMANTIC-SEARCH.md).
+
 ## Privacy
 
 - Searching, reviewing imports and tagging happen on this computer.
   Kosmos-Oden sends nothing anywhere by itself. (The OneNote sign-in route is
   the Importer talking to Microsoft.)
+- Semantic search runs on this computer too. Its one network request is the
+  model download you start with the Download button, from `huggingface.co`; it
+  carries no note text, path or token. With your own model files there is no
+  request at all.
 - If your assistant runs in the cloud, the notes it reads are sent to that
   service and processed there.
 - The Google Keep and OneNote imports are copies made at one moment. There is

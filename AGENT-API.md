@@ -517,14 +517,22 @@ case-insensitive). Ties sort by path.
 
 #### `ask_librarian`
 
-Hybrid deterministic retrieval for a whole question (0.9.5). No model, no
-network, nothing on disk; the same question over the same corpus revision
-returns the same response. Three ranked lists are fused by reciprocal rank:
+Hybrid retrieval for a whole question (0.9.5): by words always, and by meaning
+when the user has turned semantic search on. Nothing leaves the computer and no
+language model runs. Up to four ranked lists are fused by reciprocal rank:
 stemmed BM25 over the note body plus title, aliases, tags, file name and
-headings; an expansion of words shared by the best lexical matches; and
-character-trigram similarity over names and titles. Unlike `search_notes`,
-every word is optional, and word forms (`-s`, `-es`, `-ing`, `-ed`, `-ation`,
-`-ion`) meet on one stem.
+headings; an expansion of words shared by the best lexical matches;
+character-trigram similarity over names and titles; and, with semantic search
+on, the notes closest in meaning to the question (a small embedding model
+inside Obsidian, see
+[docs/v0.9.5/SEMANTIC-SEARCH.md](docs/v0.9.5/SEMANTIC-SEARCH.md)). Unlike
+`search_notes`, every word is optional, and word forms (`-s`, `-es`, `-ing`,
+`-ed`, `-ation`, `-ion`) meet on one stem.
+
+With semantic search off the response is the deterministic lexical one: the
+same question over the same corpus revision returns the same response. With it
+on, the response also depends on the chosen model and on how much of the index
+is built (`semantic.state`).
 
 `question`: at most 500 code points and 32 distinct words; over-limit is
 `invalid_query`, never truncated. `"quoted text"` lifts notes containing that
@@ -550,16 +558,35 @@ closest word that does (edit distance 1–2, same first letter) and reported in
     "passages": [{ "heading": "Steps", "text": "1. Ask your manager…", "offset_chars": 412 }],
     "links": [{ "url": "https://forms.office.com/r/abc123", "label": "Hardware request form", "kind": "form" }],
     "steps": [{ "text": "Ask your manager to approve the replacement." }],
-    "note_links": ["IT/Asset register"]
+    "note_links": ["IT/Asset register"],
+    "found_by": { "words": 1, "meaning": 2 },
+    "semantic_score": 0.6848
   }],
+  "semantic": { "state": "ready", "model": "Snowflake Arctic Embed S — recommended (35 MB)", "candidates": 5 },
+  "related": [{ "path": "IT/Asset register.md", "title": "Asset register", "related_to": "IT/New laptop request.md", "reason": "linked" }],
   "brief": "**1 of 12 matching notes** — confidence: strong.\n…",
   "coverage": { "state": "ready", "searched": 812, "omitted": 0 },
   "corpus_revision": 7
 }
 ```
 
-- `score` orders hits; it is not a confidence. `ranks` (per hit, not shown
-  above) records the 1-based position in each fused list that contained it.
+- `score` orders hits; it is not a confidence. `found_by` records the 1-based
+  position the note had in each fused list that contained it: `words`,
+  `expanded`, `name`, `meaning`. A note with only `meaning` shares no word with
+  the question: it is the closest note, which is not the same as a matching
+  one, and `brief` marks it "found by meaning only". `semantic_score` is the
+  cosine similarity of its closest passage (present only with `meaning`).
+- `semantic.state` says how the search ran: `ready` (words and meaning),
+  `partial` (the index is still being built; notes not yet embedded were found
+  by words only), `off`, `loading` or `error` (words only; `detail` says why).
+  `candidates` is the number of notes the semantic list offered. Semantic
+  search never widens scope: every request names the caller's readable notes,
+  and a candidate outside them is dropped. It waits at most a bounded time; a
+  slow or failing model yields the lexical answer.
+- `related` (at most 6) are the next notes to read when the task is a process:
+  notes the answering notes link to (`reason: "linked"`) and, with semantic
+  search on, notes close to them in meaning (`reason: "similar"`, with
+  `score`). `related_to` names the answering note. Only readable notes appear.
 - `term_coverage` is the share of the question's words found in that note.
   `confidence` is `strong` when the top hit covers the question (all of one or
   two words, at least 60% otherwise) or matches a name closely, `weak` when it
@@ -611,9 +638,12 @@ reading a note never reads its attachments.
   "truncated": false }
 ```
 
-Only explicit relations count: an outgoing link (`links_to`), a backlink
+Explicit relations come first: an outgoing link (`links_to`), a backlink
 (`linked_from`) or a shared tag (`shared_tags`). Results sort by two points
-per link direction plus one per shared tag, then by path.
+per link direction plus one per shared tag, then by path. With semantic search
+on (0.9.5), a note close in meaning gains the reason `similar_meaning` and one
+point; a note related only by meaning is added below the explicit ones. With
+semantic search off the result is exactly the 0.9.0 one.
 
 #### `get_lineage`
 
@@ -639,7 +669,8 @@ Call it first. Returns `profile: "personal"`, `notes` (readable notes),
 (`indexing`/`ready`/`partial`), `corpus_revision`, `tools` (the six names),
 `protocols` (`mcp` with the revisions served on `streamable-http` and `stdio`
 under the current setting, and `rest` with the routes), `capabilities`
-(`read_only: true`, the search description, the `pagination` contract with
+(`read_only: true`, the search description, `semantic_search` with `state`,
+`model` when one is running, where it runs and `used_by`, the `pagination` contract with
 `unit: "utf16_code_units"`, `default_chars`, `min_chars`, `max_chars` and the
 hash description, `max_note_bytes: 5242880`, the attachment and lineage
 descriptions) and `content_rule`.

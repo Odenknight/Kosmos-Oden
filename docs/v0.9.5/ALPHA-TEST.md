@@ -26,6 +26,9 @@
 | MoC | Real folders with hand-edited blocks, CRLF files, BOMs, and a concurrent edit during the write |
 | LAN/web | `/ui` over the LAN with "Local network" on, behind another machine's browser |
 | Sensitivity | A vault where shared folders contain `confidential` or `secret` notes, to confirm they never reach `ask_librarian` |
+| Semantic search in Obsidian | The settings section, a model download, choosing own model files, and a first index of a real vault inside a running Obsidian on Windows and macOS. Tested so far: Node (real SQLite, stand-in model) and headless Chromium (five real models) |
+| Semantic search at scale | Measured on the build host only: 2 to 14 passages per second depending on the model (one CPU thread), 46 ms to compare a question with 50 000 passages. A first index of a real vault of thousands of notes, and memory use while it runs, are not measured |
+| Semantic relevance | No scored questions for the hybrid ranking on a real vault |
 
 ## How to report a problem
 

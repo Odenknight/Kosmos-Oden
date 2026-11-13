@@ -3,8 +3,9 @@
  *
  * One self-contained HTML document, served by the Agent API at /ui on the same
  * port as REST and MCP. It calls /librarian, so the browser does exactly the
- * same deterministic hybrid search an agent gets: no model, no tokens spent,
- * no second index. The access token stays in sessionStorage and is sent as a
+ * same hybrid search an agent gets: by words always, and by meaning when the
+ * user has turned semantic search on. No language model runs and no tokens are
+ * spent. The access token stays in sessionStorage and is sent as a
  * header; it is never put in a URL. No external assets, no CDN, no inline
  * script from anywhere but this string.
  */
@@ -32,7 +33,7 @@ export const PERSONAL_UI_HTML = String.raw`<!doctype html>
 </head>
 <body>
 <h1>Kosmos Librarian</h1>
-<p class="sub">Ask a question in plain language. Deterministic hybrid search over the notes this connection may read: word forms, names, phrases, steps and links. No model runs.</p>
+<p class="sub">Ask a question in plain language. Hybrid search over the notes this connection may read: word forms, names, phrases, steps and links, and — when semantic search is on in Kosmos-Oden — notes that say the same thing in other words. No AI assistant is involved and nothing leaves this computer.</p>
 <form id="ask">
   <input id="q" type="search" autocomplete="off" placeholder="How do I request a new laptop?" aria-label="Question">
   <button id="go" type="submit">Ask</button>
@@ -83,7 +84,9 @@ export const PERSONAL_UI_HTML = String.raw`<!doctype html>
       if (!data) return;
       if (data.error) { status.className = 'err'; status.textContent = String(data.message || data.error); return; }
       var c = data.coverage || {};
-      status.textContent = (data.total || 0) + ' matching notes · confidence ' + (data.confidence || 'none') +
+      var s = data.semantic || {};
+      var how = s.state === 'ready' || s.state === 'partial' ? 'by words and by meaning' : 'by words only';
+      status.textContent = (data.total || 0) + ' notes found ' + how + ' · confidence ' + (data.confidence || 'none') +
         ' · examined ' + (c.searched || 0) + (c.omitted ? ' · skipped ' + c.omitted : '') +
         (data.corrections && data.corrections.length ? ' · read as ' + data.corrections.map(function (x) { return x.from + ' → ' + x.to; }).join(', ') : '');
       brief.textContent = data.brief || 'No brief in this response.';

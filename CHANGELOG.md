@@ -1,6 +1,63 @@
 # Changelog
 
-## 0.9.5 — unreleased (Librarian + deterministic MoC)
+## 0.9.5 — unreleased (Librarian + deterministic MoC + semantic search)
+
+Added — semantic search, inside the plugin ([guide](docs/v0.9.5/SEMANTIC-SEARCH.md)):
+- **Search by meaning**, off until turned on. A question that shares no word
+  with the right note can now find it. Nothing else is installed: no Python,
+  no Ollama, no server, no database program, no account.
+- **Embedding model list** in Settings: five models, every one published under
+  MIT or Apache-2.0, each pinned to one repository commit with the size and
+  SHA-256 of every file. One **Download** button with progress and cancel; the
+  file is verified before use and again at every load. Default: Snowflake
+  Arctic Embed S (Apache-2.0, 35 MB).
+- **Use my own model files…**: select an ONNX embedding model and its
+  tokenizer that are already on the computer. Nothing is downloaded.
+- The model runs in a Web Worker on ONNX Runtime WebAssembly; the index is a
+  real **SQLite** database (`semantic/index-<model>.sqlite` in the plugin's
+  folder) created by the plugin through SQLite WebAssembly. Both runtimes are
+  bundled in `main.js`. The index holds paths, positions and vectors and **no
+  note text**. Only changed notes are embedded again; Pause, Resume and
+  Rebuild are in Settings.
+- **Hybrid `ask_librarian`**: the notes closest in meaning join the three
+  word-based lists as a fourth fused list. Each result carries `found_by` (its
+  rank in each list) and `semantic_score`; the response carries `semantic`
+  (`ready`, `partial`, `off`, `loading`, `error`) so an assistant knows how the
+  search ran. Off, loading, slow or failing semantic search yields exactly the
+  word-based answer.
+- **Guidance through related processes**: `ask_librarian` returns `related` —
+  the notes the answer links to and the notes close to it in meaning — and the
+  brief lists them as what to read next. `get_related` gains the reason
+  `similar_meaning`. The MCP server instructions and the tool description tell
+  the assistant to follow steps and related notes and to say which step comes
+  next. `vault_overview` reports `capabilities.semantic_search`.
+- Access is unchanged: every semantic request names the requester's readable
+  notes, and a candidate outside them is dropped in the index and again in the
+  Librarian. A note found by meaning alone is labelled "found by meaning only";
+  closest is never presented as matching.
+- The only network use is the model download the user starts, from
+  `huggingface.co`, carrying no note text, path or token. New guard rules in
+  `kosmos-invariants.yml` (`semantic:`) enforce the licence list, the single
+  download site, the pinned catalog, no note text in the index, and off by
+  default.
+- `/ui` says whether a question was searched by words and by meaning or by
+  words only.
+
+Changed by semantic search:
+- `main.js` grows from about 2 MB to about 7.8 MB (the two WebAssembly
+  runtimes, compressed).
+- New build dependencies, exact-pinned: `onnxruntime-web` 1.31.1 (MIT),
+  `sql.js` 1.16.0 (MIT), `@huggingface/tokenizers` 0.2.0 (Apache-2.0).
+
+Measured on the build host (one CPU thread, headless Chromium): 2 to 14
+passages embedded per second depending on the model (Arctic Embed S 6.2,
+all-MiniLM-L6-v2 14.0), a question in 6 to 60 ms, an index of about 1.6 KB per
+passage. The first index of a large vault is therefore slow; it runs in the
+background and resumes.
+
+Not yet tried: the settings section, a download and a first index inside a
+running Obsidian; memory use on a large vault. See
+[docs/v0.9.5/ALPHA-TEST.md](docs/v0.9.5/ALPHA-TEST.md).
 
 Added — the Librarian, a deterministic hybrid search tool (`ask_librarian`):
 - One question, not keywords. Three ranked lists are fused by reciprocal rank:

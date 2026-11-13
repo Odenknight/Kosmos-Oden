@@ -16,7 +16,7 @@ import { MemoryCorpus } from "../personal-notes/corpus";
 import { lineageView } from "../personal-notes/lineage";
 import type { PersonalLibrarian } from "../personal-notes/librarian";
 import { PolicyGeneration, createPersonalReadPolicy, decidePersonalRead } from "../personal-notes/policy";
-import { PersonalQueryService, type PersonalProtocolInfo } from "../personal-notes/query-service";
+import { PersonalQueryService, type PersonalProtocolInfo, type PersonalSemantic } from "../personal-notes/query-service";
 import type { PersonalSearchStatus } from "../personal-notes/plugin-host";
 import type { PersonalReadPolicy, PersonalSearch, PersonalVaultSource } from "../personal-notes/types";
 import { PersonalSearchClient, type WorkerLike } from "../personal-notes/worker-client";
@@ -42,6 +42,25 @@ export interface PersonalRuntimeOptions {
   configDir: string;
   workers: SearchWorkerFactory;
   onDiagnostic?: (message: string) => void;
+  /**
+   * Semantic search (0.9.5). Absent = lexical only. The runtime tells it when
+   * notes change; the plugin owns it (it outlives a runtime, so switching
+   * profile does not reload the model).
+   */
+  semantic?: SemanticRuntime;
+}
+
+/** The corpus as semantic search reads it: every indexed note, whatever is shared (scope is applied per question). */
+export interface SemanticNotes {
+  notes(): Iterable<{ path: string; title: string; raw: string }>;
+  get(path: string): { path: string; title: string; raw: string } | null;
+  /** False until the vault has been read. */
+  ready(): boolean;
+}
+
+export interface SemanticRuntime extends PersonalSemantic {
+  /** `null` = look at every note again. */
+  noteChanges(paths: readonly string[] | null): void;
 }
 
 /** Forwards a worker unchanged and reports a failure (error, message error, fatal) to status listeners after the client has handled it. */
@@ -73,6 +92,10 @@ export class PersonalRuntime {
   private readonly unsubscribe: () => void;
   private agent: PersonalAgentRuntime | null = null;
   private disposed = false;
+  /** Semantic search (0.9.5); null when the host supplies none. */
+  private readonly semantic: SemanticRuntime | null;
+  /** Every indexed note, for the semantic index. Empty and not ready once disposed. */
+  readonly semanticNotes: SemanticNotes;
 
   constructor(private readonly options: PersonalRuntimeOptions) {
     this.corpus = new MemoryCorpus(options.source, { include: (p) => !isKosmosOperationalPath(p) });
@@ -81,6 +104,14 @@ export class PersonalRuntime {
       search: (req) => this.search.search(req.allowedPaths ? { ...req, allowedPaths: this.canonical(req.allowedPaths) } : req),
       librarian: (req) => this.search.librarian(req.allowedPaths ? { ...req, allowedPaths: this.canonical(req.allowedPaths) } : req),
     };
+    const corpus = this.corpus;
+    const alive = () => !this.disposed;
+    this.semanticNotes = {
+      *notes() { if (alive()) for (const r of corpus.records()) yield { path: r.path, title: r.meta.title, raw: r.raw }; },
+      get(path) { const r = alive() ? corpus.get(path) : null; return r ? { path: r.path, title: r.meta.title, raw: r.raw } : null; },
+      ready: () => alive() && corpus.state !== "indexing",
+    };
+    this.semantic = options.semantic ?? null;
     this.service = new PersonalQueryService({
       source: options.source,
       corpus: this.corpus,
@@ -92,8 +123,13 @@ export class PersonalRuntime {
       lineage: lineageView,
       protocols: () => personalProtocols(options.settings()),
       onDiagnostic: options.onDiagnostic,
+      ...(this.semantic ? { semantic: this.semantic } : {}),
     });
-    this.unsubscribe = this.corpus.subscribe(() => this.notify());
+    this.unsubscribe = this.corpus.subscribe((delta) => {
+      // Keep the semantic index in step with the notes; it embeds in the background.
+      if (delta.state !== "indexing") this.semantic?.noteChanges(delta.reset ? null : [...delta.upserts.map((r) => r.path), ...delta.deletes]);
+      this.notify();
+    });
   }
 
   /** The read policy for the current generation. Built lazily and cached per generation (the server bumps it too). */

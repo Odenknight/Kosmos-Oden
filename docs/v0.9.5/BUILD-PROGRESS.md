@@ -37,15 +37,32 @@
 
 - **Relevance judgement set.** No scored questions yet; confidence is the
   current proxy. This is the first thing to measure.
-- **Optional semantic list.** A fourth `fuse(...)` over an embedding source
-  would raise paraphrase recall without changing the response shape. Needs a
-  model file (~67 MB) or a local embedding endpoint, and a decision about the
-  plugin's size and offline guarantees.
+- **Semantic list: delivered** (see "Semantic search" below). Still open: a
+  relevance judgement set for the hybrid ranking, and a run inside Obsidian.
 - **Obsidian runtime checks** and a real MCP client, per `ALPHA-TEST.md`.
 - **Blocks with hand edits** in real vaults, and CRLF/BOM folders for the MoC.
 - **Returning note links as clickable paths** in `/ui` (needs a tiny note view).
 
+## Semantic search (added on `pollux/semantic-0.9.5`)
+
+| Item | State | Where |
+| --- | --- | --- |
+| Model catalog: MIT / Apache-2.0 only, pinned revision, size and SHA-256 per file | done | `semantic/catalog.ts` |
+| Download with progress and cancel; own model files | done | `semantic/models.ts`, `plugin/semantic-host.ts` |
+| Embedding in a Web Worker (ONNX Runtime WebAssembly, bundled) | done | `semantic/embedder.ts`, `semantic/worker.ts` |
+| SQLite index written by the plugin (SQLite WebAssembly, bundled), no note text | done | `semantic/store.ts` |
+| Heading-aware passages, incremental re-embedding, pause/resume/rebuild | done | `semantic/chunker.ts`, `semantic/service.ts` |
+| Settings section | done | `ui/semantic-settings.ts` |
+| Fourth fused list, `found_by`, `semantic`, `related` in `ask_librarian`; `similar_meaning` in `get_related` | done | `personal-notes/librarian.ts`, `personal-notes/query-service.ts` |
+| Server instructions and tool description guide the assistant onward | done | `plugin/agent-server.ts` |
+| Guard rules in `kosmos-invariants.yml` | done | `scripts/check-invariants.mjs` |
+
+Evidence: `test/semantic.test.mjs`, `test/semantic-ui.test.mjs`,
+`test/personal-hybrid.test.mjs` (49 tests; real SQLite, real controller, real
+started server, stand-in model), and `scripts/semantic-smoke.mjs` (the five
+real models in headless Chromium, 16 checks each).
+
 ## Not in scope for 0.9.5
 
-Embeddings in the plugin, PDF/OCR indexing, a model-backed Ask box, enrichment
-by a model at index time, and any write path from the MCP tools.
+PDF/OCR indexing, a model-backed Ask box, enrichment by a model at index time,
+and any write path from the MCP tools.

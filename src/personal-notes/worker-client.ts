@@ -10,7 +10,7 @@
  */
 import type { CorpusDelta } from "./corpus";
 import { parseQuery, resultLimit } from "./fulltext";
-import { LIBRARIAN_LIMITS, parseQuestion, type LibrarianRequest, type LibrarianResponse, type PersonalLibrarian } from "./librarian";
+import { LIBRARIAN_LIMITS, parseQuestion, type LibrarianRequest, type LibrarianResponse, type PersonalLibrarian, type SemanticCandidate, SEMANTIC_LIMITS } from "./librarian";
 import { SCOPE_SLOTS, type FromWorker, type ToWorker, type WorkerDoc } from "./search-worker";
 import { PersonalError, type PersonalNoteRecord, type PersonalSearch, type SearchRequest, type SearchResponse } from "./types";
 
@@ -65,6 +65,7 @@ interface LibrarianPending {
   allowed: ReadonlySet<string> | null;
   question: string;
   limit: number;
+  semantic?: readonly SemanticCandidate[];
   attempts: number;
   resolve(response: LibrarianResponse): void;
   reject(error: PersonalError): void;
@@ -170,6 +171,7 @@ export class PersonalSearchClient implements PersonalSearch, PersonalLibrarian {
     return new Promise<LibrarianResponse>((resolve, reject) => {
       const entry: LibrarianPending = {
         id: 0, revision: 0, generation, allowed: request.allowedPaths, question: request.question, limit, attempts: 0,
+        ...(request.semantic?.length ? { semantic: request.semantic.slice(0, SEMANTIC_LIMITS.candidates).map((c) => ({ path: c.path, score: c.score, offsetChars: c.offsetChars })) } : {}),
         resolve: (r) => { signal?.removeEventListener("abort", onAbort); resolve(r); },
         reject: (e) => { signal?.removeEventListener("abort", onAbort); reject(e); },
       };
@@ -315,7 +317,7 @@ export class PersonalSearchClient implements PersonalSearch, PersonalLibrarian {
     p.revision = this.sentRevision;
     this.librarianPending.set(p.id, p);
     const scopeId = p.allowed ? this.scopeFor(p.allowed) : null;
-    this.worker!.postMessage({ type: "librarian", id: p.id, revision: p.revision, generation: p.generation, scopeId, question: p.question, limit: p.limit });
+    this.worker!.postMessage({ type: "librarian", id: p.id, revision: p.revision, generation: p.generation, scopeId, question: p.question, limit: p.limit, ...(p.semantic ? { semantic: p.semantic } : {}) });
   }
 
   private reissueLibrarian(p: LibrarianPending): void {

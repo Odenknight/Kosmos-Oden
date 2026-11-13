@@ -54,6 +54,44 @@ implemented by this project. Kosmos-Oden does not expose legacy compatibility
 identifiers or interchange aliases. This project is independently maintained
 and is not affiliated with, endorsed by, sponsored by, or maintained by Google.
 
+## Semantic search runtimes (0.9.5)
+
+Three libraries are bundled into `main.js` for the optional semantic search.
+They are exact-pinned npm dependencies (`package.json` + `package-lock.json`);
+nothing is fetched at run time to use them.
+
+- **ONNX Runtime Web** 1.31.1 (`onnxruntime-web`, with `onnxruntime-common`),
+  © Microsoft Corporation, MIT License. Its WebAssembly build
+  (`ort-wasm-simd-threaded.wasm`) runs the embedding model.
+  <https://github.com/microsoft/onnxruntime>
+- **sql.js** 1.16.0, © 2017 sql.js authors, MIT License. It is SQLite compiled
+  to WebAssembly; SQLite itself is in the public domain.
+  <https://github.com/sql-js/sql.js>
+- **@huggingface/tokenizers** 0.2.0, © Hugging Face, Apache License 2.0.
+  <https://github.com/huggingface/tokenizers.js>
+
+The MIT License text above (under Three.js) applies to ONNX Runtime Web and
+sql.js with their own copyright lines. The Apache License 2.0 text is in
+`LICENSE`.
+
+## Embedding models (downloaded by the user, not redistributed)
+
+No model is included in the plugin or the release archive. When a user presses
+Download, one of these is fetched from its publisher's repository on Hugging
+Face, at the commit recorded in `src/semantic/catalog.ts`:
+
+| Model | Repository | Licence |
+| --- | --- | --- |
+| Snowflake Arctic Embed S | `Snowflake/snowflake-arctic-embed-s` | Apache-2.0 |
+| all-MiniLM-L6-v2 | `Xenova/all-MiniLM-L6-v2` (ONNX export of `sentence-transformers/all-MiniLM-L6-v2`) | Apache-2.0 |
+| BGE Small EN v1.5 | `BAAI/bge-small-en-v1.5` | MIT |
+| BGE Base EN v1.5 | `Xenova/bge-base-en-v1.5` (ONNX export of `BAAI/bge-base-en-v1.5`) | MIT |
+| Multilingual E5 Small | `intfloat/multilingual-e5-small` | MIT |
+
+Licences are as declared by each repository at the pinned commit, checked on
+2026-11-13. A model a user supplies through "Use my own model files…" is under
+whatever licence that model carries.
+
 ## Build & dev dependencies
 
 `esbuild` (MIT), `typescript` (Apache-2.0) and `obsidian` type definitions are

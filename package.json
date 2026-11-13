@@ -1,7 +1,7 @@
 {
   "name": "kosmos-oden",
   "version": "0.9.5",
-  "description": "Kosmos-Oden \u2014 human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS-Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
+  "description": "Kosmos-Oden — human-editable GKX 2.2 Properties, opt-in source-content-read-only Navigation (GKOS-Engine 2.2), live MCP traversal, and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",
   "files": [
@@ -45,11 +45,14 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@huggingface/tokenizers": "0.2.0",
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
     "esbuild": "0.28.2",
     "obsidian": "1.14.4",
+    "onnxruntime-web": "1.31.1",
+    "sql.js": "1.16.0",
     "typescript": "7.0.2"
   },
   "author": "OdenKnight",

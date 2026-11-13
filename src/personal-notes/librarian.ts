@@ -71,6 +71,58 @@ export interface LibrarianRequest {
   allowedPaths: ReadonlySet<string> | null;
   policyGeneration?: number;
   signal?: AbortSignal;
+  /**
+   * Notes ranked by meaning (0.9.5 semantic search), best first. Fused as a
+   * fourth list. A path outside the requester's notes is ignored, so this can
+   * never widen what a requester sees.
+   */
+  semantic?: readonly SemanticCandidate[];
+}
+
+/** One note found by meaning: its best passage and how close it is to the question. */
+export interface SemanticCandidate {
+  path: string;
+  /** Cosine similarity of the question and the passage, -1..1. */
+  score: number;
+  /** Start of that passage in the raw note, UTF-16 code units. */
+  offsetChars: number;
+}
+
+export const SEMANTIC_LIMITS = {
+  /** Candidates accepted per question. */
+  candidates: 100,
+  /** Related notes offered per answer. */
+  related: 6,
+} as const;
+
+/** How semantic search took part in one answer. */
+export interface LibrarianSemanticInfo {
+  /**
+   * ready     the whole index was used;
+   * partial   used, but some notes are not embedded yet;
+   * off       semantic search is not set up (lexical only);
+   * loading   the model or index is still being loaded (lexical only);
+   * error     semantic search failed for this question (lexical only).
+   */
+  state: "ready" | "partial" | "off" | "loading" | "error";
+  /** Display name of the embedding model. */
+  model?: string;
+  /** Candidates the semantic list contributed to this answer. */
+  candidates: number;
+  /** Plain-language reason when state is off, loading or error. */
+  detail?: string;
+}
+
+/** A note close in meaning to one of the answers: usually the neighbouring step or a sibling process. */
+export interface LibrarianRelated {
+  path: string;
+  title: string;
+  /** The answer it is related to. */
+  relatedTo: string;
+  /** "linked" = that answer links to it; "similar" = close in meaning. */
+  reason: "linked" | "similar";
+  /** Cosine similarity, when found by meaning. */
+  score?: number;
 }
 
 export interface LibrarianPassage {
@@ -101,7 +153,9 @@ export interface LibrarianHit {
   /** Fused ordering value, not a confidence. */
   score: number;
   /** 1-based rank in each list that contained the note. */
-  ranks: { lexical?: number; expanded?: number; name?: number };
+  ranks: { lexical?: number; expanded?: number; name?: number; semantic?: number };
+  /** Cosine similarity of the question and this note's closest passage, when found by meaning. */
+  semanticScore?: number;
   /** Question words (after correction) found in the note. */
   matchedTerms: string[];
   /** Share of the question's words found in the note, 0..1. */
@@ -139,6 +193,10 @@ export interface LibrarianResponse {
   confidence: LibrarianConfidence;
   coverage: SearchCoverage;
   corpusRevision: number;
+  /** Present when the answer came through the hybrid (lexical + semantic) path. */
+  semantic?: LibrarianSemanticInfo;
+  /** Notes worth reading next. */
+  related?: LibrarianRelated[];
 }
 
 /* ---------------------------------------------------------------------- words */
@@ -415,8 +473,8 @@ export interface LibrarianEntry { prepared: PreparedDoc; vector: DocVector }
 interface Term { word: string; id: number; col: Uint16Array; df: number; weight: number; expanded: boolean }
 
 const K1 = 1.2, B = 0.75, HEAD_BONUS = 3, EXPANSION_WEIGHT = 0.2, RRF_K = 60;
-const LIST_WEIGHT = { lexical: 1, expanded: 0.7, name: 0.8 } as const;
-const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50 } as const;
+const LIST_WEIGHT = { lexical: 1, expanded: 0.7, name: 0.8, semantic: 1 } as const;
+const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
 const NAME_MIN = 0.5;
 
 function intersect(a: Uint32Array, b: Uint32Array): number {
@@ -439,7 +497,7 @@ function nameSimilarity(question: Uint32Array, name: Uint32Array): number {
  * Rank `pool` (the requester's notes, in stable path order) for one question.
  * Synchronous: the caller gathers the pool in bounded batches, then calls this.
  */
-export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
+export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number; semantic?: readonly SemanticCandidate[] } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
   const parsed = parseQuestion(question);
   const limit = Math.max(1, Math.min(LIBRARIAN_LIMITS.maxFetch, Math.floor(opts.limit ?? LIBRARIAN_LIMITS.defaultResults)));
   const n = pool.length;
@@ -593,7 +651,21 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   /* Fusion. */
   const fused = new Map<number, { score: number; ranks: LibrarianHit["ranks"] }>();
   const nameWeight = parsed.intent === "locate" ? 1.2 : LIST_WEIGHT.name;
-  const fuse = (order: number[], list: "lexical" | "expanded" | "name", weight: number) => {
+  /* Meaning. Candidates arrive ranked; only notes in this requester's pool count. */
+  const semanticOrder: number[] = [];
+  const semanticAt = new Map<number, SemanticCandidate>();
+  if (opts.semantic?.length) {
+    const at = new Map<string, number>();
+    for (let i = 0; i < n; i++) at.set(pool[i].prepared.doc.path, i);
+    for (const c of opts.semantic) {
+      if (semanticOrder.length >= LIST_DEPTH.semantic) break;
+      const i = c && typeof c.path === "string" ? at.get(c.path) : undefined;
+      if (i === undefined || semanticAt.has(i) || !Number.isFinite(c.score) || !Number.isFinite(c.offsetChars)) continue;
+      semanticAt.set(i, c);
+      semanticOrder.push(i);
+    }
+  }
+  const fuse = (order: number[], list: "lexical" | "expanded" | "name" | "semantic", weight: number) => {
     order.forEach((i, at) => {
       const f = fused.get(i) ?? { score: 0, ranks: {} };
       f.score += weight / (RRF_K + at + 1);
@@ -604,6 +676,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   fuse(lexicalOrder, "lexical", LIST_WEIGHT.lexical);
   fuse(expandedOrder, "expanded", LIST_WEIGHT.expanded);
   fuse(nameOrder, "name", nameWeight);
+  fuse(semanticOrder, "semantic", LIST_WEIGHT.semantic);
   const order = [...fused.keys()].sort((a, b) => (fused.get(b)!.score - fused.get(a)!.score) || byPath(a, b));
 
   const weights = new Map<string, number>();
@@ -614,7 +687,8 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     const { prepared, vector } = pool[i];
     const d = prepared.doc;
     const matchedTerms = terms.filter((t) => t.col[i] > 0).map((t) => t.word);
-    const extract = extractFromNote(d.raw, weights);
+    const meaning = semanticAt.get(i);
+    const extract = extractFromNote(d.raw, weights, meaning ? meaning.offsetChars : undefined);
     const hit: LibrarianHit = {
       path: d.path,
       title: d.title || d.path,
@@ -625,6 +699,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
       ...extract,
       fingerprint: vector.fingerprint,
     };
+    if (meaning) hit.semanticScore = Math.round(meaning.score * 1e4) / 1e4;
     if (d.uid !== undefined) hit.uid = d.uid;
     if (d.createdAt !== undefined) hit.createdAt = d.createdAt;
     if (d.updatedAt !== undefined) hit.updatedAt = d.updatedAt;
@@ -640,6 +715,10 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     // weight in the title, aliases, tags or headings), not merely to mention it.
     const about = lexical.specificity[top] >= 0.34;
     confidence = (strongWords && about && lexical.matched[top] > 0) || nameScore[top] >= 0.8 ? "strong" : "weak";
+    // Two independent readings agreeing on the same note: the closest by meaning
+    // is also what the words (or the name) rank first, and it carries most of them.
+    const ranks = fused.get(top)!.ranks;
+    if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) confidence = "strong";
   }
 
   return {
@@ -711,7 +790,7 @@ function linksIn(text: string, into: LibrarianLink[], seen: Set<string>): void {
  * given word weights (stem -> weight). Only the first
  * LIBRARIAN_LIMITS.scanChars of the note are examined.
  */
-export function extractFromNote(raw: string, weights: ReadonlyMap<string, number>): Pick<LibrarianHit, "passages" | "links" | "steps" | "noteLinks"> {
+export function extractFromNote(raw: string, weights: ReadonlyMap<string, number>, focusOffset?: number): Pick<LibrarianHit, "passages" | "links" | "steps" | "noteLinks"> {
   const fm = FRONTMATTER.exec(raw);
   const from = fm ? fm[0].length : 0;
   const to = Math.min(raw.length, from + LIBRARIAN_LIMITS.scanChars);
@@ -753,7 +832,15 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
   flush();
 
   const best = blocks.filter((b) => b.score > 0).sort((a, b) => (b.score - a.score) || (a.start - b.start)).slice(0, LIBRARIAN_LIMITS.passagesPerNote);
-  const chosen = best.length ? best : blocks.slice(0, 1);
+  let chosen = best.length ? best : blocks.slice(0, 1);
+  // The passage found by meaning: shown first when no question word matched
+  // anywhere in the note, otherwise kept as the second passage.
+  if (focusOffset !== undefined && blocks.length) {
+    let focus = blocks[0];
+    for (const b of blocks) { if (b.start <= focusOffset) focus = b; else break; }
+    if (!best.length) chosen = [focus];
+    else if (!chosen.includes(focus)) chosen = [chosen[0], focus];
+  }
   const passages: LibrarianPassage[] = chosen.map((b) => ({
     ...(b.heading ? { heading: clip(b.heading, 160) } : {}),
     text: clip(tidy(raw.slice(b.start, b.end)), LIBRARIAN_LIMITS.passageChars),
@@ -820,13 +907,25 @@ const BRIEF_NOTES = 5;
 export function renderLibrarianBrief(response: Omit<LibrarianResponse, "coverage" | "corpusRevision"> | LibrarianResponse): string {
   const lines: string[] = [];
   const hits = response.hits.slice(0, BRIEF_HITS);
+  const semantic = "semantic" in response ? response.semantic : undefined;
+  const how = !semantic ? ""
+    : semantic.state === "ready" ? " Searched by words and by meaning."
+    : semantic.state === "partial" ? " Searched by words and by meaning (the semantic index is still being built, so some notes were matched by words only)."
+    : ` Searched by words only${semantic.detail ? ` (${semantic.detail})` : ""}.`;
   if (!hits.length) {
-    return `No shared note answers this.${response.terms.length ? ` Searched for: ${response.terms.join(", ")}.` : ""}`;
+    return `No shared note answers this.${response.terms.length ? ` Searched for: ${response.terms.join(", ")}.` : ""}${how}`;
   }
-  lines.push(`**${hits.length} of ${response.total} matching notes** — confidence: ${response.confidence}.`);
+  // A note found by meaning alone is the closest one, which is not the same as
+  // a match: an off-topic question has a closest note too. Say so, every time.
+  const meaningOnly = (hit: LibrarianHit) => hit.ranks.semantic !== undefined && hit.ranks.lexical === undefined && hit.ranks.expanded === undefined && hit.ranks.name === undefined;
+  if (hits.every(meaningOnly)) {
+    lines.push(`**No shared note contains the words of this question.** The ${hits.length === 1 ? "note" : `${hits.length} notes`} closest in meaning ${hits.length === 1 ? "is" : "are"} listed; ${hits.length === 1 ? "it" : "they"} may be unrelated, so read before relying on ${hits.length === 1 ? "it" : "them"}.${how}`);
+  } else {
+    lines.push(`**${hits.length} of ${response.total} matching notes** — confidence: ${response.confidence}.${how}`);
+  }
   if (response.corrections.length) lines.push(`Read as: ${response.corrections.map((c) => `${c.from} → ${c.to}`).join(", ")}.`);
   hits.forEach((hit, i) => {
-    lines.push("", `${i + 1}. **${hit.title}** — ${hit.path}`);
+    lines.push("", `${i + 1}. **${hit.title}** — ${hit.path}${meaningOnly(hit) ? " — found by meaning only" : ""}`);
     const passage = hit.passages[0];
     if (passage) {
       const quote = passage.text.split(/\r?\n/).join("\n   > ");
@@ -844,5 +943,12 @@ export function renderLibrarianBrief(response: Omit<LibrarianResponse, "coverage
       lines.push(`   Related notes: ${hit.noteLinks.slice(0, BRIEF_NOTES).map((target) => `[[${target}]]`).join(", ")}`);
     }
   });
+  const related = ("related" in response ? response.related ?? [] : []).slice(0, SEMANTIC_LIMITS.related);
+  if (related.length) {
+    lines.push("", "**Related processes — read next if the answer above is only part of the task:**");
+    for (const r of related) {
+      lines.push(`- **${r.title}** — ${r.path} — ${r.reason === "linked" ? "linked from" : "close in meaning to"} ${r.relatedTo}`);
+    }
+  }
   return lines.join("\n");
 }

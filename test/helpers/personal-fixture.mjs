@@ -130,7 +130,7 @@ export function makeVault(files, { others = [] } = {}) {
     async librarian(req) {
       if (librarianRevision !== revision) rebuildLibrarian();
       const pool = [...librarianEntries.values()].filter((e) => !req.allowedPaths || req.allowedPaths.has(e.prepared.doc.path));
-      const body = runLibrarian(req.question, pool, librarianIndex, { limit: req.limit ?? LIBRARIAN_LIMITS.defaultResults });
+      const body = runLibrarian(req.question, pool, librarianIndex, { limit: req.limit ?? LIBRARIAN_LIMITS.defaultResults, ...(req.semantic ? { semantic: req.semantic } : {}) });
       const omitted = corpus.omitted().filter((o) => !req.allowedPaths || req.allowedPaths.has(o.path)).length;
       return { ...body, coverage: { state: corpus.state, searched: pool.length, omitted }, corpusRevision: revision };
     },
@@ -168,7 +168,7 @@ export function simpleLineage(notes, resolve, { focus }) {
 }
 
 /** Service over a fixture vault with a mutable Personal policy. */
-export function makeService(vault, settingsOverrides = {}, { ceiling = "internal", lineage = simpleLineage } = {}) {
+export function makeService(vault, settingsOverrides = {}, { ceiling = "internal", lineage = simpleLineage, semantic } = {}) {
   const generation = new PolicyGeneration();
   let settings = { ...defaultPersonalNotesSettings(), includeFolders: ["/"], ...settingsOverrides };
   let policy;
@@ -186,6 +186,7 @@ export function makeService(vault, settingsOverrides = {}, { ceiling = "internal
     lineage,
     protocols: () => ({ mcp: { "streamable-http": ["2026-07-28", "2025-11-25"] }, rest: ["/overview", "/notes", "/note", "/related", "/lineage"] }),
     onDiagnostic: (m) => diagnostics.push(m),
+    ...(semantic ? { semantic } : {}),
   });
   return {
     service, diagnostics,

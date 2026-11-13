@@ -2,12 +2,25 @@
 
 ## The Librarian (`ask_librarian`, `GET /librarian`, `/ui`)
 
-- **Lexical, not semantic.** There is no embedding model, so a question that
+- **Lexical unless semantic search is turned on.** Without it, a question that
   shares no words with the right note will not find it. On the owner's vault
   (~3.9k notes) a paraphrase such as "sharing a graphics card with containers"
   returns lexically plausible but often wrong notes. `confidence` is the honest
   signal: `weak` means the top note does not carry the question's rarest words
   in its title, aliases, tags or file name, and `none` means no note matched.
+  Semantic search (off by default) adds a fourth list by meaning; its own
+  limits are in [SEMANTIC-SEARCH.md](SEMANTIC-SEARCH.md).
+- **Semantic search cannot tell "answered" from "closest".** Measured on 350
+  real notes with three of the listed models, no score told a question the
+  notes answer from one they do not: the closest note to an off-topic question
+  stands out as much as a right answer. So `confidence` still comes from words
+  only, and a note found by meaning alone is always labelled as such.
+- **Semantic relevance is not scored.** No judgement set exists yet for the
+  hybrid ranking on a real vault.
+- **The first semantic index is slow.** One CPU thread embeds 2 to 14 passages
+  per second on the build host, depending on the model, so a vault of a few
+  thousand notes takes from about ten minutes to more than an hour. It runs in
+  the background and resumes; only changed notes are embedded afterwards.
 - **A sentence is no longer an AND filter**, which raises recall and lowers
   precision compared with `search_notes`. Use `search_notes` for exact words or
   a tag; use `ask_librarian` when the question is a sentence and you want

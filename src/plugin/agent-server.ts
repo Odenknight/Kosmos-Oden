@@ -364,7 +364,7 @@ export const PERSONAL_REST_ROUTES: Readonly<Record<string, (typeof PERSONAL_TOOL
   "/lineage": "get_lineage",
 };
 
-const PERSONAL_INSTRUCTIONS = `Kosmos-Oden Personal Notes: read-only access to the notes the user chose to share. Call vault_overview first. ${PERSONAL_CONTENT_RULE}`;
+const PERSONAL_INSTRUCTIONS = `Kosmos-Oden Personal Notes: read-only access to the notes the user chose to share. Call vault_overview first; it reports what is shared and whether semantic search is on. To answer a question, call ask_librarian with the whole question: it searches by words and, when semantic search is on, by meaning, and returns the passages, the steps they list and "related" notes. When the task is a process, do not stop at the first note: read the steps, open the notes it links to and the "related" notes with get_note, and tell the user which step comes next. Use search_notes for exact words or a tag, and get_related to move outward from one note. A result whose "found_by" lists only "meaning" is the closest note, not a confirmed match: read it, and say so if it does not answer the question. If "semantic.state" is not ready, the answer used words only: say so when nothing was found, and try the user's likely wording. ${PERSONAL_CONTENT_RULE}`;
 const PERSONAL_NOT_READY ="Personal Notes is not ready on this computer yet. Open Obsidian, finish Personal Notes setup, then connect again.";
 
 /** HTTP status for a Personal service error on REST. */

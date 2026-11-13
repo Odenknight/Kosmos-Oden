@@ -318,10 +318,18 @@ requires a token and uses unencrypted HTTP, so use a trusted private network or
 a secure tunnel. The standalone-service client described above remains
 loopback-only.
 
-In the Personal Notes profile the same listener serves only five read-only
-tools (`vault_overview`, `search_notes`, `get_note`, `get_related`,
-`get_lineage`) over the shared folders, with exact paged note reads and its own
-device-local token.
+In the Personal Notes profile the same listener serves only six read-only
+tools (`vault_overview`, `search_notes`, `ask_librarian`, `get_note`,
+`get_related`, `get_lineage`) over the shared folders, with exact paged note
+reads and its own device-local token.
+
+As of 0.9.5, `ask_librarian` answers a whole question with a hybrid search: by
+words always, and by meaning when **Semantic search** is turned on in
+Settings. Semantic search runs entirely inside the plugin — pick an MIT or
+Apache-2.0 embedding model from the list and press Download, or select your
+own ONNX model files; the plugin embeds your notes and writes its own SQLite
+index. No other software is needed and no note text leaves the computer. See
+[the semantic search guide](docs/v0.9.5/SEMANTIC-SEARCH.md).
 
 See [Agent API](AGENT-API.md) for exact routes, tools, and setup.
 
@@ -367,6 +375,8 @@ independent, restorable copy of important data.
 - The plugin renderer runs in an opaque-origin sandbox and communicates through
   a closed, versioned message protocol.
 - The Obsidian Agent API is off by default, loopback by default, and read-only.
+- Semantic search is off by default. Its only network request is the model
+  download you start yourself; the index stores no note text.
 - Bearer tokens are generated from a CSPRNG, compared in constant time, and
   never logged. Query-token authentication is deprecated and off by default.
 - Nextcloud and optional model credentials do not enter synchronized plugin

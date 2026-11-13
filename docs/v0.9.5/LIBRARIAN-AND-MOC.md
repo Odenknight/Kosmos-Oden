@@ -61,9 +61,14 @@ deterministic equivalent:
 | htmx page | One self-contained page at `/ui`, no external assets |
 
 Everything runs in the existing search worker, beside the lexical index, over
-text already in memory. There is no new index file, no download and no model.
-Adding a semantic list later is a fourth `fuse(...)` call and an async
-embedding source; the response shape does not change.
+text already in memory. For these three lists there is no new index file, no
+download and no model.
+
+The semantic list was then added as an option (off by default): a fourth
+`fuse(...)` call fed by an embedding model that runs inside the plugin, with
+its vectors in a SQLite file the plugin writes itself — no Python, no server.
+The three lexical lists and their results are unchanged when it is off. See
+[SEMANTIC-SEARCH.md](SEMANTIC-SEARCH.md).
 
 ## The contract
 
