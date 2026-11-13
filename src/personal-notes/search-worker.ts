@@ -9,6 +9,7 @@
  * A revision becomes visible to queries only when all of its chunks are prepared.
  */
 import { parseQuery, prepareDoc, SearchRun, type PreparedDoc, type SearchDoc } from "./fulltext";
+import { LibrarianIndex, indexDoc, runLibrarian, type DocVector, type LibrarianEntry, type LibrarianResponse } from "./librarian";
 import { PERSONAL_CONTRACT, PERSONAL_LIMITS, PersonalError, type CorpusOmission, type CorpusState, type PersonalErrorCode, type SearchResponse } from "./types";
 
 /* ------------------------------------------------------------------ protocol */
@@ -21,11 +22,14 @@ export type ToWorker =
   /** Allowed paths for one scope id. Sent once; the worker keeps the last SCOPE_SLOTS scopes. */
   | { type: "scope"; scopeId: number; paths: string[] }
   | { type: "search"; id: number; revision: number; generation: number; scopeId: number | null; query: string; limit: number; tag?: string }
+  /** One hybrid Librarian question over the same scope, notes and text. */
+  | { type: "librarian"; id: number; revision: number; generation: number; scopeId: number | null; question: string; limit: number }
   | { type: "cancel"; id: number };
 
 export type FromWorker =
   | { type: "applied"; revision: number; docs: number }
   | { type: "result"; id: number; revision: number; generation: number; response: SearchResponse }
+  | { type: "librarian_result"; id: number; revision: number; generation: number; response: LibrarianResponse }
   | { type: "error"; id: number; revision: number; generation: number; code: PersonalErrorCode; message: string }
   | { type: "cancelled"; id: number }
   /** Unexpected internal failure; the client treats the worker as dead. */
@@ -57,10 +61,13 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
 
 /* --------------------------------------------------------------------- engine */
 
-interface Staging { revision: number; reset: boolean; prepared: PreparedDoc[]; deletes: string[] }
+interface Staging { revision: number; reset: boolean; prepared: PreparedDoc[]; vectors: DocVector[]; deletes: string[] }
 
 export class SearchWorkerEngine {
   private docs = new Map<string, PreparedDoc>();
+  /** Librarian vectors, one per prepared doc, kept in step with `docs`. */
+  private vectors = new Map<string, DocVector>();
+  private readonly librarianIndex = new LibrarianIndex();
   private revision = 0;
   private state: CorpusState = "indexing";
   private omitted: { path: string; reason: CorpusOmission }[] = [];
@@ -88,6 +95,7 @@ export class SearchWorkerEngine {
         if (op.type === "mutate") await this.mutate(op);
         else if (op.type === "scope") this.setScope(op.scopeId, op.paths);
         else if (op.type === "search") await this.search(op);
+        else if (op.type === "librarian") await this.librarian(op);
       }
     } catch (error) {
       this.post({ type: "fatal", message: error instanceof Error ? error.message : String(error) });
@@ -106,15 +114,26 @@ export class SearchWorkerEngine {
     return this.queue.some((op) => op.type === "mutate" && op.reset);
   }
 
+  /** Drop one note's contribution to the Librarian's document frequencies. */
+  private unindexVector(path: string): void {
+    const vector = this.vectors.get(path);
+    if (!vector) return;
+    this.librarianIndex.remove(vector);
+    this.vectors.delete(path);
+  }
+
   private async mutate(op: Extract<ToWorker, { type: "mutate" }>): Promise<void> {
-    if (op.reset) this.staging = { revision: op.revision, reset: true, prepared: [], deletes: [] };
-    else if (!this.staging || this.staging.revision !== op.revision) this.staging = { revision: op.revision, reset: false, prepared: [], deletes: [] };
+    if (op.reset) this.staging = { revision: op.revision, reset: true, prepared: [], vectors: [], deletes: [] };
+    else if (!this.staging || this.staging.revision !== op.revision) this.staging = { revision: op.revision, reset: false, prepared: [], vectors: [], deletes: [] };
     const staging = this.staging;
     staging.deletes.push(...op.deletes);
     let started = now();
     let count = 0;
     for (const doc of op.upserts) {
-      staging.prepared.push(prepareDoc(doc));
+      const prepared = prepareDoc(doc);
+      staging.prepared.push(prepared);
+      // Vectors are built here, in the yielded loop, so publishing stays cheap.
+      staging.vectors.push(indexDoc(prepared, this.librarianIndex.vocab));
       if (++count >= PERSONAL_LIMITS.batchRecords || now() - started >= PERSONAL_LIMITS.batchMs) {
         await this.yieldNow();
         if (staging.reset && this.supersededByReset()) { this.staging = null; return; }
@@ -124,10 +143,23 @@ export class SearchWorkerEngine {
     }
     if (!op.final || this.staging !== staging) return;
     // Publish atomically: one synchronous step, no yield between.
-    if (staging.reset) this.docs = new Map(staging.prepared.map((p) => [p.doc.path, p]));
-    else {
-      for (const path of staging.deletes) this.docs.delete(path);
-      for (const p of staging.prepared) this.docs.set(p.doc.path, p);
+    if (staging.reset) {
+      this.docs = new Map(staging.prepared.map((p) => [p.doc.path, p]));
+      this.vectors = new Map();
+      this.librarianIndex.clear();
+      for (let i = 0; i < staging.prepared.length; i++) {
+        this.vectors.set(staging.prepared[i].doc.path, staging.vectors[i]);
+        this.librarianIndex.add(staging.vectors[i]);
+      }
+    } else {
+      for (const path of staging.deletes) { this.docs.delete(path); this.unindexVector(path); }
+      for (let i = 0; i < staging.prepared.length; i++) {
+        const path = staging.prepared[i].doc.path;
+        this.unindexVector(path);
+        this.docs.set(path, staging.prepared[i]);
+        this.vectors.set(path, staging.vectors[i]);
+        this.librarianIndex.add(staging.vectors[i]);
+      }
     }
     this.revision = op.revision;
     this.state = op.state;
@@ -185,6 +217,46 @@ export class SearchWorkerEngine {
     };
     this.cancelled.delete(id);
     this.post({ type: "result", id, revision, generation, response });
+  }
+
+  /**
+   * Hybrid Librarian answer over the requester's own notes. Deterministic: the
+   * same question over the same revision returns the same response. The scan is
+   * synchronous (no mid-answer yield) so the response describes one revision.
+   */
+  private async librarian(op: Extract<ToWorker, { type: "librarian" }>): Promise<void> {
+    const { id, generation } = op;
+    const revision = this.revision;
+    if (this.cancelled.delete(id)) { this.post({ type: "cancelled", id }); return; }
+    for (const stale of this.cancelled) if (stale < id) this.cancelled.delete(stale);
+    const fail = (code: PersonalErrorCode, message: string) => this.post({ type: "error", id, revision, generation, code, message });
+    let scope: Set<string> | null = null;
+    if (op.scopeId !== null) {
+      scope = this.scopes.get(op.scopeId) ?? null;
+      if (!scope) { fail("search_unavailable", "search scope expired; retry the query"); return; }
+    }
+    const pool: LibrarianEntry[] = [];
+    for (const [path, prepared] of this.docs) {
+      if (scope && !scope.has(path)) continue;
+      const vector = this.vectors.get(path);
+      if (vector) pool.push({ prepared, vector });
+    }
+    let body: Omit<LibrarianResponse, "coverage" | "corpusRevision">;
+    try {
+      body = runLibrarian(op.question, pool, this.librarianIndex, { limit: op.limit });
+    } catch (error) {
+      if (error instanceof PersonalError) { fail(error.code, error.message); return; }
+      throw error;
+    }
+    let omitted = 0;
+    for (const o of this.omitted) if (!scope || scope.has(o.path)) omitted++;
+    const response: LibrarianResponse = {
+      ...body,
+      coverage: { state: this.state, searched: pool.length, omitted },
+      corpusRevision: revision,
+    };
+    this.cancelled.delete(id);
+    this.post({ type: "librarian_result", id, revision, generation, response });
   }
 }
 

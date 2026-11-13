@@ -45,6 +45,8 @@ import { AddNotesModal } from "../ui/add-notes-modal";
 import { ConnectAiModal } from "../ui/connect-ai-modal";
 import { SupersedesModal } from "../ui/supersedes-modal";
 import { TaggingModal } from "../ui/tagging-modal";
+import { runFolderMoc, type MocFolderIo } from "../personal-notes/moc-run";
+import type { MocWriterHost } from "../personal-notes/moc-writer";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -510,6 +512,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
     this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });
     this.addCommand({ id: "optional-tags", name: "Optional tags (preview deterministic tags)", callback: () => this.openTagging() });
+    this.addCommand({ id: "update-folder-moc", name: "Update this folder's map of content (deterministic)", callback: () => void this.updateFolderMoc() });
     this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
@@ -833,7 +836,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   }
 
   /** Narrow writer for tagging: fresh reads, compare-and-write inside Vault.process, exact backups under `backupRoot`. */
-  private writerHost(backupRoot: string | null): TaggingWriterHost {
+  private writerHost(backupRoot: string | null): TaggingWriterHost & Pick<MocWriterHost, "createFile"> {
     return {
       readRaw: async (path) => {
         const file = this.noteFile(path);
@@ -860,6 +863,14 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
         return target;
       },
       sha256: (text) => sha256Hex(text),
+      createFile: async (path, text) => {
+        const adapter = this.app.vault.adapter;
+        if (await adapter.exists(path)) return false;
+        const dir = path.slice(0, path.lastIndexOf("/"));
+        if (dir) await this.ensureFolder(dir);
+        await adapter.write(path, text);
+        return true;
+      },
       recordOwnWrite: (path, hash) => {
         const list = this.ownWrites.get(path) ?? [];
         list.push(hash);
@@ -1197,6 +1208,67 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       if (setting?.open && setting.openTabById) { setting.open(); setting.openTabById(this.manifest.id); return; }
     } catch { /* settings internals vary by Obsidian version */ }
     new Notice("Kosmos-Oden: open Settings → Kosmos-Oden → Personal Notes → Optional tagging.");
+  }
+
+  /**
+   * Update the map of content of the active note's folder. Deterministic: the
+   * same folder contents and options produce the same bytes. Only the block
+   * between the Kosmos markers changes; a file without a block is refused,
+   * never adopted, and an update needs an exact backup first.
+   */
+  async updateFolderMoc(): Promise<void> {
+    const active = this.app.workspace.getActiveFile?.() ?? null;
+    const parent = active?.parent?.path ?? "";
+    const folder = parent && parent !== "/" ? parent : "";
+    if (!folder) {
+      new Notice("Kosmos-Oden: open a note inside a folder, then run this again.");
+      return;
+    }
+    const root = normalizePath(`.gkx/backup/moc-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
+    const host = this.writerHost(root);
+    const vault = this.app.vault;
+    const metaCache = this.app.metadataCache;
+    const io: MocFolderIo = {
+      ...host,
+      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path),
+      meta: (path) => {
+        const file = vault.getAbstractFileByPath(path);
+        const fm = (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
+        const list = (value: unknown): string[] | null =>
+          Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : typeof value === "string" ? [value] : null;
+        const aliases = list(fm.aliases);
+        const tags = list(fm.tags);
+        const supersededBy = list(fm.superseded_by);
+        return {
+          title: typeof fm.title === "string" ? fm.title : null,
+          aliases,
+          tags,
+          updatedAt: typeof fm.updated_at === "string" ? fm.updated_at : null,
+          supersededBy,
+          summary: typeof fm.summary === "string" ? fm.summary : null,
+        };
+      },
+    };
+    try {
+      const { plan, applied } = await runFolderMoc(folder, io);
+      if (plan.action === "refuse") {
+        new Notice(`Kosmos-Oden: none written — ${plan.target}: ${plan.detail || plan.reason || "refused"}`);
+        return;
+      }
+      if (!applied) {
+        new Notice(`Kosmos-Oden: ${plan.target} is already up to date.`);
+        return;
+      }
+      if (applied.failed.length || applied.skipped.length) {
+        const why = [...applied.failed.map((f) => f.error), ...applied.skipped.map((s) => `${s.path}: ${s.detail}`)][0];
+        new Notice(`Kosmos-Oden: ${plan.target} not written — ${why}`);
+        return;
+      }
+      const entries = plan.entries.length;
+      new Notice(`Kosmos-Oden: ${plan.action === "create" ? "created" : "updated"} ${plan.target} (${entries} note${entries === 1 ? "" : "s"}).`);
+    } catch (error) {
+      new Notice(`Kosmos-Oden: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async openPersonalSearch(): Promise<void> {

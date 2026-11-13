@@ -298,15 +298,33 @@ Quick Connect. The full reference is the
 
 ## What an assistant can do
 
-An assistant connected to the Personal profile has five read-only tools:
+An assistant connected to the Personal profile has six read-only tools:
 
 | Tool | What it does |
 | --- | --- |
 | `vault_overview` | How many notes it can read, whether search is ready, and what the connection supports |
 | `search_notes` | The same matching rules as your own search, but only over the shared folders |
+| `ask_librarian` | Answers a whole question: the notes that fit, their answering passages, steps and links (forms flagged), plus a markdown brief |
 | `get_note` | The exact text of one note, in pages for long notes |
 | `get_related` | Notes linked to or from a note, or sharing a tag |
 | `get_lineage` | Which shared notes supersede which, including branches |
+
+`ask_librarian` is the Librarian. It is deterministic and free: no model runs,
+nothing leaves the machine, and the same question over the same notes always
+returns the same answer. Three rankings are fused — stemmed keyword matching
+with titles, aliases, tags and headings counted extra; an expansion of the
+words your best matches share; and name/title similarity for typos and partial
+names. Every word is optional, so a sentence works where `search_notes` (which
+requires every term) would return nothing. Each result carries the passages
+that answer the question, any numbered or checkbox steps in them, the web links
+they contain with forms marked, and the notes they link to. `format` chooses
+`structured`, `brief` (markdown) or `both`.
+
+The same answer is available without an MCP client: `GET /ui` on the same port
+serves a one-page search box that calls `/librarian` directly, and
+`GET /librarian?question=...` returns the JSON. Neither spends a single model
+token; both require the same access token (the page asks for it once and keeps
+it in `sessionStorage`).
 
 - It cannot change, create or delete anything.
 - `get_note` returns the note exactly as stored, properties included. A long

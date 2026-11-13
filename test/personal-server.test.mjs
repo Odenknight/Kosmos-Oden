@@ -32,7 +32,7 @@ import { RANK, makeVault } from "./helpers/personal-fixture.mjs";
 
 const PERSONAL_TOKEN = "personal-device-token-1234567890";
 const LEGACY_TOKEN = "legacy-existing-token-1234567890";
-const FIVE = ["search_notes", "get_note", "get_related", "get_lineage", "vault_overview"];
+const SIX = ["search_notes", "ask_librarian", "get_note", "get_related", "get_lineage", "vault_overview"];
 
 const NOTE_A = "---\r\nuid: u-a\r\ntags:\r\n  - home\r\n---\r\nAlpha plumber note. ![[pic.png]] ![[hidden.png]]\r\n";
 const LONG = "line one\r\n" + "x".repeat(70_000) + "😀" + "y".repeat(70_000) + " tail plumber\r\n";
@@ -59,9 +59,9 @@ function personalSetup({ includeFolders = ["Notes"], token = PERSONAL_TOKEN } = 
   const policy = () => (cached && cached.generation === generation.current ? cached
     : (cached = createPersonalReadPolicy({ settings, generation: generation.current, configDir: ".obsidian", isOperationalPath: isKosmosOperationalPath })));
   const service = new PersonalQueryService({
-    source: vault.source, corpus: vault.corpus, search: vault.search, policy,
+    source: vault.source, corpus: vault.corpus, search: vault.search, librarian: vault.librarian, policy,
     sensitivityRank: RANK, ceiling: () => "internal", lineage: lineageView,
-    protocols: () => ({ mcp: { "streamable-http": ["2026-07-28", ...NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS] }, rest: ["/overview", "/notes", "/note", "/related", "/lineage"] }),
+    protocols: () => ({ mcp: { "streamable-http": ["2026-07-28", ...NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS] }, rest: ["/overview", "/notes", "/librarian", "/note", "/related", "/lineage"] }),
   });
   let current = token;
   return {
@@ -126,18 +126,24 @@ function assertNoHidden(text, where) { for (const h of HIDDEN) assert.ok(!text.i
 
 /* ------------------------------------------------------------------ REST */
 
-test("REST: the five Personal routes answer from the shared scope only", async () => {
+test("REST: the six Personal routes answer from the shared scope only", async () => {
   const { server, port } = await start();
   try {
     const overview = await rest(port, "/overview");
     assert.equal(overview.status, 200);
     assert.equal(overview.json().notes, 3, "A, B and Long; not the labelled or the out-of-scope note");
-    assert.deepEqual(overview.json().tools, FIVE);
+    assert.deepEqual(overview.json().tools, SIX);
 
     const search = await rest(port, "/notes?query=plumber");
     assert.equal(search.status, 200);
     assert.deepEqual(search.json().results.map((r) => r.path).sort(), ["Notes/A.md", "Notes/B.md", "Notes/Long.md"]);
     assert.equal(search.json().total, 3);
+
+    const librarian = await rest(port, "/librarian?question=plumber");
+    assert.equal(librarian.status, 200);
+    assert.equal(librarian.json().contract, "kosmos-librarian/1");
+    assert.equal(librarian.json().results.length, 3);
+    assert.match(librarian.json().brief, /matching notes/);
 
     const note = await rest(port, "/note?path=Notes/A.md");
     assert.equal(note.status, 200);
@@ -255,7 +261,7 @@ test("LAN bind on the Personal connection needs the device token to start", () =
 
 /* --------------------------------------------------------------- MCP */
 
-test("modern MCP: discovery, exactly five tools with modern shapes, calls and hidden-tool denial", async () => {
+test("modern MCP: discovery, exactly six tools with modern shapes, calls and hidden-tool denial", async () => {
   const { server, port } = await start();
   try {
     const discover = (await modern(port, "server/discover")).json().result;
@@ -263,7 +269,7 @@ test("modern MCP: discovery, exactly five tools with modern shapes, calls and hi
     const list = await modern(port, "tools/list");
     assert.equal(list.status, 200);
     const tools = list.json().result.tools;
-    assert.deepEqual(tools.map((t) => t.name), FIVE);
+    assert.deepEqual(tools.map((t) => t.name), SIX);
     for (const t of tools) {
       assert.ok(t.title && t.outputSchema && t.annotations?.readOnlyHint === true, `${t.name} keeps the modern fields`);
       assert.equal("agent_name" in t.inputSchema.properties, false);
@@ -287,7 +293,7 @@ test("modern MCP: discovery, exactly five tools with modern shapes, calls and hi
   } finally { server.stop(); }
 });
 
-test("legacy MCP: every native revision initializes, lists exactly five minimal tools and calls them", async () => {
+test("legacy MCP: every native revision initializes, lists exactly six minimal tools and calls them", async () => {
   const { server, port } = await start();
   try {
     for (const version of NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS) {
@@ -295,7 +301,7 @@ test("legacy MCP: every native revision initializes, lists exactly five minimal 
       assert.equal(init.json().result.protocolVersion, version);
       assert.ok(init.json().result.instructions.includes(PERSONAL_CONTENT_RULE));
       const tools = (await legacy(port, version, { jsonrpc: "2.0", id: 2, method: "tools/list" })).json().result.tools;
-      assert.deepEqual(tools.map((t) => t.name), FIVE, version);
+      assert.deepEqual(tools.map((t) => t.name), SIX, version);
       for (const t of tools) assert.deepEqual(Object.keys(t).sort(), ["description", "inputSchema", "name"]);
       const note = (await legacy(port, version, call("get_note", { path: "Notes/A.md" }))).json().result;
       assert.deepEqual(Object.keys(note).sort(), ["content", "isError"]);
@@ -306,7 +312,7 @@ test("legacy MCP: every native revision initializes, lists exactly five minimal 
   } finally { server.stop(); }
 });
 
-test("legacy MCP: a March 2025 batch lists five tools, answers calls, skips notifications and denies hidden tools", async () => {
+test("legacy MCP: a March 2025 batch lists six tools, answers calls, skips notifications and denies hidden tools", async () => {
   const { server, port } = await start();
   try {
     const batch = [
@@ -320,7 +326,7 @@ test("legacy MCP: a March 2025 batch lists five tools, answers calls, skips noti
     assert.equal(r.status, 200);
     const byId = Object.fromEntries(sse(r.text).map((m) => [m.id, m]));
     assert.deepEqual(Object.keys(byId).sort(), ["hidden", "list", "search", "secret"]);
-    assert.deepEqual(byId.list.result.tools.map((t) => t.name), FIVE);
+    assert.deepEqual(byId.list.result.tools.map((t) => t.name), SIX);
     assert.equal(toolJson(byId.search.result).total, 3);
     assert.equal(byId.hidden.error.code, -32602);
     assert.equal(byId.secret.result.isError, true);

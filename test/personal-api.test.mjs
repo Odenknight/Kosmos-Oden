@@ -41,10 +41,10 @@ const setup = (scope = { includeFolders: ["Import"] }, opts) => {
   return { vault, ...makeService(vault, scope, opts) };
 };
 
-test("tool definitions: five tools, legacy-minimal shape, schemas agree with validation", () => {
+test("tool definitions: six tools, legacy-minimal shape, schemas agree with validation", () => {
   const defs = personalToolDefs();
   assert.deepEqual(defs.map((d) => d.name), [...PERSONAL_TOOL_NAMES]);
-  assert.deepEqual([...PERSONAL_TOOL_NAMES], ["search_notes", "get_note", "get_related", "get_lineage", "vault_overview"]);
+  assert.deepEqual([...PERSONAL_TOOL_NAMES], ["search_notes", "ask_librarian", "get_note", "get_related", "get_lineage", "vault_overview"]);
   for (const def of defs) {
     assert.equal(typeof def.name, "string");
     assert.ok(def.description.length > 20);
@@ -52,7 +52,9 @@ test("tool definitions: five tools, legacy-minimal shape, schemas agree with val
     assert.equal(def.inputSchema.additionalProperties, false);
     for (const [key, prop] of Object.entries(def.inputSchema.properties)) {
       // A value the schema allows at its bound is accepted; one past the bound is rejected.
-      const base = def.name === "search_notes" ? { query: "x" } : key === "path" || key === "uid" ? {} : { path: "A/b.md" };
+      const base = def.name === "search_notes" ? { query: "x" }
+        : def.name === "ask_librarian" ? (key === "question" ? {} : { question: "x" })
+        : key === "path" || key === "uid" ? {} : { path: "A/b.md" };
       if (prop.type === "integer") {
         const extra = key === "offset_chars" ? { expected_hash: "a".repeat(64) } : {};
         assert.doesNotThrow(() => validatePersonalArgs(def.name, { ...base, ...extra, [key]: prop.minimum }, "mcp"), `${def.name}.${key} min`);

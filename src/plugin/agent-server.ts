@@ -27,6 +27,7 @@ import { migrateProfileSettings, defaultPersonalNotesSettings, PERSONAL_SETTINGS
 import type { PolicyGeneration } from "../personal-notes/policy";
 import { parseRestQuery } from "../personal-notes/scope";
 import { PERSONAL_CONTENT_RULE, PERSONAL_TOOL_NAMES, personalToolDefs, type PersonalQueryService } from "../personal-notes/query-service";
+import { PERSONAL_UI_HTML } from "./personal-ui";
 import { inspectScopedLineage, projectAtTime, type ProjectableNote } from "gkos-engine";
 import { attachGraphitiContent, attachGraphitiSourceEvidence, buildGraphitiEpisodes, graphitiIngestionProfile } from "gkos-engine";
 import { KOSMOS_VERSION } from "../kosmos-version";
@@ -357,6 +358,7 @@ export interface PersonalAgentRuntime {
 export const PERSONAL_REST_ROUTES: Readonly<Record<string, (typeof PERSONAL_TOOL_NAMES)[number]>> = {
   "/overview": "vault_overview",
   "/notes": "search_notes",
+  "/librarian": "ask_librarian",
   "/note": "get_note",
   "/related": "get_related",
   "/lineage": "get_lineage",
@@ -1965,7 +1967,7 @@ export class KosmosAgentServer {
     }
     if (!this.authorized(req, u)) {
       // Generic message — does not distinguish missing from incorrect token (Doc1 §3.6).
-      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer <token> or x-api-key: <token>" });
+      this.json(res, 401, { error: "unauthorized", hint: "send Authorization: Bearer TOKEN or x-api-key: TOKEN" });
       return;
     }
 
@@ -2086,7 +2088,7 @@ export class KosmosAgentServer {
           name: "Kosmos-Oden Agent API",
           version: KOSMOS_VERSION,
           readOnly: true,
-          auth: "Authorization: Bearer <token> or x-api-key: <token>",
+          auth: "Authorization: Bearer TOKEN or x-api-key: TOKEN",
           mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
           rest: ["/health", "/overview", "/diagnostics", "/graph", "/notes?q=&tag=&area=&limit=", "/note?path=|title=", "/lineage?path=|title=", "/related?path=|title=", "/at?time=ISO", "/episodes", "/graphiti/status", "/gkx/note?uid=|path=|title=", "/gkx/assessment?uid=|path=|title=", "/gkx/diagnostics?uid=|path=|title=", "/gkx/labels?uid=|path=|title=", "/gkx/evidence?uid=|path=|title=", "/gkx/relationships?uid=|path=|title=", "/gkx/validate?uid=|path=|title=", "/gkx/policy", "/gkx/assess-vault?limit="],
         });
@@ -2120,19 +2122,30 @@ export class KosmosAgentServer {
    *  the same not-found as an unknown route. Query strings are decoded once
    *  by parseRestQuery and validated by the Personal service. */
   private async personalRest(req: any, res: any, path: string, isActive: () => boolean): Promise<void> {
-    if (path === "/") {
-      this.json(res, 200, {
-        name: "Kosmos-Oden Agent API",
-        version: KOSMOS_VERSION,
-        profile: "personal",
-        readOnly: true,
-        auth: "Authorization: Bearer <token> or x-api-key: <token>",
-        mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
-        rest: ["/health", "/overview", "/notes?query=&limit=&tag=", "/note?path=|uid=&offset_chars=&limit_chars=&expected_hash=", "/related?path=|uid=&limit=", "/lineage?path=|uid=&limit=&cursor="],
-        contentRule: PERSONAL_CONTENT_RULE,
-      });
-      return;
-    }
+      if (path === "/ui" || path === "/ui/") {
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+        });
+        res.end(PERSONAL_UI_HTML);
+        return;
+      }
+      if (path === "/") {
+        this.json(res, 200, {
+          name: "Kosmos-Oden Agent API",
+          version: KOSMOS_VERSION,
+          profile: "personal",
+          readOnly: true,
+          auth: "Authorization: Bearer TOKEN or x-api-key: TOKEN",
+          mcp: { endpoint: "/mcp", transport: "MCP Streamable HTTP", sessions: false, supportedProtocolVersions: advertisedMcpProtocolVersions("http", this.acceptsOlderMcp()) },
+          rest: ["/health", "/ui", "/overview", "/notes?query=&limit=&tag=", "/librarian?question=&limit=&format=", "/note?path=|uid=&offset_chars=&limit_chars=&expected_hash=", "/related?path=|uid=&limit=", "/lineage?path=|uid=&limit=&cursor="],
+          contentRule: PERSONAL_CONTENT_RULE,
+        });
+        return;
+      }
     if (path === "/health") { this.json(res, 200, { ok: true, name: "kosmos-oden", version: KOSMOS_VERSION, profile: "personal" }); return; }
     const tool = Object.hasOwn(PERSONAL_REST_ROUTES, path) ? PERSONAL_REST_ROUTES[path] : undefined;
     if (!tool) { this.json(res, 404, { error: "not found", see: "/" }); return; }

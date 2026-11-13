@@ -9,7 +9,7 @@ mix: a request is answered entirely by the active profile.
 | Profile | Tools | Reference |
 | --- | --- | --- |
 | **Existing (governed Agent API)** | The governed GKX projection tools below | [Existing profile](#existing-profile) |
-| **Personal Notes** (0.9.0) | Exactly five read-only tools over the folders the user shares | [Personal Notes profile](#personal-notes-profile) |
+| **Personal Notes** (0.9.5) | Exactly six read-only tools over the folders the user shares | [Personal Notes profile](#personal-notes-profile) |
 
 `GET /` on the running server reports which profile is active (`profile:
 "personal"` appears only in the Personal profile) and lists its routes. MCP
@@ -350,11 +350,11 @@ Contract identifier: **`kosmos-personal-notes/1`**. Every result carries it as
 `contract`. The user-facing description of this profile is in
 [docs/PERSONAL-NOTES.md](docs/PERSONAL-NOTES.md). In this profile, **Write
 Agent API guide** writes a short Personal guide with no token in it (a
-placeholder instead): the five tools, their routes and arguments, the paging
+placeholder instead): the six tools, their routes and arguments, the paging
 rule, and the MCP revisions served under the current setting. Configuration
 is copied from **Connect my AI → Copy configuration**.
 
-While the Personal profile is active, the server answers with exactly five
+While the Personal profile is active, the server answers with exactly six
 read-only tools over the notes the user shares, through REST and every MCP
 era. One query service and one argument validator serve REST and MCP, and the
 MCP input schemas are generated from the same table the validator checks.
@@ -448,7 +448,7 @@ exponent). Parameter names are the MCP argument names; note that search uses
 
 ### MCP tools
 
-`tools/list` returns these five tools and no others. A call to any other name,
+`tools/list` returns these six tools and no others. A call to any other name,
 including an existing-profile tool, is JSON-RPC `-32602` `Unknown tool`. Every
 input schema has `additionalProperties: false`; string fields have
 `minLength: 1`. Modern `tools/list` entries also carry `title`,
@@ -461,6 +461,7 @@ input schema has `additionalProperties: false`; string fields have
 | --- | --- | --- |
 | `vault_overview` | none | — |
 | `search_notes` | `query` string (max 4000; at most 500 code points and 16 terms are searched, more is `invalid_query`); `limit` integer 1–100, default 20; `tag` string (max 200) | `query` |
+| `ask_librarian` | `question` string (max 500; at most 32 distinct words); `limit` integer 1–25, default 8; `format` one of `both` (default), `brief`, `structured` | `question` |
 | `get_note` | `path` string (max 4096); `uid` string (max 200); `offset_chars` integer 0–2^53−1, default 0; `limit_chars` integer 2–64000, default 32000; `expected_hash` 64 lowercase hex characters | `path` or `uid` |
 | `get_related` | `path`; `uid`; `limit` integer 1–100, default 20 | `path` or `uid` |
 | `get_lineage` | `path`; `uid`; `limit` integer 1–200, default 50; `cursor` string (max 512) | `path` or `uid` |
@@ -513,6 +514,70 @@ case-insensitive). Ties sort by path.
 - `coverage.state`: `indexing` (still reading), `ready`, or `partial` (some
   files skipped). `omitted` counts skipped files inside the caller's own
   folders only (over 5 MiB, over the 128 MiB corpus budget, or unreadable).
+
+#### `ask_librarian`
+
+Hybrid deterministic retrieval for a whole question (0.9.5). No model, no
+network, nothing on disk; the same question over the same corpus revision
+returns the same response. Three ranked lists are fused by reciprocal rank:
+stemmed BM25 over the note body plus title, aliases, tags, file name and
+headings; an expansion of words shared by the best lexical matches; and
+character-trigram similarity over names and titles. Unlike `search_notes`,
+every word is optional, and word forms (`-s`, `-es`, `-ing`, `-ed`, `-ation`,
+`-ion`) meet on one stem.
+
+`question`: at most 500 code points and 32 distinct words; over-limit is
+`invalid_query`, never truncated. `"quoted text"` lifts notes containing that
+phrase. A word that occurs nowhere in the caller's notes is replaced by the
+closest word that does (edit distance 1–2, same first letter) and reported in
+`corrections`. `limit` is 1–25 (default 8). `format` is `both` (default),
+`brief` (markdown only; `results` is empty) or `structured` (no `brief`).
+
+```json
+{
+  "contract": "kosmos-librarian/1",
+  "question": "how do I request a new laptop",
+  "intent": "howto",
+  "terms": ["request", "new", "laptop"],
+  "corrections": [],
+  "expanded": ["hardware", "manager"],
+  "phrases": [],
+  "confidence": "strong",
+  "total": 12,
+  "results": [{
+    "path": "IT/New laptop request.md", "title": "New laptop request",
+    "score": 0.032787, "matched_terms": ["request", "laptop"], "term_coverage": 0.67,
+    "passages": [{ "heading": "Steps", "text": "1. Ask your manager…", "offset_chars": 412 }],
+    "links": [{ "url": "https://forms.office.com/r/abc123", "label": "Hardware request form", "kind": "form" }],
+    "steps": [{ "text": "Ask your manager to approve the replacement." }],
+    "note_links": ["IT/Asset register"]
+  }],
+  "brief": "**1 of 12 matching notes** — confidence: strong.\n…",
+  "coverage": { "state": "ready", "searched": 812, "omitted": 0 },
+  "corpus_revision": 7
+}
+```
+
+- `score` orders hits; it is not a confidence. `ranks` (per hit, not shown
+  above) records the 1-based position in each fused list that contained it.
+- `term_coverage` is the share of the question's words found in that note.
+  `confidence` is `strong` when the top hit covers the question (all of one or
+  two words, at least 60% otherwise) or matches a name closely, `weak` when it
+  only partly does, `none` with no hits.
+- `passages` are the best two blocks of the note (at most 480 code units each,
+  line breaks kept), with the nearest heading above them; `offset_chars`
+  locates the passage in the raw note.
+- `links` are web and `mailto:` links found in the answering section, then the
+  rest of the note, deduplicated and capped at 8. `kind` is `form` when the URL
+  host is a known form service or the link text or line reads like a request,
+  application, registration, order or booking; then `email`, then `link`.
+  Forms sort first in `brief`.
+- `steps` are numbered or checkbox list items (at most 12, `done` for a checked
+  box). `note_links` are wikilink targets near the best passage, exactly as
+  written without alias or heading, at most 10.
+- `expanded` lists the words added by pseudo-relevance feedback; they are
+  weighted below the caller's own words and never come from a note outside the
+  caller's scope.
 
 #### `get_note`
 
@@ -571,7 +636,7 @@ Titles, timestamps, tags and similarity are never evidence.
 
 Call it first. Returns `profile: "personal"`, `notes` (readable notes),
 `omitted` (skipped files inside the caller's folders), `state`
-(`indexing`/`ready`/`partial`), `corpus_revision`, `tools` (the five names),
+(`indexing`/`ready`/`partial`), `corpus_revision`, `tools` (the six names),
 `protocols` (`mcp` with the revisions served on `streamable-http` and `stdio`
 under the current setting, and `rest` with the routes), `capabilities`
 (`read_only: true`, the search description, the `pagination` contract with

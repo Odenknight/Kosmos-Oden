@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.9.5 — unreleased (Librarian + deterministic MoC)
+
+Added — the Librarian, a deterministic hybrid search tool (`ask_librarian`):
+- One question, not keywords. Three ranked lists are fused by reciprocal rank:
+  stemmed BM25 over the note (title, aliases, tags, file name and headings
+  count extra), a pseudo-relevance expansion of words the best matches share,
+  and character-trigram similarity over names and titles.
+- Any word may match, so a sentence is no longer an AND filter. Word forms,
+  plurals, `-ation`/`-ing`/`-ed`, mild typos (edit distance, reported as a
+  correction) and names are handled; `"quoted text"` ranks notes containing
+  that phrase higher.
+- Each hit carries its best passages with the heading above them, the list
+  steps it contains, its web links with forms flagged, and its note links;
+  `format` chooses structured results, a markdown brief, or both.
+- Deterministic and token-free: no model, no network, nothing on disk. Scope is
+  applied inside the search worker before anything is examined, and a reply
+  computed under an older corpus revision or policy generation is reissued or
+  refused.
+- The same answer is served three ways: MCP tool `ask_librarian`, REST
+  `GET /librarian?question=&limit=&format=`, and a self-contained page at
+  `GET /ui` that uses no model at all.
+
+Added — deterministic Map of Content (`kosmos-moc/1`):
+- One folder's notes become one index note, byte-identical for the same input
+  in any order: NFC + lowercase code-unit order, subfolder groups, superseded
+  notes in their own section, and links that fall back from `[[Base name]]` to
+  `[[folder/note|Title]]` to a Markdown link only when they must.
+- Only the block between `<!-- kosmos-moc:begin v1 -->` and
+  `<!-- kosmos-moc:end -->` is replaced; text outside it, the BOM and the
+  dominant line ending are preserved. A file without a block is refused, never
+  adopted. An update writes an exact backup first and compare-and-writes, so a
+  concurrent edit skips instead of being overwritten.
+- Command: **Update this folder's map of content (deterministic)**.
+
+Changed:
+- The Personal profile now lists six tools; `vault_overview`, the served
+  instructions and the REST index report `ask_librarian` and `/librarian`.
+
 ## Unreleased
 
 - Naming pass: use the GKOS-Engine and GKOS-Engine-Lite spellings in UI text and docs, rename local scratch-directory ignores to `kosmos-oden_v*`, and rewrite the manifest description in plain language. The existing read-only compatibility for the pre-rename `vault-kosmos-view` view type and `vault-kosmos-nextcloud-*` secret key is kept, so saved layouts and stored WebDAV passwords still carry over.

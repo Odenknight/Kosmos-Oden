@@ -10,6 +10,7 @@
  */
 import type { CorpusDelta } from "./corpus";
 import { parseQuery, resultLimit } from "./fulltext";
+import { LIBRARIAN_LIMITS, parseQuestion, type LibrarianRequest, type LibrarianResponse, type PersonalLibrarian } from "./librarian";
 import { SCOPE_SLOTS, type FromWorker, type ToWorker, type WorkerDoc } from "./search-worker";
 import { PersonalError, type PersonalNoteRecord, type PersonalSearch, type SearchRequest, type SearchResponse } from "./types";
 
@@ -57,6 +58,18 @@ interface Pending {
   reject(error: PersonalError): void;
 }
 
+interface LibrarianPending {
+  id: number;
+  revision: number;
+  generation: number;
+  allowed: ReadonlySet<string> | null;
+  question: string;
+  limit: number;
+  attempts: number;
+  resolve(response: LibrarianResponse): void;
+  reject(error: PersonalError): void;
+}
+
 const toWorkerDoc = (r: PersonalNoteRecord): WorkerDoc => {
   const doc: WorkerDoc = { path: r.path, title: r.meta.title, aliases: [...r.meta.aliases], tags: [...r.meta.tags], raw: r.raw };
   if (r.meta.uid !== undefined) doc.uid = r.meta.uid;
@@ -71,7 +84,7 @@ const describe = (event: unknown): string => {
   return typeof message === "string" && message ? message : "search worker stopped";
 };
 
-export class PersonalSearchClient implements PersonalSearch {
+export class PersonalSearchClient implements PersonalSearch, PersonalLibrarian {
   private worker: WorkerLike | null = null;
   private _status: SearchClientStatus = "running";
   private failure: string | null = null;
@@ -83,6 +96,7 @@ export class PersonalSearchClient implements PersonalSearch {
   private nextId = 1;
   private nextScopeId = 1;
   private readonly pending = new Map<number, Pending>();
+  private readonly librarianPending = new Map<number, LibrarianPending>();
   private readonly scopeIds = new Map<ReadonlySet<string>, number>();
   private waiters: { revision: number; resolve(): void; reject(e: PersonalError): void }[] = [];
   private sending: Promise<void> = Promise.resolve();
@@ -114,6 +128,9 @@ export class PersonalSearchClient implements PersonalSearch {
     for (const p of [...this.pending.values()]) {
       if (p.generation !== generation) this.settle(p, new PersonalError("policy_changed", "access policy changed while searching; repeat the query"), true);
     }
+    for (const p of [...this.librarianPending.values()]) {
+      if (p.generation !== generation) this.settleLibrarian(p, new PersonalError("policy_changed", "access policy changed while searching; repeat the query"), true);
+    }
   }
 
   async search(request: SearchRequest): Promise<SearchResponse> {
@@ -134,6 +151,31 @@ export class PersonalSearchClient implements PersonalSearch {
       };
       signal?.addEventListener("abort", onAbort, { once: true });
       this.post(entry);
+    });
+  }
+
+  /**
+   * Hybrid Librarian answer. Same policy contract as `search`: the allowed set is
+   * applied inside the worker before anything is examined, and a reply computed
+   * under an older revision or policy generation is reissued or rejected.
+   */
+  async librarian(request: LibrarianRequest): Promise<LibrarianResponse> {
+    if (this._status !== "running") throw new PersonalError("search_unavailable", this.failure ?? "search is not running");
+    const limit = Math.max(1, Math.min(LIBRARIAN_LIMITS.maxFetch, Math.floor(request.limit ?? LIBRARIAN_LIMITS.defaultResults)));
+    parseQuestion(request.question); // reject a malformed question without a worker round trip
+    const generation = request.policyGeneration ?? this.generation;
+    if (generation !== this.generation) throw new PersonalError("policy_changed", "access policy changed; repeat the query");
+    const signal = request.signal;
+    if (signal?.aborted) throw new PersonalError("cancelled", "search cancelled");
+    return new Promise<LibrarianResponse>((resolve, reject) => {
+      const entry: LibrarianPending = {
+        id: 0, revision: 0, generation, allowed: request.allowedPaths, question: request.question, limit, attempts: 0,
+        resolve: (r) => { signal?.removeEventListener("abort", onAbort); resolve(r); },
+        reject: (e) => { signal?.removeEventListener("abort", onAbort); reject(e); },
+      };
+      const onAbort = () => { const p = this.librarianPending.get(entry.id); if (p) this.settleLibrarian(p, new PersonalError("cancelled", "search cancelled"), true); };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      this.postLibrarian(entry);
     });
   }
 
@@ -190,6 +232,7 @@ export class PersonalSearchClient implements PersonalSearch {
       try { worker.terminate(); } catch { /* already gone */ }
     }
     for (const p of [...this.pending.values()]) this.settle(p, reason, false);
+    for (const p of [...this.librarianPending.values()]) this.settleLibrarian(p, reason, false);
     const waiters = this.waiters;
     this.waiters = [];
     for (const w of waiters) w.reject(reason);
@@ -236,6 +279,7 @@ export class PersonalSearchClient implements PersonalSearch {
     this.sentRevision = delta.revision;
     // Queries tagged with an older revision are stale: cancel and re-issue them.
     for (const p of [...this.pending.values()]) if (p.revision !== this.sentRevision) this.reissue(p);
+    for (const p of [...this.librarianPending.values()]) if (p.revision !== this.sentRevision) this.reissueLibrarian(p);
   }
 
   private scopeFor(allowed: ReadonlySet<string>): number {
@@ -266,6 +310,27 @@ export class PersonalSearchClient implements PersonalSearch {
     this.post(p);
   }
 
+  private postLibrarian(p: LibrarianPending): void {
+    p.id = this.nextId++;
+    p.revision = this.sentRevision;
+    this.librarianPending.set(p.id, p);
+    const scopeId = p.allowed ? this.scopeFor(p.allowed) : null;
+    this.worker!.postMessage({ type: "librarian", id: p.id, revision: p.revision, generation: p.generation, scopeId, question: p.question, limit: p.limit });
+  }
+
+  private reissueLibrarian(p: LibrarianPending): void {
+    this.librarianPending.delete(p.id);
+    this.worker?.postMessage({ type: "cancel", id: p.id });
+    if (++p.attempts > this.maxReissues) { p.reject(new PersonalError("search_unavailable", "notes kept changing during the search; try again")); return; }
+    this.postLibrarian(p);
+  }
+
+  private settleLibrarian(p: LibrarianPending, outcome: PersonalError | LibrarianResponse, cancelInWorker: boolean): void {
+    this.librarianPending.delete(p.id);
+    if (cancelInWorker) this.worker?.postMessage({ type: "cancel", id: p.id });
+    if (outcome instanceof PersonalError) p.reject(outcome); else p.resolve(outcome);
+  }
+
   private settle(p: Pending, outcome: PersonalError | SearchResponse, cancelInWorker: boolean): void {
     this.pending.delete(p.id);
     if (cancelInWorker) this.worker?.postMessage({ type: "cancel", id: p.id });
@@ -283,10 +348,20 @@ export class PersonalSearchClient implements PersonalSearch {
     if (message.type === "fatal") { this.fail(message.message); return; }
     if (message.type === "cancelled") return;
     const p = this.pending.get(message.id);
-    if (!p) return;
+    if (!p) {
+      const lp = this.librarianPending.get(message.id);
+      if (!lp) return;
+      if (message.generation !== this.generation) { this.settleLibrarian(lp, new PersonalError("policy_changed", "access policy changed while searching; repeat the query"), false); return; }
+      if (message.revision !== this.sentRevision) { this.reissueLibrarian(lp); return; }
+      if (message.type === "error") this.settleLibrarian(lp, new PersonalError(message.code, message.message), false);
+      else if (message.type === "librarian_result") this.settleLibrarian(lp, message.response, false);
+      else this.settleLibrarian(lp, new PersonalError("search_unavailable", "unexpected reply from the search worker"), false);
+      return;
+    }
     if (message.generation !== this.generation) { this.settle(p, new PersonalError("policy_changed", "access policy changed while searching; repeat the query"), false); return; }
     if (message.revision !== this.sentRevision) { this.reissue(p); return; }
     if (message.type === "error") this.settle(p, new PersonalError(message.code, message.message), false);
-    else this.settle(p, message.response, false);
+    else if (message.type === "result") this.settle(p, message.response, false);
+    else this.settle(p, new PersonalError("search_unavailable", "unexpected reply from the search worker"), false);
   }
 }

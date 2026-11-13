@@ -14,6 +14,7 @@
 import { SENSITIVITY_RANK } from "gkos-engine";
 import { MemoryCorpus } from "../personal-notes/corpus";
 import { lineageView } from "../personal-notes/lineage";
+import type { PersonalLibrarian } from "../personal-notes/librarian";
 import { PolicyGeneration, createPersonalReadPolicy, decidePersonalRead } from "../personal-notes/policy";
 import { PersonalQueryService, type PersonalProtocolInfo } from "../personal-notes/query-service";
 import type { PersonalSearchStatus } from "../personal-notes/plugin-host";
@@ -76,13 +77,15 @@ export class PersonalRuntime {
   constructor(private readonly options: PersonalRuntimeOptions) {
     this.corpus = new MemoryCorpus(options.source, { include: (p) => !isKosmosOperationalPath(p) });
     this.search = new PersonalSearchClient({ corpus: this.corpus, createWorker: () => new NotifyingWorker(options.workers.create(), () => this.notify()), release: () => options.workers.release() });
-    const scoped: PersonalSearch = {
+    const scoped: PersonalSearch & PersonalLibrarian = {
       search: (req) => this.search.search(req.allowedPaths ? { ...req, allowedPaths: this.canonical(req.allowedPaths) } : req),
+      librarian: (req) => this.search.librarian(req.allowedPaths ? { ...req, allowedPaths: this.canonical(req.allowedPaths) } : req),
     };
     this.service = new PersonalQueryService({
       source: options.source,
       corpus: this.corpus,
       search: scoped,
+      librarian: scoped,
       policy: () => this.policy(),
       sensitivityRank: SENSITIVITY_RANK,
       ceiling: () => options.settings().agentSensitivityCeiling,

@@ -12,6 +12,11 @@ import {
   PolicyGeneration,
   createPersonalReadPolicy,
   defaultPersonalNotesSettings,
+  prepareDoc,
+  indexDoc,
+  LibrarianIndex,
+  LIBRARIAN_LIMITS,
+  runLibrarian,
 } from "../../dist/kosmos-personal-notes.mjs";
 
 export const RANK = Object.freeze({ public: 0, internal: 1, restricted: 2, confidential: 3, regulated: 4, phi: 5, secret: 6 });
@@ -101,8 +106,38 @@ export function makeVault(files, { others = [] } = {}) {
     },
   };
 
+  /**
+   * The real Librarian over the fixture corpus: same module, same ranking.
+   * Vectors are rebuilt when the fixture's revision moves (it is tiny).
+   */
+  const librarianIndex = new LibrarianIndex();
+  const librarianEntries = new Map();
+  let librarianRevision = -1;
+  const rebuildLibrarian = () => {
+    librarianIndex.clear();
+    librarianEntries.clear();
+    for (const path of corpus.paths()) {
+      const note = corpus.get(path);
+      if (!note) continue;
+      const prepared = prepareDoc({ path, title: note.meta.title, aliases: note.meta.aliases, tags: note.meta.tags, raw: note.raw, ...(note.meta.uid ? { uid: note.meta.uid } : {}) });
+      const vector = indexDoc(prepared, librarianIndex.vocab);
+      librarianEntries.set(path, { prepared, vector });
+      librarianIndex.add(vector);
+    }
+    librarianRevision = revision;
+  };
+  const librarian = {
+    async librarian(req) {
+      if (librarianRevision !== revision) rebuildLibrarian();
+      const pool = [...librarianEntries.values()].filter((e) => !req.allowedPaths || req.allowedPaths.has(e.prepared.doc.path));
+      const body = runLibrarian(req.question, pool, librarianIndex, { limit: req.limit ?? LIBRARIAN_LIMITS.defaultResults });
+      const omitted = corpus.omitted().filter((o) => !req.allowedPaths || req.allowedPaths.has(o.path)).length;
+      return { ...body, coverage: { state: corpus.state, searched: pool.length, omitted }, corpusRevision: revision };
+    },
+  };
+
   return {
-    source, corpus, search, reads, examined,
+    source, corpus, search, librarian, reads, examined,
     write(path, raw, meta) { set(path, { raw, meta: meta ?? notes.get(path)?.meta }); revision++; },
     remove(path) { notes.delete(path); revision++; },
     set onRead(fn) { onRead = fn; },
@@ -144,6 +179,7 @@ export function makeService(vault, settingsOverrides = {}, { ceiling = "internal
     source: vault.source,
     corpus: vault.corpus,
     search: vault.search,
+    librarian: vault.librarian,
     policy: () => policy,
     sensitivityRank: RANK,
     ceiling: () => ceiling,
