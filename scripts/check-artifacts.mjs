@@ -34,6 +34,16 @@ if (existsSync(standalonePath)) {
   must(html.includes("webkitdirectory"), "standalone is missing the snapshot fallback");
 }
 
+// Personal Notes search worker (0.9.0): built as text before main.js and
+// embedded there; it must be self-contained (no remote code, no imports).
+const searchWorker = resolve(root, "dist/kosmos-personal-search-worker.txt");
+must(existsSync(searchWorker), "dist/kosmos-personal-search-worker.txt is missing (run npm run build)");
+if (existsSync(searchWorker)) {
+  const worker = readFileSync(searchWorker, "utf8");
+  must(worker.length > 2_000, "search worker artifact suspiciously small");
+  must(!/\bimportScripts\s*\(|\bfetch\s*\(|\bimport\s*\(|https?:\/\//.test(worker), "search worker artifact loads remote or external code");
+}
+
 // stdio compatibility adapter ships beside the Obsidian plugin artifacts
 const stdioAdapter = resolve(root, "kosmos-mcp-stdio.mjs");
 must(existsSync(stdioAdapter), "kosmos-mcp-stdio.mjs is missing");

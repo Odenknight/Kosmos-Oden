@@ -23,6 +23,7 @@
  */
 import esbuild from "esbuild";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -111,6 +112,12 @@ async function buildNodeBundles() {
   // standalone live Agent-API feed glue is DOM-free and unit-testable
   const apiFeed = await bundle("src/standalone/api-feed.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
   writeFileSync(resolve(root, "dist/kosmos-api-feed.mjs"), apiFeed);
+  // Personal Notes (0.9.0) pure helpers are dependency-free and unit-testable
+  const personalNotes = await bundle("src/personal-notes/index.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-personal-notes.mjs"), personalNotes);
+  // Semantic search (0.9.5): everything except the ONNX runtime is plain TypeScript and unit-testable
+  const semantic = await bundle("src/semantic/index.ts", { format: "esm", platform: "neutral", extra: { minify: false } });
+  writeFileSync(resolve(root, "dist/kosmos-semantic.mjs"), semantic);
   console.log("built dist/kosmos-operational-paths.mjs, dist/kosmos-navigation-effects.mjs, dist/kosmos-core.mjs, dist/kosmos-agent-server.mjs, dist/kosmos-agent-lineage-test.mjs, dist/kosmos-layout.mjs, dist/kosmos-protocol.mjs, dist/kosmos-renderer-quality.mjs, dist/kosmos-version-metadata.mjs, dist/kosmos-nextcloud-sync.mjs, dist/kosmos-api-feed.mjs");
 }
 
@@ -158,6 +165,68 @@ async function buildEmbed() {
   console.log(`built dist/kosmos-embed.html (${(html.length / 1024).toFixed(0)} KB)`);
 }
 
+/**
+ * Personal Notes search worker (0.9.0): a self-contained browser IIFE written
+ * as text. main.js embeds it via the `.txt` loader and starts it from a Blob
+ * URL (src/plugin/personal-search-worker-url.ts); tests run the same text in
+ * a worker_threads shim. Must be built before main.js.
+ */
+async function buildSearchWorker() {
+  const res = await esbuild.build({
+    stdin: {
+      contents: 'import { installSearchWorker } from "./src/personal-notes/search-worker";\ninstallSearchWorker(self);\n',
+      resolveDir: root,
+      sourcefile: "kosmos-personal-search-worker-entry.ts",
+      loader: "ts",
+    },
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    minify: production,
+    sourcemap: false,
+    logLevel: "silent",
+  });
+  const text = res.outputFiles[0].text;
+  writeFileSync(resolve(root, "dist/kosmos-personal-search-worker.txt"), text);
+  console.log(`built dist/kosmos-personal-search-worker.txt (${(text.length / 1024).toFixed(0)} KB)`);
+}
+
+/**
+ * Semantic search worker (0.9.5): ONNX Runtime Web, the tokenizer, sql.js and
+ * this plugin's index code as one self-contained browser IIFE, written as
+ * text. Both WebAssembly binaries are embedded in it (gzip + base64), so the
+ * plugin stays a single main.js and loads nothing at run time. gzip output is
+ * deterministic here (no file name, no time stamp), which keeps the build
+ * reproducible. Must be built before main.js.
+ */
+const SEMANTIC_WASM = [
+  ["node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm", "dist/kosmos-ort-wasm.gz.b64.txt"],
+  ["node_modules/sql.js/dist/sql-wasm-browser.wasm", "dist/kosmos-sql-wasm.gz.b64.txt"],
+];
+
+async function buildSemanticWorker() {
+  for (const [from, to] of SEMANTIC_WASM) {
+    writeFileSync(resolve(root, to), gzipSync(readFileSync(resolve(root, from)), { level: 9 }).toString("base64"));
+  }
+  const res = await esbuild.build({
+    entryPoints: [resolve(root, "src/semantic/worker-entry.ts")],
+    bundle: true,
+    write: false,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    loader: { ".txt": "text" },
+    minify: production,
+    sourcemap: false,
+    logLevel: "silent",
+  });
+  const text = res.outputFiles[0].text;
+  writeFileSync(resolve(root, "dist/kosmos-semantic-worker.txt"), text);
+  console.log(`built dist/kosmos-semantic-worker.txt (${(text.length / 1024).toFixed(0)} KB, ONNX Runtime + SQLite WebAssembly embedded)`);
+}
+
 async function buildPlugin() {
   await esbuild.build({
     entryPoints: [resolve(root, "src/plugin/main.ts")],
@@ -167,7 +236,7 @@ async function buildPlugin() {
     platform: "browser",
     // Provided by Obsidian at runtime — never bundle these:
     external: ["obsidian", "electron", "@codemirror/*", "@lezer/*", "node:*"],
-    loader: { ".html": "base64" },
+    loader: { ".html": "base64", ".txt": "text" },
     sourcemap: production ? false : "inline",
     minify: production,
     treeShaking: true,
@@ -180,12 +249,15 @@ async function buildPlugin() {
 try {
   if (forTests) {
     await buildNodeBundles();
+    await buildSearchWorker(); // worker tests run the real built worker text
     await buildStandalone(); // artifact checks are part of the test suite (§25)
   } else if (standaloneOnly) {
     await buildStandalone();
   } else {
     await buildNodeBundles();
     await buildEmbed();     // must precede the plugin bundle (main.ts imports it)
+    await buildSearchWorker(); // likewise embedded into main.js as text
+    await buildSemanticWorker(); // likewise
     await buildStandalone();
     await buildPlugin();
   }

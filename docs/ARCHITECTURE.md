@@ -1,7 +1,8 @@
 # Architecture
 
 Kosmos-Oden is **three products sharing one semantic engine**. Since 0.8.0 that
-engine is the exact-pinned external `gkos-engine@2.1.1` package. The plugin,
+engine is an exact-pinned external `gkos-engine` package (0.9.0: the 2.2.0
+development line at commit `7511233717cd5ab9ce8f6cec76e9623a21e3c728`). The plugin,
 standalone page, Agent API, Graphiti exporter, CLI, and opt-in Navigation
 integration all consume that same dependency.
 
@@ -68,9 +69,10 @@ page) and streams the vault in via the versioned `postMessage` protocol
 (unit-testable in Node) backed by `vault-provider.ts`, which owns a
 `GkxIndex` so the API answers from the *same* normalized graph the viewer
 renders, filtered by the configured GKX sensitivity ceiling. `settings.ts`
-provides Anthropic, OpenAI, stdio, and vendor-neutral quick-connect configs;
-the release's `kosmos-mcp-stdio.mjs` preserves MCP lifecycle headers for
-stdio-only harnesses. `gkx-migration.ts` hosts the explicit structural
+renders Anthropic, OpenAI, stdio, and vendor-neutral quick-connect configs
+from `connect-snippets.ts`; the release's `kosmos-mcp-stdio.mjs` mirrors
+modern per-request metadata into headers and carries initialize-era clients
+(including `2024-11-05`) for stdio-only harnesses, with no session. `gkx-migration.ts` hosts the explicit structural
 audit/backup/apply modal. `gkx-enrichment.ts` builds deterministic and optional
 bounded-LLM proposals; `gkx-enrichment-apply.ts` keeps the later human review,
 hash-bound decision plan, backup, source recheck, and write authority in a
@@ -87,6 +89,58 @@ conditional transfers, stores common-state metadata, and preserves remote
 conflict copies. Credentials remain in Obsidian Secret Storage rather than
 plugin data.
 
+### `src/personal-notes/` and the Personal profile (0.9.0)
+
+The Agent API serves one of two profiles, chosen by `activeProfile` (settings
+schema 11). The existing profile is unchanged. The Personal Notes profile does
+not use the Engine projection for access decisions:
+
+| Module | Responsibility |
+|---|---|
+| `types.ts` | Shared contracts, limits and error codes (`kosmos-personal-notes/1`). |
+| `settings.ts` | Schema 11 migration (fresh, baseline 9, starter-patch 10, malformed). |
+| `scope.ts`, `policy.ts` | Strict vault paths and folder scope; the one `PersonalReadPolicy` with a monotonic **policy generation**; the read decision (scope, physical containment, authored sensitivity only). |
+| `corpus.ts` | In-memory corpus of exact raw Markdown, rebuilt at startup and kept current from vault events; whole-file size and aggregate budget limits. |
+| `fulltext.ts`, `search-worker.ts`, `worker-client.ts` | Lexical search in a Web Worker built to `dist/kosmos-personal-search-worker.txt`, embedded in `main.js` and started from a Blob URL. Requests carry corpus revision and policy generation; no main-thread fallback. |
+| `query-service.ts`, `pagination.ts`, `attachments.ts`, `lineage.ts` | The five read-only tools behind REST and every MCP era; exact UTF-16 pages with SHA-256 continuation; attachment references; supersession lineage among readable notes. |
+| `tagging.ts`, `frontmatter-patch.ts`, `tagging-writer.ts` | Optional deterministic tags: a frozen preview plan, a byte-preserving frontmatter patch, and a hash-checked, per-file serialized writer with exact backups. |
+
+`src/plugin/personal-runtime.ts` owns the runtime handed to the server and the
+device-local token store; `agent-server.ts` dispatches by profile
+(`PERSONAL_REST_ROUTES`, five tools) and bumps the policy generation on every
+access change; `mcp-compat.ts` holds the era classifier and stateless legacy
+adapter shared by both profiles; `connect-snippets.ts` is the single source
+of client configuration text. The UI windows live in `src/ui/`.
+
+### `src/semantic/` — optional semantic search (0.9.5)
+
+Off by default. Pure modules where possible, tested in Node with a stand-in
+model; nothing here touches the vault or the network.
+
+| Module | Responsibility |
+|---|---|
+| `catalog.ts`, `settings.ts` | The model list (MIT / Apache-2.0 only; pinned commit, size and SHA-256 per file), the custom-model recipe, and the saved settings. |
+| `models.ts` | Model files and index files under `<plugin folder>/semantic/`: download through an injected downloader, verify, import the user's own files, delete. |
+| `chunker.ts` | Heading-aware passages with UTF-16 offsets; a cheap change key per note. |
+| `embedder.ts` | ONNX Runtime WebAssembly (one thread, `wasm` provider) + tokenizer; mean or CLS pooling, L2-normalised vectors. |
+| `store.ts` | The SQLite index (sql.js): path, change key, and per passage offset, length and vector. **No note text.** Exact cosine search restricted to an allowed set of paths. |
+| `engine.ts`, `worker.ts`, `worker-entry.ts` | The worker: embed, store, query, related. Built to `dist/kosmos-semantic-worker.txt` with both WebAssembly binaries inside (gzip + base64), embedded in `main.js` as text and started from a Blob URL. It receives the model and the stored index as bytes and makes no request. |
+| `service.ts` | Owns the worker; keeps the index in step with the corpus in small batches; pause, resume, rebuild; bounded candidates per question. |
+| `controller.ts` | Maps settings to a running model and index, reports one overview for the UI, and implements the `PersonalSemantic` contract the query service consumes. |
+
+`src/plugin/semantic-host.ts` supplies the Obsidian side (the plugin folder,
+SHA-256, the worker, and the **only** network call of the feature: one model
+file from the pinned Hugging Face revision). `src/ui/semantic-settings.ts` is
+the settings section. The plugin, not the Personal runtime, owns the semantic
+object, so switching profile does not reload the model.
+
+In `ask_librarian` the semantic candidates are a fourth list in the same
+reciprocal-rank fusion (`personal-notes/librarian.ts`). The query service
+passes the requester's readable paths with every semantic call and filters the
+answer again, so the semantic side can only reorder and add evidence within
+what the requester may already read. If it is off, loading, slow or failing,
+the lexical answer is returned and `semantic.state` says so.
+
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
 (IndexedDB handle), `directory-monitor.ts` (rescan-and-diff), `ui.ts` (startup
@@ -96,7 +150,9 @@ plugin data.
 
 `scripts/build.mjs` is the deterministic generator (Doc1 §3.3): modular TS →
 esbuild bundle → inlined into single-file HTML with `vendor/three.min.js`.
-Outputs: `main.js` (plugin, embeds `dist/kosmos-embed.html` as base64),
+Outputs: `main.js` (plugin, embeds `dist/kosmos-embed.html` as base64, the
+Personal search worker as text and the semantic worker — with ONNX Runtime and
+SQLite WebAssembly — as text),
 `kosmos-oden-stand-alone.html` (standalone), and `dist/*.mjs` node bundles for the CLI and
 tests. Executable artifacts are byte-reproducible across clean builds (verified
 by a CI job); volatile metadata lives only in `release/BUILD-INFO.json`.
@@ -121,3 +177,9 @@ the selected remote folder. It is disabled by default, excludes `.obsidian`,
 uses conditional WebDAV requests, and defaults deletion propagation off.
 Users can opt into `.obsidian` synchronization independently of custom path
 globs; the plugin's own `data.json` remains a mandatory exclusion.
+Personal Notes adds two user-triggered writers and no implicit one: optional
+tags (**Apply selected tags**, **Add supersedes**: hash re-check, exact backup
+under `.gkx/backup/tagging-*`) and opted-in automatic time stamps (content
+changes inside the tagging folders only, no backup). Reading, indexing,
+searching and connecting never write; the legacy automatic timestamp writer
+stands down while the Personal profile is active.

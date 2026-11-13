@@ -40,6 +40,22 @@ test("Options exposes the four required first-class tabs and routes Sync control
   assert.doesNotMatch(source, /enhanceSectionNavigation|openSections/);
 });
 
+test("Quick Connect text comes from the one shared generator; older-client text is transport-accurate", async () => {
+  const source = await readFile(settingsPath, "utf8");
+  assert.match(source, /renderQuickConnect\(/, "settings tab uses the shared Quick Connect block");
+  assert.match(source, /connectionConfig\(/, "the Agent API guide uses the shared generator");
+  for (const literal of ["claude mcp add", "[mcp_servers.", "streamable-http\", url", "KOSMOS_MCP_TOKEN: s.agentToken"]) {
+    assert.ok(!source.includes(literal), `settings.ts must not hard-code connection text: ${literal}`);
+  }
+  assert.match(source, /STDIO_ONLY_MCP_PROTOCOL_VERSIONS\.join\(", "\)\} only through the bundled stdio bridge/);
+  const toggle = source.slice(source.indexOf('setName("Accept older MCP clients")'), source.indexOf("// Default sensitivity sits ABOVE"));
+  assert.match(toggle, /s\.activeProfile === "personal" \? s\.personalNotes\.connection\.acceptOlderMcp/, "the toggle shows the active profile's setting");
+  assert.match(toggle, /updatePersonalNotes\(\(d\) => \{ d\.connection\.acceptOlderMcp = v; \}\)/, "and writes it through updatePersonalNotes in the Personal profile");
+  for (const label of ["Active profile", "Personal Notes windows", "Optional tags", "Connect my AI"]) assert.ok(source.includes(label), label);
+  const modal = await readFile(new URL("../src/ui/connect-ai-modal.ts", import.meta.url), "utf8");
+  assert.match(modal, /renderQuickConnect\(/, "the Connect window uses the same block");
+});
+
 test("Options CSS stacks controls on mobile and keeps tabs horizontally reachable", async () => {
   const css = await readFile(stylesPath, "utf8");
   assert.match(css, /\.kosmos-settings-tabs[\s\S]*grid-template-columns:\s*repeat\(4/);

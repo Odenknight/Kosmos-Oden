@@ -1,7 +1,8 @@
 # Threat Model
 
-An iterative model (Doc1 §5.3). It reflects v0.6.5 and is revised whenever
-network or data-access behavior changes.
+An iterative model (Doc1 §5.3). It was written for v0.6.5, revised whenever
+network or data-access behavior changes, and last revised for 0.9.0 (Personal
+Notes profile, device-local token, dual-era MCP, optional tagging writes).
 
 ## Assets
 
@@ -12,6 +13,11 @@ network or data-access behavior changes.
   trust it matches reviewed source.
 - **The auth token** — grants read access up to the configured GKX
   sensitivity ceiling (default `internal`).
+- **The Personal token (0.9.0)** — grants read access to the Folders shared
+  with agents. Device-local (Obsidian secret storage), never in `data.json`.
+- **Source-note integrity under optional tagging (0.9.0)** — Personal Notes
+  tagging can write `created_at`/`updated_at`, `uid` and `supersedes` into
+  notes the user selects.
 - **Source-note integrity** — the optional GKX onboarding command has write
   authority only after a dry-run approval; a bulk metadata defect could damage
   many notes or misclassify sensitive material.
@@ -29,7 +35,17 @@ network or data-access behavior changes.
 2. **Agent API process boundary.** Local programs / agents on the machine can
    reach `127.0.0.1`.
 3. **Agent API network boundary (LAN mode).** Other machines on the subnet can
-   reach the API when LAN mode is explicitly enabled.
+   reach the API when LAN mode is explicitly enabled. LAN mode binds all IPv4
+   interfaces (`0.0.0.0`); the Host allowlist is loopback plus this
+   computer's addresses and, in the Personal profile, the host of the saved
+   address for other computers (`personalNotes.connection.advertisedBaseUrl`),
+   which the user typed in Connect my AI. Every other host is refused
+   (`403 forbidden host`), so a DNS-rebinding page cannot use a name the user
+   did not save.
+3a. **Profile boundary (0.9.0).** One listener serves either the existing
+   profile or the Personal Notes profile, never both. In the Personal profile
+   a single read policy (folder scope, always-excluded paths, physical
+   containment, authored sensitivity) decides every agent-facing output.
 4. **Build/release pipeline.** Source → `main.js` → GitHub release.
 5. **GKX migration write boundary.** In-memory audit plan → explicit human
    confirmations → local binary backup → source-matched atomic note process.
@@ -46,7 +62,12 @@ network or data-access behavior changes.
 | Network eavesdropper (LAN mode) | LAN mode is off by default, requires a token, and the UI + docs warn that HTTP is unencrypted (use a VPN/SSH tunnel/TLS proxy). Not defended: passive observation of unencrypted LAN traffic — documented, not silently ignored. |
 | Token leakage | CSPRNG tokens; never logged; not in URLs by default; query-token auth deprecated/off/blocked-in-LAN; regeneration invalidates old clients. |
 | Oversized / malformed request (DoS) | 4 MiB byte-accurate body cap; JSON/MCP envelope validation; request timeouts; per-client rate + concurrency limits; capped response sizes. |
-| Stale, forged, or cross-client MCP session | Server-issued session IDs; negotiated `MCP-Protocol-Version` required after initialization; unknown/expired sessions return 404; DELETE actually terminates the session. |
+| Stale, forged, or cross-client MCP session | No protocol sessions exist (since 0.8.3): every request is authenticated and validated on its own; `Mcp-Session-Id` is ignored; GET/DELETE answer 405. The legacy path (0.9.0) keeps no negotiated state on the server; the stdio bridge keeps it per process only, so two clients on different revisions cannot affect each other. |
+| Malformed modern MCP traffic downgraded to the more permissive legacy path (0.9.0) | Presence of any modern marker (reserved `_meta` key, modern-only method, routing header or modern version) forces strict modern validation; unknown explicit versions are refused; batch arrays containing a modern marker are rejected; "Accept older MCP clients" off refuses every legacy request. |
+| Personal scope leak through search, counts, related/lineage, attachment references, highlights or stale in-flight answers (0.9.0) | One `PersonalReadPolicy` for every agent-facing path; allowed paths filtered before matching and counting; hidden and missing notes return the same `not_found`; a monotonic policy generation, bumped on profile/scope/token/bind changes, is re-checked after every await and before serialization, and in-flight requests and batches are ended. |
+| Path tricks into a Personal selection (traversal, case, sibling prefixes, symlinks, encoding) (0.9.0) | Strict vault-path validation that rejects rather than repairs; segment-boundary, case-sensitive matching; REST decoded once with duplicate parameters rejected; physical-containment check rejects symlinked/junctioned and out-of-vault files; invalid deny-list entries fail closed. |
+| Personal token reuse, sync or leak (0.9.0) | Device-local storage namespaced by plugin ID and canonical vault path; never in `data.json`, notes or the written guide; the existing profile's token and query-string tokens are never accepted; synced settings never start sharing on another device; Rotate token invalidates immediately. |
+| Optional tagging damages notes or races a user edit (0.9.0) | Off by default; frozen preview; hash re-check immediately before each write inside Obsidian's atomic processor; changed notes skipped; malformed or duplicate-key properties never rewritten; only selected keys patched; exact backups and a manifest for explicit applies; automatic stamps only on real content changes inside tagging folders, and never in an import folder opened through Add notes until the user marks that import finished (an import started directly in the Importer is not detected). |
 | Confidential/PHI disclosure through graph metadata | Sensitivity ceiling filters search, bodies, nodes, links, lineage/temporal state, diagnostics, and Graphiti pages. Invalid explicit sensitivity labels fail closed as PHI. |
 | Invalid 2.3 sensitivity bypasses the connector | The v2.3 effective projection supports all seven levels; missing labels default to internal and invalid values fail closed to secret before connector filtering. |
 | A score is mistaken for truth or authorization | Every assessment carries a policy ID/hash and the interpretation `documentation-and-support-quality-not-truth`; no score promotes epistemic state or authorizes use. |
@@ -74,6 +95,12 @@ network or data-access behavior changes.
 - No protection against a compromised Obsidian host or a compromised authorized
   agent.
 - No encryption of LAN traffic (use a tunnel/proxy).
+- No protection against an assistant service that processes retrieved note
+  text in its own cloud, or against instructions embedded in note text (the
+  Personal profile tells clients that note text is content, not
+  instructions).
+- Personal scope selects files; it does not redact text. A shared note may
+  name a note that is not shared.
 - `srcdoc` alone is **not** treated as a sandbox — the explicit `sandbox`
   attribute is what provides isolation (see `RENDERER-PROTOCOL.md`).
 - No claim of bit-for-bit reproducibility of release *metadata* (build time
