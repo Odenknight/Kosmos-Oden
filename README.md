@@ -1,6 +1,6 @@
 # Kosmos-Oden v0.9.5 (alpha)
 
-**Build:** `kosmos-oden-0.9.5-alpha.1` · **Plugin version:** 0.9.5 ·
+**Build:** `kosmos-oden-0.9.5-alpha.2` · **Plugin version:** 0.9.5 ·
 **Needs:** Obsidian 1.13.0 or newer · **Status:** alpha, not a qualified
 release (see [Honest status](#honest-status)).
 
@@ -31,7 +31,7 @@ only by the words they contain.
 ### 1. Install the alpha
 
 1. Close Obsidian.
-2. Unzip `kosmos-oden-0.9.5-alpha.1.zip`. It holds a `kosmos-oden/` folder.
+2. Unzip `kosmos-oden-0.9.5-alpha.2.zip`. It holds a `kosmos-oden/` folder.
 3. Copy that folder into `<your vault>/.obsidian/plugins/kosmos-oden/`,
    replacing the old one if there is one.
 4. Start Obsidian and switch on **Kosmos-Oden** under **Settings → Community
@@ -74,9 +74,26 @@ needs installing.
    Search works while it builds.
 
 The index is one SQLite file the plugin writes in its own folder. It holds note
-paths and numbers, never note text. The model download is the only network
-request, and it carries no note text. Guide, model list and limits:
+paths and numbers, never note text. With the built-in model, the model
+download is the only network request, and it carries no note text. Guide,
+model list and limits:
 [docs/v0.9.5/SEMANTIC-SEARCH.md](docs/v0.9.5/SEMANTIC-SEARCH.md).
+
+**If you already run an embedding server** (llama.cpp, Ollama, LM Studio and
+others), you can use it instead of the built-in model:
+
+1. Under **Where embeddings are made**, choose **Embedding server**.
+2. Type its **Address**, or press the button that fills it in:
+   `http://127.0.0.1:8080` for llama.cpp on this computer,
+   `http://127.0.0.1:11434` for Ollama on this computer. For a server on
+   another computer in your home or office, type that computer's address, for
+   example `http://192.168.1.20:8080`.
+3. Press **Test connection**, then switch **Search by meaning** on.
+
+Only this computer and private-network addresses are accepted, so note text
+cannot be sent to the internet by mistake. With a server, note passages and
+your questions are sent to that address and nowhere else. Steps for each
+server: [Use an embedding server](docs/v0.9.5/SEMANTIC-SEARCH.md#use-an-embedding-server).
 
 ### 4. Connect an AI assistant (optional)
 
@@ -119,6 +136,23 @@ Where to read more, further down this page:
 [GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)
 
 ## What's new in 0.9.5
+
+New in build alpha.2:
+
+- **Use your own embedding server.** Semantic search can use llama.cpp,
+  Ollama, LM Studio or any OpenAI-compatible embedding server, on this
+  computer (`127.0.0.1`) or on your private network, instead of the built-in
+  model. One address field, a **Test connection** button, and a rule that
+  refuses public addresses. The built-in model stays the default.
+- **A more honest Librarian.** It now says which words of your question are
+  in no note, says when a quoted phrase is in no note, and calls an answer
+  `strong` less freely. It reads "C++" and "C#" as words and treats a misspelt
+  "wher" as "where".
+- **A faster Librarian.** Indexing 10,000 notes takes about half the time
+  (2.46 s to 1.22 s on the build machine) and a question about a quarter less
+  (17.9 ms to 13.3 ms). Memory use is unchanged, not lower.
+
+In 0.9.5 since alpha.1:
 
 - **Search by meaning, inside the plugin.** Off by default. A model list
   limited to MIT and Apache-2.0 licences, or your own model files. Nothing else
@@ -183,7 +217,61 @@ Full entries: [CHANGELOG.md](CHANGELOG.md). Design notes:
 - Graph and Graphiti episode export from the command line.
 - Watching authorized agent activity in the viewer, with replay.
 
+## Uses at home and in a small business
+
+Everything here runs on your own computer, needs no account and costs nothing
+to run. An AI assistant is optional in every case: the search box and the
+`/ui` page work without one.
+
+**At home**
+
+- **Find the note again.** "Where did I put the boiler service number?" Ask in
+  a sentence; the Librarian returns the note, the passage and any phone
+  number or link in it.
+- **Household procedures.** How to reset the router, what to do when the
+  heating loses pressure, the steps for the car's annual inspection. The
+  answer lists the numbered steps and the notes to read next.
+- **Recipes, manuals, warranties, travel plans.** Bring in years of Google
+  Keep or OneNote notes and search them in one place, by words or by meaning
+  ("something quick with chickpeas" finds a recipe that never says "quick").
+- **Family knowledge in one vault.** A Map of Content gives each folder a
+  contents page that is rebuilt identically each time.
+- **A private assistant.** Share only the folders you choose with a local AI
+  model; with a local embedding server and a local model, no note text leaves
+  the house.
+
+**In a small business**
+
+- **Standard procedures.** "How do I request a new laptop?" returns the
+  procedure, the form link flagged as a form, and the related policies. The
+  same question gives the same answer for everyone, every time.
+- **Onboarding.** A new person asks questions in plain sentences instead of
+  learning the folder structure; a wrong spelling is corrected and reported.
+- **Which version is current.** "What replaced the 2024 expenses policy?"
+  follows the "this note replaces that one" links.
+- **IT and troubleshooting notes.** Error messages, fixes and vendor contacts,
+  found by the words in them or by what they mean.
+- **One embedding server for the office.** Run one llama.cpp or Ollama server
+  on a computer with a graphics card and point every person's Obsidian at its
+  private-network address. The first index of a large vault then takes minutes
+  instead of hours, and nobody's Obsidian has to load a model.
+- **An assistant with a boundary.** An AI assistant reads only the shared
+  folders, cannot write, and a note outside them looks as if it did not exist.
+  Keep HR, finance and client folders under **Never share**.
+- **Governed records, if you need them.** Recorded lineage, validation and
+  audit for notes that must be controlled ([Governance is an option](#governance-is-an-option)).
+
+What it is not: a backup, a document management system with user accounts, or
+a multi-user server. Each person runs it in their own Obsidian; the vault is
+shared by whatever already shares your files.
+
 ## Updates
+
+**Since build alpha.1** (still version 0.9.5): the embedding server engine, the
+Librarian fixes and the Librarian speed work. `ask_librarian` responses gain
+two fields, `unmatched` and `phrases_missing`; nothing was removed. Settings,
+tokens, notes and an existing semantic index are unchanged on upgrade, and
+semantic search keeps using the built-in model unless you choose a server.
 
 **Since 0.9.0** (version 0.9.5): semantic search, hybrid `ask_librarian`, the
 Librarian, the Map-of-Content command and `/ui`; the Personal profile lists six
@@ -206,9 +294,19 @@ The full list, with the changes and security notes of each version, is in
 ## Honest status
 
 - **This is an alpha**, not a qualified release.
-- **Automated checks pass:** `npm run verify` gave 771 tests passing and 0
-  failing at commit `33c8945`, and the five listed embedding models were each
-  run for real in a headless Chromium browser (80 of 80 smoke checks).
+- **Automated checks pass:** `npm run verify` gave 809 tests passing and 0
+  failing for build alpha.2 (771 at alpha.1, commit `33c8945`). The five
+  listed embedding models were each run for real in a headless Chromium
+  browser at alpha.1 (80 of 80 smoke checks); that run was not repeated.
+- **The embedding server route was tried against real servers, outside
+  Obsidian.** The plugin's client received real 768-number vectors from an
+  OpenAI-compatible gateway (LiteLLM) at a private-network address, and gave
+  the right advice to a `llama-server` running without `--embeddings`. Not
+  tried: Ollama's own route against a real Ollama, a server on the same
+  computer (`127.0.0.1`), an API key, and the request from inside Obsidian.
+- **The Librarian still gets some questions wrong.** On a 542-note test
+  folder, 39 of 44 questions put the right note first and one wrong answer was
+  still called `strong`.
 - **Not yet tried by a person inside Obsidian:** the Semantic search settings,
   the model download, choosing your own model files, and a first index of a
   real vault. Memory use while indexing a large vault was not measured, and the
@@ -655,6 +753,7 @@ npm run test:browser
 npm run test:visual
 npm run check:artifacts
 npm run check:renderer-provenance
+npm run bench:librarian
 ```
 
 Build a graph or Graphiti export from a shell:

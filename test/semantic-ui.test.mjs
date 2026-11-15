@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { ALLOWED_MODEL_LICENSES, MODEL_CATALOG, modelFileUrl } from "../dist/kosmos-semantic.mjs";
 import { all, button, byClass, dom, hasButton, loadUi, resetDom, setting, settle } from "./helpers/ui-harness.mjs";
 import { bytes, controllerWith } from "./helpers/semantic-fixture.mjs";
+import { SERVER_MODEL, fakeEmbeddingServer, serverController } from "./helpers/embedding-server-fixture.mjs";
 
 const ui = await loadUi();
 const tick = () => new Promise((r) => setImmediate(r));
@@ -38,6 +39,10 @@ function hostFor(c) {
     rebuildSemanticIndex: () => c.controller.rebuild(),
     setSemanticPaused: (paused) => c.controller.setPaused(paused),
     onSemanticStatus: (fn) => c.listen(fn),
+    testEmbeddingServer: () => c.controller.testServer(),
+    retrySemantic: () => c.controller.retry(),
+    embeddingKeySaved: () => c.key.length > 0,
+    setEmbeddingKey: async (key) => { c.key = key.trim(); },
   };
 }
 
@@ -247,4 +252,124 @@ test("settings: turning it off stops the model and keeps the index; closing the 
     await settle();
     assert.equal(s.el.textContent, before, "a closed settings page is not redrawn");
   } finally { await s.close(); }
+});
+
+/* --------------------------------------------------------- embedding server */
+
+test("settings: the built-in model is the default choice; choosing Embedding server shows its own panel", async () => {
+  const s = await open({ settings: { enabled: false }, install: false });
+  try {
+    const where = setting(s.el, "Where embeddings are made");
+    assert.equal(where.dropdown.getValue(), "builtin");
+    assert.deepEqual(all(where.settingEl).filter((n) => n.tagName === "OPTION").map((o) => o.textContent), ["Inside the plugin", "Embedding server"]);
+    assert.match(s.el.textContent, /If you already run an embedding server \(llama\.cpp, Ollama and others\), you can use it instead\./);
+    assert.ok(setting(s.el, "Embedding model"));
+    assert.throws(() => setting(s.el, "Address"), /no setting/);
+
+    s.c.key = "";
+    where.dropdown.select("server");
+    await until(() => { try { return !!setting(s.el, "Address"); } catch { return false; } }, "the server panel");
+    assert.equal(s.c.settings().engine, "server");
+    assert.equal(s.c.settings().enabled, false, "choosing it does not turn anything on");
+    assert.throws(() => setting(s.el, "Embedding model"), /no setting/, "the built-in model list is not shown");
+    for (const name of ["Address", "Common setups", "Server type", "Model name", "API key", "Test connection"]) assert.ok(setting(s.el, name), name);
+    assert.equal(setting(s.el, "Address").text.inputEl.getAttribute("placeholder"), "http://127.0.0.1:8080");
+    assert.deepEqual(all(setting(s.el, "Server type").settingEl).filter((n) => n.tagName === "OPTION").map((o) => o.textContent), ["Detect automatically", "OpenAI-compatible — llama.cpp, LM Studio, vLLM", "Ollama"]);
+    assert.equal(setting(s.el, "API key").text.inputEl.getAttribute("type"), "password");
+    const advanced = all(s.el).find((n) => n.tagName === "DETAILS");
+    assert.ok(advanced && advanced.getAttribute("open") === null, "Advanced starts closed");
+    assert.match(advanced.textContent, /Question prefix.*Passage prefix.*Passages per request/s);
+    assert.match(s.el.textContent, /Note text is sent to this address to be turned into numbers\. Use a server you run\.\s+This address is this computer\./);
+    assert.equal(s.c.requests.length, 0);
+  } finally { await s.close(); }
+});
+
+/** The section over a real controller with the server engine (test/helpers/embedding-server-fixture.mjs). */
+async function openServer(options) {
+  resetDom();
+  const c = await serverController(options);
+  c.key = "";
+  if (c.settings().enabled) void c.controller.apply();
+  const el = new dom.FakeEl("div");
+  const stop = ui.renderSemanticSettings(el, hostFor(c));
+  await settle();
+  const status = () => setting(el, "Index").descEl.textContent;
+  const type = async (name, value, root = el) => { const input = setting(root, name).text.inputEl; input.focus(); input.value = value; input.blur(); await settle(); };
+  return { c, el, status, type, async close() { stop(); await c.controller.dispose(); } };
+}
+
+test("settings (server): type the address, turn it on, test — the index builds and the detected type is saved", async () => {
+  const srv = await fakeEmbeddingServer();
+  const s = await openServer({ url: "http://127.0.0.1:1", settings: { enabled: false } });
+  try {
+    await s.type("Address", srv.url);
+    assert.equal(s.c.settings().server.url, srv.url);
+    setting(s.el, "Search by meaning").toggle.set(true);
+    await until(() => /^Ready\./.test(s.status()), `ready (is: ${s.status()})`);
+    assert.match(s.status(), /^Ready\. 6 notes in \d+ passages are searchable by meaning\.$/);
+
+    button(s.el, "Test connection").click();
+    await until(() => /^Connected:/.test(setting(s.el, "Test connection").descEl.textContent), "the test result");
+    assert.match(setting(s.el, "Test connection").descEl.textContent, new RegExp(`^Connected: ${SERVER_MODEL}, 24-number vectors, \\d+ ms\\.$`));
+    await until(() => s.c.settings().server.api === "openai", "the detected type saved");
+    await settle(10);
+    assert.equal(setting(s.el, "Server type").dropdown.getValue(), "openai");
+
+    // The key is saved on this device only, never in the settings.
+    await s.type("API key", "sk-local-123");
+    assert.equal(s.c.key, "sk-local-123");
+    assert.ok(!JSON.stringify(s.c.settings()).includes("sk-local-123"));
+    assert.equal(setting(s.el, "API key").text.inputEl.value, "", "the key is not written back into the page");
+    assert.equal(setting(s.el, "API key").text.inputEl.getAttribute("placeholder"), "Saved on this device");
+    button(s.el, "Forget key").click();
+    await settle(10);
+    assert.equal(s.c.key, "");
+  } finally { await s.close(); await srv.close(); }
+});
+
+test("settings (server): another computer on the network is named, and plain http is called unencrypted; a public address is refused", async () => {
+  const s = await openServer({ url: "http://192.168.1.50:8080", settings: { enabled: false } });
+  try {
+    assert.match(s.el.textContent, /Note text is sent to this address to be turned into numbers\. Use a server you run\.\s+This address is another computer on your network\.\s+The text travels unencrypted\./);
+    await s.type("Address", "https://192.168.1.50:8443");
+    assert.match(s.el.textContent, /another computer on your network\./);
+    assert.doesNotMatch(s.el.textContent, /unencrypted/);
+    await s.type("Address", "http://203.0.113.9:8080");
+    const desc = setting(s.el, "Address").descEl;
+    assert.match(desc.textContent, /203\.0\.113\.9 is not allowed\. Use this computer/);
+    assert.ok(desc.hasClass("kosmos-personal-warning"));
+    assert.doesNotMatch(s.el.textContent, /another computer on your network/);
+
+    button(s.el, "Ollama on this computer").click();
+    await settle(10);
+    assert.deepEqual([s.c.settings().server.url, s.c.settings().server.api], ["http://127.0.0.1:11434", "ollama"]);
+    button(s.el, "llama.cpp on this computer").click();
+    await settle(10);
+    assert.deepEqual([s.c.settings().server.url, s.c.settings().server.api], ["http://127.0.0.1:8080", "openai"]);
+
+    const advanced = all(s.el).find((n) => n.tagName === "DETAILS");
+    await s.type("Passages per request", "500", advanced);
+    assert.ok(dom.notices.some((n) => /passages per request must be a whole number from 1 to 64/.test(n)));
+    assert.equal(s.c.settings().server.batch, 16);
+    await s.type("Passages per request", "32", all(s.el).find((n) => n.tagName === "DETAILS"));
+    assert.equal(s.c.settings().server.batch, 32);
+    assert.equal(s.c.transport.sent.length, 0, "nothing was sent while semantic search was off");
+  } finally { await s.close(); }
+});
+
+test("settings (server): a server that does not answer shows the plain sentence and a Retry button that works", async () => {
+  const srv = await fakeEmbeddingServer();
+  await srv.down();
+  const s = await openServer({ url: srv.url });
+  try {
+    await until(() => /No embedding server answered/.test(s.status()), `the error (is: ${s.status()})`);
+    assert.equal(s.status(), `No embedding server answered at ${srv.url}. Start it, or check the address. Search uses words only for now.`);
+    assert.ok(setting(s.el, "Index").descEl.hasClass("kosmos-personal-warning"));
+    button(s.el, "Test connection").click();
+    await until(() => /No embedding server answered/.test(setting(s.el, "Test connection").descEl.textContent), "the test result");
+    await srv.up();
+    button(s.el, "Retry").click();
+    await until(() => /^Ready\./.test(s.status()), `ready (is: ${s.status()})`);
+    assert.ok(!hasButton(s.el, "Retry"));
+  } finally { await s.close(); await srv.close(); }
 });

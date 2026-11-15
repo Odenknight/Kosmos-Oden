@@ -84,13 +84,29 @@ semantic:
     - MIT
     - Apache-2.0
   catalog_pinned_and_hashed: true
-  # The only network use is one function that fetches a file of the chosen
-  # model from this host. No note text, path or token is sent anywhere.
+  # Semantic search uses the network in exactly two places, each one function:
+  #   1. the model download (src/plugin/semantic-host.ts): a file of the
+  #      chosen model from this host; no note text, path or token is sent;
+  #   2. the embedding server (src/plugin/embedding-endpoint.ts), only when the
+  #      user chose "Embedding server": note passages and questions go to the
+  #      address the user typed and nowhere else.
+  # With the built-in engine (the default) no note text leaves the device.
   model_host: https://huggingface.co/
-  network_call_sites: 1
+  network_call_sites: 2
+  # The embedding server is used only when the user chose it: the engine
+  # default is the built-in model, and semantic search itself is off by default.
+  default_engine: builtin
+  # The address is checked before the one request: http(s), this computer
+  # (localhost, 127.0.0.0/8, ::1) or a literal private-network address; no
+  # credentials, fragment or secret query parameter in it.
+  embedding_server_address: loopback_or_private_literal
+  # An optional API key is kept on each device (Obsidian local storage), never
+  # in the saved settings object, and is sent only as an Authorization header.
+  api_key_in_settings: false
   # The embedding worker carries its two WebAssembly runtimes inside its own
   # bundle and receives the model and the stored index as bytes; it has no
-  # vault access and makes no request of its own.
+  # vault access and makes no request of its own. With an embedding server it
+  # loads no model and asks the plugin for vectors.
   worker_network: false
   # The index stores positions and vectors, never note text.
   index_stores_note_text: false

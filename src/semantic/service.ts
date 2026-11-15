@@ -14,14 +14,15 @@
  */
 import type { ActiveModel } from "./catalog";
 import { contentKey } from "./chunker";
-import type { NoteInput, RelatedHit } from "./engine";
+import type { EmbedKind, NoteInput, RelatedHit } from "./engine";
+import { SERVER_ERROR_CODE } from "./endpoint";
 import { STANDS_OUT, type SemanticHit } from "./store";
-import type { LoadResult, SemanticReply, SemanticRequest } from "./worker";
+import type { EmbedCall, EmbedReply, LoadResult, SemanticReply, SemanticRequest } from "./worker";
 
 export interface SemanticWorkerLike {
-  onmessage: ((event: { data: SemanticReply }) => void) | null;
+  onmessage: ((event: { data: SemanticReply | EmbedCall }) => void) | null;
   onerror: ((event: unknown) => void) | null;
-  postMessage(message: SemanticRequest, transfer?: Transferable[]): void;
+  postMessage(message: SemanticRequest | EmbedReply, transfer?: Transferable[]): void;
   terminate(): void;
 }
 
@@ -51,6 +52,12 @@ export interface SemanticServiceOptions {
   now?: () => number;
   /** Milliseconds between saves while indexing. Default 60 s. */
   saveEveryMs?: number;
+  /**
+   * Embedding server only: make vectors for the worker (it asks with
+   * `{ call, op: "embed" }`). Rejects with an error whose `code` is
+   * SERVER_ERROR_CODE when the server as a whole cannot be used.
+   */
+  embed?(texts: readonly string[], kind: EmbedKind): Promise<Float32Array[]>;
   setTimeout?: (run: () => void, ms: number) => unknown;
   clearTimeout?: (handle: unknown) => void;
 }
@@ -76,6 +83,8 @@ export interface SemanticStatus {
   rebuilt: boolean;
   /** Notes that failed to embed; they are retried when they change. */
   failedNotes: number;
+  /** Embedding server only: why indexing paused ("" = it did not). Questions still use what is indexed. */
+  stalled: string;
 }
 
 export const SERVICE_LIMITS = {
@@ -90,7 +99,13 @@ export const SERVICE_LIMITS = {
   relatedSources: 3,
 } as const;
 
-const EMPTY: SemanticStatus = { state: "off", model: "", modelKey: "", dims: 0, indexedNotes: 0, chunks: 0, pendingNotes: 0, totalNotes: 0, error: "", rebuilt: false, failedNotes: 0 };
+const EMPTY: SemanticStatus = { state: "off", model: "", modelKey: "", dims: 0, indexedNotes: 0, chunks: 0, pendingNotes: 0, totalNotes: 0, error: "", rebuilt: false, failedNotes: 0, stalled: "" };
+
+/** True for an error that means "the embedding server cannot be used", not "this note cannot be embedded". */
+export const isServerWide = (error: unknown): boolean => (error as { code?: unknown } | null)?.code === SERVER_ERROR_CODE;
+
+/** The model a remote engine is started with: no files, only what the probe found. */
+export interface RemoteModel { label: string; key: string; dims: number; batch: number }
 
 export class SemanticService {
   private worker: SemanticWorkerLike | null = null;
@@ -129,7 +144,7 @@ export class SemanticService {
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.waiting.set(id, { resolve: resolve as (value: unknown) => void, reject });
-      try { worker.postMessage({ ...request, id } as SemanticRequest, transfer); }
+      try { worker.postMessage({ ...request, id } as unknown as SemanticRequest, transfer); }
       catch (error) { this.waiting.delete(id); reject(error instanceof Error ? error : new Error(String(error))); }
     });
   }
@@ -145,18 +160,63 @@ export class SemanticService {
    * rejects, with state "error", when the model cannot be used.
    */
   async start(model: ActiveModel, files: ModelBytes): Promise<void> {
+    const recipe = { dims: model.dims, pooling: model.pooling, maxTokens: model.maxTokens, queryPrefix: model.queryPrefix, passagePrefix: model.passagePrefix };
+    return this.launch(model.label, model.key, (database) => {
+      const transfer: Transferable[] = [files.model];
+      if (database) transfer.push(database);
+      return { request: { op: "load", model: files.model, tokenizer: files.tokenizer, tokenizerConfig: files.tokenizerConfig, recipe, modelKey: model.key, database }, transfer };
+    });
+  }
+
+  /**
+   * Start with an embedding server: the worker loads no model; every vector
+   * comes from `options.embed`. Same index, same indexing, same questions.
+   */
+  async startRemote(model: RemoteModel): Promise<void> {
+    if (!this.options.embed) throw new Error("no embedding server is configured");
+    return this.launch(model.label, model.key, (database) => ({
+      request: { op: "load-remote", dims: model.dims, batch: model.batch, modelKey: model.key, database },
+      transfer: database ? [database] : [],
+    }));
+  }
+
+  /** Answer the worker's request for vectors (embedding server only). */
+  private answerEmbed(worker: SemanticWorkerLike, session: number, message: EmbedCall): void {
+    const embed = this.options.embed;
+    const fail = (error: unknown) => {
+      if (this.worker !== worker || session !== this.session) return;
+      const code = (error as { code?: unknown } | null)?.code;
+      const reply: EmbedReply = { reply: message.call, ok: false, error: error instanceof Error ? error.message : String(error), ...(typeof code === "string" && code ? { code } : {}) };
+      try { worker.postMessage(reply); } catch { /* gone */ }
+    };
+    if (!embed) { fail(new Error("no embedding server is configured")); return; }
+    embed(message.texts, message.kind).then((vectors) => {
+      if (this.worker !== worker || session !== this.session) return;
+      const dims = vectors[0]?.length ?? 0;
+      if (vectors.length !== message.texts.length || vectors.some((v) => v.length !== dims)) { fail(new Error("the embedding server returned the wrong number of vectors")); return; }
+      const packed = new Float32Array(vectors.length * dims);
+      vectors.forEach((v, i) => packed.set(v, i * dims));
+      const reply: EmbedReply = { reply: message.call, ok: true, vectors: packed.buffer, dims };
+      try { worker.postMessage(reply, [packed.buffer]); } catch { /* gone */ }
+    }, fail);
+  }
+
+  private async launch(label: string, key: string, load: (database: ArrayBuffer | null) => { request: Record<string, unknown> & { op: SemanticRequest["op"] }; transfer: Transferable[] }): Promise<void> {
     await this.stop();
     const session = ++this.session;
-    this.set({ ...EMPTY, state: "loading", model: model.label, modelKey: model.key });
+    this.set({ ...EMPTY, state: "loading", model: label, modelKey: key });
     try {
       const worker = this.options.createWorker();
       this.worker = worker;
       worker.onmessage = (event) => {
-        const reply = event.data;
+        const data = event.data;
+        if (data && (data as EmbedCall).op === "embed" && typeof (data as EmbedCall).call === "number") { this.answerEmbed(worker, session, data as EmbedCall); return; }
+        const reply = data as SemanticReply;
         const w = this.waiting.get(reply?.id);
         if (!w) return;
         this.waiting.delete(reply.id);
-        if (reply.ok === true) w.resolve(reply.result); else w.reject(new Error(reply.error));
+        if (reply.ok === true) w.resolve(reply.result);
+        else w.reject(Object.assign(new Error(reply.error), reply.code ? { code: reply.code } : {}));
       };
       worker.onerror = (event) => {
         if (this.worker !== worker) return;
@@ -166,11 +226,10 @@ export class SemanticService {
         this.worker = null;
         this.set({ state: "error", error: message });
       };
-      const database = await this.options.readDatabase(model.key).catch(() => null);
+      const database = await this.options.readDatabase(key).catch(() => null);
       if (session !== this.session) return;
-      const transfer: Transferable[] = [files.model];
-      if (database) transfer.push(database);
-      const loaded = await this.call<LoadResult>({ op: "load", model: files.model, tokenizer: files.tokenizer, tokenizerConfig: files.tokenizerConfig, recipe: { dims: model.dims, pooling: model.pooling, maxTokens: model.maxTokens, queryPrefix: model.queryPrefix, passagePrefix: model.passagePrefix }, modelKey: model.key, database }, transfer);
+      const { request, transfer } = load(database);
+      const loaded = await this.call<LoadResult>(request, transfer);
       if (session !== this.session) return;
       this.manifest = new Map(Object.entries(await this.call<Record<string, string>>({ op: "manifest" })));
       if (session !== this.session) return;
@@ -215,10 +274,20 @@ export class SemanticService {
   /** Pause or resume embedding. Questions are still answered from what is indexed. */
   setPaused(paused: boolean): void {
     this.paused = paused;
-    if (!paused) this.pump();
+    if (!paused) { this.resumeStalled(); this.pump(); }
     this.options.onChange?.();
   }
   get isPaused(): boolean { return this.paused; }
+
+  /** Embedding server only: indexing paused because the server could not be used. */
+  get stalled(): string { return this._status.stalled; }
+
+  /** Try again after the embedding server could not be used (Retry, or a note changed). */
+  resumeStalled(): void {
+    if (!this._status.stalled) return;
+    this.set({ stalled: "" });
+    this.pump();
+  }
 
   /** Notes changed. `paths` null = look at every note again. */
   noteChanges(paths: readonly string[] | null): void {
@@ -226,6 +295,7 @@ export class SemanticService {
     this.waitingForNotes = false;
     if (paths === null) this.fullScan = true;
     else for (const p of paths) this.dirty.add(p);
+    if (this._status.stalled) this.set({ stalled: "" });
     this.pump();
   }
 
@@ -253,7 +323,7 @@ export class SemanticService {
   }
 
   private pump(): void {
-    if (this.pumping || !this.searchable || this.paused) return;
+    if (this.pumping || !this.searchable || this.paused || this._status.stalled) return;
     const session = this.session;
     this.pumping = this.run(session)
       .catch((error) => {
@@ -262,12 +332,17 @@ export class SemanticService {
       })
       .finally(() => {
         this.pumping = null;
-        if (session === this.session && this.searchable && !this.paused && !this.waitingForNotes && (this.fullScan || this.dirty.size)) this.pump();
+        if (session === this.session && this.searchable && !this.paused && !this._status.stalled && !this.waitingForNotes && (this.fullScan || this.dirty.size)) this.pump();
       });
   }
 
   private async run(session: number): Promise<void> {
-    const live = () => session === this.session && this.worker !== null && !this.paused;
+    const live = () => session === this.session && this.worker !== null && !this.paused && !this._status.stalled;
+    /** The embedding server cannot be used: keep every note waiting and pause, instead of marking notes failed. */
+    const stall = (error: unknown, waiting: readonly NoteInput[]) => {
+      for (const note of waiting) this.dirty.add(note.path);
+      this.set({ stalled: error instanceof Error ? error.message : String(error), pendingNotes: this.dirty.size });
+    };
     const now = this.options.now ?? Date.now;
     while (live() && (this.fullScan || this.dirty.size)) {
       if (this.options.source.ready?.() === false) {
@@ -344,14 +419,20 @@ export class SemanticService {
           for (const note of batch) { this.manifest.set(note.path, note.key); this.failed.delete(note.path); }
         } catch (error) {
           if (!live()) return;
+          if (isServerWide(error)) { stall(error, remaining.slice(at - batch.length)); return; }
           // One bad note must not stop the rest: retry the batch note by note.
-          for (const note of batch) {
+          for (const [i, note] of batch.entries()) {
             try {
               chunks += (await this.call<{ chunks: number }>({ op: "index", notes: [note] })).chunks;
               this.manifest.set(note.path, note.key);
               this.failed.delete(note.path);
             } catch (inner) {
               if (!live()) return;
+              if (isServerWide(inner)) {
+                this.set({ indexedNotes: this.manifest.size, chunks: this._status.chunks + chunks });
+                stall(inner, [...batch.slice(i), ...remaining.slice(at)]);
+                return;
+              }
               this.failed.set(note.path, note.key);
             }
           }

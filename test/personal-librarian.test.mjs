@@ -15,6 +15,7 @@ import {
   parseQuestion,
   renderLibrarianBrief,
   runLibrarian,
+  scanWords,
   stem,
 } from "../dist/kosmos-personal-notes.mjs";
 import { nodeWorkerFactory } from "./helpers/node-search-worker.mjs";
@@ -257,4 +258,136 @@ test("librarian: a question longer than the limit is refused by the client witho
   const { corpus, client } = await setup();
   t.after(() => { client.dispose(); corpus.dispose(); });
   await assert.rejects(ask(client, "a ".repeat(LIBRARIAN_LIMITS.questionCodePoints)), (e) => e instanceof PersonalError && e.code === "invalid_query");
+});
+/* ------------------------------------------------------------------ words */
+
+test("librarian: the word scanner finds the words the Unicode pattern finds", () => {
+  const texts = [
+    "",
+    "   ",
+    "plain ascii words, with: punctuation! and 42 numbers",
+    "café Ünïcödé naïve — Straße, Ελληνικά; кириллица",
+    "日本語のテキスト と 한국어 텍스트",
+    "astral 𝒜𝒷𝒸 letters and 😀 emoji 𝟘𝟙𝟚 digits",
+    "under_score kebab-case dotted.name path/to/file.md",
+    "a\u0301 combining mark; zero\u200bwidth; nbsp\u00a0here",
+    "trailing word",
+    "x",
+    "C plus plus is not C+ or C+++, and c is one letter",
+  ];
+  for (const text of texts) {
+    assert.deepEqual(scanWords(text), text.match(/[\p{L}\p{N}]+/gu) ?? [], JSON.stringify(text));
+  }
+});
+
+test("librarian: C++, G++, C# and F# are words, a link fragment is not", () => {
+  assert.deepEqual(scanWords("Embed Node in a C++ application"), ["Embed", "Node", "in", "a", "C++", "application"]);
+  assert.deepEqual(scanWords("c++, g++ and C#; F# too. End with c#"), ["c++", "g++", "and", "C#", "F#", "too", "End", "with", "c#"]);
+  assert.deepEqual(scanWords("see c#heading and abc++ and b++"), ["see", "c", "heading", "and", "abc", "and", "b"]);
+  assert.deepEqual(parseQuestion("embed node in a C++ application").words, ["embed", "node", "c++", "application"]);
+});
+
+test("librarian: a question about C++ finds the note about C++", async (t) => {
+  const { corpus, client } = await setup({
+    ...FILES,
+    "Dev/Compiler notes.md": "# Compiler notes\n\nBuild the C++ addon with the bundled toolchain before linking.\n",
+    "Dev/Scripting notes.md": "# Scripting notes\n\nBuild the addon with the bundled toolchain before linking.\n",
+  });
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const r = await ask(client, "c++ addon toolchain");
+  assert.equal(paths(r)[0], "Dev/Compiler notes.md");
+  assert.deepEqual(r.unmatched, []);
+});
+
+/* ------------------------------------------------------------------ honest answers */
+
+test("librarian: a word no note contains is reported, not silently dropped", async (t) => {
+  const { corpus, client } = await setup();
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const r = await ask(client, "laptop zzzqqqxx");
+  assert.deepEqual(r.unmatched, ["zzzqqqxx"]);
+  assert.equal(r.confidence, "weak");
+  assert.match(renderLibrarianBrief(r), /No shared note contains: zzzqqqxx\./);
+  assert.deepEqual((await ask(client, "laptop replacement")).unmatched, []);
+});
+
+test("librarian: a quoted phrase found in no note is reported and the answer is not strong", async (t) => {
+  const { corpus, client } = await setup();
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const missing = await ask(client, '"map of content" laptop');
+  assert.deepEqual(missing.phrasesMissing, ["map of content"]);
+  assert.notEqual(missing.confidence, "strong");
+  assert.match(renderLibrarianBrief(missing), /No shared note contains the exact phrase: "map of content"\./);
+  const present = await ask(client, '"hardware request form" laptop');
+  assert.deepEqual(present.phrasesMissing, []);
+  assert.equal(paths(present)[0], "IT/New laptop request.md");
+  assert.equal(present.confidence, "strong");
+});
+
+test("librarian: a phrase outside the requester's scope counts as missing", async (t) => {
+  const { corpus, client } = await setup();
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const allowed = new Set(["Networking/VPN tunnel.md", "IT/New laptop request.md"]);
+  const r = await ask(client, '"restricted workbook" laptop', { allowedPaths: allowed });
+  assert.deepEqual(r.phrasesMissing, ["restricted workbook"]);
+  assert.ok(!paths(r).includes("Private/Secret laptop budget.md"));
+});
+
+test("librarian: a misspelt filler word is read as filler, not as a missing word", async (t) => {
+  const { corpus, client } = await setup();
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const typo = await ask(client, "wher is the hardware request form");
+  const clean = await ask(client, "where is the hardware request form");
+  assert.deepEqual(typo.corrections, [{ from: "wher", to: "where" }]);
+  assert.deepEqual(typo.terms, clean.terms);
+  assert.deepEqual(typo.unmatched, []);
+  assert.equal(typo.confidence, clean.confidence);
+  assert.deepEqual(paths(typo), paths(clean));
+});
+
+test("librarian: a note's exact name returns that note first", async (t) => {
+  const files = { ...FILES };
+  for (let i = 0; i < 40; i++) files[`Log/Entry ${String(i).padStart(4, "0")}.md`] = `Entry text number ${i} about the weekly entry review.\n`;
+  const { corpus, client } = await setup(files);
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  for (const question of ["Entry 0017", "where is Entry 0017"]) {
+    const r = await ask(client, question);
+    assert.equal(paths(r)[0], "Log/Entry 0017.md", question);
+    assert.equal(r.confidence, "strong", question);
+  }
+});
+
+test("librarian: a name that only resembles the question is not a strong answer on its own", async (t) => {
+  const { corpus, client } = await setup({
+    "Models/Qwen embedding.md": "# Qwen embedding\n\nNotes on the model card.\n",
+    "Kitchen/Bread.md": "# Bread\n\nPooling water on the dough means it is too wet.\n",
+    "Kitchen/Soup.md": "# Soup\n\nSimmer the stock.\n",
+  });
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const r = await ask(client, "qwen embedding pooling strategy comparison");
+  assert.equal(paths(r)[0], "Models/Qwen embedding.md");
+  assert.equal(r.confidence, "weak");
+});
+
+test("librarian: related words are learned only from notes that match the question", async (t) => {
+  const files = {};
+  for (let i = 0; i < 6; i++) files[`Kit/Laptop ${i}.md`] = `# Laptop ${i}\n\n## Warranty\n\nThe laptop warranty covers the battery for year ${i}.\n`;
+  for (let i = 0; i < 6; i++) files[`Kit/Printer ${i}.md`] = `# Printer ${i}\n\n## Toner\n\nThe printer toner lasts ${i} months.\n`;
+  const { corpus, client } = await setup(files);
+  t.after(() => { client.dispose(); corpus.dispose(); });
+  const grounded = await ask(client, "laptop");
+  assert.ok(grounded.expanded.length > 0, JSON.stringify(grounded.expanded));
+  // The best note carries one word in five: nothing to learn related words from.
+  const adrift = await ask(client, "laptop kubernetes ingress annotations controller");
+  assert.deepEqual(adrift.expanded, []);
+  assert.equal(adrift.confidence, "weak");
+  assert.deepEqual(adrift.unmatched, ["kubernetes", "ingress", "annotations", "controller"]);
+});
+
+test("librarian: a brief without the newer fields still renders", () => {
+  const brief = renderLibrarianBrief({
+    question: "x", intent: "lookup", confidence: "none", terms: ["x"], corrections: [], expanded: [], phrases: [],
+    total: 0, hits: [], supersession: [], truncated: false,
+  });
+  assert.match(brief, /No shared note answers this/);
 });

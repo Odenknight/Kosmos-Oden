@@ -69,6 +69,16 @@
   generated summary, so entries are one line of title plus optional summary.
 - Aliases and tags reach the generator but the v1 layout does not render them.
 
+## Librarian accuracy (build alpha.2)
+
+- On a 542-note folder of real documentation, 39 of 44 labelled questions put
+  the right note first and 43 put it in the first three. One wrong answer was
+  still called `strong` (a note whose name matches the question better than
+  the note that answers it).
+- `confidence` is a rule about word coverage, not a probability.
+- `C++`, `G++`, `C#` and `F#` are the only words with symbols in them; other
+  such names (`.NET`, `C++/CLI`, `node.js`) are split at the symbol.
+
 ## Both
 
 - Determinism is per corpus revision and per input. A note changing between two

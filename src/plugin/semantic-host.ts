@@ -2,10 +2,12 @@
  * Semantic search (0.9.5) — the Obsidian side: files in the plugin's own
  * folder, the model download, SHA-256, and the worker started from a Blob URL.
  *
- * The only network use is here, in `downloadModelFile`: one file of a model
+ * The model download is here, in `downloadModelFile`: one file of a model
  * the user chose to download, from the pinned Hugging Face revision in the
  * catalog. Nothing is sent but the request itself; no note text, no path, no
- * token. Everything else in semantic search runs on files already on disk.
+ * token. With the built-in model everything else runs on files already on
+ * disk. The only other network use of semantic search is the embedding
+ * server the user may choose instead: src/plugin/embedding-endpoint.ts.
  */
 import { requestUrl, type App, type DataAdapter } from "obsidian";
 import WORKER_SOURCE from "../../dist/kosmos-semantic-worker.txt";
@@ -13,6 +15,7 @@ import { SemanticController } from "../semantic/controller";
 import type { SemanticSettings } from "../semantic/settings";
 import type { Downloader, SemanticFiles, Sha256 } from "../semantic/models";
 import type { SemanticNoteSource, SemanticWorkerLike } from "../semantic/service";
+import { embeddingKeyStore, embeddingTransport, type EmbeddingKeyStore } from "./embedding-endpoint";
 
 /** Model files and the index live here, inside the plugin's folder (never in a note folder, never shared with an agent). */
 export function semanticRoot(pluginDir: string): string {
@@ -107,12 +110,15 @@ export function semanticWorkerFactory(): SemanticWorkerFactory {
 
 export interface SemanticHandle {
   controller: SemanticController;
+  /** The embedding server's API key, on this device only. */
+  keys: EmbeddingKeyStore;
   /** Save the index, stop the worker and revoke its Blob URL. */
   dispose(): Promise<void>;
 }
 
 export function createSemantic(app: App, pluginDir: string, source: SemanticNoteSource, settings: () => SemanticSettings, onChange: () => void): SemanticHandle {
   const workers = semanticWorkerFactory();
+  const keys = embeddingKeyStore(app);
   const controller = new SemanticController({
     files: semanticFiles(app.vault.adapter),
     root: semanticRoot(pluginDir),
@@ -122,9 +128,12 @@ export function createSemantic(app: App, pluginDir: string, source: SemanticNote
     source,
     settings,
     onChange,
+    transport: embeddingTransport(keys),
+    hasServerKey: () => keys.has(),
   });
   return {
     controller,
+    keys,
     dispose: async () => {
       try { await controller.dispose(); } finally { workers.release(); }
     },

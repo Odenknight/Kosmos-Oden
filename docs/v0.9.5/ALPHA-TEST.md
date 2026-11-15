@@ -15,6 +15,30 @@
   52–106 ms each. `pydantc` was corrected to `pydantic`; a question the vault
   does not answer came back `weak` rather than `strong`.
 
+## Verified for build alpha.2 (2026-11-14)
+
+- `npm run verify`: **809 tests**, 0 failing, and every guard.
+- Librarian, real folder (542 Markdown notes, 8.7 M characters, read-only): 44
+  labelled questions and 6 the folder cannot answer. Right note first 39 of
+  44, in the first three 43, wrong answers called `strong` 1, unanswerable
+  questions called `strong` 0 of 6. alpha.1 on the same questions: 39, 42, 3
+  and 2 of 6.
+- Librarian speed (10,000 generated notes, 51 MiB, median of three runs):
+  first build in the search worker 1.22 s (alpha.1 2.46 s), a question
+  13.3 ms on average (17.9 ms), index memory 43.7 MiB (the same), process
+  memory at the end of the bench 413–488 MiB (406–474 MiB). The speed-only commit was checked by comparing the saved
+  answers to 40 generated-corpus questions and 50 real-folder questions byte
+  for byte.
+- Embedding server: both wire formats over real HTTP against a stand-in
+  server; the address rule. With real servers, from Node with the plugin's
+  client: a LiteLLM gateway at a private address returned 768-number vectors
+  for two texts (OpenAI-compatible route, address bare and with `/v1`); a
+  `llama-server` without `--embeddings` (HTTP 501) was reported as "no
+  embedding route"; the gateway asked without a model name (HTTP 400) is
+  reported as "needs a model name". Through the same gateway, five questions
+  that share no content word with their passage each ranked the right one of
+  seven passages first (cosine 0.54–0.68 against 0.37–0.49 for the runner-up).
+
 ## Not tested — do these before calling it qualified
 
 | Area | What is missing |
@@ -28,6 +52,7 @@
 | Sensitivity | A vault where shared folders contain `confidential` or `secret` notes, to confirm they never reach `ask_librarian` |
 | Semantic search in Obsidian | The settings section, a model download, choosing own model files, and a first index of a real vault inside a running Obsidian on Windows and macOS. Tested so far: Node (real SQLite, stand-in model) and headless Chromium (five real models) |
 | Semantic search at scale | Measured on the build host only: 2 to 14 passages per second depending on the model (one CPU thread), 46 ms to compare a question with 50 000 passages. A first index of a real vault of thousands of notes, and memory use while it runs, are not measured |
+| Embedding server, real | Ollama's own route against a real Ollama; llama-server and LM Studio directly; a server on this computer (`127.0.0.1`); the request from inside Obsidian (`requestUrl`); an API key; a first index of a real vault through a server with a GPU |
 | Semantic relevance | No scored questions for the hybrid ranking on a real vault |
 
 ## How to report a problem

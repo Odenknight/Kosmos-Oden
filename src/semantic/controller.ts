@@ -14,12 +14,36 @@
  *     index file stays, so turning it on again does not re-embed the vault;
  *   - it decides nothing about access: every question names its notes.
  *
+ * With an embedding server (engine "server") there are no model files:
+ * starting means one probe call to the server, which gives the vector length
+ * and the model name. The index is named after the model, the vector length
+ * and the two prefixes — not the address — so the same model moved to
+ * another computer keeps its index. A server that cannot be reached is shown
+ * as an error and search continues by words; it is asked again on Retry, on
+ * Test, or on a question at least 30 s after the last attempt.
+ *
  * Pure apart from what is injected, so it is tested in Node.
  */
 import { CUSTOM_MODEL_ID, MODEL_CATALOG, activeModel, catalogModel, modelDownloadBytes, type ActiveModel } from "./catalog";
+import type { EmbedKind } from "./engine";
+import { SERVER_ERROR_CODE, isEmbeddingServerError, validateEmbeddingAddress, type EmbeddingAddressWhere, type WireApi } from "./endpoint";
 import { ModelStore, type CustomFileRole, type Downloader, type SemanticFiles, type Sha256 } from "./models";
+import { EmbeddingClient, type EmbeddingClientConfig, type EmbeddingClientOptions, type EmbeddingTransport } from "./remote";
 import { normalizeSemanticSettings, type SemanticSettings } from "./settings";
 import { SemanticService, type SemanticNoteSource, type SemanticStatus, type SemanticWorkerLike } from "./service";
+
+/** The model id an embedding-server index is filed under. */
+export const SERVER_MODEL_ID = "server";
+
+export const SERVER_RETRY = {
+  /** After a failure, a question asks the server again only once this much time has passed. */
+  afterMs: 30_000,
+} as const;
+
+/** What Test connection found. */
+export type ServerTestResult =
+  | { ok: true; model: string; dims: number; ms: number; api: WireApi; where: EmbeddingAddressWhere; message: string }
+  | { ok: false; message: string };
 
 /* ------------------------------------------------------------------ status */
 
@@ -52,6 +76,10 @@ export interface SemanticOverview {
   download: { modelId: string; receivedBytes: number; totalBytes: number } | null;
   /** True when the stored index could not be reused and was started again. */
   rebuilt: boolean;
+  /** Where embeddings are made. */
+  engine: "builtin" | "server";
+  /** Embedding server only: a Retry button would help (it could not be reached, or indexing paused). */
+  retry: boolean;
 }
 
 export interface SemanticControllerOptions {
@@ -66,6 +94,14 @@ export interface SemanticControllerOptions {
   onChange?(): void;
   now?: () => number;
   saveEveryMs?: number;
+  /** Embedding server: sends one request (src/plugin/embedding-endpoint.ts). Absent = the server choice cannot be used. */
+  transport?: EmbeddingTransport;
+  /** Whether an API key is stored on this device (the key itself never comes here). */
+  hasServerKey?(): boolean;
+  /** Embedding server: request timeout (default 60 s). */
+  serverTimeoutMs?: number;
+  /** Embedding server: clock and sleep for the client's retry (tests). */
+  clientOptions?: EmbeddingClientOptions;
 }
 
 /** Decimal megabytes, as the catalog labels state them. */
@@ -79,6 +115,16 @@ export class SemanticController {
   private needsModel = false;
   private startError = "";
   private downloading: { modelId: string; received: number; total: number; abort: AbortController } | null = null;
+  /* Embedding server. */
+  private client: EmbeddingClient | null = null;
+  /** The client's settings, to tell whether a change needs a new probe. */
+  private clientIdentity = "";
+  private runningBatch = 0;
+  /** Address being probed ("" = none). */
+  private probing = "";
+  /** The running server stopped answering (cleared by the next answer). */
+  private serverDown: { message: string; at: number } | null = null;
+  private lastServerAttempt = 0;
   /** One apply at a time; a later one sees the newest settings. */
   private queue: Promise<void> = Promise.resolve();
   private disposed = false;
@@ -93,7 +139,115 @@ export class SemanticController {
       onChange: () => this.changed(),
       now: options.now,
       saveEveryMs: options.saveEveryMs,
+      embed: (texts, kind) => this.embedWithServer(texts, kind),
     });
+  }
+
+  private now(): number { return (this.options.now ?? Date.now)(); }
+
+  /** The worker's vectors, from the running embedding server. Remembers whether the server answers. */
+  private async embedWithServer(texts: readonly string[], kind: EmbedKind): Promise<Float32Array[]> {
+    const client = this.client;
+    if (!client) throw Object.assign(new Error("no embedding server is in use"), { code: SERVER_ERROR_CODE });
+    try {
+      const vectors = await client.embed(texts, kind);
+      if (this.serverDown && this.client === client) { this.serverDown = null; this.changed(); }
+      return vectors;
+    } catch (error) {
+      if (this.client === client && isEmbeddingServerError(error) && error.code) { this.serverDown = { message: error.message, at: this.now() }; this.changed(); }
+      throw error;
+    }
+  }
+
+  /** The client settings for the saved server choice, or the reason it cannot be used. */
+  private serverConfig(s: SemanticSettings): { ok: true; config: EmbeddingClientConfig; where: EmbeddingAddressWhere } | { ok: false; message: string } {
+    const check = validateEmbeddingAddress(s.server.url);
+    if (check.ok === false) return { ok: false, message: (check as { error: string }).error };
+    if (!this.options.transport) return { ok: false, message: "Embedding servers cannot be used here." };
+    if (s.server.api === "ollama" && !s.server.model) return { ok: false, message: "Ollama needs a model name. Type it under Model name, for example bge-m3." };
+    return {
+      ok: true,
+      where: check.where,
+      config: {
+        url: check.url, display: check.display, api: s.server.api, model: s.server.model,
+        queryPrefix: s.server.queryPrefix, passagePrefix: s.server.passagePrefix, batch: s.server.batch,
+        hasKey: this.options.hasServerKey?.() === true,
+        ...(this.options.serverTimeoutMs ? { timeoutMs: this.options.serverTimeoutMs } : {}),
+      },
+    };
+  }
+
+  /** Start (or keep) the index for the embedding server. Runs inside apply(). */
+  private async applyServer(s: SemanticSettings): Promise<void> {
+    this.needsModel = false;
+    const found = this.serverConfig(s);
+    if (found.ok === false) { this.startError = (found as { message: string }).message; await this.halt(false); return; }
+    const identity = JSON.stringify(found.config);
+    if (this.client && this.clientIdentity === identity && this.running?.id === SERVER_MODEL_ID && this.service.searchable) { this.changed(); return; }
+    const client = new EmbeddingClient(found.config, this.options.transport!, this.options.clientOptions);
+    this.probing = found.config.display;
+    this.lastServerAttempt = this.now();
+    this.changed();
+    let probe;
+    try {
+      probe = await client.probe();
+    } catch (error) {
+      this.probing = "";
+      this.startError = error instanceof Error ? error.message : String(error);
+      await this.halt(false);
+      return;
+    } finally {
+      this.probing = "";
+    }
+    this.serverDown = null;
+    const name = s.server.model || probe.reported || "unnamed model";
+    // Not the address: the same model elsewhere makes the same vectors.
+    const key = `server:${name}|${probe.dims}|${s.server.queryPrefix}|${s.server.passagePrefix}`;
+    const label = `${name} (embedding server)`;
+    const model: ActiveModel = { id: SERVER_MODEL_ID, label, key, custom: false, dims: probe.dims, pooling: "mean", maxTokens: 0, queryPrefix: s.server.queryPrefix, passagePrefix: s.server.passagePrefix };
+    this.client = client;
+    this.clientIdentity = identity;
+    if (this.running?.key === key && this.runningBatch === client.batch && this.service.searchable) {
+      // Same model, same index: only the address (or the key, or the route) changed.
+      this.running = model;
+      this.service.resumeStalled();
+      this.changed();
+      return;
+    }
+    this.running = model;
+    this.runningBatch = client.batch;
+    this.keyModels.set(key, SERVER_MODEL_ID);
+    await this.service.startRemote({ label, key, dims: probe.dims, batch: client.batch });
+  }
+
+  /**
+   * Ask the embedding server again now: after it could not be reached, after
+   * indexing paused, or after the model on it changed. Never rejects.
+   */
+  async retry(): Promise<void> {
+    this.serverDown = null;
+    this.clientIdentity = "";
+    await this.apply();
+  }
+
+  /**
+   * Test connection: one probe with the saved server settings, whether or not
+   * semantic search is on. Sends only the word "probe". A server that answers
+   * also ends a pending error (the index starts or resumes).
+   */
+  async testServer(): Promise<ServerTestResult> {
+    const s = normalizeSemanticSettings(this.options.settings());
+    const found = this.serverConfig(s);
+    if (found.ok === false) return { ok: false, message: (found as { message: string }).message };
+    const client = new EmbeddingClient(found.config, this.options.transport!, this.options.clientOptions);
+    try {
+      const probe = await client.probe();
+      const model = probe.model || "an unnamed model";
+      if (s.enabled && s.engine === "server" && (this.startError || this.service.stalled || this.serverDown)) void this.retry();
+      return { ok: true, model, dims: probe.dims, ms: probe.ms, api: probe.api, where: found.where, message: `Connected: ${model}, ${probe.dims}-number vectors, ${probe.ms} ms.` };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   /** The model id an index key belongs to (the service knows only keys). Kept after a stop, for the final save. */
@@ -126,10 +280,22 @@ export class SemanticController {
       this.startError = "";
       if (!s.enabled) {
         this.needsModel = false;
+        this.client = null;
+        this.serverDown = null;
         if (this.running) { this.running = null; await this.service.stop(); }
         this.changed();
         return;
       }
+      if (s.engine === "server") {
+        try { await this.applyServer(s); }
+        catch (error) {
+          this.startError = error instanceof Error ? error.message : String(error);
+          this.changed();
+        }
+        return;
+      }
+      this.client = null;
+      this.serverDown = null;
       try {
         let model: ActiveModel | null;
         let files;
@@ -162,6 +328,7 @@ export class SemanticController {
 
   private async halt(needsModel: boolean): Promise<void> {
     this.needsModel = needsModel;
+    this.client = null;
     if (this.running) { this.running = null; await this.service.stop(); }
     this.changed();
   }
@@ -241,12 +408,16 @@ export class SemanticController {
     const s = normalizeSemanticSettings(this.options.settings());
     const st: SemanticStatus = this.service.status();
     const entry = catalogModel(s.modelId);
-    const model = s.modelId === CUSTOM_MODEL_ID ? (s.custom.name || "Your own model") : (entry?.label ?? s.modelId);
+    const server = s.engine === "server";
+    const model = server ? (s.server.model || this.client?.reported || "Embedding server")
+      : s.modelId === CUSTOM_MODEL_ID ? (s.custom.name || "Your own model") : (entry?.label ?? s.modelId);
     const base = {
-      enabled: s.enabled, modelId: s.modelId, model,
+      enabled: s.enabled, modelId: server ? SERVER_MODEL_ID : s.modelId, model,
       indexedNotes: st.indexedNotes, totalNotes: st.totalNotes, pendingNotes: st.pendingNotes, failedNotes: st.failedNotes, passages: st.chunks,
       download: this.downloading ? { modelId: this.downloading.modelId, receivedBytes: this.downloading.received, totalBytes: this.downloading.total } : null,
       rebuilt: st.rebuilt,
+      engine: server ? "server" as const : "builtin" as const,
+      retry: false,
     };
     if (this.downloading) {
       const d = this.downloading;
@@ -254,6 +425,15 @@ export class SemanticController {
       return { ...base, phase: "downloading", message: `Downloading the model: ${mb(d.received)} of ${mb(d.total)} (${pct}%).` };
     }
     if (!s.enabled) return { ...base, phase: "off", message: "Semantic search is off. Search uses words only." };
+    if (server) {
+      const done = `${st.indexedNotes} of ${st.totalNotes || "?"} notes are embedded`;
+      if (this.probing) return { ...base, phase: "loading", message: `Connecting to the embedding server at ${this.probing}…` };
+      if (this.startError) return { ...base, phase: "error", retry: true, message: `${this.startError} Search uses words only for now.` };
+      if (st.stalled && this.service.searchable) return { ...base, phase: "paused", retry: true, message: `Paused: ${st.stalled} ${done}; questions use those. Press Retry, or it continues when a note changes.` };
+      if (this.serverDown && this.service.searchable) return { ...base, phase: "error", retry: true, message: `${this.serverDown.message} Questions use words only until it answers again.` };
+      if (st.state === "loading") return { ...base, phase: "loading", message: "Opening the index…" };
+      if (st.state === "error") return { ...base, phase: "error", retry: true, message: `Semantic search stopped: ${st.error || "unknown error"}. Search uses words only. Press Retry.` };
+    }
     if (this.startError) return { ...base, phase: "error", message: `Semantic search could not start: ${this.startError}` };
     if (this.needsModel) {
       return {
@@ -282,7 +462,28 @@ export class SemanticController {
 
   /* ------------------------------------------------- PersonalSemantic */
 
-  info(): { state: "ready" | "partial" | "off" | "loading" | "error"; model?: string; detail?: string } {
+  info(): { state: "ready" | "partial" | "off" | "loading" | "error"; model?: string; detail?: string; runs?: string } {
+    const s = normalizeSemanticSettings(this.options.settings());
+    if (s.enabled && s.engine === "server") {
+      const check = validateEmbeddingAddress(s.server.url);
+      const runs = check.ok === true
+        ? `on an embedding server the user runs on ${(check as { where: EmbeddingAddressWhere }).where === "this_computer" ? "this computer" : "their local network"}; note passages and questions are sent to it and nowhere else`
+        : "on an embedding server the user chose, but its address is not allowed, so nothing is sent";
+      // A question asks a server that failed again only once 30 s have passed; until then it is answered by words at once.
+      const due = this.now() - Math.max(this.lastServerAttempt, this.serverDown?.at ?? 0) >= SERVER_RETRY.afterMs;
+      if (this.startError && !this.probing) {
+        // Marked before it is queued, so questions arriving meanwhile do not queue more attempts.
+        if (due) { this.lastServerAttempt = this.now(); void this.apply(); }
+        return { state: "error", detail: this.startError, runs };
+      }
+      if (this.serverDown && !due) return { state: "error", detail: this.serverDown.message, runs };
+      const plain = this.baseInfo();
+      return { ...plain, runs };
+    }
+    return this.baseInfo();
+  }
+
+  private baseInfo(): { state: "ready" | "partial" | "off" | "loading" | "error"; model?: string; detail?: string } {
     const o = this.overview();
     const model = this.running?.label;
     switch (o.phase) {
@@ -290,8 +491,11 @@ export class SemanticController {
       case "indexing":
       case "paused":
         return { state: "partial", ...(model ? { model } : {}), detail: `${o.indexedNotes} of ${o.totalNotes || "?"} notes are embedded so far` };
-      case "loading": return { state: "loading", detail: "the embedding model is still loading" };
-      case "error": return { state: "error", detail: o.message };
+      case "loading": return { state: "loading", detail: o.engine === "server" ? "the embedding server is being contacted" : "the embedding model is still loading" };
+      case "error":
+        // The running index still answers when only the server's last answer failed and 30 s have passed: try again.
+        if (o.engine === "server" && this.serverDown && this.service.searchable) return { state: o.pendingNotes ? "partial" : "ready", ...(model ? { model } : {}) };
+        return { state: "error", detail: o.message };
       case "downloading": return { state: this.service.searchable ? "partial" : "off", ...(model && this.service.searchable ? { model } : {}), detail: "an embedding model is being downloaded" };
       case "needs_model": return { state: "off", detail: "semantic search is turned on, but its model is not on this device; the user can download it in Settings → Kosmos-Oden → Semantic search" };
       default: return { state: "off", detail: "semantic search is turned off; the user can turn it on in Settings → Kosmos-Oden → Semantic search" };

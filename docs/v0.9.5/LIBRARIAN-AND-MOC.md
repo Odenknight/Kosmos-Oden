@@ -78,6 +78,10 @@ Tool `ask_librarian`, REST `GET /librarian`, page `GET /ui` — one response:
   names are weighted, nothing else.
 - `terms`, `corrections`, `expanded`, `phrases`, `confidence`, `total`,
   `coverage`, `corpus_revision`.
+- `unmatched`: question words found in no note the requester may read, after
+  spelling correction. `phrases_missing`: quoted phrases found in no such
+  note. Both are computed inside the requester's scope, so they reveal nothing
+  about notes outside it.
 - per hit: `path`, `title`, `score`, `ranks`, `matched_terms`, `term_coverage`,
   `passages` (best two blocks with the heading above them and a raw offset),
   `links` (web and mailto, `kind: form` when the URL or its wording is a form /
@@ -91,6 +95,32 @@ Agents are told (tool description, `AGENT-API.md`) to use `ask_librarian` for a
 sentence and `search_notes` for exact words or a tag. The brief exists because
 "perform a hybrid search and present the information usefully" is a rendering
 problem, and a deterministic renderer is reproducible and costs nothing.
+
+## When the answer is `strong`
+
+`confidence` is `strong`, `weak` or `none`, and comes from words only. Since
+build alpha.2 an answer is `weak`, whatever its score, when:
+
+- the first note does not contain a quoted phrase of the question;
+- the first note leaves out part of the question and one of the next four
+  notes carries all of it with enough weight (the reader has to choose);
+- the best note carries under 60% of the question's weight — and in that case
+  no related words are learned either, because there is nothing to learn them
+  from.
+
+A misspelt filler word (one edit from a stop word such as "where", with no
+vocabulary word as near) is read as that filler word, reported in
+`corrections`, and left out of the question.
+
+## Speed
+
+Measured by `npm run bench:librarian` (10,000 generated notes, 51 MiB, one
+thread, build host): first build in the search worker 1.22 s, a question
+13.3 ms on average through the worker (10.5 ms for the ranking alone), a
+changed note answerable in about 6.4 ms, 43.7 MiB held by the index. The word scanner, the
+per-batch written-word cache and the single pass over each note's word list
+are described in `src/personal-notes/librarian.ts`. Perf changes are checked
+by comparing saved answers byte for byte.
 
 ## Scope and safety
 

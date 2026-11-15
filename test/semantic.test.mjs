@@ -103,13 +103,14 @@ test("catalog: an index key changes with the model, its revision or (own model) 
 
 test("settings: off by default; malformed or unknown values fall back to off and never throw", () => {
   const d = defaultSemanticSettings();
-  assert.deepEqual(d, { enabled: false, modelId: DEFAULT_MODEL_ID, custom: { name: "", pooling: "mean", maxTokens: 512, queryPrefix: "", passagePrefix: "" } });
+  const server = { url: "http://127.0.0.1:8080", api: "auto", model: "", queryPrefix: "", passagePrefix: "", batch: 16 };
+  assert.deepEqual(d, { enabled: false, modelId: DEFAULT_MODEL_ID, custom: { name: "", pooling: "mean", maxTokens: 512, queryPrefix: "", passagePrefix: "" }, engine: "builtin", server });
   for (const junk of [undefined, null, 7, "on", [], { enabled: "yes" }, { enabled: true, modelId: "gone-model" }, { enabled: true, modelId: 5 }]) {
     assert.equal(normalizeSemanticSettings(junk).enabled, false);
     assert.equal(normalizeSemanticSettings(junk).modelId, DEFAULT_MODEL_ID);
   }
   const kept = normalizeSemanticSettings({ enabled: true, modelId: "custom", custom: { name: "  Mine ", pooling: "cls", maxTokens: 99999, queryPrefix: "q: ", passagePrefix: 4 } });
-  assert.deepEqual(kept, { enabled: true, modelId: "custom", custom: { name: "Mine", pooling: "cls", maxTokens: 8192, queryPrefix: "q: ", passagePrefix: "" } });
+  assert.deepEqual(kept, { enabled: true, modelId: "custom", custom: { name: "Mine", pooling: "cls", maxTokens: 8192, queryPrefix: "q: ", passagePrefix: "" }, engine: "builtin", server });
 });
 
 test("settings: the saved plugin settings carry the semantic choices through a load, and an older file has none", () => {
