@@ -33,7 +33,7 @@ export const PERSONAL_UI_HTML = String.raw`<!doctype html>
 </head>
 <body>
 <h1>Kosmos Librarian</h1>
-<p class="sub">Ask a question in plain language. Hybrid search over the notes this connection may read: word forms, names, phrases, steps and links, and — when semantic search is on in Kosmos-Oden — notes that say the same thing in other words. No AI assistant is involved and nothing leaves this computer.</p>
+<p class="sub">Ask a question in plain language. Hybrid search over the notes this connection may read: word forms, names, phrases, steps and links, and — when semantic search is on in Kosmos-Oden — notes that say the same thing in other words. No AI assistant is involved. Nothing leaves this computer, unless you chose an embedding server on your own network for semantic search.</p>
 <form id="ask">
   <input id="q" type="search" autocomplete="off" placeholder="How do I request a new laptop?" aria-label="Question">
   <button id="go" type="submit">Ask</button>

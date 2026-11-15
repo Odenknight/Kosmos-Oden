@@ -2,6 +2,107 @@
 
 ## 0.9.5 — unreleased (Librarian + deterministic MoC + semantic search)
 
+Build history of 0.9.5 (the plugin version stays 0.9.5; the build label names
+the archive):
+
+| Build | What it is |
+| --- | --- |
+| `0.9.5-alpha.1` | The Librarian, the Map of Content command, `/ui`, and semantic search inside the plugin. |
+| `0.9.5-alpha.2` | alpha.1 plus the embedding server engine, the Librarian fixes and the speed work listed next. |
+
+Added in alpha.2 — an embedding server instead of the built-in model
+([guide](docs/v0.9.5/SEMANTIC-SEARCH.md#use-an-embedding-server)):
+- **Where embeddings are made** in Settings → Semantic search: **Inside
+  the plugin** (the built-in model, as before, and still the default) or
+  **Embedding server**. A server is one you run: llama.cpp `llama-server`,
+  Ollama, LM Studio, vLLM, text-embeddings-inference, LocalAI, or anything
+  with the OpenAI-compatible `/v1/embeddings` route or Ollama's `/api/embed`.
+- **One address field.** Two buttons fill in the usual ones on this computer
+  (`http://127.0.0.1:8080` for llama.cpp, `http://127.0.0.1:11434` for
+  Ollama); for a server on another computer, type its address, for example
+  `http://192.168.1.20:8080`. **Test connection** reports the model, the
+  vector length and the time taken, and works out the server type by itself.
+- **Only this computer or the private network.** The address must be
+  `localhost`, `127.x.x.x`, `::1` or a numeric private address (`10.x`,
+  `172.16–31.x`, `192.168.x`, `169.254.x`, `fc00::/7`, `fe80::/10`). Public
+  addresses and host names are refused, so note text cannot leave the network
+  by mistake. The settings page says when text goes to another computer and
+  when it travels unencrypted.
+- **Optional API key**, kept on the device and not in the settings file, so
+  it does not sync.
+- **The index follows the model, not the address**: moving the same model to
+  another computer keeps the index.
+- With a server, no model and no ONNX runtime are loaded inside Obsidian, the
+  server may use a GPU, and one server can serve several vaults.
+- Failures are named in plain words with the next step (no server at the
+  address, no embedding route, model name needed, not ready, too long,
+  wrong vector length), and search falls back to the word-based answer.
+- The search worker still makes no network request: the request is made by
+  one function on the plugin's main thread. `kosmos-invariants.yml` now
+  allows exactly two semantic network call sites (the model download and the
+  embedding server) and enforces the address rule.
+
+Fixed in alpha.2 — the Librarian:
+- **A word that is in no note is reported.** The response carries
+  `unmatched`, and the brief says "No shared note contains: …". Before, such
+  a word was dropped without a trace.
+- **A quoted phrase that is in no note is reported** (`phrases_missing`) and
+  the answer is no longer called `strong`. Before, `"exact phrase"` that
+  matched nothing could still come back as a strong answer from the other
+  words.
+- **`strong` is given less freely.** When the first note leaves out part of
+  the question and one of the next four carries all of it, the answer is
+  `weak`: the reader should look at both.
+- **A misspelt filler word is treated as filler.** "wher is the form" is read
+  as "where is the form"; before, "wher" counted as a question word that no
+  note could match and lowered every answer.
+- **Related words are learned only from notes that match.** When the best
+  note carries under 60% of the question, no related words are added; before,
+  they were taken from whatever came first and could pull in unrelated notes.
+- **`C++`, `G++`, `C#` and `F#` are words.** Before, "c++" was read as the
+  single letter "c".
+
+Fixed in alpha.2 — the embedding server, found by trying real servers:
+- A server that answers HTTP 501 for embeddings (llama-server started without
+  `--embeddings`) gets the same advice as one that answers 404.
+- A gateway that serves several models and is asked without a model name
+  (LiteLLM answers HTTP 400) is told "This server needs a model name" with
+  the address that lists the names, instead of a bare HTTP 400.
+- With **Server type** set to Ollama, a server of the other type is no longer
+  advised to "choose Ollama".
+
+Faster in alpha.2 — the Librarian (10,000 generated notes, 51 MiB, one thread,
+build host; answers for the unchanged rules are byte-for-byte the same):
+
+| Measure (median of three runs) | alpha.1 | alpha.2 |
+| --- | --- | --- |
+| Indexing all notes, Librarian index only | 2.30 s | 1.19 s |
+| One question, ranking only, mean | 16.8 ms | 10.5 ms |
+| First build in the search worker (search text + Librarian) | 2.46 s | 1.22 s |
+| One question through the search worker, mean | 17.9 ms | 13.3 ms |
+| A changed note answerable again | 5.9 ms | 6.4 ms |
+| Memory held by the Librarian index | 43.7 MiB | 43.7 MiB |
+| Process memory at the end of the bench (three runs) | 406–474 MiB | 413–488 MiB |
+
+Time went down; memory did not. The index is the same size, and the process
+ends the bench 2–3% larger (7 to 14 MiB), within the spread between runs. A
+changed note takes about half a millisecond longer to become answerable.
+
+- Indexing reads each note once with a hand-written word scanner, remembers
+  the result for each written word during a batch, and counts in one reused
+  array. The batch scratch is released when the batch is in.
+- Answering reads each note's word list once for the whole question, keeps
+  the best notes in a small heap instead of sorting all of them, compares
+  names through a hash set, and looks for links only on lines that can hold
+  one.
+- `npm run bench:librarian` measures build, question time, edit-to-answerable
+  time and memory.
+
+Measured on a real 542-note folder of documentation with 44 labelled
+questions and 6 questions the folder cannot answer: right note first 39 of 44
+(unchanged), in the first three 43 (was 42), wrong answers called `strong` 1
+(was 3), unanswerable questions called `strong` 0 of 6 (was 2).
+
 Added — semantic search, inside the plugin ([guide](docs/v0.9.5/SEMANTIC-SEARCH.md)):
 - **Search by meaning**, off until turned on. A question that shares no word
   with the right note can now find it. Nothing else is installed: no Python,

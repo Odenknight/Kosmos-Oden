@@ -13,6 +13,8 @@ export type EmbedKind = "query" | "passage";
 export interface Embedder {
   /** Vector length. */
   readonly dims: number;
+  /** Passages per call. Absent = ENGINE_LIMITS.batch (the built-in model); an embedding server may take more. */
+  readonly batch?: number;
   /** One vector per text, in order. Calls are made one at a time. */
   embed(texts: readonly string[], kind: EmbedKind): Promise<Float32Array[]>;
   dispose?(): void | Promise<void>;
@@ -32,7 +34,7 @@ export interface RelatedHit extends SemanticHit {
 }
 
 export const ENGINE_LIMITS = {
-  /** Passages embedded per model call. */
+  /** Passages embedded per model call, unless the embedder says otherwise. */
   batch: 8,
   queryCodePoints: 2000,
   maxResults: 200,
@@ -65,11 +67,12 @@ export class SemanticEngine {
    */
   async index(notes: readonly NoteInput[]): Promise<{ notes: number; chunks: number }> {
     let chunkCount = 0;
+    const batch = Math.max(1, Math.floor(this.embedder.batch ?? ENGINE_LIMITS.batch));
     for (const note of notes) {
       const chunks = chunkNote(note.raw);
       const vectors = new Float32Array(chunks.length * this.store.dims);
-      for (let at = 0; at < chunks.length; at += ENGINE_LIMITS.batch) {
-        const slice = chunks.slice(at, at + ENGINE_LIMITS.batch);
+      for (let at = 0; at < chunks.length; at += batch) {
+        const slice = chunks.slice(at, at + batch);
         const texts = slice.map((c) => chunkText(note.raw, c, note.title));
         // Let a waiting question go first: it needs one short inference.
         while (this.waitingQueries > 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));

@@ -25,6 +25,10 @@
 | Docs: API, personal guide, changelog, v0.9.5 notes | done | `AGENT-API.md`, `docs/PERSONAL-NOTES.md`, `CHANGELOG.md`, `docs/v0.9.5/` |
 | Version 0.9.5 across source, manifest, lockfile, versions.json | done | `src/kosmos-version.ts` and the four files |
 
+| Embedding server engine (this computer or the private network) | done, alpha.2 | `src/semantic/endpoint.ts`, `remote.ts`, `src/plugin/embedding-endpoint.ts`, `src/ui/semantic-settings.ts` |
+| Librarian: `unmatched`, `phrases_missing`, stricter `strong`, filler typos, grounded related words, `C++`/`C#` | done, alpha.2 | `src/personal-notes/librarian.ts` |
+| Librarian speed: word scanner, written-word cache, single pass per note, heap selection | done, alpha.2 | same; `benchmarks/librarian-bench.mjs` |
+
 ## Evidence
 
 - `npm run verify` — typecheck, build, 721 tests, version/lockfile/artifact/

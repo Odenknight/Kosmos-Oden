@@ -538,7 +538,11 @@ is built (`semantic.state`).
 `invalid_query`, never truncated. `"quoted text"` lifts notes containing that
 phrase. A word that occurs nowhere in the caller's notes is replaced by the
 closest word that does (edit distance 1–2, same first letter) and reported in
-`corrections`. `limit` is 1–25 (default 8). `format` is `both` (default),
+`corrections`; a misspelt filler word ("wher") is read as the filler word and
+left out. A word that still matches no note is listed in `unmatched`, and a
+quoted phrase found in no note in `phrases_missing`; with either, the answer
+rests on the remaining words and `confidence` is not `strong` for a missing
+phrase. `C++`, `G++`, `C#` and `F#` are words. `limit` is 1–25 (default 8). `format` is `both` (default),
 `brief` (markdown only; `results` is empty) or `structured` (no `brief`).
 
 ```json
@@ -550,6 +554,8 @@ closest word that does (edit distance 1–2, same first letter) and reported in
   "corrections": [],
   "expanded": ["hardware", "manager"],
   "phrases": [],
+  "unmatched": [],
+  "phrases_missing": [],
   "confidence": "strong",
   "total": 12,
   "results": [{

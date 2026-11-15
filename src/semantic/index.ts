@@ -8,3 +8,5 @@ export * from "./models";
 export * from "./service";
 export * from "./worker";
 export * from "./controller";
+export * from "./endpoint";
+export * from "./remote";

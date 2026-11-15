@@ -31,7 +31,7 @@ import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
 import { createSemantic, type SemanticHandle } from "./semantic-host";
 import { normalizeSemanticSettings, type SemanticSettings } from "../semantic/settings";
-import type { SemanticOverview } from "../semantic/controller";
+import type { SemanticOverview, ServerTestResult } from "../semantic/controller";
 import type { SemanticSettingsHost } from "../ui/semantic-settings";
 import { advertisedMcpProtocolVersions } from "./mcp-compat";
 import { KosmosSettingTab, buildAgentGuide, buildPersonalAgentGuide, installedBridgePath } from "./settings";
@@ -741,6 +741,14 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   importSemanticModel(files: ReadonlyArray<{ name: string; data: ArrayBuffer }>): Promise<{ saved: string[]; ignored: string[] }> { return this.semantic().controller.importCustom(files); }
   removeSemanticModel(modelId: string): Promise<void> { return this.semantic().controller.removeModel(modelId); }
   rebuildSemanticIndex(): Promise<void> { return this.semantic().controller.rebuild(); }
+  testEmbeddingServer(): Promise<ServerTestResult> { return this.semantic().controller.testServer(); }
+  retrySemantic(): Promise<void> { return this.semantic().controller.retry(); }
+  embeddingKeySaved(): boolean { return this.semantic().keys.has(); }
+  /** The key stays on this device (local storage), never in data.json. A changed key is tried at once. */
+  async setEmbeddingKey(key: string): Promise<void> {
+    this.semantic().keys.set(key);
+    if (this.semanticSettings().enabled && this.semanticSettings().engine === "server") await this.semantic().controller.retry();
+  }
   setSemanticPaused(paused: boolean): void { this.semantic().controller.setPaused(paused); }
   onSemanticStatus(listener: () => void): () => void {
     this.semanticListeners.add(listener);

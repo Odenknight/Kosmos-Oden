@@ -187,6 +187,13 @@ export interface LibrarianResponse {
   expanded: string[];
   /** Quoted phrases; a note containing one ranks higher. */
   phrases: string[];
+  /**
+   * Question words found in no note the requester may read, after spelling
+   * correction. They matched nothing, so the answer rests on the other words.
+   */
+  unmatched: string[];
+  /** Quoted phrases found in no note the requester may read. */
+  phrasesMissing: string[];
   /** Notes that appeared in any list. */
   total: number;
   hits: LibrarianHit[];
@@ -201,8 +208,67 @@ export interface LibrarianResponse {
 
 /* ---------------------------------------------------------------------- words */
 
-const WORD = /[\p{L}\p{N}]+/gu;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
 const HAS_DIGIT = /\d/;
+
+/**
+ * Word scanner. A word is a run of letters and digits, what
+ * /[\p{L}\p{N}]+/gu matches, found without a RegExp match object per word:
+ * indexing a note is mostly this loop. CLASS caches the answer per UTF-16
+ * code unit (0 = not yet asked, 1 = letter or digit, 2 = neither); characters
+ * outside the Basic Multilingual Plane are asked once each and kept in ASTRAL.
+ *
+ * One exception: the language names "C++", "G++", "C#" and "F#" are words.
+ * Read as a run of letters they are the single letter "c", which is too short
+ * to index, so a question about C++ could not find the notes about it.
+ */
+const CLASS = new Uint8Array(0x10000);
+for (let c = 0; c < 128; c++) CLASS[c] = (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) ? 1 : 2;
+const ASTRAL = new Map<number, number>();
+function astralClass(codePoint: number): number {
+  let cls = ASTRAL.get(codePoint);
+  if (cls === undefined) {
+    cls = WORD_CHAR.test(String.fromCodePoint(codePoint)) ? 1 : 2;
+    if (ASTRAL.size < 4096) ASTRAL.set(codePoint, cls);
+  }
+  return cls;
+}
+
+/** Start of the word last returned by nextWord. Read it before anything else can call nextWord. */
+let wordStart = 0;
+/** End (exclusive) of the first word at or after `from`, with its start in `wordStart`; -1 when there is none. */
+function nextWord(text: string, from: number): number {
+  const n = text.length;
+  let start = -1;
+  for (let i = from; i < n; i++) {
+    const c = text.charCodeAt(i);
+    let cls = CLASS[c];
+    let width = 1;
+    if (cls === 0) {
+      if (c < 0xd800 || c > 0xdfff) cls = CLASS[c] = WORD_CHAR.test(text[i]) ? 1 : 2;
+      else if (c <= 0xdbff && i + 1 < n) {
+        const low = text.charCodeAt(i + 1);
+        if (low >= 0xdc00 && low <= 0xdfff) { cls = astralClass(((c - 0xd800) << 10) + (low - 0xdc00) + 0x10000); width = 2; } else cls = 2;
+      } else cls = 2;
+    }
+    if (cls === 1) { if (start < 0) start = i; } else if (start >= 0) { wordStart = start; return i - start === 1 ? i + symbolTail(text, start, i) : i; }
+    i += width - 1;
+  }
+  if (start < 0) return -1;
+  wordStart = start;
+  return n;
+}
+
+/** Length of the "++" or "#" that completes a language name whose letter is at `at` (0 when there is none). */
+function symbolTail(text: string, at: number, end: number): number {
+  const letter = text.charCodeAt(at) | 32;
+  const next = text.charCodeAt(end);
+  if (next === 43) return (letter === 99 || letter === 103) && text.charCodeAt(end + 1) === 43 && text.charCodeAt(end + 2) !== 43 ? 2 : 0;
+  if (next !== 35 || (letter !== 99 && letter !== 102)) return 0;
+  // "c#" then a letter or digit is a link fragment or a tag, not the language.
+  const after = text.charCodeAt(end + 1);
+  return Number.isNaN(after) || (CLASS[after] || (WORD_CHAR.test(text[end + 1]) ? 1 : 2)) === 2 ? 1 : 0;
+}
 const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
 
 const STOP = new Set((
@@ -239,8 +305,15 @@ export function stem(word: string): string {
 /** Lowercase NFC words of `text`, in order. */
 function wordsOf(text: string): string[] {
   const out: string[] = [];
-  WORD.lastIndex = 0;
-  for (const m of toSearchable(text).text.matchAll(WORD)) out.push(m[0]);
+  const searchable = toSearchable(text).text;
+  for (let end = nextWord(searchable, 0); end >= 0; end = nextWord(searchable, end)) out.push(searchable.slice(wordStart, end));
+  return out;
+}
+
+/** The words of `text` exactly as the index sees them (no lowercasing). Exported for the tokenizer's own test. */
+export function scanWords(text: string): string[] {
+  const out: string[] = [];
+  for (let end = nextWord(text, 0); end >= 0; end = nextWord(text, end)) out.push(text.slice(wordStart, end));
   return out;
 }
 
@@ -252,6 +325,13 @@ const usable = (word: string) => word.length >= 2 && word.length <= LIBRARIAN_LI
 export class Vocabulary {
   private readonly ids = new Map<string, number>();
   readonly terms: string[] = [];
+  /**
+   * Word as written -> id of its stem (SKIP_WORD for a word that is never
+   * indexed). Scratch for indexing many notes in a row: one lookup instead of
+   * the stop-word test, the stemmer and the vocabulary lookup. Its keys are
+   * slices of note text, so it is dropped by release() once a batch is in.
+   */
+  private written = new Map<string, number>();
 
   /** Id for `term`, assigning one unless the vocabulary is full (-1). */
   id(term: string): number {
@@ -259,14 +339,34 @@ export class Vocabulary {
     if (id === undefined) {
       if (this.terms.length >= LIBRARIAN_LIMITS.maxVocabulary) return -1;
       id = this.terms.length;
-      this.terms.push(term);
-      this.ids.set(term, id);
+      // A fresh copy: a word cut out of a note would otherwise keep that whole
+      // note's text alive for as long as the vocabulary lives, after the note
+      // was edited or deleted.
+      const own = Array.from(term).join("");
+      this.terms.push(own);
+      this.ids.set(own, id);
     }
     return id;
   }
 
   lookup(term: string): number { return this.ids.get(term) ?? -1; }
+
+  /** Id recorded for a word as written, or undefined when it has not been seen in this batch. */
+  writtenId(word: string): number | undefined { return this.written.get(word); }
+  rememberWritten(word: string, id: number): void {
+    if (this.written.size >= WRITTEN_WORDS_MAX) this.written.clear();
+    this.written.set(word, id);
+  }
+  /** Drop the indexing scratch. Changes no answer. */
+  release(): void { if (this.written.size) this.written = new Map(); }
 }
+
+/** Marks a written word that is not indexed: a stop word. */
+const SKIP_WORD = -1;
+const WRITTEN_WORDS_MAX = 250_000;
+/** Per-note word counts by vocabulary id, and the ids touched; reset after every note. */
+let COUNTS = new Uint32Array(1 << 15);
+let TOUCHED = new Uint32Array(1 << 12);
 
 /* -------------------------------------------------------------------- vectors */
 
@@ -321,25 +421,39 @@ function fingerprintOf(raw: string): string {
 }
 
 export function indexDoc(p: PreparedDoc, vocab: Vocabulary): DocVector {
-  const counts = new Map<number, number>();
+  const body = p.body;
+  const { maxDocTerms, maxWordChars } = LIBRARIAN_LIMITS;
   let length = 0;
-  WORD.lastIndex = 0;
-  for (const m of p.body.matchAll(WORD)) {
+  let distinct = 0;
+  for (let end = nextWord(body, 0); end >= 0; end = nextWord(body, end)) {
     length++;
-    const word = m[0];
-    if (!usable(word)) continue;
-    const key = stem(word);
-    let id = vocab.lookup(key);
-    if (id < 0) {
-      if (counts.size >= LIBRARIAN_LIMITS.maxDocTerms) continue;
-      id = vocab.id(key);
-      if (id < 0) continue;
-    } else if (!counts.has(id) && counts.size >= LIBRARIAN_LIMITS.maxDocTerms) continue;
-    counts.set(id, (counts.get(id) ?? 0) + 1);
+    const size = end - wordStart;
+    if (size < 2 || size > maxWordChars) continue;
+    const word = body.slice(wordStart, end);
+    let id = vocab.writtenId(word);
+    if (id === undefined) {
+      if (STOP.has(word)) { vocab.rememberWritten(word, SKIP_WORD); continue; }
+      const key = stem(word);
+      id = vocab.lookup(key);
+      if (id < 0) {
+        // A word new to the vocabulary: not taken (and not remembered) when this note or the vocabulary is full.
+        if (distinct >= maxDocTerms) continue;
+        id = vocab.id(key);
+        if (id < 0) continue;
+      }
+      vocab.rememberWritten(word, id);
+    } else if (id === SKIP_WORD) continue;
+    if (id >= COUNTS.length) { const grown = new Uint32Array(Math.max(COUNTS.length * 2, id + 1)); grown.set(COUNTS); COUNTS = grown; }
+    if (COUNTS[id] === 0) {
+      if (distinct >= maxDocTerms) continue;
+      if (distinct >= TOUCHED.length) { const grown = new Uint32Array(TOUCHED.length * 2); grown.set(TOUCHED); TOUCHED = grown; }
+      TOUCHED[distinct++] = id;
+    }
+    COUNTS[id]++;
   }
-  const ids = Uint32Array.from(counts.keys()).sort();
-  const tfs = new Uint16Array(ids.length);
-  for (let i = 0; i < ids.length; i++) tfs[i] = Math.min(65535, counts.get(ids[i])!);
+  const ids = TOUCHED.slice(0, distinct).sort();
+  const tfs = new Uint16Array(distinct);
+  for (let i = 0; i < distinct; i++) { const id = ids[i]; tfs[i] = Math.min(65535, COUNTS[id]); COUNTS[id] = 0; }
 
   const head = new Set<number>();
   const nameHead = new Set<number>();
@@ -430,11 +544,35 @@ export function parseQuestion(question: unknown): ParsedQuestion {
 
 /* ----------------------------------------------------------------- correction */
 
+/** Rows of the edit-distance table, reused across calls (a correction compares one word with thousands). */
+let ROW_A = new Uint16Array(64);
+let ROW_B = new Uint16Array(64);
+
+/** Share of the question's weight the best match must carry before related words are learned from the matches. */
+const FEEDBACK_MIN_COVERAGE = 0.6;
+
+/** The filler word one edit away from `word` ("" when there is none). Short words are left alone: too many are one edit from another. */
+function nearStopWord(word: string): string {
+  if (word.length < 4) return "";
+  let found = "";
+  for (const stop of STOP) {
+    if (Math.abs(stop.length - word.length) > 1 || editDistance(word, stop, 1) > 1) continue;
+    // Of several, the one the typed word begins (a dropped last letter), then the first in the alphabet.
+    const better = !found || (stop.startsWith(word) !== found.startsWith(word) ? stop.startsWith(word) : stop < found);
+    if (better) found = stop;
+  }
+  return found;
+}
+
+/** How many notes after the first are checked for one that answers more of the question. */
+const RIVAL_DEPTH = 5;
+
 /** Edit distance, or `max + 1` as soon as it must exceed `max`. */
 export function editDistance(a: string, b: string, max: number): number {
   if (Math.abs(a.length - b.length) > max) return max + 1;
-  let prev = new Array<number>(b.length + 1);
-  let cur = new Array<number>(b.length + 1);
+  if (b.length >= ROW_A.length) { ROW_A = new Uint16Array(b.length + 1); ROW_B = new Uint16Array(b.length + 1); }
+  let prev = ROW_A;
+  let cur = ROW_B;
   for (let j = 0; j <= b.length; j++) prev[j] = j;
   for (let i = 1; i <= a.length; i++) {
     cur[0] = i;
@@ -477,20 +615,39 @@ const LIST_WEIGHT = { lexical: 1, expanded: 0.7, name: 0.8, semantic: 1 } as con
 const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
 const NAME_MIN = 0.5;
 
-function intersect(a: Uint32Array, b: Uint32Array): number {
-  let i = 0, j = 0, n = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { n++; i++; j++; } else if (a[i] < b[j]) i++; else j++;
+/**
+ * The question's trigrams as an open-addressing hash set, so that counting the
+ * trigrams a name shares costs one probe per trigram of the name. Every note's
+ * names are compared with every question, which makes this the inner loop of
+ * the name list. Slots hold index + 1 into `grams`; 0 is empty.
+ */
+class GramSet {
+  private readonly slots: Int32Array;
+  private readonly mask: number;
+  constructor(private readonly grams: Uint32Array) {
+    let size = 16;
+    while (size < grams.length * 4) size *= 2;
+    this.slots = new Int32Array(size);
+    this.mask = size - 1;
+    for (let k = 0; k < grams.length; k++) {
+      let at = Math.imul(grams[k], 0x9e3779b1) >>> 0 & this.mask;
+      while (this.slots[at]) at = (at + 1) & this.mask;
+      this.slots[at] = k + 1;
+    }
   }
-  return n;
-}
-
-/** Similarity of the question's words to one name: how much of the name the question covers, tempered by Dice. */
-function nameSimilarity(question: Uint32Array, name: Uint32Array): number {
-  if (name.length < 3 || !question.length) return 0;
-  const common = intersect(question, name);
-  if (!common) return 0;
-  return 0.6 * (common / name.length) + 0.4 * ((2 * common) / (question.length + name.length));
+  /** Similarity of the question's words to one name: how much of the name the question covers, tempered by Dice. */
+  similarity(name: Uint32Array): number {
+    const { grams, slots, mask } = this;
+    if (name.length < 3 || !grams.length) return 0;
+    let common = 0;
+    for (let k = 0; k < name.length; k++) {
+      const gram = name[k];
+      let at = Math.imul(gram, 0x9e3779b1) >>> 0 & mask;
+      for (let slot = slots[at]; slot; slot = slots[at = (at + 1) & mask]) if (grams[slot - 1] === gram) { common++; break; }
+    }
+    if (!common) return 0;
+    return 0.6 * (common / name.length) + 0.4 * ((2 * common) / (grams.length + name.length));
+  }
 }
 
 /**
@@ -505,24 +662,48 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   for (const e of pool) totalLength += e.vector.length;
   const avgdl = n ? Math.max(1, totalLength / n) : 1;
 
-  const column = (id: number): { col: Uint16Array; df: number } => {
-    const col = new Uint16Array(n);
-    let df = 0;
-    if (id >= 0) for (let i = 0; i < n; i++) {
+  /**
+   * How often each of several words occurs in every note: one pass over the
+   * notes for all the words. `ids` must be distinct (-1 = not in the
+   * vocabulary). They are looked up in ascending order, so each search starts
+   * where the previous one ended and a note's word list is visited once.
+   */
+  const columns = (ids: readonly number[]): { col: Uint16Array; df: number }[] => {
+    const out = ids.map(() => ({ col: new Uint16Array(n), df: 0 }));
+    const order = ids.map((_, k) => k).filter((k) => ids[k] >= 0).sort((a, b) => ids[a] - ids[b]);
+    const wanted = order.map((k) => ids[k]);
+    const m = wanted.length;
+    if (!m) return out;
+    for (let i = 0; i < n; i++) {
       const v = pool[i].vector;
-      const at = find(v.ids, id);
-      if (at >= 0) { col[i] = v.tfs[at]; df++; }
+      const sorted = v.ids;
+      const last = sorted.length - 1;
+      let lo = 0;
+      for (let j = 0; j < m && lo <= last; j++) {
+        const id = wanted[j];
+        let hi = last;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          const x = sorted[mid];
+          if (x < id) lo = mid + 1;
+          else if (x > id) hi = mid - 1;
+          else { const o = out[order[j]]; o.col[i] = v.tfs[mid]; o.df++; lo = mid + 1; break; }
+        }
+      }
     }
-    return { col, df };
+    return out;
   };
+  const column = (id: number): { col: Uint16Array; df: number } => columns([id])[0];
 
   /* Question words; a word found nowhere in scope is replaced by the nearest word that is. */
   const terms: Term[] = [];
   const corrections: { from: string; to: string }[] = [];
+  const askedIds = parsed.stems.map((key) => index.vocab.lookup(key));
+  const askedColumns = columns(askedIds);
   for (let k = 0; k < parsed.stems.length; k++) {
     const key = parsed.stems[k];
-    const id = index.vocab.lookup(key);
-    let term: Term = { word: parsed.words[k], id, ...column(id), weight: 1, expanded: false };
+    const id = askedIds[k];
+    let term: Term = { word: parsed.words[k], id, ...askedColumns[k], weight: 1, expanded: false };
     if (term.df === 0) {
       let best: Term | null = null;
       let bestDistance = Infinity;
@@ -531,6 +712,11 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
         const c = column(candidate.id);
         if (c.df > 0 && (!best || c.df > best.df)) { best = { word: index.vocab.terms[candidate.id], id: candidate.id, ...c, weight: 1, expanded: false }; bestDistance = candidate.distance; }
       }
+      // A misspelt filler word ("wher" for "where") is filler: it is read as that
+      // word and left out, as the word itself would have been. Otherwise it would
+      // count as a question word no note can match and pull every answer down.
+      const filler = bestDistance > 1 && parsed.stems.length > 1 ? nearStopWord(term.word) : "";
+      if (filler) { corrections.push({ from: term.word, to: filler }); continue; }
       if (best && !terms.some((t) => t.id === best!.id)) { corrections.push({ from: term.word, to: best.word }); term = best; }
     }
     terms.push(term);
@@ -538,75 +724,118 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   const asked = terms.length;
 
   const idf = (df: number, docs: number) => Math.log(1 + (docs - df + 0.5) / (df + 0.5));
-  /**
-   * BM25 over one list. Coverage is weighted by how rare each question word is:
-   * matching "new" and "request" (which occur everywhere) must not look like
-   * answering a question whose rarest word is "laptop".
-   */
-  const score = (list: readonly Term[]): { s: Float64Array; matched: Uint8Array; coverage: Float64Array; specificity: Float64Array } => {
-    const s = new Float64Array(n);
-    const matched = new Uint8Array(n);
-    const matchedIdf = new Float64Array(n);
-    const nameIdf = new Float64Array(n);
-    const rareMatch = new Uint8Array(n);
-    let totalIdf = 0;
-    let rareId = -1;
-    let rareIdf = 0;
-    for (const t of terms) {
-      const weight = idf(Math.max(t.df, 1), Math.max(n, 1));
-      totalIdf += weight;
-      if (t.df && weight > rareIdf) { rareIdf = weight; rareId = t.id; }
+  /** BM25 length normalisation per note, computed once per question. */
+  const norm = new Float64Array(n);
+  for (let i = 0; i < n; i++) norm[i] = K1 * (1 - B + B * pool[i].vector.length / avgdl);
+  let totalIdf = 0;
+  let rareId = -1;
+  let rareIdf = 0;
+  for (const t of terms) {
+    const weight = idf(Math.max(t.df, 1), Math.max(n, 1));
+    totalIdf += weight;
+    if (t.df && weight > rareIdf) { rareIdf = weight; rareId = t.id; }
+  }
+  const matched = new Uint8Array(n);
+  const matchedIdf = new Float64Array(n);
+  const nameIdf = new Float64Array(n);
+  const rareMatch = new Uint8Array(n);
+  /** Add one word's BM25 contribution to `s`. A question word (not an expansion word) also counts towards coverage. */
+  const accumulate = (t: Term, s: Float64Array): void => {
+    if (!t.df) return;
+    const weight = idf(t.df, n);
+    const w = t.weight * weight;
+    const col = t.col;
+    for (let i = 0; i < n; i++) {
+      const tf = col[i];
+      if (!tf) continue;
+      const v = pool[i].vector;
+      s[i] += w * (tf * (K1 + 1)) / (tf + norm[i]);
+      if (find(v.head, t.id) >= 0) s[i] += w * HEAD_BONUS;
+      if (!t.expanded) {
+        matched[i]++;
+        matchedIdf[i] += weight;
+        if (find(v.nameHead, t.id) >= 0) nameIdf[i] += weight;
+        if (t.id === rareId) rareMatch[i] = 1;
+      }
     }
-    for (const t of list) {
-      if (!t.df) continue;
-      const weight = idf(t.df, n);
-      const w = t.weight * weight;
-      for (let i = 0; i < n; i++) {
-        const tf = t.col[i];
-        if (!tf) continue;
-        const v = pool[i].vector;
-        s[i] += w * (tf * (K1 + 1)) / (tf + K1 * (1 - B + B * v.length / avgdl));
-        const inHead = find(v.head, t.id) >= 0;
-        if (inHead) s[i] += w * HEAD_BONUS;
-        if (!t.expanded) {
-          matched[i]++;
-          matchedIdf[i] += weight;
-          if (find(v.nameHead, t.id) >= 0) nameIdf[i] += weight;
-          if (t.id === rareId) rareMatch[i] = 1;
+  };
+  /**
+   * Coverage is weighted by how rare each question word is: matching "new" and
+   * "request" (which occur everywhere) must not look like answering a question
+   * whose rarest word is "laptop".
+   */
+  const coverage = new Float64Array(n);
+  const specificity = new Float64Array(n);
+  /** Scale the summed BM25 by coverage, the rarest word and aboutness. Call after every question word is accumulated. */
+  const finish = (s: Float64Array): Float64Array => {
+    // The rarest question word is what makes the question that question, and a
+    // note whose title, aliases, tags or file name carry the words is about the
+    // topic rather than merely mentioning it.
+    for (let i = 0; i < n; i++) if (s[i]) s[i] *= (0.25 + 0.75 * coverage[i]) * (rareMatch[i] ? 1.25 : 0.75) * (1 + 1.5 * specificity[i]);
+    return s;
+  };
+  const byPath = (a: number, b: number) => (pool[a].prepared.doc.path < pool[b].prepared.doc.path ? -1 : 1);
+  /**
+   * The `depth` best notes by score, ties by path: the list a full sort would
+   * give. Most questions match thousands of notes and keep a hundred, so the
+   * best are held in a small heap (worst on top) and only those are sorted.
+   */
+  const ranked = (s: ArrayLike<number>, keep: (i: number) => boolean, depth: number): number[] => {
+    const heap: number[] = [];
+    const after = (a: number, b: number) => s[a] < s[b] || (s[a] === s[b] && byPath(a, b) > 0);
+    for (let i = 0; i < n; i++) {
+      if (!(s[i] > 0) || !keep(i)) continue;
+      if (heap.length < depth) {
+        let at = heap.push(i) - 1;
+        while (at > 0) {
+          const up = (at - 1) >> 1;
+          if (!after(heap[at], heap[up])) break;
+          [heap[at], heap[up]] = [heap[up], heap[at]];
+          at = up;
+        }
+      } else if (s[i] >= s[heap[0]] && after(heap[0], i)) {
+        heap[0] = i;
+        for (let at = 0; ;) {
+          const left = 2 * at + 1, right = left + 1;
+          let worst = at;
+          if (left < depth && after(heap[left], heap[worst])) worst = left;
+          if (right < depth && after(heap[right], heap[worst])) worst = right;
+          if (worst === at) break;
+          [heap[at], heap[worst]] = [heap[worst], heap[at]];
+          at = worst;
         }
       }
     }
-    const coverage = new Float64Array(n);
-    const specificity = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      coverage[i] = totalIdf > 0 ? Math.min(1, matchedIdf[i] / totalIdf) : 0;
-      // The rarest question word is what makes the question that question, and a
-      // note whose title, aliases, tags or file name carry the words is about the
-      // topic rather than merely mentioning it.
-      specificity[i] = totalIdf > 0 ? nameIdf[i] / totalIdf : 0;
-      if (s[i]) s[i] *= (0.25 + 0.75 * coverage[i]) * (rareMatch[i] ? 1.25 : 0.75) * (1 + 1.5 * specificity[i]);
-    }
-    return { s, matched, coverage, specificity };
-  };
-  const byPath = (a: number, b: number) => (pool[a].prepared.doc.path < pool[b].prepared.doc.path ? -1 : 1);
-  const ranked = (s: ArrayLike<number>, keep: (i: number) => boolean, depth: number): number[] => {
-    const order: number[] = [];
-    for (let i = 0; i < n; i++) if (s[i] > 0 && keep(i)) order.push(i);
-    order.sort((a, b) => (s[b] - s[a]) || byPath(a, b));
-    return order.slice(0, depth);
+    return heap.sort((a, b) => (s[b] - s[a]) || byPath(a, b));
   };
 
-  const lexical = score(terms);
+  const raw = new Float64Array(n);
+  for (const t of terms) accumulate(t, raw);
+  for (let i = 0; i < n; i++) {
+    coverage[i] = totalIdf > 0 ? Math.min(1, matchedIdf[i] / totalIdf) : 0;
+    specificity[i] = totalIdf > 0 ? nameIdf[i] / totalIdf : 0;
+  }
+  const lexical = { s: finish(raw.slice()), matched, coverage, specificity };
   // A quoted phrase lifts the notes that contain it; it is not a filter.
+  // phraseSeen[k]: some note in scope contains phrase k.
+  const phraseSeen = parsed.phrases.map(() => false);
   if (parsed.phrases.length) for (let i = 0; i < n; i++) {
-    if (!lexical.s[i]) continue;
-    for (const phrase of parsed.phrases) if (pool[i].prepared.body.includes(phrase)) lexical.s[i] *= 1.5;
+    const body = pool[i].prepared.body;
+    for (let k = 0; k < parsed.phrases.length; k++) {
+      // A note without a single question word is read only for a phrase no note has shown yet.
+      if (!lexical.s[i] && phraseSeen[k]) continue;
+      if (body.includes(parsed.phrases[k])) { phraseSeen[k] = true; if (lexical.s[i]) lexical.s[i] *= 1.5; }
+    }
   }
   const lexicalOrder = ranked(lexical.s, (i) => lexical.matched[i] > 0, LIST_DEPTH.lexical);
 
   /* Expansion: words the best lexical matches share. */
   const expansion: Term[] = [];
-  const feedback = lexicalOrder.slice(0, LIBRARIAN_LIMITS.feedbackDocs);
+  // Related words are learned from the best matches, so they are only as good as
+  // those matches: when even the best note carries under 60% of the question's
+  // weight there is nothing to learn from, and the words it would lend are noise.
+  const grounded = lexicalOrder.length > 0 && lexical.coverage[lexicalOrder[0]] >= FEEDBACK_MIN_COVERAGE;
+  const feedback = grounded ? lexicalOrder.slice(0, LIBRARIAN_LIMITS.feedbackDocs) : [];
   if (feedback.length >= 2) {
     const candidates = new Map<number, { docs: number; weight: number }>();
     const used = new Set(terms.map((t) => t.id));
@@ -629,19 +858,25 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
       scored.push({ id, term, value: c.weight * idf(index.frequency(id), Math.max(index.docs, 1)) });
     }
     scored.sort((a, b) => (b.value - a.value) || (a.term < b.term ? -1 : 1));
-    for (const c of scored.slice(0, LIBRARIAN_LIMITS.feedbackTerms)) expansion.push({ word: c.term, id: c.id, ...column(c.id), weight: EXPANSION_WEIGHT, expanded: true });
+    const chosen = scored.slice(0, LIBRARIAN_LIMITS.feedbackTerms);
+    const chosenColumns = columns(chosen.map((c) => c.id));
+    chosen.forEach((c, k) => expansion.push({ word: c.term, id: c.id, ...chosenColumns[k], weight: EXPANSION_WEIGHT, expanded: true }));
   }
-  const expandedScore = expansion.length ? score([...terms, ...expansion]) : null;
-  const expandedOrder = expandedScore ? ranked(expandedScore.s, () => true, LIST_DEPTH.expanded) : [];
+  // The expanded list is the question's own sum plus the expansion words: nothing is scored twice.
+  let expandedOrder: number[] = [];
+  if (expansion.length) {
+    for (const t of expansion) accumulate(t, raw);
+    expandedOrder = ranked(finish(raw), () => true, LIST_DEPTH.expanded);
+  }
 
   /* Names. */
-  const questionGrams = trigrams(parsed.nameKey);
+  const questionGrams = new GramSet(trigrams(parsed.nameKey));
   const nameScore = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const v = pool[i].vector;
     let best = 0;
     for (let k = 0; k < v.grams.length; k++) {
-      const sim = v.names[k] === parsed.nameKey ? 1 : nameSimilarity(questionGrams, v.grams[k]);
+      const sim = v.names[k] === parsed.nameKey ? 1 : questionGrams.similarity(v.grams[k]);
       if (sim > best) best = sim;
     }
     if (best >= NAME_MIN) nameScore[i] = best;
@@ -677,7 +912,10 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   fuse(expandedOrder, "expanded", LIST_WEIGHT.expanded);
   fuse(nameOrder, "name", nameWeight);
   fuse(semanticOrder, "semantic", LIST_WEIGHT.semantic);
-  const order = [...fused.keys()].sort((a, b) => (fused.get(b)!.score - fused.get(a)!.score) || byPath(a, b));
+  // A question that is a note's name (title, alias or file name, word for word)
+  // is asking for that note: it comes first whatever the other lists say.
+  const exact = (i: number) => (nameScore[i] >= 1 ? 1 : 0);
+  const order = [...fused.keys()].sort((a, b) => (exact(b) - exact(a)) || (fused.get(b)!.score - fused.get(a)!.score) || byPath(a, b));
 
   const weights = new Map<string, number>();
   for (const t of terms) weights.set(index.vocab.terms[t.id] ?? stem(t.word), 1);
@@ -714,11 +952,21 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     // "Strong" also needs the note to be about the question (a third of its
     // weight in the title, aliases, tags or headings), not merely to mention it.
     const about = lexical.specificity[top] >= 0.34;
-    confidence = (strongWords && about && lexical.matched[top] > 0) || nameScore[top] >= 0.8 ? "strong" : "weak";
+    // A name that reads like the question is strong on its own only when it is
+    // the question (an exact name) or the note also carries half of the
+    // question's weight: "qwen embedding pooling" resembles a note named "Qwen
+    // embedding" whether or not that note says anything about pooling.
+    const named = nameScore[top] >= 1 || (nameScore[top] >= 0.8 && share >= 0.5);
+    confidence = (strongWords && about && lexical.matched[top] > 0) || named ? "strong" : "weak";
     // Two independent readings agreeing on the same note: the closest by meaning
     // is also what the words (or the name) rank first, and it carries most of them.
     const ranks = fused.get(top)!.ranks;
     if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) confidence = "strong";
+    // Quoting a phrase asks for those exact words: a note without them is not a strong answer.
+    if (!parsed.phrases.every((phrase) => pool[top].prepared.body.includes(phrase))) confidence = "weak";
+    // A note that leaves out part of the question is not the strong answer while
+    // one of the next few notes carries all of it: the reader has to choose.
+    if (nameScore[top] < 1 && share < 0.99 && order.slice(1, RIVAL_DEPTH).some((i) => lexical.coverage[i] >= 0.99 && lexical.specificity[i] >= 0.34)) confidence = "weak";
   }
 
   return {
@@ -728,6 +976,8 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     corrections,
     expanded: expansion.map((t) => t.word),
     phrases: parsed.phrases,
+    unmatched: terms.filter((t) => t.df === 0).map((t) => t.word),
+    phrasesMissing: parsed.phrases.filter((_, k) => !phraseSeen[k]),
     total: fused.size,
     hits,
     confidence,
@@ -772,7 +1022,22 @@ function linksIn(text: string, into: LibrarianLink[], seen: Set<string>): void {
     const clean = label.replace(/[*_`#>]+/g, "").replace(/\s+/g, " ").trim();
     into.push({ url, label: clip(clean || host || url, 120), kind: linkKind(url, `${clean} ${line}`) });
   };
-  for (const line of text.split(/\r?\n/)) {
+  // Only a line containing "://" or "mailto:" can hold a link, and most lines
+  // of most notes hold neither: jump from one such line to the next instead of
+  // running two patterns over every line.
+  let scheme = text.indexOf("://");
+  let mail = text.indexOf("mailto:");
+  let at = 0;
+  while (into.length < LIBRARIAN_LIMITS.linksPerNote) {
+    if (scheme >= 0 && scheme < at) scheme = text.indexOf("://", at);
+    if (mail >= 0 && mail < at) mail = text.indexOf("mailto:", at);
+    const found = scheme < 0 ? mail : mail < 0 ? scheme : Math.min(scheme, mail);
+    if (found < 0) break;
+    const start = text.lastIndexOf("\n", found) + 1;
+    const newline = text.indexOf("\n", found);
+    const end = newline < 0 ? text.length : newline;
+    at = end + 1;
+    const line = text.slice(start, newline >= 0 && end > start && text.charCodeAt(end - 1) === 13 ? end - 1 : end);
     if (line.length > 4000) continue;
     MD_LINK.lastIndex = 0;
     let rest = line;
@@ -784,6 +1049,31 @@ function linksIn(text: string, into: LibrarianLink[], seen: Set<string>): void {
     }
   }
 }
+
+/** List steps of `text`, up to the per-note cap, added to `steps`. */
+function stepsIn(text: string, steps: LibrarianStep[]): void {
+  let at = 0;
+  while (at <= text.length && steps.length < LIBRARIAN_LIMITS.stepsPerNote) {
+    const newline = text.indexOf("\n", at);
+    const end = newline < 0 ? text.length : newline;
+    const line = text.slice(at, newline >= 0 && end > at && text.charCodeAt(end - 1) === 13 ? end - 1 : end);
+    at = end + 1;
+    const m = LIST_STEP.exec(line);
+    if (!m) continue;
+    const step = clip(m[3].replace(/[ \t]+/g, " ").trim(), LIBRARIAN_LIMITS.stepChars);
+    steps.push(m[2] !== undefined ? { text: step, done: m[2] !== " " } : { text: step });
+  }
+}
+
+/**
+ * Per question: word as written -> its stem when that stem carries weight, ""
+ * when it does not. Passages are scored by reading every word of every note
+ * returned, and the stemmer is the expensive part of that; each distinct word
+ * is stemmed once per question. Keyed by the question's weight table, so it
+ * goes away with the question.
+ */
+const STEM_MEMO = new WeakMap<ReadonlyMap<string, number>, Map<string, string>>();
+const STEM_MEMO_MAX = 50_000;
 
 /**
  * Best passages, web links, list steps and note links of one note for the
@@ -797,11 +1087,24 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
   const blocks: Block[] = [];
   let heading = "", headingStart = from, headingWeight = 0;
   let blockStart = -1, blockEnd = -1;
+  let memo = STEM_MEMO.get(weights);
+  if (!memo) STEM_MEMO.set(weights, memo = new Map());
   const value = (text: string): number => {
-    const seen = new Map<string, number>();
-    for (const w of wordsOf(text)) { const key = stem(w); if (weights.has(key)) seen.set(key, (seen.get(key) ?? 0) + 1); }
+    const searchable = toSearchable(text).text;
+    let seen: Map<string, number> | null = null;
+    for (let end = nextWord(searchable, 0); end >= 0; end = nextWord(searchable, end)) {
+      const word = searchable.slice(wordStart, end);
+      let key = memo!.get(word);
+      if (key === undefined) {
+        const stemmed = stem(word);
+        key = weights.has(stemmed) ? stemmed : "";
+        if (memo!.size >= STEM_MEMO_MAX) memo!.clear();
+        memo!.set(word, key);
+      }
+      if (key) (seen ??= new Map()).set(key, (seen.get(key) ?? 0) + 1);
+    }
     let v = 0;
-    for (const [key, count] of seen) v += weights.get(key)! * (1 + 0.2 * Math.min(count - 1, 3));
+    if (seen) for (const [key, count] of seen) v += weights.get(key)! * (1 + 0.2 * Math.min(count - 1, 3));
     return v;
   };
   const flush = () => {
@@ -815,7 +1118,7 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
     let eol = raw.indexOf("\n", at);
     if (eol < 0 || eol > to) eol = to;
     const line = raw.slice(at, eol);
-    const h = /^#{1,6}[ \t]+(.+?)[ \t\r]*$/.exec(line);
+    const h = raw.charCodeAt(at) === 35 ? /^#{1,6}[ \t]+(.+?)[ \t\r]*$/.exec(line) : null;
     if (h) {
       flush();
       heading = h[1].replace(/[ \t]+#+$/, "");
@@ -857,12 +1160,7 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
     const next = blocks.find((b) => b.headingStart > top.headingStart);
     const section = raw.slice(top.headingStart, Math.min(next ? next.headingStart : to, top.headingStart + LIBRARIAN_LIMITS.sectionChars));
     linksIn(section, links, seen);
-    for (const line of section.split(/\r?\n/)) {
-      const m = LIST_STEP.exec(line);
-      if (!m || steps.length >= LIBRARIAN_LIMITS.stepsPerNote) continue;
-      const text = clip(m[3].replace(/[ \t]+/g, " ").trim(), LIBRARIAN_LIMITS.stepChars);
-      steps.push(m[2] !== undefined ? { text, done: m[2] !== " " } : { text });
-    }
+    stepsIn(section, steps);
     NOTE_LINK.lastIndex = 0;
     for (const m of section.matchAll(NOTE_LINK)) {
       const target = m[2].trim();
@@ -873,14 +1171,7 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
   // Then the rest of the note, so a form linked elsewhere in it is still offered.
   if (links.length < LIBRARIAN_LIMITS.linksPerNote) linksIn(raw.slice(from, to), links, seen);
   // A note whose steps sit under a neighbouring heading still has steps worth showing.
-  if (!steps.length) {
-    for (const line of raw.slice(from, to).split(/\r?\n/)) {
-      const m = LIST_STEP.exec(line);
-      if (!m || steps.length >= LIBRARIAN_LIMITS.stepsPerNote) continue;
-      const text = clip(m[3].replace(/[ \t]+/g, " ").trim(), LIBRARIAN_LIMITS.stepChars);
-      steps.push(m[2] !== undefined ? { text, done: m[2] !== " " } : { text });
-    }
-  }
+  if (!steps.length) stepsIn(raw.slice(from, to), steps);
   if (!noteLinks.length) {
     NOTE_LINK.lastIndex = 0;
     for (const m of raw.slice(from, to).matchAll(NOTE_LINK)) {
@@ -912,6 +1203,12 @@ export function renderLibrarianBrief(response: Omit<LibrarianResponse, "coverage
     : semantic.state === "ready" ? " Searched by words and by meaning."
     : semantic.state === "partial" ? " Searched by words and by meaning (the semantic index is still being built, so some notes were matched by words only)."
     : ` Searched by words only${semantic.detail ? ` (${semantic.detail})` : ""}.`;
+  // Older responses (and other producers of this contract) may not carry these two lists.
+  const unmatched = response.unmatched ?? [];
+  const phrasesMissing = response.phrasesMissing ?? [];
+  const absent: string[] = [];
+  if (unmatched.length) absent.push(`No shared note contains: ${unmatched.join(", ")}.`);
+  if (phrasesMissing.length) absent.push(`No shared note contains the exact phrase${phrasesMissing.length === 1 ? "" : "s"}: ${phrasesMissing.map((p) => `"${p}"`).join(", ")}.`);
   if (!hits.length) {
     return `No shared note answers this.${response.terms.length ? ` Searched for: ${response.terms.join(", ")}.` : ""}${how}`;
   }
@@ -924,6 +1221,8 @@ export function renderLibrarianBrief(response: Omit<LibrarianResponse, "coverage
     lines.push(`**${hits.length} of ${response.total} matching notes** — confidence: ${response.confidence}.${how}`);
   }
   if (response.corrections.length) lines.push(`Read as: ${response.corrections.map((c) => `${c.from} → ${c.to}`).join(", ")}.`);
+  // What the answer does not rest on, said before the notes so nobody reads past it.
+  if (absent.length && !hits.every(meaningOnly)) lines.push(absent.join(" "));
   hits.forEach((hit, i) => {
     lines.push("", `${i + 1}. **${hit.title}** — ${hit.path}${meaningOnly(hit) ? " — found by meaning only" : ""}`);
     const passage = hit.passages[0];

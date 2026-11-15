@@ -75,7 +75,7 @@ A task is rarely one note. After \`ask_librarian\`:
 3. From any note, \`get_related\` lists what it links to, what links to it, shared tags and, with semantic search on, notes of similar meaning.
 4. \`get_lineage\` shows whether a newer note replaces the one you are reading. Prefer the newest.
 
-Semantic search runs inside Obsidian on the user's computer (an embedding model in WebAssembly and an SQLite index in the plugin's folder). No note text is sent anywhere to search.
+Semantic search runs inside Obsidian on the user's computer (an embedding model in WebAssembly and an SQLite index in the plugin's folder), unless the user chose an embedding server they run on this computer or their own network; then note passages and questions go to that server and nowhere else. \`vault_overview\` says which (\`semantic_search.runs\`).
 
 ## Reading a long note
 

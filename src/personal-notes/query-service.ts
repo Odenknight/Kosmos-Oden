@@ -69,7 +69,7 @@ export interface PersonalQueryDeps {
  */
 export interface PersonalSemantic {
   /** Current state, without doing any work. */
-  info(): { state: LibrarianSemanticInfo["state"]; model?: string; detail?: string };
+  info(): { state: LibrarianSemanticInfo["state"]; model?: string; detail?: string; runs?: string };
   /** Notes closest in meaning to the question, best first. */
   candidates(question: string, allowed: ReadonlySet<string>): Promise<SemanticCandidate[]>;
   /** Notes close in meaning to `sources` (which are excluded), best first. */
@@ -111,7 +111,7 @@ const TOOL_SPECS: Record<PersonalToolName, ToolSpec> = {
   },
   ask_librarian: {
     title: "Ask the Librarian",
-    description: `Hybrid search for a whole question (not keywords): by words (stemmed full text, names, typos) and, when the user has turned on semantic search, by meaning (a small embedding model running inside Obsidian on the user's computer). Returns the best notes with the passages that answer it, the steps they list, the links they contain (forms flagged), their note links, related notes to read next ("related": the neighbouring steps and sibling processes), and a markdown brief ready to read or quote. Nothing leaves the computer and no tokens are spent on retrieval; "semantic.state" says whether meaning was used, and each result's "found_by" says how it was found: a result found by "meaning" alone is the closest note, not a confirmed match (an off-topic question has a closest note too), so read it before relying on it. The same question over the same notes and index returns the same answer. Use it instead of search_notes when the question is a sentence or the wording is unknown; use search_notes for exact words or a tag. To walk a process, follow "related" and each result's steps and note_links with get_note. ${PERSONAL_CONTENT_RULE}`,
+    description: `Hybrid search for a whole question (not keywords): by words (stemmed full text, names, typos) and, when the user has turned on semantic search, by meaning (a small embedding model running inside Obsidian on the user's computer, or an embedding server the user runs on this computer or their own network; vault_overview says which). Returns the best notes with the passages that answer it, the steps they list, the links they contain (forms flagged), their note links, related notes to read next ("related": the neighbouring steps and sibling processes), and a markdown brief ready to read or quote. No AI service is called and no tokens are spent on retrieval; "semantic.state" says whether meaning was used, and each result's "found_by" says how it was found: a result found by "meaning" alone is the closest note, not a confirmed match (an off-topic question has a closest note too), so read it before relying on it. The same question over the same notes and index returns the same answer. Use it instead of search_notes when the question is a sentence or the wording is unknown; use search_notes for exact words or a tag. To walk a process, follow "related" and each result's steps and note_links with get_note. ${PERSONAL_CONTENT_RULE}`,
     fields: {
       question: { kind: "string", maxLength: LIBRARIAN_LIMITS.questionCodePoints, description: `The question in plain language; at most ${LIBRARIAN_LIMITS.questionCodePoints} characters and ${LIBRARIAN_LIMITS.questionTerms} distinct words. "Quoted text" ranks notes containing that phrase higher.` },
       limit: { kind: "integer", minimum: 1, maximum: LIBRARIAN_LIMITS.maxResults, description: `Notes to return (default ${LIBRARIAN_LIMITS.defaultResults}).` },
@@ -276,6 +276,10 @@ export interface LibrarianResult {
   corrections: Array<{ from: string; to: string }>;
   expanded: string[];
   phrases: string[];
+  /** Question words found in no shared note (after spelling correction). */
+  unmatched: string[];
+  /** Quoted phrases found in no shared note. */
+  phrases_missing: string[];
   confidence: string;
   total: number;
   results: Array<{
@@ -522,6 +526,8 @@ export class PersonalQueryService {
       corrections: response.corrections.map((c) => ({ from: c.from, to: c.to })),
       expanded: [...response.expanded],
       phrases: [...response.phrases],
+      unmatched: [...response.unmatched],
+      phrases_missing: [...response.phrasesMissing],
       confidence: response.confidence,
       total: response.total,
       results: format === "brief" ? [] : response.hits.map((hit) => ({
@@ -561,7 +567,7 @@ export class PersonalQueryService {
       state: info.state,
       ...(info.model ? { model: info.model } : {}),
       ...(info.detail ? { detail: info.detail } : {}),
-      runs: "inside Obsidian on the user's computer; no data leaves it",
+      runs: info.runs ?? "inside Obsidian on the user's computer; no data leaves it",
       used_by: ["ask_librarian", "get_related"],
     };
   }

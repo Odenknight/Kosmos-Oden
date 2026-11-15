@@ -161,6 +161,8 @@ export class SearchWorkerEngine {
         this.librarianIndex.add(staging.vectors[i]);
       }
     }
+    // The indexing scratch refers to the text of the notes just read; let it go with the batch.
+    this.librarianIndex.vocab.release();
     this.revision = op.revision;
     this.state = op.state;
     this.omitted = op.omitted;
