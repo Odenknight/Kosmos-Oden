@@ -48,14 +48,22 @@ function headerOf(raw: string): string | null {
 
 interface Header { data: Rec; scalar(key: string): string | undefined; error: boolean }
 
+/** A first line of `---`, with or without trailing blanks. */
+const OPEN_FENCE = /^\uFEFF?---[ \t]*\r?\n/;
+/** A line that reads as a sensitivity label or the start of a `gkx:` block. */
+const LABEL_LINE = /^[ \t]*(?:sensitivity|gkx)[ \t]*:/m;
+
 /**
  * Read the frontmatter of `raw`. Scalars are taken as authored text (no YAML
  * type coercion, so an unquoted date stays the string that was written).
  * Malformed YAML or duplicate keys set `error`. An unclosed `---` is not a
- * frontmatter block, as in Obsidian.
+ * frontmatter block, as in Obsidian, unless a line under it reads as a
+ * sensitivity label: the author meant a label that this reader cannot apply
+ * (a missing or mistyped closing fence), so the note is not shared.
  */
 function readHeader(raw: string, parse: StrictYaml): Header {
   const none: Header = { data: {}, scalar: () => undefined, error: false };
+  if (OPEN_FENCE.test(raw) && headerOf(raw) === null) return { ...none, error: LABEL_LINE.test(raw) };
   try {
     const fm = readFrontmatter(raw, parse);
     return { data: fm.data, scalar: (k) => fm.scalars.get(k) ?? (typeof fm.data[k] === "string" ? fm.data[k] as string : undefined), error: false };
@@ -93,7 +101,7 @@ function linkTexts(v: unknown): string[] {
 }
 
 /** Authored sensitivity: flat string, `{ level }` mapping, or a `gkx:` block's. Anything else present is reported as written (and fails closed). */
-function authoredSensitivity(data: Rec): string | undefined {
+export function authoredSensitivity(data: Rec): string | undefined {
   const pick = (holder: Rec): string | undefined => {
     if (!hasOwn(holder, "sensitivity")) return undefined;
     const v = holder.sensitivity;
@@ -306,8 +314,10 @@ export class ObsidianPersonalSource implements PersonalVaultSource {
       } catch { this.rootReal = null; }
     }
     const ok = this.rootReal ? isPhysicallyContained(this.rootReal, path, fs, pathMod) : false;
-    if (this.containment.size > 10_000) this.containment.clear();
-    this.containment.set(path, ok);
+    // Only paths that exist are remembered: the vault bounds their number and
+    // invalidate() drops them on create, delete and rename. (A size cap that
+    // cleared the map made every request re-check a large vault on the main thread.)
+    if (this.app.vault.getAbstractFileByPath(path)) this.containment.set(path, ok);
     return ok;
   }
 }

@@ -544,7 +544,7 @@ export class KosmosSettingTab extends PluginSettingTab {
     };
     this.quickConnectState ??= initialQuickConnectState(source);
     renderQuickConnect(connectEl.createDiv(), source, this.quickConnectState);
-    new Setting(connectEl).setName("Step-by-step connection guide").setDesc("Writes AGENT-API.md into your vault with your address and token filled in.")
+    new Setting(connectEl).setName("Step-by-step connection guide").setDesc("Writes AGENT-API.md into your vault with your address filled in. The token is not written to a note; copy it from Quick connect above.")
       .addButton((b) => b.setButtonText("Write guide to vault").setCta().onClick(async () => {
         await this.plugin.writeAgentGuide();
       }));

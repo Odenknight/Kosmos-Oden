@@ -704,3 +704,18 @@ test("source: the embedding server has exactly one request, behind the address c
   const entry = strip(readFileSync(new URL("../src/semantic/worker-entry.ts", import.meta.url), "utf8"));
   assert.match(entry, /createEmbedder: async \(files, recipe\) => \{\s*await \(ortReady \?\?=/, "the runtime is only unpacked when a model is loaded");
 });
+
+test("client: a server that answers 500 or 429 to everything is a server problem, not a failed text", async () => {
+  for (const status of [500, 429]) {
+    const down = scripted(() => ({ status, text: "{\"error\":\"internal error\"}" }));
+    const c = new EmbeddingClient(config({ api: "openai" }), down);
+    await assert.rejects(c.embed(["one passage of text", "another passage"], "passage"), (e) => e.kind === "unavailable" && e.status === status && e.code === SERVER_ERROR_CODE);
+    assert.ok(down.calls.length <= 6, `${status}: a handful of requests, then indexing pauses (${down.calls.length})`);
+    assert.equal(down.calls.at(-1).body.input[0], "probe", "the last request asks whether the server embeds one word");
+  }
+  // One text the server chokes on while it answers others: that text fails, indexing goes on.
+  const picky = scripted((url, body) => (body.input.some((t) => t.startsWith("!")) ? { status: 500, text: "" } : ok(body.input.map((t) => serverVector(t)))));
+  const c = new EmbeddingClient(config({ api: "openai" }), picky);
+  await assert.rejects(c.embed(["!a text this server cannot take"], "passage"), (e) => e.kind === "http" && e.status === 500 && e.code === "");
+  assert.equal((await c.embed(["a fine passage"], "passage")).length, 1);
+});

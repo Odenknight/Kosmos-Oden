@@ -1,6 +1,6 @@
 # Kosmos-Oden v0.9.5 (alpha)
 
-**Build:** `kosmos-oden-0.9.5-alpha.2` · **Plugin version:** 0.9.5 ·
+**Build:** `kosmos-oden-0.9.5-alpha.3` · **Plugin version:** 0.9.5 ·
 **Needs:** Obsidian 1.13.0 or newer · **Status:** alpha, not a qualified
 release (see [Honest status](#honest-status)).
 
@@ -31,7 +31,7 @@ only by the words they contain.
 ### 1. Install the alpha
 
 1. Close Obsidian.
-2. Unzip `kosmos-oden-0.9.5-alpha.2.zip`. It holds a `kosmos-oden/` folder.
+2. Unzip `kosmos-oden-0.9.5-alpha.3.zip`. It holds a `kosmos-oden/` folder.
 3. Copy that folder into `<your vault>/.obsidian/plugins/kosmos-oden/`,
    replacing the old one if there is one.
 4. Start Obsidian and switch on **Kosmos-Oden** under **Settings → Community
@@ -137,6 +137,28 @@ Where to read more, further down this page:
 
 ## What's new in 0.9.5
 
+New in build alpha.3 (fixes from a code review of alpha.2; no new features):
+
+- **Notes you labelled stay private in more places.** The Map of Content no
+  longer lists a note whose sensitivity label keeps it from assistants, a
+  note whose frontmatter fence is missing or mistyped is no longer shared
+  when a label is written under it, **Convert all** no longer stamps
+  unlabelled notes with a lower level than your Default sensitivity, and a
+  note's diagnostics no longer carry the title of a hidden note.
+- **The token is never written into a note.** **Write guide to vault** now
+  writes `AGENT-API.md` with your address only; copy the token from Quick
+  connect.
+- **Safer Nextcloud sync.** A run never uses records kept for another server
+  or folder, a local deletion goes to the trash, and plain HTTP is accepted
+  only for a real private address (`http://10.example.com` is refused).
+- **A steadier semantic index.** Saves no longer overlap, an index file that
+  cannot be read is left alone, and an embedding server that answers every
+  request with an error pauses indexing where it used to mark every note
+  failed.
+- **The Map of Content command creates a folder's first index** (it failed
+  when no index existed yet), and agent requests stay fast in vaults of more
+  than 10,000 shared notes.
+
 New in build alpha.2:
 
 - **Use your own embedding server.** Semantic search can use llama.cpp,
@@ -199,9 +221,10 @@ Full entries: [CHANGELOG.md](CHANGELOG.md). Design notes:
   - `get_related`: notes linked to or from a note, sharing a tag, or close in meaning
   - `get_lineage`: which shared notes supersede which
 - Ask the Librarian from a browser at `/ui`.
-- Generate a deterministic Map of Content for a folder.
+- Generate a deterministic Map of Content for a folder. Notes whose
+  sensitivity label keeps them from assistants are left out of it.
 - Optionally sync one vault folder with Nextcloud (off by default, not a
-  backup).
+  backup). Local deletions made by sync go to the trash.
 
 **For governed vaults**
 
@@ -267,6 +290,13 @@ shared by whatever already shares your files.
 
 ## Updates
 
+**Since build alpha.2** (still version 0.9.5): eleven fixes from a code review,
+listed under [What's new](#whats-new-in-095) and in the changelog. What you
+will notice on upgrade: `AGENT-API.md` no longer contains your token, a Map
+of Content leaves out notes labelled above the assistant ceiling, and a
+Nextcloud URL such as `http://10.example.com` now needs HTTPS. Settings,
+tokens, notes and an existing semantic index are unchanged.
+
 **Since build alpha.1** (still version 0.9.5): the embedding server engine, the
 Librarian fixes and the Librarian speed work. `ask_librarian` responses gain
 two fields, `unmatched` and `phrases_missing`; nothing was removed. Settings,
@@ -294,8 +324,10 @@ The full list, with the changes and security notes of each version, is in
 ## Honest status
 
 - **This is an alpha**, not a qualified release.
-- **Automated checks pass:** `npm run verify` gave 809 tests passing and 0
-  failing for build alpha.2 (771 at alpha.1, commit `33c8945`). The five
+- **Automated checks pass:** `npm run verify` gave 818 tests passing and 0
+  failing for build alpha.3 (809 at alpha.2, 771 at alpha.1, commit
+  `33c8945`). The alpha.3 fixes each have a test; none was tried inside a
+  real Obsidian. The five
   listed embedding models were each run for real in a headless Chromium
   browser at alpha.1 (80 of 80 smoke checks); that run was not repeated.
 - **The embedding server route was tried against real servers, outside
@@ -686,7 +718,8 @@ Obsidian Secret Storage.
 
 Sync compares local SHA-256 values, remote ETags, and the last common state.
 When both sides changed, the remote bytes are preserved as a timestamped
-conflict copy. Deletion propagation is off by default. `.git/**`, `.trash/**`,
+conflict copy. Deletion propagation is off by default; when it is on, a file
+sync deletes locally goes to the trash, not away for good. `.git/**`, `.trash/**`,
 and `.obsidian/**` are excluded by default; `.obsidian` can be opted in, but
 Kosmos's credential-bearing plugin data remains forcibly excluded.
 

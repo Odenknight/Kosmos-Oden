@@ -28,6 +28,10 @@
 | Embedding server engine (this computer or the private network) | done, alpha.2 | `src/semantic/endpoint.ts`, `remote.ts`, `src/plugin/embedding-endpoint.ts`, `src/ui/semantic-settings.ts` |
 | Librarian: `unmatched`, `phrases_missing`, stricter `strong`, filler typos, grounded related words, `C++`/`C#` | done, alpha.2 | `src/personal-notes/librarian.ts` |
 | Librarian speed: word scanner, written-word cache, single pass per note, heap selection | done, alpha.2 | same; `benchmarks/librarian-bench.mjs` |
+| Review fixes: label privacy (MoC, fence, conversion, diagnostics, guide token) | done, alpha.3 | `src/plugin/main.ts`, `personal-source.ts`, `gkx-migration.ts`, `agent-server.ts` |
+| Review fixes: Nextcloud sync scope, trash, HTTP host rule | done, alpha.3 | `src/plugin/nextcloud-sync.ts`, `nextcloud-sync-core.ts` |
+| Review fixes: semantic index saves, unreadable index, failing embedding server | done, alpha.3 | `src/semantic/service.ts`, `remote.ts` |
+| Review fixes: first Map of Content, containment cache | done, alpha.3 | `src/personal-notes/moc-run.ts`, `src/plugin/personal-source.ts` |
 
 ## Evidence
 

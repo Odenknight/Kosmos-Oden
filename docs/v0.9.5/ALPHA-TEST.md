@@ -15,6 +15,25 @@
   52–106 ms each. `pydantc` was corrected to `pydantic`; a question the vault
   does not answer came back `weak` rather than `strong`.
 
+## Verified for build alpha.3 (2026-11-15)
+
+- `npm run verify`: **818 tests**, 0 failing, and every guard (Windows 11,
+  Node 24.18.0).
+- Nine new tests, one or more per fix: `test/nextcloud-sync.test.mjs` (state
+  for another scope, HTTP host rule), `test/personal-plugin.test.mjs`
+  (frontmatter fence, token-free guide, containment cache, Map of Content
+  through the real plugin, conversion default), `test/personal-moc-run.test.mjs`
+  (first index), `test/agent-api.test.mjs` (hidden title in diagnostics),
+  `test/semantic-endpoint.test.mjs` (server answering 500 or 429 to
+  everything), `test/semantic.test.mjs` (serialised saves, unreadable index).
+- The hidden-title leak in diagnostics was reproduced on the alpha.2 code
+  before the fix (a readable note superseding a `secret` one with a later
+  timestamp).
+- Not done: nothing in alpha.3 was run inside a real Obsidian or on a phone.
+  Still to try by hand: a Nextcloud sync with **Propagate deletions** on (the
+  deleted file should be in the trash), the first Map of Content of a folder,
+  and **Write guide to vault**.
+
 ## Verified for build alpha.2 (2026-11-14)
 
 - `npm run verify`: **809 tests**, 0 failing, and every guard.

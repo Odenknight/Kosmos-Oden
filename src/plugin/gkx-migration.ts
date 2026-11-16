@@ -59,7 +59,12 @@ export async function scanVaultForGkx(app: App, mode: GkxMigrationMode = "safe-o
       modifiedTime: file.stat.mtime,
     });
   }
-  return { plan: await createGkxMigrationPlan(sources, { mode }), excluded };
+  // A note without a label is stamped with the level it already has. In the
+  // GKX profile that is the Default sensitivity setting: the Engine's own
+  // default ("internal") would lower a stricter one and widen what agents read.
+  // Personal Notes shares unlabelled notes, so the Engine default never widens there.
+  const sensitivity = settings && settings.activeProfile !== "personal" ? settings.defaultSensitivity : undefined;
+  return { plan: await createGkxMigrationPlan(sources, { mode, ...(sensitivity ? { sensitivity } : {}) }), excluded };
 }
 
 function persistedResult(result: GkxMigrationApplyResult): string {

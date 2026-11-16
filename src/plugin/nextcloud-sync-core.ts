@@ -1,4 +1,5 @@
 /** Pure, DOM-free Nextcloud sync settings, URL, exclusion, and three-way planning logic. */
+import { isGkxLoopbackHost, isGkxPrivateLanIpLiteral } from "gkos-engine";
 export const NEXTCLOUD_SYNC_SCHEMA = 2;
 export const OBSIDIAN_CONFIG_PATTERN = ".obsidian/**";
 /** Kosmos-Oden's own plugin data holds the Agent API credential and local
@@ -113,9 +114,18 @@ export function buildNextcloudDavRoot(serverUrl: string, username: string, remot
 }
 function validateTransport(url: URL): void {
   if (url.protocol === "https:") return; if (url.protocol !== "http:") throw new Error("Nextcloud URL must use HTTPS");
-  const h = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  const privateHost = h === "localhost" || h === "127.0.0.1" || h === "::1" || h.startsWith("10.") || h.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /^169\.254\./.test(h) || /^f[cd][0-9a-f]{2}:/i.test(h) || /^fe[89ab][0-9a-f]:/i.test(h);
+  // Literal addresses only: a prefix test would accept a public DNS name such as 10.example.com.
+  const privateHost = isGkxLoopbackHost(url.hostname) || isGkxPrivateLanIpLiteral(url.hostname);
   if (!privateHost) throw new Error("HTTP is allowed only for a literal private or loopback Nextcloud address; use HTTPS for hostnames");
+}
+/**
+ * The saved state a run may plan with. State recorded for another server,
+ * account or folder describes different files: planned against this one it
+ * reads every local file as "deleted on Nextcloud". Such state is dropped.
+ */
+export function stateForScope(state: NextcloudSyncState, settings: NextcloudSettings): NextcloudSyncState {
+  const scope = syncScope(settings);
+  return state.scope === scope ? state : emptyNextcloudState(scope);
 }
 export function syncScope(settings: NextcloudSettings): string {
   if (!settings.serverUrl || !settings.username) return "";

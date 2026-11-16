@@ -8,6 +8,8 @@ import {
   migrateNextcloudState,
   planSync,
   safeRelativePath,
+  stateForScope,
+  syncScope,
 } from "../dist/kosmos-nextcloud-sync.mjs";
 
 const L = (hash) => ({ hash, size: 1 });
@@ -98,4 +100,25 @@ test("sync state resets when the remote scope changes", () => {
   const old = { schemaVersion: 2, scope: "one", files: { "a.md": S("a", "1") } };
   assert.equal(Object.keys(migrateNextcloudState(old, "one").files).length, 1);
   assert.equal(Object.keys(migrateNextcloudState(old, "two").files).length, 0);
+});
+
+test("a run never plans with state recorded for another server or folder", () => {
+  const settings = migrateNextcloudSettings({ serverUrl: "https://cloud.example.com", username: "ada", remoteFolder: "New" });
+  const other = { schemaVersion: 2, scope: syncScope({ ...settings, remoteFolder: "Old" }), files: { "a.md": S("a", "1") } };
+  // With the old state, an unchanged local file missing from the new folder would be planned as a local delete.
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, other.files, true).map((a) => a.kind), ["delete-local"]);
+  const used = stateForScope(other, settings);
+  assert.equal(used.scope, syncScope(settings));
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, used.files, true).map((a) => a.kind), ["upload"]);
+  const same = { schemaVersion: 2, scope: syncScope(settings), files: { "a.md": S("a", "1") } };
+  assert.equal(stateForScope(same, settings), same);
+});
+
+test("plain HTTP is refused for a hostname that only looks like a private address", () => {
+  for (const url of ["http://10.evil.example", "http://192.168.evil.example", "http://172.16.evil.example", "http://169.254.evil.example", "http://fc00.example", "http://127.0.0.1.evil.example"]) {
+    assert.throws(() => buildNextcloudDavRoot(url, "ada", "Vault"), /HTTP is allowed only/, url);
+  }
+  for (const url of ["http://10.0.0.5", "http://192.168.1.20:8080", "http://172.20.0.2", "http://127.0.0.1", "http://localhost", "http://[::1]", "http://[fd00::1]"]) {
+    assert.ok(buildNextcloudDavRoot(url, "ada", "Vault").startsWith("http://"), url);
+  }
 });

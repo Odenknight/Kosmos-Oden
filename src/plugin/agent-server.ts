@@ -1251,13 +1251,29 @@ export class KosmosAgentServer {
           approved: n.gkx.projection.approved,
           effective: n.gkx.projection.effective,
           extensions: n.gkx.projection.extensions,
-          assessment: n.gkx.projection.assessment,
-          diagnostics: n.gkx.projection.diagnostics,
+          assessment: this.safeAssessment(n.gkx.projection.assessment),
+          diagnostics: this.safeNoteDiagnostics(n.gkx.projection.diagnostics),
         } : null,
       } : null,
       links: { outgoing, backlinks, semantic },
       content: this.capContent(content ?? ""),
     };
+  }
+
+  /**
+   * A readable note's own diagnostics. The graph build adds lineage and
+   * shared-UID diagnostics whose text is written from other notes as well and
+   * can carry the title of one this connector may not read (the same strings
+   * safeDiagnostics withholds). Their code, severity and field stay; the text does not.
+   */
+  private safeNoteDiagnostics<T extends { code: string; message: string }>(diagnostics: readonly T[]): T[] {
+    return diagnostics.map((d) => /^GKX-(?:LINEAGE-|IDENTITY-00[34]$)/.test(d.code)
+      ? { ...d, message: "Details are withheld on this connector; open the note in Obsidian to see them." }
+      : d);
+  }
+
+  private safeAssessment<T extends { diagnostics: readonly { code: string; message: string }[] }>(assessment: T): T {
+    return { ...assessment, diagnostics: this.safeNoteDiagnostics(assessment.diagnostics) };
   }
 
   private async gkxNode(sel: { path?: string; title?: string; uid?: string }): Promise<{ graph: GkxGraph; node: GkxNode } | null> {
@@ -1282,7 +1298,8 @@ export class KosmosAgentServer {
   async qAssessment(sel: { path?: string; title?: string; uid?: string }): Promise<any> {
     const found = await this.gkxNode(sel);
     if (!found) return { error: "assessment not found" };
-    return found.node.gkx?.projection?.assessment ?? {
+    const assessment = found.node.gkx?.projection?.assessment;
+    return assessment ? this.safeAssessment(assessment) : {
       error: "Readable note has no GKX validating projection; no assessment is available. Use get_note to inspect its source metadata.",
       code: "GKX_PROJECTION_UNAVAILABLE", path: found.node.path,
     };
@@ -1292,7 +1309,7 @@ export class KosmosAgentServer {
     const found = await this.gkxNode(sel);
     const p = found?.node.gkx?.projection;
     if (!found) return { error: "diagnostics not found" };
-    return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: p.diagnostics } : {
+    return p ? { targetUid: p.authored.uid ?? null, path: p.sourcePath, count: p.diagnostics.length, diagnostics: this.safeNoteDiagnostics(p.diagnostics) } : {
       error: "Readable note has no GKX validating projection; no projection diagnostics are available. Use get_note to inspect its source metadata.",
       code: "GKX_PROJECTION_UNAVAILABLE", path: found.node.path,
     };

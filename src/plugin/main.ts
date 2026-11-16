@@ -13,7 +13,7 @@
 import { ItemView, Notice, Plugin, TFile, TFolder, WorkspaceLeaf, normalizePath, parseYaml } from "obsidian";
 import EMBED_HTML_B64 from "../../dist/kosmos-embed.html";
 import { KOSMOS_VERSION } from "../kosmos-version";
-import { GRAPHITI_INGEST_SCRIPT, graphitiIngestionProfile } from "gkos-engine";
+import { GRAPHITI_INGEST_SCRIPT, SENSITIVITY_RANK, graphitiIngestionProfile } from "gkos-engine";
 import type { GkxMigrationMode } from "gkos-engine";
 import { DEFAULT_AGENT_SETTINGS, KosmosAgentServer, getProfileSettingsMigration, makeToken, migrateAgentSettings, type AgentSettings } from "./agent-server";
 import { PersonalError, type ActiveProfile, type LineageInputNote, type PersonalNotesSettings, type SearchResponse } from "../personal-notes/types";
@@ -26,7 +26,8 @@ import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } fro
 import { checkSupersedesProposal } from "../personal-notes/lineage";
 import { sha256Hex } from "../personal-notes/hash";
 import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./personal-runtime";
-import { ObsidianPersonalSource, strictYaml } from "./personal-source";
+import { ObsidianPersonalSource, authoredSensitivity, strictYaml } from "./personal-source";
+import { decidePersonalRead } from "../personal-notes/policy";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
 import { createSemantic, type SemanticHandle } from "./semantic-host";
@@ -1292,12 +1293,26 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     const host = this.writerHost(root);
     const vault = this.app.vault;
     const metaCache = this.app.metadataCache;
+    const frontmatterOf = (path: string): Record<string, unknown> => {
+      const file = vault.getAbstractFileByPath(path);
+      return (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
+    };
+    // The index carries no label of its own, so an assistant may read it. A note
+    // whose label keeps it from assistants (above the ceiling, or not a known
+    // level) is left out, or its title and summary would be shared through the index.
+    const open = { policy: { generation: 0, allowsPath: () => true }, source: { physicallyContained: () => true }, sensitivityRank: SENSITIVITY_RANK, ceiling: this.agentSettings.agentSensitivityCeiling };
+    const leftOut = new Set<string>();
+    const shareable = (path: string): boolean => {
+      const label = authoredSensitivity(frontmatterOf(path));
+      if (decidePersonalRead(path, label === undefined ? {} : { authoredSensitivity: label }, open).allowed) return true;
+      if (path.slice(0, path.lastIndexOf("/")) === folder) leftOut.add(path);
+      return false;
+    };
     const io: MocFolderIo = {
       ...host,
-      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path),
+      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path).filter(shareable),
       meta: (path) => {
-        const file = vault.getAbstractFileByPath(path);
-        const fm = (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
+        const fm = frontmatterOf(path) as Record<string, any>;
         const list = (value: unknown): string[] | null =>
           Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : typeof value === "string" ? [value] : null;
         const aliases = list(fm.aliases);
@@ -1329,7 +1344,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
         return;
       }
       const entries = plan.entries.length;
-      new Notice(`Kosmos-Oden: ${plan.action === "create" ? "created" : "updated"} ${plan.target} (${entries} note${entries === 1 ? "" : "s"}).`);
+      const hidden = leftOut.size ? ` ${leftOut.size} note${leftOut.size === 1 ? " is" : "s are"} not listed: the sensitivity label keeps ${leftOut.size === 1 ? "it" : "them"} from assistants.` : "";
+      new Notice(`Kosmos-Oden: ${plan.action === "create" ? "created" : "updated"} ${plan.target} (${entries} note${entries === 1 ? "" : "s"}).${hidden}`);
     } catch (error) {
       new Notice(`Kosmos-Oden: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -1425,7 +1441,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     try {
       const engine = new NextcloudSyncEngine(
         this.app, this.nextcloudSettings, this.nextcloudState, this.getNextcloudPassword(),
-        async (state) => { this.nextcloudState = state; await this.savePluginData(); },
+        // Settings may have moved to another server or folder while this run
+        // was going; its state belongs to the old one and must not replace the new.
+        async (state) => { if (state.scope === syncScope(this.nextcloudSettings)) { this.nextcloudState = state; await this.savePluginData(); } },
         this.manifest.dir,
       );
       const result = await engine.run();
@@ -1461,16 +1479,17 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (without a token; copy it from Connect my AI)");
       return;
     }
+    // The token never goes into a note: a note is synced, indexed and readable by the agents the token admits.
     const md = buildAgentGuide(
       this.agentSettings.agentPort,
-      this.agentSettings.agentToken || "<enable the API to generate a token>",
+      "<paste your token: Settings → Kosmos-Oden → Quick connect>",
       this.agentSettings.agentBindMode,
       this.agentLanUrls(),
       installedBridgePath(this.app, this),
       this.agentSettings.agentLegacyMcp !== false,
     );
     await this.app.vault.adapter.write("AGENT-API.md", md);
-    new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (with your address + token filled in)");
+    new Notice("Kosmos-Oden: wrote AGENT-API.md to your vault root (with your address; the token is not written to a note, copy it from Quick connect)");
   }
 
   onunload(): void {

@@ -9,6 +9,7 @@ export {
   normalizeRemotePath,
   planSync,
   safeRelativePath,
+  stateForScope,
   syncScope,
 } from "./nextcloud-sync-core";
 export type { LocalEntry, RemoteEntry, SyncRecord } from "./nextcloud-sync-core";
