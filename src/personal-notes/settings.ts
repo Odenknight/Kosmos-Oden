@@ -8,6 +8,7 @@
  */
 import type { ActiveProfile, PersonalNotesSettings } from "./types";
 import { parseFolderList, type FolderListResult } from "./scope";
+import { normalizeSemanticSettings } from "../semantic/settings";
 
 export const PERSONAL_SETTINGS_SCHEMA = 11;
 
@@ -137,6 +138,8 @@ export function migrateProfileSettings(raw: unknown, opts: ProfileMigrationOptio
       takeScope("importReportPaths", pn.importReportPaths, "Import reports", false);
       personalNotes.tagging = migrateTagging(pn.tagging, notices);
       personalNotes.connection = migrateConnection(pn.connection, notices, (m) => fail(m));
+      // Semantic search (0.9.5). Malformed = off; it never affects what is shared.
+      if (pn.semantic !== undefined) personalNotes.semantic = normalizeSemanticSettings(pn.semantic);
     }
   } else if (removedKeys.length) {
     // Patch schema 10: carry the user's folder choices over; never discard them.

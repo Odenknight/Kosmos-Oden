@@ -1,4 +1,342 @@
-# Kosmos-Oden — v0.9.0
+# Kosmos-Oden v0.9.5 (alpha)
+
+**Build:** `kosmos-oden-0.9.5-alpha.2` · **Plugin version:** 0.9.5 ·
+**Needs:** Obsidian 1.13.0 or newer · **Status:** alpha, not a qualified
+release (see [Honest status](#honest-status)).
+
+Kosmos-Oden is an Obsidian plugin that does three things with the Markdown
+notes you already have:
+
+- **Shows them as a universe you can fly through.** Folders become galaxies,
+  connected notes become stars and planets, loose notes become asteroids,
+  attachments become a distant cloud.
+- **Lets you search them**, by the words in them and, if you switch it on, by
+  meaning.
+- **Lets an AI assistant read the folders you choose**, and nothing else.
+
+Your notes stay ordinary Markdown files. Ordinary viewing is local and
+read-only, and a standalone viewer also works without Obsidian or the
+internet.
+
+![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
+
+## Start here (for anyone who keeps notes in Obsidian)
+
+You do not need to know anything about governance, GKX or MCP to use any of
+this. A few words used below: **MCP** is the standard way an AI assistant
+connects to a tool; a **token** is a private key that only lets your own
+assistant in; **semantic search** means finding notes by what they mean, not
+only by the words they contain.
+
+### 1. Install the alpha
+
+1. Close Obsidian.
+2. Unzip `kosmos-oden-0.9.5-alpha.2.zip`. It holds a `kosmos-oden/` folder.
+3. Copy that folder into `<your vault>/.obsidian/plugins/kosmos-oden/`,
+   replacing the old one if there is one.
+4. Start Obsidian and switch on **Kosmos-Oden** under **Settings → Community
+   plugins**.
+5. Run **Open Kosmos-Oden** from the command palette to fly through your notes.
+
+Full steps, including upgrading from 0.9.0: [docs/v0.9.5/ALPHA-INSTALL.md](docs/v0.9.5/ALPHA-INSTALL.md).
+
+### 2. Bring in and search your notes (Personal Notes)
+
+**Personal Notes** is the profile for everyday notes. They need no special
+formatting and no labels. A new installation starts in it with nothing shared
+and the connection off.
+
+- **Add notes from another app** walks you through bringing in Google Keep or
+  OneNote notes. The conversion itself is done by Obsidian's own **Importer**
+  community plugin.
+- **Search my notes** (also the search icon in the ribbon) searches your whole
+  vault by words. Put an exact phrase in quotes.
+- **Optional tags** (off until you turn it on) can add time stamps, permanent
+  IDs and "this note replaces that one" links, after showing you every change
+  first and saving a backup.
+
+Details: [docs/PERSONAL-NOTES.md](docs/PERSONAL-NOTES.md).
+
+### 3. Turn on search by meaning (optional)
+
+A word search cannot find a note that says the same thing in other words:
+"my computer will not start" does not contain "boot". Semantic search can.
+It is off until you switch it on, it runs inside Obsidian, and nothing else
+needs installing.
+
+1. Open **Settings → Kosmos-Oden → Semantic search**.
+2. Switch **Search by meaning** on.
+3. Pick an **Embedding model** from the list and press **Download**. The
+   models are 24 to 135 MB, and each is published under the MIT or Apache-2.0
+   licence. (Or choose **Use my own model files…** and select an ONNX model
+   and its tokenizer that you already have.)
+4. The index builds in the background; the **Index** line shows progress.
+   Search works while it builds.
+
+The index is one SQLite file the plugin writes in its own folder. It holds note
+paths and numbers, never note text. With the built-in model, the model
+download is the only network request, and it carries no note text. Guide,
+model list and limits:
+[docs/v0.9.5/SEMANTIC-SEARCH.md](docs/v0.9.5/SEMANTIC-SEARCH.md).
+
+**If you already run an embedding server** (llama.cpp, Ollama, LM Studio and
+others), you can use it instead of the built-in model:
+
+1. Under **Where embeddings are made**, choose **Embedding server**.
+2. Type its **Address**, or press the button that fills it in:
+   `http://127.0.0.1:8080` for llama.cpp on this computer,
+   `http://127.0.0.1:11434` for Ollama on this computer. For a server on
+   another computer in your home or office, type that computer's address, for
+   example `http://192.168.1.20:8080`.
+3. Press **Test connection**, then switch **Search by meaning** on.
+
+Only this computer and private-network addresses are accepted, so note text
+cannot be sent to the internet by mistake. With a server, note passages and
+your questions are sent to that address and nowhere else. Steps for each
+server: [Use an embedding server](docs/v0.9.5/SEMANTIC-SEARCH.md#use-an-embedding-server).
+
+### 4. Connect an AI assistant (optional)
+
+1. Run the **Connect my AI** command (or find the same windows under
+   **Settings → Kosmos-Oden → Agent API (HTTP + MCP)** → Personal Notes).
+2. Under **Folders shared with agents**, turn on **Whole vault** or individual
+   folders, list anything under **Never share**, and press **Save shared
+   folders**. Nothing chosen means nothing is shared.
+3. Press **Connect**. The first time, it makes a key (token) for this
+   computer.
+4. Under Quick Connect press **Copy configuration** for your assistant
+   (Claude Code, OpenAI Codex or another MCP client) and paste it there.
+5. Press **Test connection** to check.
+
+The assistant can only read; it cannot change, create or delete anything. A
+note outside the shared folders looks to it as if it did not exist. The key
+stays on this computer. If your assistant runs in the cloud, the notes it reads
+are sent to that service. Connecting needs desktop Obsidian and works only
+while Obsidian is open.
+
+You can also open `http://127.0.0.1:4816/ui` in a browser on the same computer,
+enter the token once, and ask a question yourself. It is a search box that
+needs no AI service.
+
+## Governance is an option
+
+Kosmos-Oden also supports **governed vaults**: notes with GKX metadata,
+recorded lineage (which note supersedes which), validation by the GKOS-Engine,
+and the governed agent tools. They are there for people who want them. **Nobody
+has to use them**; the sections above work without any of it. The governed
+behaviour is the **Existing** profile; an upgraded installation stays on it
+until you switch to Personal Notes, and switching back restores its settings.
+
+Where to read more, further down this page:
+[Lineage, time, and GKX](#lineage-time-and-gkx) ·
+[Obsidian Agent API and Graphiti](#obsidian-agent-api-and-graphiti) ·
+[Human-controlled GKX improvement](#human-controlled-gkx-improvement) ·
+[Watch authorized agent activity](#watch-authorized-agent-activity) ·
+[Agent API reference](AGENT-API.md) ·
+[GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)
+
+## What's new in 0.9.5
+
+New in build alpha.2:
+
+- **Use your own embedding server.** Semantic search can use llama.cpp,
+  Ollama, LM Studio or any OpenAI-compatible embedding server, on this
+  computer (`127.0.0.1`) or on your private network, instead of the built-in
+  model. One address field, a **Test connection** button, and a rule that
+  refuses public addresses. The built-in model stays the default.
+- **A more honest Librarian.** It now says which words of your question are
+  in no note, says when a quoted phrase is in no note, and calls an answer
+  `strong` less freely. It reads "C++" and "C#" as words and treats a misspelt
+  "wher" as "where".
+- **A faster Librarian.** Indexing 10,000 notes takes about half the time
+  (2.46 s to 1.22 s on the build machine) and a question about a quarter less
+  (17.9 ms to 13.3 ms). Memory use is unchanged, not lower.
+
+In 0.9.5 since alpha.1:
+
+- **Search by meaning, inside the plugin.** Off by default. A model list
+  limited to MIT and Apache-2.0 licences, or your own model files. Nothing else
+  to install: no Python, no Ollama, no server, no account. The index is a
+  SQLite file the plugin writes, with no note text in it.
+- **Hybrid `ask_librarian`.** Answers a whole question by words always, and by
+  meaning when semantic search is on. Each result says how it was found, and
+  the answer says whether meaning was used. If semantic search is off, loading
+  or failing, you get exactly the word-based answer.
+- **The Librarian.** One question instead of keywords. It ranks by words,
+  related words and name similarity, and returns the passages that answer,
+  numbered steps, web links (forms flagged) and the notes to read next. It
+  uses no AI model, no tokens and no network, and the same question over the
+  same notes gives the same answer.
+- **Map of Content.** The command **Update this folder's map of content
+  (deterministic)** writes one index note for a folder, the same bytes for the
+  same notes. It replaces only the block between its own markers, saves an
+  exact backup first, and refuses a file it did not create.
+- **The `/ui` page.** A one-page search box served by the plugin at
+  `http://127.0.0.1:4816/ui` that shows the Librarian's answer and says whether
+  the search used words and meaning or words only.
+
+Full entries: [CHANGELOG.md](CHANGELOG.md). Design notes:
+[docs/v0.9.5/LIBRARIAN-AND-MOC.md](docs/v0.9.5/LIBRARIAN-AND-MOC.md).
+
+## What it can do today
+
+**For everyone**
+
+- Fly through your notes as a 3D universe, in Obsidian or as a standalone
+  offline HTML file, with Overview, Focus, Depth, Fly, Search, Chrono, Grow and
+  Trailer modes.
+- Bring in Google Keep and OneNote notes through the Obsidian Importer, then
+  review what arrived.
+- Search your whole vault by words (**Search my notes**).
+- Search by meaning (optional, off by default).
+- Add optional rule-based tags: time stamps, permanent IDs, "supersedes" links.
+- Connect an AI assistant that reads only the folders you share. Six read-only
+  tools:
+  - `vault_overview`: how many notes it can read and what the connection supports
+  - `search_notes`: word search over the shared folders
+  - `ask_librarian`: answers a whole question with passages, steps, links and related notes
+  - `get_note`: the exact text of one note, in pages for long notes
+  - `get_related`: notes linked to or from a note, sharing a tag, or close in meaning
+  - `get_lineage`: which shared notes supersede which
+- Ask the Librarian from a browser at `/ui`.
+- Generate a deterministic Map of Content for a folder.
+- Optionally sync one vault folder with Nextcloud (off by default, not a
+  backup).
+
+**For governed vaults**
+
+- GKX metadata read through the GKOS-Engine, with one canonical lineage graph
+  and the GKX 2.3 validating projection.
+- Optional read-only Navigation; the Chrono view of which versions were valid
+  when.
+- The governed (Existing profile) Agent API: graph, search, note, lineage,
+  related-note, temporal, diagnostics, assessment, policy, evidence,
+  relationship and paginated Graphiti query surfaces over REST and MCP.
+- Explicit GKX audit, repair and conversion commands with hash-bound plans and
+  byte-exact backups; reviewed, content-assisted enrichment.
+- Graph and Graphiti episode export from the command line.
+- Watching authorized agent activity in the viewer, with replay.
+
+## Uses at home and in a small business
+
+Everything here runs on your own computer, needs no account and costs nothing
+to run. An AI assistant is optional in every case: the search box and the
+`/ui` page work without one.
+
+**At home**
+
+- **Find the note again.** "Where did I put the boiler service number?" Ask in
+  a sentence; the Librarian returns the note, the passage and any phone
+  number or link in it.
+- **Household procedures.** How to reset the router, what to do when the
+  heating loses pressure, the steps for the car's annual inspection. The
+  answer lists the numbered steps and the notes to read next.
+- **Recipes, manuals, warranties, travel plans.** Bring in years of Google
+  Keep or OneNote notes and search them in one place, by words or by meaning
+  ("something quick with chickpeas" finds a recipe that never says "quick").
+- **Family knowledge in one vault.** A Map of Content gives each folder a
+  contents page that is rebuilt identically each time.
+- **A private assistant.** Share only the folders you choose with a local AI
+  model; with a local embedding server and a local model, no note text leaves
+  the house.
+
+**In a small business**
+
+- **Standard procedures.** "How do I request a new laptop?" returns the
+  procedure, the form link flagged as a form, and the related policies. The
+  same question gives the same answer for everyone, every time.
+- **Onboarding.** A new person asks questions in plain sentences instead of
+  learning the folder structure; a wrong spelling is corrected and reported.
+- **Which version is current.** "What replaced the 2024 expenses policy?"
+  follows the "this note replaces that one" links.
+- **IT and troubleshooting notes.** Error messages, fixes and vendor contacts,
+  found by the words in them or by what they mean.
+- **One embedding server for the office.** Run one llama.cpp or Ollama server
+  on a computer with a graphics card and point every person's Obsidian at its
+  private-network address. The first index of a large vault then takes minutes
+  instead of hours, and nobody's Obsidian has to load a model.
+- **An assistant with a boundary.** An AI assistant reads only the shared
+  folders, cannot write, and a note outside them looks as if it did not exist.
+  Keep HR, finance and client folders under **Never share**.
+- **Governed records, if you need them.** Recorded lineage, validation and
+  audit for notes that must be controlled ([Governance is an option](#governance-is-an-option)).
+
+What it is not: a backup, a document management system with user accounts, or
+a multi-user server. Each person runs it in their own Obsidian; the vault is
+shared by whatever already shares your files.
+
+## Updates
+
+**Since build alpha.1** (still version 0.9.5): the embedding server engine, the
+Librarian fixes and the Librarian speed work. `ask_librarian` responses gain
+two fields, `unmatched` and `phrases_missing`; nothing was removed. Settings,
+tokens, notes and an existing semantic index are unchanged on upgrade, and
+semantic search keeps using the built-in model unless you choose a server.
+
+**Since 0.9.0** (version 0.9.5): semantic search, hybrid `ask_librarian`, the
+Librarian, the Map-of-Content command and `/ui`; the Personal profile lists six
+tools instead of five; `main.js` grows from about 2 MB to about 7.8 MB; three
+new exact-pinned build dependencies (`onnxruntime-web`, `sql.js`,
+`@huggingface/tokenizers`). Settings, tokens and notes are unchanged on
+upgrade; clients that cached the five-tool list should refresh it.
+
+**Since 0.8.4** (the version currently on `main`): everything in 0.9.0 and
+0.9.5. 0.9.0 added the Personal Notes profile, guided Google Keep and OneNote
+import, **Search my notes**, **Connect my AI** with Quick Connect and a
+device-local token, optional rule-based tags, and the Agent API answering older
+MCP clients as well as the modern one. It raised the minimum Obsidian version
+to 1.13.0 (from 1.11.4), faster existing-profile Agent API retrieval with
+identical results, and renderer stability fixes.
+
+The full list, with the changes and security notes of each version, is in
+[CHANGELOG.md](CHANGELOG.md).
+
+## Honest status
+
+- **This is an alpha**, not a qualified release.
+- **Automated checks pass:** `npm run verify` gave 809 tests passing and 0
+  failing for build alpha.2 (771 at alpha.1, commit `33c8945`). The five
+  listed embedding models were each run for real in a headless Chromium
+  browser at alpha.1 (80 of 80 smoke checks); that run was not repeated.
+- **The embedding server route was tried against real servers, outside
+  Obsidian.** The plugin's client received real 768-number vectors from an
+  OpenAI-compatible gateway (LiteLLM) at a private-network address, and gave
+  the right advice to a `llama-server` running without `--embeddings`. Not
+  tried: Ollama's own route against a real Ollama, a server on the same
+  computer (`127.0.0.1`), an API key, and the request from inside Obsidian.
+- **The Librarian still gets some questions wrong.** On a 542-note test
+  folder, 39 of 44 questions put the right note first and one wrong answer was
+  still called `strong`.
+- **Not yet tried by a person inside Obsidian:** the Semantic search settings,
+  the model download, choosing your own model files, and a first index of a
+  real vault. Memory use while indexing a large vault was not measured, and the
+  hybrid ranking has not been scored on a real vault.
+- **The first index is slow.** One CPU thread embeds about 2 to 14 passages per
+  second on the build machine, depending on the model; 10,000 passages take
+  roughly 12 minutes to more than an hour. It runs in the background, resumes
+  if Obsidian closes, and afterwards only changed notes are embedded. Your
+  machine will differ.
+- **`main.js` is about 7.8 MB** (was about 2 MB), because the two runtimes are
+  bundled in it.
+- **"Closest in meaning" does not mean "matching".** A question your notes do
+  not cover still has a closest note. A note found by meaning alone is labelled
+  "found by meaning only", and `confidence` still comes from words.
+- Semantic search is meant for desktop; it was not tried on a phone or tablet.
+  Four of the five listed models are English; Multilingual E5 Small or your
+  own model covers other languages. Only Markdown text is searched: no PDFs,
+  images or OCR.
+- The 0.9.0 trials that need a real Obsidian, real exports or accounts, and a
+  second computer are also still open ([0.9.0 test record](docs/v0.9.0/ALPHA-TEST.md),
+  [0.9.5 test record](docs/v0.9.5/ALPHA-TEST.md)).
+
+Known limits in full:
+[docs/v0.9.5/KNOWN-LIMITATIONS.md](docs/v0.9.5/KNOWN-LIMITATIONS.md) and
+[docs/v0.9.5/SEMANTIC-SEARCH.md](docs/v0.9.5/SEMANTIC-SEARCH.md).
+
+## Earlier version notes
+
+Kept for reference. The 0.9.0 notes are summarised under Updates above; the
+full per-version history is in [CHANGELOG.md](CHANGELOG.md).
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
@@ -7,17 +345,7 @@
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
 
-Turn a folder of Markdown notes into a universe you can explore.
-
-Kosmos-Oden maps folders to galaxies, connected notes to stars and planetary
-systems, loose notes to asteroids, and attachments to a distant Oort cloud.
-Fly through it, search it, rewind it, or simply enjoy seeing the shape of your
-knowledge from a new angle.
-
-Your Markdown remains the source of truth. Ordinary viewing is local and
-read-only, and the standalone viewer works without Obsidian or the internet.
-
-> **Version 0.9.0 (alpha test candidate):** adds the **Personal Notes**
+> **Version 0.9.0 (alpha test candidate, now superseded by 0.9.5):** adds the **Personal Notes**
 > profile for everyday notes that have no GKX formatting. **Add notes from
 > another app** walks you through bringing in Google Keep and OneNote notes
 > with the Obsidian Importer community plugin (which does the conversion).
@@ -67,8 +395,6 @@ The audit reports hash/chain/ACK defects; an ACK never proves task completion.
 The desktop enrichment review saves immutable proposals and explicit human
 decisions separately. Confidence helps filter candidates; it never approves
 changes. See [review behavior and host limits](docs/reviews/2026-09-12-proposal-review-upgrade.md).
-
-![A Kosmos-Oden vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
 ## Pick a launchpad
 
@@ -318,10 +644,18 @@ requires a token and uses unencrypted HTTP, so use a trusted private network or
 a secure tunnel. The standalone-service client described above remains
 loopback-only.
 
-In the Personal Notes profile the same listener serves only five read-only
-tools (`vault_overview`, `search_notes`, `get_note`, `get_related`,
-`get_lineage`) over the shared folders, with exact paged note reads and its own
-device-local token.
+In the Personal Notes profile the same listener serves only six read-only
+tools (`vault_overview`, `search_notes`, `ask_librarian`, `get_note`,
+`get_related`, `get_lineage`) over the shared folders, with exact paged note
+reads and its own device-local token.
+
+As of 0.9.5, `ask_librarian` answers a whole question with a hybrid search: by
+words always, and by meaning when **Semantic search** is turned on in
+Settings. Semantic search runs entirely inside the plugin — pick an MIT or
+Apache-2.0 embedding model from the list and press Download, or select your
+own ONNX model files; the plugin embeds your notes and writes its own SQLite
+index. No other software is needed and no note text leaves the computer. See
+[the semantic search guide](docs/v0.9.5/SEMANTIC-SEARCH.md).
 
 See [Agent API](AGENT-API.md) for exact routes, tools, and setup.
 
@@ -367,6 +701,8 @@ independent, restorable copy of important data.
 - The plugin renderer runs in an opaque-origin sandbox and communicates through
   a closed, versioned message protocol.
 - The Obsidian Agent API is off by default, loopback by default, and read-only.
+- Semantic search is off by default. Its only network request is the model
+  download you start yourself; the index stores no note text.
 - Bearer tokens are generated from a CSPRNG, compared in constant time, and
   never logged. Query-token authentication is deprecated and off by default.
 - Nextcloud and optional model credentials do not enter synchronized plugin
@@ -417,6 +753,7 @@ npm run test:browser
 npm run test:visual
 npm run check:artifacts
 npm run check:renderer-provenance
+npm run bench:librarian
 ```
 
 Build a graph or Graphiti export from a shell:
@@ -444,6 +781,10 @@ exact command, commit, platform, failures, and documented skips.
   message contract
 - [Personal Notes](docs/PERSONAL-NOTES.md)—the 0.9.0 profile for everyday
   notes, and the [0.9.0 alpha documents](docs/v0.9.0/ALPHA-INSTALL.md)
+- [Semantic search](docs/v0.9.5/SEMANTIC-SEARCH.md), the
+  [Librarian and Map of Content](docs/v0.9.5/LIBRARIAN-AND-MOC.md), the
+  [0.9.5 install](docs/v0.9.5/ALPHA-INSTALL.md) and
+  [known limitations](docs/v0.9.5/KNOWN-LIMITATIONS.md)
 - [MCP protocol eras](docs/MCP-PROTOCOL-ERAS.md) and
   [MCP compatibility](docs/v0.9.0/MCP-COMPATIBILITY.md)—which MCP revisions
   the Agent API speaks on each transport

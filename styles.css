@@ -187,3 +187,9 @@
 @media (max-width: 700px) {
   .kosmos-tagging-diff { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Semantic search (0.9.5) */
+.kosmos-semantic-progress { width: 100%; height: 0.5rem; margin: 0 0 0.75rem; accent-color: var(--interactive-accent); }
+.kosmos-semantic-hidden { display: none; }
+.kosmos-semantic-file { max-width: 16rem; }
+.kosmos-semantic-source { margin-top: -0.25rem; }

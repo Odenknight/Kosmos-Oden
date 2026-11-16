@@ -112,6 +112,35 @@ access change; `mcp-compat.ts` holds the era classifier and stateless legacy
 adapter shared by both profiles; `connect-snippets.ts` is the single source
 of client configuration text. The UI windows live in `src/ui/`.
 
+### `src/semantic/` — optional semantic search (0.9.5)
+
+Off by default. Pure modules where possible, tested in Node with a stand-in
+model; nothing here touches the vault or the network.
+
+| Module | Responsibility |
+|---|---|
+| `catalog.ts`, `settings.ts` | The model list (MIT / Apache-2.0 only; pinned commit, size and SHA-256 per file), the custom-model recipe, and the saved settings. |
+| `models.ts` | Model files and index files under `<plugin folder>/semantic/`: download through an injected downloader, verify, import the user's own files, delete. |
+| `chunker.ts` | Heading-aware passages with UTF-16 offsets; a cheap change key per note. |
+| `embedder.ts` | ONNX Runtime WebAssembly (one thread, `wasm` provider) + tokenizer; mean or CLS pooling, L2-normalised vectors. |
+| `store.ts` | The SQLite index (sql.js): path, change key, and per passage offset, length and vector. **No note text.** Exact cosine search restricted to an allowed set of paths. |
+| `engine.ts`, `worker.ts`, `worker-entry.ts` | The worker: embed, store, query, related. Built to `dist/kosmos-semantic-worker.txt` with both WebAssembly binaries inside (gzip + base64), embedded in `main.js` as text and started from a Blob URL. It receives the model and the stored index as bytes and makes no request. |
+| `service.ts` | Owns the worker; keeps the index in step with the corpus in small batches; pause, resume, rebuild; bounded candidates per question. |
+| `controller.ts` | Maps settings to a running model and index, reports one overview for the UI, and implements the `PersonalSemantic` contract the query service consumes. |
+
+`src/plugin/semantic-host.ts` supplies the Obsidian side (the plugin folder,
+SHA-256, the worker, and the **only** network call of the feature: one model
+file from the pinned Hugging Face revision). `src/ui/semantic-settings.ts` is
+the settings section. The plugin, not the Personal runtime, owns the semantic
+object, so switching profile does not reload the model.
+
+In `ask_librarian` the semantic candidates are a fourth list in the same
+reciprocal-rank fusion (`personal-notes/librarian.ts`). The query service
+passes the requester's readable paths with every semantic call and filters the
+answer again, so the semantic side can only reorder and add evidence within
+what the requester may already read. If it is off, loading, slow or failing,
+the lexical answer is returned and `semantic.state` says so.
+
 ### `src/standalone/` — the offline single-file viewer
 `directory-source.ts` (persistent picker + snapshot fallback), `persistence.ts`
 (IndexedDB handle), `directory-monitor.ts` (rescan-and-diff), `ui.ts` (startup
@@ -121,8 +150,9 @@ of client configuration text. The UI windows live in `src/ui/`.
 
 `scripts/build.mjs` is the deterministic generator (Doc1 §3.3): modular TS →
 esbuild bundle → inlined into single-file HTML with `vendor/three.min.js`.
-Outputs: `main.js` (plugin, embeds `dist/kosmos-embed.html` as base64 and the
-Personal search worker as text),
+Outputs: `main.js` (plugin, embeds `dist/kosmos-embed.html` as base64, the
+Personal search worker as text and the semantic worker — with ONNX Runtime and
+SQLite WebAssembly — as text),
 `kosmos-oden-stand-alone.html` (standalone), and `dist/*.mjs` node bundles for the CLI and
 tests. Executable artifacts are byte-reproducible across clean builds (verified
 by a CI job); volatile metadata lives only in `release/BUILD-INFO.json`.

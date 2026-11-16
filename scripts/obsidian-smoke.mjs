@@ -199,7 +199,7 @@ try {
   check("older MCP (2025-06-18) initialize negotiates the requested revision", legacyInit.json?.result?.protocolVersion === "2025-06-18", legacyInit.text.slice(0, 120));
   const legacyTools = await request("/mcp", { method: "POST", token, headers: { "MCP-Protocol-Version": "2025-06-18" }, body: { jsonrpc: "2.0", id: 2, method: "tools/list" } });
   const names = (legacyTools.json?.result?.tools || []).map((t) => t.name).sort().join(",");
-  check("older MCP lists exactly the five Personal tools", names === "get_lineage,get_note,get_related,search_notes,vault_overview", names);
+  check("older MCP lists exactly the six Personal tools", names === "ask_librarian,get_lineage,get_note,get_related,search_notes,vault_overview", names);
 
   /* ---- optional: hold the connection open for a real client application ---- */
   const hold = Number(arg("hold", "0"));

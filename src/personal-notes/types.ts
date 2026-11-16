@@ -6,6 +6,8 @@
  * agree on these shapes. Contract identifier: `kosmos-personal-notes/1`.
  */
 
+import type { SemanticSettings } from "../semantic/settings";
+
 export const PERSONAL_CONTRACT = "kosmos-personal-notes/1";
 
 /** Which profile the plugin runs. Persisted settings without the field are "existing". */
@@ -51,6 +53,12 @@ export interface PersonalNotesSettings {
    * Absent = nothing pending.
    */
   importState?: { running: string[]; awaitingReview: string[] };
+  /**
+   * Semantic search (0.9.5): on/off, the chosen embedding model and the
+   * recipe for the user's own model. Absent = off. The model files and the
+   * index are per device and are never part of the settings.
+   */
+  semantic?: SemanticSettings;
 }
 
 /* -------------------------------------------------------------------- limits */

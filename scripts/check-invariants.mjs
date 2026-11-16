@@ -5,9 +5,9 @@
  *
  * No YAML dependency: a tiny scalar reader handles this flat policy file.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(resolve(root, p), "utf8");
@@ -149,6 +149,86 @@ must(mig.byte_exact_backup === true && /readBinary/.test(migrationHost) && /writ
 must(mig.source_match_before_write === true && /current !== entry\.originalContent/.test(migrationHost), "GKX migration must skip sources changed after the plan");
 must(mig.body_preserved === true && /fm\.body/.test(migrationCore), "GKX migration must preserve the human-authored body");
 must(mig.llm_required === false && mig.network_dispatch_allowed === false && !/\bfetch\s*\(|XMLHttpRequest|WebSocket/.test(migrationCode), "GKX migration must remain LLM-free and make no network dispatch");
+
+/* ---- semantic search (0.9.5) ---- */
+const sem = policy.semantic || {};
+const semDir = "src/semantic";
+const semFiles = readdirSync(resolve(root, semDir)).filter((f) => f.endsWith(".ts")).map((f) => `${semDir}/${f}`);
+const NETWORK = /\bfetch\s*\(|\brequestUrl\s*\(|XMLHttpRequest|WebSocket|EventSource|\bimportScripts\s*\(|sendBeacon/;
+must(sem.default_enabled === false && /return \{ enabled: false, modelId: DEFAULT_MODEL_ID/.test(read(`${semDir}/settings.ts`)), "semantic search must be off by default");
+const licences = sem.allowed_model_licenses?.__list || [];
+const catalogSrc = read(`${semDir}/catalog.ts`);
+must(licences.join(",") === "MIT,Apache-2.0" && /ALLOWED_MODEL_LICENSES = \["MIT", "Apache-2\.0"\] as const/.test(catalogSrc), "the model catalog must allow exactly MIT and Apache-2.0");
+for (const m of catalogSrc.matchAll(/^\s*license:\s*"([^"]+)"/gm)) must(licences.includes(m[1]), `catalog model licence ${m[1]} is not MIT or Apache-2.0`);
+for (const f of [...semFiles, "src/ui/semantic-settings.ts", "src/personal-notes/librarian.ts"]) {
+  must(!NETWORK.test(stripComments(read(f))), `${f} must make no network request (only src/plugin/semantic-host.ts and src/plugin/embedding-endpoint.ts may)`);
+}
+const semHost = stripComments(read("src/plugin/semantic-host.ts"));
+must(sem.network_call_sites === 2 && (semHost.match(/\bfetch\s*\(/g) || []).length === 1 && (semHost.match(/\brequestUrl\s*\(/g) || []).length === 1
+  && (semHost.match(/Downloader = async/g) || []).length === 1, "semantic-host.ts must download in exactly one function (one stream request and its one fallback)");
+must(typeof sem.model_host === "string" && semHost.includes(`const MODEL_HOST = "${sem.model_host}";`) && /if \(!url\.startsWith\(MODEL_HOST\)\) throw/.test(semHost)
+  && catalogSrc.includes(`const HF = "${String(sem.model_host).replace(/\/$/, "")}";`), "model downloads must be confined to the declared model host");
+must(!/credentials:\s*"(include|same-origin)"|Authorization|agentToken/.test(semHost), "a model download must carry no credential");
+/* The second call site: the embedding server, one function, one request, behind the address check. */
+const epFile = "src/plugin/embedding-endpoint.ts";
+const ep = existsSync(resolve(root, epFile)) ? stripComments(read(epFile)) : "";
+const epStart = ep.indexOf("export const requestEmbeddings = async");
+const epFn = epStart >= 0 ? ep.slice(epStart) : "";
+must(sem.network_call_sites === 2 && (ep.match(/\brequestUrl\s*\(/g) || []).length === 1 && (epFn.match(/\brequestUrl\s*\(/g) || []).length === 1
+  && (ep.match(/export const requestEmbeddings = async/g) || []).length === 1 && !/\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts/.test(ep),
+  "embedding-endpoint.ts must reach the embedding server in exactly one function (requestEmbeddings), with one requestUrl and nothing else");
+must(sem.embedding_server_address === "loopback_or_private_literal"
+  && /const check = validateEmbeddingAddress\(request\.url\);\s*if \(check\.ok === false\) throw/.test(epFn)
+  && epFn.indexOf("validateEmbeddingAddress(") < epFn.indexOf("requestUrl(") && /requestUrl\(\{ url: check\.url,/.test(epFn) && /throw: false/.test(epFn),
+  "the embedding server address must be validated before the one request, and only the validated address may be requested");
+const endpointSrc = stripComments(read(`${semDir}/endpoint.ts`));
+must(/import \{ isGkxLoopbackHost, isGkxPrivateLanIpLiteral \} from "gkos-engine";/.test(endpointSrc)
+  && /const local = isGkxLoopbackHost\(host\);\s*if \(!local && !isGkxPrivateLanIpLiteral\(host\)\) return \{ ok: false/.test(endpointSrc)
+  && /if \(url\.username \|\| url\.password\) return \{ ok: false/.test(endpointSrc) && /if \(url\.hash \|\| text\.includes\("#"\)\) return \{ ok: false/.test(endpointSrc)
+  && /url\.protocol !== "http:" && url\.protocol !== "https:"\) return \{ ok: false/.test(endpointSrc),
+  "the embedding server address rule must allow only http(s) to this computer or a private-network literal, without credentials or fragment");
+const semSettingsSrc = stripComments(read(`${semDir}/settings.ts`));
+must(sem.default_engine === "builtin" && /return \{ enabled: false, modelId: DEFAULT_MODEL_ID, custom: normalizeCustomModel\(undefined\), engine: "builtin",/.test(semSettingsSrc)
+  && /const engine: SemanticEngineChoice = v\.engine === "server" \? "server" : "builtin";/.test(semSettingsSrc),
+  "the embedding server must be used only when chosen: the engine default must be the built-in model");
+must(sem.api_key_in_settings === false && !/api_?key|\btoken\b|secret|password|authorization|bearer/i.test(semSettingsSrc)
+  && /app\.loadLocalStorage\(KEY_STORAGE\)/.test(ep) && /app\.saveLocalStorage\(KEY_STORAGE/.test(ep) && !/console\./.test(ep),
+  "the embedding server's API key must stay out of the saved settings (device-local storage only, never logged)");
+const workerSrc = stripComments(read(`${semDir}/worker.ts`));
+const remoteCase = workerSrc.slice(workerSrc.indexOf('case "load-remote"'), workerSrc.indexOf('case "manifest"'));
+must(remoteCase.length > 50 && !/createEmbedder|wasm|onnx/i.test(remoteCase), "with an embedding server the worker must load no model and no ONNX runtime");
+must(sem.worker_network === false && /numThreads = 1/.test(read(`${semDir}/embedder.ts`)) && /wasmBinary/.test(read(`${semDir}/embedder.ts`)),
+  "the embedding worker must run from bytes it carries or is given (no runtime fetched, no threads)");
+const schema = /const DDL = `([\s\S]*?)`;/.exec(read(`${semDir}/store.ts`))?.[1] ?? "";
+must(sem.index_stores_note_text === false && /CREATE TABLE chunks/.test(schema) && (schema.match(/\bTEXT\b/g) || []).length === 4 && /path TEXT NOT NULL UNIQUE/.test(schema) && /content_key TEXT NOT NULL/.test(schema) && /key TEXT PRIMARY KEY, value TEXT NOT NULL/.test(schema),
+  "the semantic index must not store note text");
+const queryService = read("src/personal-notes/query-service.ts");
+must(sem.widens_read_scope === false && /found\.filter\(\(c\) => allowed\.has\(c\.path\)\)/.test(queryService) && /!visible\.has\(hit\.path\)/.test(queryService) && /only notes in this requester's pool count/.test(read("src/personal-notes/librarian.ts")),
+  "semantic candidates must be filtered to the requester's readable notes");
+if (sem.catalog_pinned_and_hashed === true) {
+  if (existsSync(resolve(root, "dist/kosmos-semantic.mjs"))) {
+    const built = await import(pathToFileURL(resolve(root, "dist/kosmos-semantic.mjs")).href);
+    for (const problem of built.validateCatalog()) problems.push(`model catalog: ${problem}`);
+    must(built.MODEL_CATALOG.length >= 1, "the model catalog is empty");
+    // The built rules, run: what the embedding server may be, and what is saved.
+    const d = built.defaultSemanticSettings();
+    must(d.enabled === false && d.engine === "builtin" && built.normalizeSemanticSettings({ enabled: true, modelId: d.modelId }).engine === "builtin",
+      "built: semantic search must default to off and to the built-in engine");
+    for (const ok of ["http://127.0.0.1:8080", "http://localhost:11434", "http://[::1]:8080", "http://192.168.1.2:8080", "http://10.1.2.3:8080", "http://[fd00::2]:8080"]) {
+      must(built.validateEmbeddingAddress(ok).ok === true, `built: embedding server address ${ok} must be allowed`);
+    }
+    for (const no of ["http://8.8.8.8:8080", "https://example.com/v1", "http://0.0.0.0:8080", "http://u:p@127.0.0.1:8080", "http://127.0.0.1:8080/#x", "http://127.0.0.1:8080/?api_key=x", "ftp://127.0.0.1/"]) {
+      must(built.validateEmbeddingAddress(no).ok === false, `built: embedding server address ${no} must be refused`);
+    }
+    const sentinel = "sk-INVARIANT-KEY";
+    must(!JSON.stringify(built.normalizeSemanticSettings({ enabled: true, engine: "server", server: { apiKey: sentinel, key: sentinel, token: sentinel, authorization: sentinel } })).includes(sentinel),
+      "built: an API key must never survive into the saved semantic settings");
+  } else {
+    problems.push("dist/kosmos-semantic.mjs missing — run npm run build");
+  }
+} else {
+  problems.push("policy: semantic.catalog_pinned_and_hashed must be true");
+}
 
 /* ---- standalone invariants (artifact must exist and be self-contained) ---- */
 if (existsSync(resolve(root, "kosmos-oden-stand-alone.html"))) {

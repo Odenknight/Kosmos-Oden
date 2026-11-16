@@ -29,6 +29,10 @@ import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./persona
 import { ObsidianPersonalSource, strictYaml } from "./personal-source";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
+import { createSemantic, type SemanticHandle } from "./semantic-host";
+import { normalizeSemanticSettings, type SemanticSettings } from "../semantic/settings";
+import type { SemanticOverview, ServerTestResult } from "../semantic/controller";
+import type { SemanticSettingsHost } from "../ui/semantic-settings";
 import { advertisedMcpProtocolVersions } from "./mcp-compat";
 import { KosmosSettingTab, buildAgentGuide, buildPersonalAgentGuide, installedBridgePath } from "./settings";
 import { applyNoteTimestamps, formatTimestamp, makeGkxUuidV7, stripFrontmatter, timestampEligible } from "gkos-engine";
@@ -45,6 +49,8 @@ import { AddNotesModal } from "../ui/add-notes-modal";
 import { ConnectAiModal } from "../ui/connect-ai-modal";
 import { SupersedesModal } from "../ui/supersedes-modal";
 import { TaggingModal } from "../ui/tagging-modal";
+import { runFolderMoc, type MocFolderIo } from "../personal-notes/moc-run";
+import type { MocWriterHost } from "../personal-notes/moc-writer";
 import {
   DEFAULT_NEXTCLOUD_SETTINGS,
   NextcloudSyncEngine,
@@ -362,7 +368,7 @@ interface AppRegistries {
   setting?: { open?(): void; openTabById?(id: string): unknown };
 }
 
-export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost {
+export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost, SemanticSettingsHost {
   agentSettings: AgentSettings = { ...DEFAULT_AGENT_SETTINGS };
   nextcloudSettings: NextcloudSettings = { ...DEFAULT_NEXTCLOUD_SETTINGS };
   nextcloudState: NextcloudSyncState = emptyNextcloudState();
@@ -390,6 +396,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   private stampBaselines = new Map<string, string>();
   private autoStamps = new Map<string, { timer: number; prevRaw: string | undefined; kind: "create" | "modify" }>();
   private searchStatusListeners = new Set<() => void>();
+  /** Semantic search (0.9.5): created on first use, kept until unload. */
+  private semanticHandle: SemanticHandle | null = null;
+  private semanticListeners = new Set<() => void>();
   private readonly yaml = strictYaml(parseYaml);
   /**
    * Opens the Personal tagging window. Point it at the UI's opener when
@@ -510,6 +519,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.addCommand({ id: "connect-my-ai", name: "Connect my AI", callback: () => this.openConnectAi() });
     this.addCommand({ id: "note-supersedes", name: "This note supersedes…", callback: () => this.openSupersedes() });
     this.addCommand({ id: "optional-tags", name: "Optional tags (preview deterministic tags)", callback: () => this.openTagging() });
+    this.addCommand({ id: "update-folder-moc", name: "Update this folder's map of content (deterministic)", callback: () => void this.updateFolderMoc() });
     this.addCommand({
       id: "mark-notes-gkx",
       name: "Scan and repair human-editable GKX formatting (back up and preview)",
@@ -535,6 +545,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       this.eventsLive = true;
       this.provider.markFullDirty();
       if (this.personal) void this.personal.build();
+      // Semantic search that was left on resumes by itself (it never downloads by itself).
+      if (this.semanticSettings().enabled) { this.local(); void this.semantic().controller.apply(); }
       if (this.nextcloudSettings.enabled && this.nextcloudSettings.syncOnStartup) {
         this.startupSyncTimer = window.setTimeout(() => {
           this.startupSyncTimer = null;
@@ -680,12 +692,67 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       configDir: this.app.vault.configDir,
       workers: personalSearchWorkerFactory(),
       onDiagnostic: (message) => console.debug("Kosmos-Oden Personal Notes:", message),
+      semantic: this.semantic().controller,
     });
     runtime.onStatus(() => this.emitSearchStatus());
     this.personal = runtime;
     if (this.eventsLive) void runtime.build();
     this.emitSearchStatus();
     return runtime;
+  }
+
+  /**
+   * Semantic search (0.9.5). One controller for the plugin's lifetime; it
+   * reads notes from whichever Personal runtime exists and waits when there
+   * is none. Access is decided per question by the query service, not here.
+   */
+  private semantic(): SemanticHandle {
+    return this.semanticHandle ??= createSemantic(
+      this.app,
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
+      {
+        notes: () => this.personal?.semanticNotes.notes() ?? [],
+        get: (path) => this.personal?.semanticNotes.get(path) ?? null,
+        ready: () => this.personal?.semanticNotes.ready() ?? false,
+      },
+      () => this.semanticSettings(),
+      () => { for (const listener of [...this.semanticListeners]) { try { listener(); } catch (e) { console.warn("Kosmos-Oden: semantic status listener failed", e); } } },
+    );
+  }
+
+  /* ---- SemanticSettingsHost ---- */
+
+  semanticSettings(): SemanticSettings { return normalizeSemanticSettings(this.agentSettings.personalNotes.semantic); }
+
+  /** Save the semantic choices and bring the running index in line. Sharing is untouched, so nothing is invalidated. */
+  async updateSemantic(change: (draft: SemanticSettings) => void): Promise<void> {
+    const draft = this.semanticSettings();
+    change(draft);
+    this.agentSettings.personalNotes = { ...this.agentSettings.personalNotes, semantic: normalizeSemanticSettings(draft) };
+    await this.saveAgentSettings();
+    if (this.semanticSettings().enabled) this.local();
+    await this.semantic().controller.apply();
+  }
+
+  semanticOverview(): SemanticOverview { return this.semantic().controller.overview(); }
+  semanticInstalled(): Promise<Record<string, boolean>> { return this.semantic().controller.installed(); }
+  downloadSemanticModel(modelId: string): Promise<void> { return this.semantic().controller.download(modelId); }
+  cancelSemanticDownload(): void { this.semantic().controller.cancelDownload(); }
+  importSemanticModel(files: ReadonlyArray<{ name: string; data: ArrayBuffer }>): Promise<{ saved: string[]; ignored: string[] }> { return this.semantic().controller.importCustom(files); }
+  removeSemanticModel(modelId: string): Promise<void> { return this.semantic().controller.removeModel(modelId); }
+  rebuildSemanticIndex(): Promise<void> { return this.semantic().controller.rebuild(); }
+  testEmbeddingServer(): Promise<ServerTestResult> { return this.semantic().controller.testServer(); }
+  retrySemantic(): Promise<void> { return this.semantic().controller.retry(); }
+  embeddingKeySaved(): boolean { return this.semantic().keys.has(); }
+  /** The key stays on this device (local storage), never in data.json. A changed key is tried at once. */
+  async setEmbeddingKey(key: string): Promise<void> {
+    this.semantic().keys.set(key);
+    if (this.semanticSettings().enabled && this.semanticSettings().engine === "server") await this.semantic().controller.retry();
+  }
+  setSemanticPaused(paused: boolean): void { this.semantic().controller.setPaused(paused); }
+  onSemanticStatus(listener: () => void): () => void {
+    this.semanticListeners.add(listener);
+    return () => { this.semanticListeners.delete(listener); };
   }
 
   /** Hand the Personal runtime to the Agent API server (idempotent). */
@@ -833,7 +900,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   }
 
   /** Narrow writer for tagging: fresh reads, compare-and-write inside Vault.process, exact backups under `backupRoot`. */
-  private writerHost(backupRoot: string | null): TaggingWriterHost {
+  private writerHost(backupRoot: string | null): TaggingWriterHost & Pick<MocWriterHost, "createFile"> {
     return {
       readRaw: async (path) => {
         const file = this.noteFile(path);
@@ -860,6 +927,14 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
         return target;
       },
       sha256: (text) => sha256Hex(text),
+      createFile: async (path, text) => {
+        const adapter = this.app.vault.adapter;
+        if (await adapter.exists(path)) return false;
+        const dir = path.slice(0, path.lastIndexOf("/"));
+        if (dir) await this.ensureFolder(dir);
+        await adapter.write(path, text);
+        return true;
+      },
       recordOwnWrite: (path, hash) => {
         const list = this.ownWrites.get(path) ?? [];
         list.push(hash);
@@ -1199,6 +1274,67 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     new Notice("Kosmos-Oden: open Settings → Kosmos-Oden → Personal Notes → Optional tagging.");
   }
 
+  /**
+   * Update the map of content of the active note's folder. Deterministic: the
+   * same folder contents and options produce the same bytes. Only the block
+   * between the Kosmos markers changes; a file without a block is refused,
+   * never adopted, and an update needs an exact backup first.
+   */
+  async updateFolderMoc(): Promise<void> {
+    const active = this.app.workspace.getActiveFile?.() ?? null;
+    const parent = active?.parent?.path ?? "";
+    const folder = parent && parent !== "/" ? parent : "";
+    if (!folder) {
+      new Notice("Kosmos-Oden: open a note inside a folder, then run this again.");
+      return;
+    }
+    const root = normalizePath(`.gkx/backup/moc-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
+    const host = this.writerHost(root);
+    const vault = this.app.vault;
+    const metaCache = this.app.metadataCache;
+    const io: MocFolderIo = {
+      ...host,
+      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path),
+      meta: (path) => {
+        const file = vault.getAbstractFileByPath(path);
+        const fm = (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
+        const list = (value: unknown): string[] | null =>
+          Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : typeof value === "string" ? [value] : null;
+        const aliases = list(fm.aliases);
+        const tags = list(fm.tags);
+        const supersededBy = list(fm.superseded_by);
+        return {
+          title: typeof fm.title === "string" ? fm.title : null,
+          aliases,
+          tags,
+          updatedAt: typeof fm.updated_at === "string" ? fm.updated_at : null,
+          supersededBy,
+          summary: typeof fm.summary === "string" ? fm.summary : null,
+        };
+      },
+    };
+    try {
+      const { plan, applied } = await runFolderMoc(folder, io);
+      if (plan.action === "refuse") {
+        new Notice(`Kosmos-Oden: none written — ${plan.target}: ${plan.detail || plan.reason || "refused"}`);
+        return;
+      }
+      if (!applied) {
+        new Notice(`Kosmos-Oden: ${plan.target} is already up to date.`);
+        return;
+      }
+      if (applied.failed.length || applied.skipped.length) {
+        const why = [...applied.failed.map((f) => f.error), ...applied.skipped.map((s) => `${s.path}: ${s.detail}`)][0];
+        new Notice(`Kosmos-Oden: ${plan.target} not written — ${why}`);
+        return;
+      }
+      const entries = plan.entries.length;
+      new Notice(`Kosmos-Oden: ${plan.action === "create" ? "created" : "updated"} ${plan.target} (${entries} note${entries === 1 ? "" : "s"}).`);
+    } catch (error) {
+      new Notice(`Kosmos-Oden: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   async openPersonalSearch(): Promise<void> {
     const ws = this.app.workspace;
     let leaf = ws.getLeavesOfType(PERSONAL_SEARCH_VIEW)[0];
@@ -1342,6 +1478,10 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.agentApi?.stop();
     this.detachPersonal();
     this.searchStatusListeners.clear();
+    // Saves the semantic index and stops its worker.
+    this.semanticListeners.clear();
+    void this.semanticHandle?.dispose().catch(() => undefined);
+    this.semanticHandle = null;
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);
     this.timestampTimers.clear();

@@ -64,7 +64,8 @@ export class FakeEl {
   }
   click() { if (!this.disabled) this.dispatch("click"); }
   key(key) { return this.dispatch("keydown", { key }); }
-  focus() { dom.activeElement = this; }
+  focus() { dom.activeElement = this; this.dispatch("focus"); }
+  blur() { if (dom.activeElement === this) dom.activeElement = null; this.dispatch("blur"); }
   closest(sel) { const cls = sel.replace(/^\./, ""); for (let n = this; n; n = n.parent) if (n.classes.has(cls)) return n; return null; }
   remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; }
 }
@@ -155,7 +156,7 @@ dom.FakeEl = FakeEl;
 export async function loadUi() {
   const out = await build({
     stdin: {
-      contents: ["connect-ai-modal", "add-notes-modal", "personal-search-view", "tagging-modal", "supersedes-modal", "quick-connect"].map((f) => `export * from "./src/ui/${f}.ts";`).join("\n"),
+      contents: ["connect-ai-modal", "add-notes-modal", "personal-search-view", "tagging-modal", "supersedes-modal", "quick-connect", "semantic-settings"].map((f) => `export * from "./src/ui/${f}.ts";`).join("\n"),
       resolveDir: process.cwd(), loader: "ts",
     },
     bundle: true, platform: "neutral", format: "esm", write: false,
