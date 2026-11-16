@@ -417,6 +417,30 @@ export class PersonalQueryService {
     return visible;
   }
 
+  /**
+   * The number reported as `corpus_revision`: it goes up when a note this
+   * requester may read is added, removed or changed, and stays when any other
+   * note is. The corpus's own revision counts every change, so reporting it
+   * would tell an assistant when notes it may not read were being edited.
+   * The corpus keeps one record object per version of a note, so comparing
+   * records by identity sees every change to text or metadata.
+   */
+  private scopedRevision(visible: ReadonlySet<string>): number {
+    const seen = this.scopedRecords;
+    let changed = seen.size !== visible.size;
+    for (const path of visible) {
+      if (changed) break;
+      changed = seen.get(path) !== this.deps.corpus.get(path);
+    }
+    if (changed) {
+      this.scopedRecords = new Map([...visible].map((path) => [path, this.deps.corpus.get(path)]));
+      this.scopedCount++;
+    }
+    return this.scopedCount;
+  }
+  private scopedRecords = new Map<string, unknown>();
+  private scopedCount = 0;
+
   /** Omitted files inside the requester's folder selection (their labels are unknown; only a count is reported). */
   private omittedInScope(policy: PersonalReadPolicy): string[] {
     return this.deps.corpus.omitted()
@@ -448,6 +472,7 @@ export class PersonalQueryService {
   async searchNotes(args: SearchArgs): Promise<SearchResult> {
     const { policy, check } = this.begin();
     const allowed = this.visiblePaths(policy);
+    const revision = this.scopedRevision(allowed);
     for (const path of this.omittedInScope(policy)) allowed.add(path);
     const response = await this.deps.search.search({ query: args.query, limit: args.limit, tag: args.tag, allowedPaths: allowed });
     check();
@@ -465,7 +490,7 @@ export class PersonalQueryService {
         ...(hit.updatedAt !== undefined ? { updated_at: hit.updatedAt } : {}),
       })),
       coverage: { state: scopedState(response.coverage.state, response.coverage.omitted), searched: response.coverage.searched, omitted: response.coverage.omitted },
-      corpus_revision: response.corpusRevision,
+      corpus_revision: revision,
     };
     check();
     return result;
@@ -485,6 +510,7 @@ export class PersonalQueryService {
     const { policy, check } = this.begin();
     if (!this.deps.librarian) throw new PersonalError("search_unavailable", "the Librarian is not available on this connection");
     const visible = this.visiblePaths(policy);
+    const revision = this.scopedRevision(visible);
     const allowed = new Set(visible);
     for (const path of this.omittedInScope(policy)) allowed.add(path);
     const semantic: LibrarianSemanticInfo = { state: "off", candidates: 0 };
@@ -554,7 +580,7 @@ export class PersonalQueryService {
       semantic: { state: semantic.state, ...(semantic.model ? { model: semantic.model } : {}), candidates: semantic.candidates, ...(semantic.detail ? { detail: semantic.detail } : {}) },
       related: related.map((r) => ({ path: r.path, title: r.title, related_to: r.relatedTo, reason: r.reason, ...(r.score !== undefined ? { score: r.score } : {}) })),
       coverage: { state: scopedState(response.coverage.state, response.coverage.omitted), searched: response.coverage.searched, omitted: response.coverage.omitted },
-      corpus_revision: response.corpusRevision,
+      corpus_revision: revision,
     };
     if (format !== "structured") result.brief = renderLibrarianBrief({ ...response, semantic, related });
     check();
@@ -754,13 +780,14 @@ export class PersonalQueryService {
     const { policy, check } = this.begin();
     const { corpus } = this.deps;
     const omitted = this.omittedInScope(policy).length;
+    const visible = this.visiblePaths(policy);
     const result: OverviewResult = {
       contract: PERSONAL_CONTRACT,
       profile: "personal",
-      notes: this.visiblePaths(policy).size,
+      notes: visible.size,
       omitted,
       state: scopedState(corpus.state, omitted),
-      corpus_revision: corpus.revision,
+      corpus_revision: this.scopedRevision(visible),
       tools: [...PERSONAL_TOOL_NAMES],
       protocols: this.deps.protocols(),
       capabilities: {

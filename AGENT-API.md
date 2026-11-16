@@ -672,7 +672,9 @@ Titles, timestamps, tags and similarity are never evidence.
 
 Call it first. Returns `profile: "personal"`, `notes` (readable notes),
 `omitted` (skipped files inside the caller's folders), `state`
-(`indexing`/`ready`/`partial`), `corpus_revision`, `tools` (the six names),
+(`indexing`/`ready`/`partial`), `corpus_revision` (a number that goes up when
+a note the caller may read is added, removed or changed, and not when any
+other note is), `tools` (the six names),
 `protocols` (`mcp` with the revisions served on `streamable-http` and `stdio`
 under the current setting, and `rest` with the routes), `capabilities`
 (`read_only: true`, the search description, `semantic_search` with `state`,

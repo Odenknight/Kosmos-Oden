@@ -155,6 +155,11 @@ New in build alpha.3 (fixes from a code review of alpha.2; no new features):
   cannot be read is left alone, and an embedding server that answers every
   request with an error pauses indexing where it used to mark every note
   failed.
+- **Hidden notes no longer influence an assistant's answers.** The
+  Librarian's typo correction and the words it adds to a question used
+  counts from the whole vault, so notes an assistant may not read could
+  change what it was told about the notes it may read. Both now use the
+  readable notes only, and `corpus_revision` counts only changes to them.
 - **The Map of Content command creates a folder's first index** (it failed
   when no index existed yet), and agent requests stay fast in vaults of more
   than 10,000 shared notes.
@@ -326,7 +331,7 @@ The full list, with the changes and security notes of each version, is in
 ## Honest status
 
 - **This is an alpha**, not a qualified release.
-- **Automated checks pass:** `npm run verify` gave 818 tests passing and 0
+- **Automated checks pass:** `npm run verify` gave 826 tests passing and 0
   failing for build alpha.3 (809 at alpha.2, 771 at alpha.1, commit
   `33c8945`). The alpha.3 fixes each have a test; none was tried inside a
   real Obsidian. The five

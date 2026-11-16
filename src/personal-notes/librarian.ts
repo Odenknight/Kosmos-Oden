@@ -19,10 +19,13 @@
  *
  * For each hit the best passages, the outbound web links (forms flagged),
  * list steps and note links are extracted from the raw text. Everything is
- * computed from the requester's own scope: statistics, corrections and
- * expansion words never come from a note the requester cannot read. The one
- * exception is the corpus-wide document frequency used to pick expansion
- * words among those already found in the requester's top matches.
+ * computed from the requester's own notes (the pool): document frequencies,
+ * note counts, corrections and expansion words never depend on a note the
+ * requester cannot read, nor on a note that was deleted. The shared
+ * vocabulary only maps words to ids; whether a word counts is decided by the
+ * pool. One limit remains: the vocabulary holds at most
+ * LIBRARIAN_LIMITS.maxVocabulary words for the whole corpus, so once it is
+ * full a new word in any note gets no id and cannot be matched by words.
  *
  * Pure: no Obsidian, no Node, no DOM. Runs in the search worker.
  */
@@ -483,16 +486,27 @@ function find(sorted: Uint32Array, id: number): number {
   return -1;
 }
 
-/** The Librarian's corpus-wide state: the vocabulary and document frequencies. Vectors are held by the caller. */
+/**
+ * The Librarian's corpus-wide state: the vocabulary and document frequencies.
+ * Vectors are held by the caller. The frequencies describe every note, so a
+ * question asked over fewer notes must not use them (see runLibrarian).
+ */
 export class LibrarianIndex {
   readonly vocab = new Vocabulary();
   private df: number[] = [];
-  docs = 0;
 
-  add(v: DocVector): void { this.docs++; for (const id of v.ids) this.df[id] = (this.df[id] ?? 0) + 1; }
-  remove(v: DocVector): void { this.docs--; for (const id of v.ids) this.df[id] = Math.max(0, (this.df[id] ?? 0) - 1); }
-  clear(): void { this.df = []; this.docs = 0; }
-  frequency(id: number): number { return this.df[id] ?? 0; }
+  add(v: DocVector): void { for (const id of v.ids) this.df[id] = (this.df[id] ?? 0) + 1; }
+  remove(v: DocVector): void { for (const id of v.ids) this.df[id] = Math.max(0, (this.df[id] ?? 0) - 1); }
+  clear(): void { this.df = []; }
+  /** Document frequency by id over every note added (undefined for an id no note has had). */
+  get frequencies(): ArrayLike<number> { return this.df; }
+}
+
+/** Document frequency by id within `pool`: how many of its notes contain each word. One pass over the pool. */
+export function scopedFrequencies(pool: readonly LibrarianEntry[], vocabularySize: number): Uint32Array {
+  const df = new Uint32Array(vocabularySize);
+  for (const e of pool) { const ids = e.vector.ids; for (let k = 0; k < ids.length; k++) df[ids[k]]++; }
+  return df;
 }
 
 /* ------------------------------------------------------------------- question */
@@ -587,8 +601,12 @@ export function editDistance(a: string, b: string, max: number): number {
   return prev[b.length];
 }
 
-/** Vocabulary ids close to `word` (same first letter), nearest first, then alphabetical. */
-function nearest(vocab: Vocabulary, word: string): { id: number; distance: number }[] {
+/**
+ * Vocabulary ids close to `word` (same first letter) that occur in at least
+ * one note of the pool (`df` > 0), nearest first, then alphabetical. A word
+ * only in notes outside the pool, or only in deleted notes, is never listed.
+ */
+function nearest(vocab: Vocabulary, word: string, df: ArrayLike<number>): { id: number; distance: number }[] {
   if (word.length < 4 || HAS_DIGIT.test(word)) return [];
   const max = word.length >= 8 ? 2 : 1;
   const first = word.charCodeAt(0);
@@ -596,7 +614,7 @@ function nearest(vocab: Vocabulary, word: string): { id: number; distance: numbe
   const terms = vocab.terms;
   for (let id = 0; id < terms.length; id++) {
     const term = terms[id];
-    if (term.charCodeAt(0) !== first || term === word) continue;
+    if (term.charCodeAt(0) !== first || term === word || !(df[id] > 0)) continue;
     const distance = editDistance(word, term, max);
     if (distance <= max) found.push({ id, distance, term });
   }
@@ -651,13 +669,21 @@ class GramSet {
 }
 
 /**
- * Rank `pool` (the requester's notes, in stable path order) for one question.
+ * Rank `pool` (the requester's notes, in any order) for one question.
  * Synchronous: the caller gathers the pool in bounded batches, then calls this.
+ *
+ * `index` supplies only the vocabulary (word <-> id). Every statistic comes
+ * from the pool: `opts.frequencies` must be the pool's document frequency by
+ * id, scopedFrequencies(pool, ...) or, when the pool is every note added to
+ * `index`, index.frequencies. Left out, it is computed here from the pool.
+ * So with the pool unchanged, adding, editing or removing notes outside it
+ * changes nothing in the answer.
  */
-export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number; semantic?: readonly SemanticCandidate[] } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
+export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number; semantic?: readonly SemanticCandidate[]; frequencies?: ArrayLike<number> } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
   const parsed = parseQuestion(question);
   const limit = Math.max(1, Math.min(LIBRARIAN_LIMITS.maxFetch, Math.floor(opts.limit ?? LIBRARIAN_LIMITS.defaultResults)));
   const n = pool.length;
+  const df = opts.frequencies ?? scopedFrequencies(pool, index.vocab.terms.length);
   let totalLength = 0;
   for (const e of pool) totalLength += e.vector.length;
   const avgdl = n ? Math.max(1, totalLength / n) : 1;
@@ -707,7 +733,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     if (term.df === 0) {
       let best: Term | null = null;
       let bestDistance = Infinity;
-      for (const candidate of nearest(index.vocab, key).slice(0, LIBRARIAN_LIMITS.correctionCandidates)) {
+      for (const candidate of nearest(index.vocab, key, df).slice(0, LIBRARIAN_LIMITS.correctionCandidates)) {
         if (candidate.distance > bestDistance) break;
         const c = column(candidate.id);
         if (c.df > 0 && (!best || c.df > best.df)) { best = { word: index.vocab.terms[candidate.id], id: candidate.id, ...c, weight: 1, expanded: false }; bestDistance = candidate.distance; }
@@ -855,7 +881,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
       if (c.docs < 2) continue;
       const term = index.vocab.terms[id];
       if (term.length < 3 || /^\d+$/.test(term)) continue;
-      scored.push({ id, term, value: c.weight * idf(index.frequency(id), Math.max(index.docs, 1)) });
+      scored.push({ id, term, value: c.weight * idf(df[id], n) });
     }
     scored.sort((a, b) => (b.value - a.value) || (a.term < b.term ? -1 : 1));
     const chosen = scored.slice(0, LIBRARIAN_LIMITS.feedbackTerms);

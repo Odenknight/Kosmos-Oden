@@ -12,7 +12,7 @@ the archive):
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
-`npm run verify`: 818 tests). The fixes were themselves reviewed
+`npm run verify`: 826 tests). The fixes were themselves reviewed
 independently before merge, and that review's findings are included.
 
 Left as they are: a fence written as `----` or with a line above it is not
@@ -68,6 +68,23 @@ Semantic search:
   text was shortened is asked to embed one word. If that fails too, indexing
   pauses with the server's error and continues on Retry. Before, every note
   was marked failed and waited for an edit or a restart.
+
+The Librarian, found by Astra's review of 2026-11-16 and reproduced through
+the search worker (`test/personal-librarian-noninterference.test.mjs`):
+- **Notes an assistant may not read no longer change its answers.** Typo
+  correction looked at the twelve nearest words of the whole vault before
+  checking that a word is in a readable note, so words in hidden notes could
+  push a correction out: one hit became none. The words added to a question
+  were weighted by how common they are in the whole vault, so hidden notes
+  changed which words were added. Both now use the readable notes only, and
+  so do words left behind by deleted notes.
+- **`corpus_revision` counts only what the assistant may read.** It went up
+  on every change in the vault, which told an assistant when hidden notes
+  were being edited. It now goes up when a readable note is added, removed or
+  changed. The number is smaller than before and still only ever goes up.
+- Not changed: an answer still waits while the vault is being re-read, the
+  vocabulary limit (2,000,000 distinct words) is shared by all notes, and so
+  is the 128 MiB limit on indexed text.
 
 Other:
 - **Update this folder's map of content** creates the first index of a

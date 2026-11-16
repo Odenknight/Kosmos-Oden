@@ -1,5 +1,48 @@
 # Build plan: port the Kosmos-Oden 0.9.5 Librarian and embedding server route to GKOS-Engine 2.x (TypeScript / Python)
 
+> **Revised 2026-11-16. Read this box first; the plan below it is kept as
+> written on 2026-11-14 and its starting premise is out of date.**
+>
+> Checked against GKOS-Engine `d0f3b409` (`main` and the tag `v2.5.0`) and
+> Kosmos-Oden `56a6b8bf`, after Astra's review of 2026-11-16 and a check of
+> its findings in the code.
+>
+> **Already done** (Engine 2.5.0, by copying the plug-in's files):
+>
+> | Planned here | Where it is now |
+> | --- | --- |
+> | Phase 1, the Librarian core in TypeScript | `src/notes/librarian.ts` in the Engine, byte-for-byte the plug-in's file. Do not port it again. |
+> | The Personal question route | `ask_librarian` over MCP and `GET /librarian`, through `src/notes/query-service.ts` |
+> | Phase 4 for Personal Notes: meaning as a fourth list, related notes | In the core and the query service |
+> | Phase 3, the private-network embedding client | `src/semantic/endpoint.ts`, `remote.ts` in the Engine, a second provider family beside `src/retrieval/providers.ts` |
+>
+> **Still missing:** a governed tool (`gkos_ask_librarian_v1`), citations bound
+> to source bytes, a public `gkos-engine/librarian` export, frozen test
+> vectors, and one shared copy of the core (Phase 6). Phase 5 (Python) is
+> deferred; a client comes before a second ranking implementation. Rust is not
+> considered until this work is finished (owner, 2026-11-16).
+>
+> **New finding, fixed in build 0.9.5 alpha.3:** the core let notes outside the
+> requester's scope change the answer in two ways (typo correction and the
+> words added to a question). Both are described in `CHANGELOG.md`.
+>
+> **Order from here** (Astra's, accepted by the owner):
+>
+> 1. Correct this plan and record the exact baseline. This box.
+> 2. Scope the vocabulary decisions, the statistics and the revision an
+>    assistant sees. Done in both repositories; in review.
+> 3. A separate, guarded, word-only governed tool, `gkos_ask_librarian_v1`,
+>    contract `gkos-librarian-1.0.0-draft.1`. In the Engine; it reuses the
+>    admission of `gkos_search_lexical_v1` and stays hidden until a host
+>    supplies the content validator.
+> 4. Candidates by meaning from the authorized vector lane, then REST through
+>    the same adapter.
+> 5. Kosmos-Oden imports the core from the Engine (Phase 6 below). Last,
+>    together with release and publication.
+>
+> The Engine side of this is in `docs/GOVERNED-LIBRARIAN-INTEGRATION.md` in
+> the GKOS-Engine repository.
+
 Status: **plan, nothing built**. Written 2026-11-14 against Kosmos-Oden build
 `0.9.5-alpha.2` and GKOS-Engine `main` as published on GitHub that day
 (`package.json` version 2.2.0).

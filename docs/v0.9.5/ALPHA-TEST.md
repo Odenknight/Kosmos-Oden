@@ -17,8 +17,14 @@
 
 ## Verified for build alpha.3 (2026-11-15)
 
-- `npm run verify`: **818 tests**, 0 failing, and every guard (Windows 11,
+- `npm run verify`: **826 tests**, 0 failing, and every guard (Windows 11,
   Node 24.18.0).
+- Librarian scope: `test/personal-librarian-noninterference.test.mjs` asks the
+  same questions over the readable notes alone, with hidden notes added, with
+  those edited and with those deleted, and requires identical answers; a
+  reader of the hidden notes gets different ones. Five of its seven tests fail
+  on the alpha.2 code. `test/personal-api.test.mjs` checks that
+  `corpus_revision` stays when only hidden notes change.
 - Nine new tests, one or more per fix: `test/nextcloud-sync.test.mjs` (state
   for another scope, HTTP host rule), `test/personal-plugin.test.mjs`
   (frontmatter fence, token-free guide, containment cache, Map of Content
