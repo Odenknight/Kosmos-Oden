@@ -26,7 +26,7 @@ import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } fro
 import { checkSupersedesProposal } from "../personal-notes/lineage";
 import { sha256Hex } from "../personal-notes/hash";
 import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./personal-runtime";
-import { ObsidianPersonalSource, authoredSensitivity, strictYaml } from "./personal-source";
+import { ObsidianPersonalSource, buildNoteMeta, strictYaml } from "./personal-source";
 import { decidePersonalRead } from "../personal-notes/policy";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
@@ -1298,19 +1298,27 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       return (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
     };
     // The index carries no label of its own, so an assistant may read it. A note
-    // whose label keeps it from assistants (above the ceiling, or not a known
-    // level) is left out, or its title and summary would be shared through the index.
-    const open = { policy: { generation: 0, allowsPath: () => true }, source: { physicallyContained: () => true }, sensitivityRank: SENSITIVITY_RANK, ceiling: this.agentSettings.agentSensitivityCeiling };
-    const leftOut = new Set<string>();
-    const shareable = (path: string): boolean => {
-      const label = authoredSensitivity(frontmatterOf(path));
-      if (decidePersonalRead(path, label === undefined ? {} : { authoredSensitivity: label }, open).allowed) return true;
-      if (path.slice(0, path.lastIndexOf("/")) === folder) leftOut.add(path);
-      return false;
+    // the connector would refuse for its label (above the ceiling, not a known
+    // level, or frontmatter that cannot be read) or for a link out of the vault
+    // is left out, or its name, title and summary would be shared through the
+    // index. Judged as the connector judges it: the note's own text through the
+    // strict reader, not Obsidian's cache. Only the folder's own notes are
+    // dropped; the rest of the vault stays, because the generator counts every
+    // base name to decide whether a short link is unambiguous.
+    const open = {
+      policy: { generation: 0, allowsPath: () => true },
+      source: { physicallyContained: (path: string) => this.personalSource?.physicallyContained(path) ?? true },
+      sensitivityRank: SENSITIVITY_RANK, ceiling: this.agentSettings.agentSensitivityCeiling,
     };
+    const leftOut = new Set<string>();
+    for (const file of vault.getMarkdownFiles()) {
+      if (file.path.slice(0, file.path.lastIndexOf("/")) !== folder) continue;
+      const meta = buildNoteMeta({ path: file.path, raw: await vault.cachedRead(file), cache: null, parse: this.yaml, resolveLinkpath: () => null });
+      if (!decidePersonalRead(file.path, meta, open).allowed) leftOut.add(file.path);
+    }
     const io: MocFolderIo = {
       ...host,
-      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path).filter(shareable),
+      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path).filter((path) => !leftOut.has(path)),
       meta: (path) => {
         const fm = frontmatterOf(path) as Record<string, any>;
         const list = (value: unknown): string[] | null =>

@@ -101,7 +101,7 @@ function linkTexts(v: unknown): string[] {
 }
 
 /** Authored sensitivity: flat string, `{ level }` mapping, or a `gkx:` block's. Anything else present is reported as written (and fails closed). */
-export function authoredSensitivity(data: Rec): string | undefined {
+function authoredSensitivity(data: Rec): string | undefined {
   const pick = (holder: Rec): string | undefined => {
     if (!hasOwn(holder, "sensitivity")) return undefined;
     const v = holder.sensitivity;

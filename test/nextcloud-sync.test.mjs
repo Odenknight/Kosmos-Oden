@@ -112,6 +112,12 @@ test("a run never plans with state recorded for another server or folder", () =>
   assert.deepEqual(planSync({ "a.md": L("a") }, {}, used.files, true).map((a) => a.kind), ["upload"]);
   const same = { schemaVersion: 2, scope: syncScope(settings), files: { "a.md": S("a", "1") } };
   assert.equal(stateForScope(same, settings), same);
+  // "New" and "new" are two folders on the server.
+  assert.notEqual(syncScope(settings), syncScope({ ...settings, remoteFolder: "new" }));
+  assert.equal(Object.keys(stateForScope(same, { ...settings, remoteFolder: "new" }).files).length, 0);
+  // State saved by an earlier build carries the lower-cased scope: it is kept, under the exact scope.
+  const legacy = migrateNextcloudState({ ...same, scope: syncScope(settings).toLowerCase() }, syncScope(settings));
+  assert.deepEqual([legacy.scope, Object.keys(legacy.files)], [syncScope(settings), ["a.md"]]);
 });
 
 test("plain HTTP is refused for a hostname that only looks like a private address", () => {

@@ -1347,7 +1347,7 @@ export class KosmosAgentServer {
 
   async qAssessVault(limit = 100): Promise<any> {
     const graph = await this.provider.getGraph();
-    const assessments = this.fileNodes(graph).flatMap((n) => n.gkx?.projection ? [{ path: n.path, ...n.gkx.projection.assessment }] : []);
+    const assessments = this.fileNodes(graph).flatMap((n) => n.gkx?.projection ? [{ path: n.path, ...this.safeAssessment(n.gkx.projection.assessment) }] : []);
     const cap = Math.max(1, Math.min(200, Number.isFinite(limit) ? Math.floor(limit) : 100));
     const overall = assessments.map((a) => a.scores.overall).filter((x): x is number => typeof x === "number");
     return { profile: GKX23_PROFILE, readOnly: true, total: assessments.length, returned: Math.min(cap, assessments.length), averageOverall: overall.length ? Math.round(overall.reduce((a, b) => a + b, 0) / overall.length * 10_000) / 10_000 : null, assessments: assessments.slice(0, cap) };

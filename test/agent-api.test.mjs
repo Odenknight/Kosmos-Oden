@@ -1126,7 +1126,7 @@ test("a readable note's diagnostics never carry the title of a note the connecto
   });
   const sel = { path: "Public.md" };
   const diagnostics = await server.qGkxDiagnostics(sel);
-  for (const answer of [await server.qNote(sel), diagnostics, await server.qAssessment(sel)]) {
+  for (const answer of [await server.qNote(sel), diagnostics, await server.qAssessment(sel), await server.qAssessVault()]) {
     assert.ok(!JSON.stringify(answer).includes("Hidden Plan"));
   }
   const lineage = diagnostics.diagnostics.find((d) => d.code === "GKX-LINEAGE-005");

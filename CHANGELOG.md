@@ -12,23 +12,35 @@ the archive):
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
-`npm run verify`: 818 tests):
+`npm run verify`: 818 tests). The fixes were themselves reviewed
+independently before merge, and that review's findings are included.
+
+Left as they are: a fence written as `----` or with a line above it is not
+frontmatter in Obsidian either, and is not treated as a mistyped fence here.
+In **Upgrade all** and **Convert to 2.3** the Engine replaces a label it does
+not recognise with the default level; that is the Engine's rule and is not
+changed by this build. An `AGENT-API.md` written by an earlier build still
+holds the token until you write the guide again or delete the file.
 
 Privacy:
 - **Map of Content.** A note whose sensitivity label keeps it from assistants
   (above the agent ceiling, or not a known level) is left out of the generated
-  index. The index has no label of its own, so it used to share that note's
-  title and summary. The notice says how many notes were left out.
+  index. So is a note whose frontmatter cannot be read. The index has no
+  label of its own, so it used to share that note's title and summary. The
+  check reads the note's own text, as the connector does, not Obsidian's
+  cache. The notice says how many notes were left out.
 - **Unclosed frontmatter.** A note that opens with `---` and has no closed
   block is still read as having no frontmatter, as in Obsidian, unless a line
   under it reads as `sensitivity:` or `gkx:`. Then the note is not shared
   until the fence is fixed. A fence with a trailing blank counts as unclosed.
 - **GKX conversion.** In the Existing profile an unlabelled note is stamped
-  with your Default sensitivity. It used to be stamped `internal`, which
-  lowered a stricter default and widened what agents could read.
+  with your Default sensitivity when that is stricter than `internal`. It
+  used to be stamped `internal` always, which lowered a stricter default and
+  widened what agents could read. Enrichment applies the same default when it
+  decides which notes a model may be sent.
 - **Diagnostics.** Lineage and shared-UID diagnostics on a readable note keep
   their code, severity and field; their text is withheld on the Agent API
-  (`get_note`, diagnostics, assessment), because the graph build writes it
+  (`get_note`, diagnostics, assessment, `assess_vault`), because the graph build writes it
   from other notes too and it could carry a hidden note's title.
 - **Write guide to vault.** `AGENT-API.md` is written without the token in
   both profiles. A note is synced, indexed and readable by the agents the
@@ -38,7 +50,9 @@ Nextcloud sync:
 - A sync run keeps the settings it started with and never plans with records
   kept for another server, account or folder. Before, changing the server or
   folder while a run was going could leave the old records in place, and with
-  **Propagate deletions** on the next run could delete local files.
+  **Propagate deletions** on the next run could delete local files. A remote
+  folder or user name that differs only in capitals now counts as another
+  folder.
 - A file sync deletes locally goes to the trash (the system's, else the
   vault's `.trash`).
 - Plain HTTP is accepted only for a literal private or loopback address. The

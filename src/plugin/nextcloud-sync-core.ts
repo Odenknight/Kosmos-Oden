@@ -41,7 +41,8 @@ export function migrateNextcloudSettings(raw: any): NextcloudSettings {
 }
 export function emptyNextcloudState(scope = ""): NextcloudSyncState { return { schemaVersion: NEXTCLOUD_SYNC_SCHEMA, scope, files: {} }; }
 export function migrateNextcloudState(raw: any, scope: string): NextcloudSyncState {
-  if (!raw || raw.schemaVersion !== NEXTCLOUD_SYNC_SCHEMA || raw.scope !== scope || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
+  // Builds before 0.9.5 alpha.3 stored the scope lower-cased; that form is accepted once and rewritten.
+  if (!raw || raw.schemaVersion !== NEXTCLOUD_SYNC_SCHEMA || (raw.scope !== scope && raw.scope !== scope.toLowerCase()) || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
   const files: Record<string, SyncRecord> = {};
   for (const [path, value] of Object.entries(raw.files as Record<string, any>).slice(0, 100_000)) {
     if (!safeRelativePath(path) || !value || typeof value !== "object" || Array.isArray(value)) continue; const v = value as any;
@@ -129,5 +130,6 @@ export function stateForScope(state: NextcloudSyncState, settings: NextcloudSett
 }
 export function syncScope(settings: NextcloudSettings): string {
   if (!settings.serverUrl || !settings.username) return "";
-  try { return buildNextcloudDavRoot(settings.serverUrl, settings.username, settings.remoteFolder).toLowerCase(); } catch { return ""; }
+  // Exact: "Vault" and "vault" are two folders on a Nextcloud server (the URL parser already lower-cases the host).
+  try { return buildNextcloudDavRoot(settings.serverUrl, settings.username, settings.remoteFolder); } catch { return ""; }
 }

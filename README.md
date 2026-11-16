@@ -295,7 +295,9 @@ listed under [What's new](#whats-new-in-095) and in the changelog. What you
 will notice on upgrade: `AGENT-API.md` no longer contains your token, a Map
 of Content leaves out notes labelled above the assistant ceiling, and a
 Nextcloud URL such as `http://10.example.com` now needs HTTPS. Settings,
-tokens, notes and an existing semantic index are unchanged.
+tokens, notes and an existing semantic index are unchanged. If an earlier
+build wrote `AGENT-API.md` into a vault you sync or share, write the guide
+again (or delete the file) and regenerate the token.
 
 **Since build alpha.1** (still version 0.9.5): the embedding server engine, the
 Librarian fixes and the Librarian speed work. `ask_librarian` responses gain

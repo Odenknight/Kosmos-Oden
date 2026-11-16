@@ -637,6 +637,11 @@ test("map of content: the first index is created, and a note whose label keeps i
     "Notes/Plan.md": "---\ntitle: Launch plan\nsummary: Ships in May\nsensitivity: secret\n---\nbody\n",
     "Notes/Odd.md": "---\ntitle: Odd label\nsensitivity: eyes-only\n---\nbody\n",
     "Notes/Team.md": "---\ntitle: Team list\nsummary: Who does what\nsensitivity: internal\n---\nbody\n",
+    // The connector refuses these two as well; Obsidian's cache sees no label in either.
+    "Notes/Unclosed.md": "---\ntitle: Budget\nsensitivity: secret\n\nbody\n",
+    "Notes/Broken.md": "---\ntitle: x\nsensitivity: !!broken\n---\nbody\n",
+    // Hidden, outside the folder, same base name as a listed note: it still counts when links are chosen.
+    "Garden.md": "---\nsensitivity: secret\n---\nanother garden\n",
   };
   const app = makeApp(files, { persisted: personalSettings() });
   app.workspace.getActiveFile = () => ({ path: "Notes/Garden.md", extension: "md", parent: { path: "Notes" } });
@@ -646,9 +651,9 @@ test("map of content: the first index is created, and a note whose label keeps i
     await plugin.updateFolderMoc();
     const index = app.adapterFiles.get("Notes/index.md");
     assert.ok(index, `the index was written (${notices.join(" | ")})`);
-    assert.ok(index.includes("[[Garden]]") && index.includes("Team list") && index.includes("Who does what"));
-    for (const hidden of ["Launch plan", "Ships in May", "Plan", "Odd"]) assert.ok(!index.includes(hidden), `${hidden} is not in an index an assistant may read`);
-    assert.match(notices.at(-1), /created Notes\/index\.md \(2 notes\)\. 2 notes are not listed/);
+    assert.ok(index.includes("[[Notes/Garden|Garden]]") && index.includes("Team list") && index.includes("Who does what"), index);
+    for (const hidden of ["Launch plan", "Ships in May", "Plan", "Odd", "Unclosed", "Budget", "Broken"]) assert.ok(!index.includes(hidden), `${hidden} is not in an index an assistant may read`);
+    assert.match(notices.at(-1), /created Notes\/index\.md \(2 notes\)\. 4 notes are not listed/);
   } finally { unloadPlugin(plugin); }
 });
 
@@ -658,4 +663,5 @@ test("GKX conversion: an unlabelled note is stamped with the level it already ha
   assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "secret" }), /sensitivity: "secret"/, "the GKX profile's Default sensitivity");
   assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "confidential" }), /sensitivity: "confidential"/);
   assert.match(await proposed({ activeProfile: "personal", defaultSensitivity: "secret" }), /sensitivity: "internal"/, "Personal Notes shares unlabelled notes; internal does not widen that");
+  assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "public" }), /sensitivity: "internal"/, "a default below internal is not passed on: the Engine also writes it over an invalid label");
 });
