@@ -65,6 +65,20 @@ export const LIBRARIAN_LIMITS = {
 
 export type LibrarianIntent = "locate" | "howto" | "history" | "troubleshoot" | "lookup";
 export type LibrarianConfidence = "strong" | "weak" | "none";
+/**
+ * One test the confidence decision evaluated, about the first hit:
+ * no_hits                 nothing matched, so confidence is none;
+ * coverage_below_threshold its words carry less of the question than "strong" needs;
+ * not_about_question      the question's words are not mostly in its title, aliases, tags or file name;
+ * no_word_match           no question word is in it (found by name or meaning only);
+ * exact_name              the question is its name, word for word;
+ * close_name              its name reads like the question and it carries half the question's weight;
+ * semantic_agrees         the closest by meaning is also first by words or name;
+ * phrase_missing          a quoted phrase is not in it;
+ * rival_note              one of the next notes carries the whole question and it does not.
+ */
+export type LibrarianConfidenceReason = "no_hits" | "coverage_below_threshold" | "not_about_question" | "no_word_match" |
+  "exact_name" | "close_name" | "semantic_agrees" | "phrase_missing" | "rival_note";
 
 export interface LibrarianRequest {
   question: string;
@@ -135,6 +149,12 @@ export interface LibrarianPassage {
   text: string;
   /** Start of the passage in the raw note, UTF-16 code units. */
   offsetChars: number;
+  /**
+   * End (exclusive) of the source block the passage was cut from, UTF-16 code
+   * units: raw.slice(offsetChars, endChars) is that block exactly as written,
+   * before spaces are collapsed or the text is clipped.
+   */
+  endChars?: number;
 }
 
 export interface LibrarianLink {
@@ -201,6 +221,8 @@ export interface LibrarianResponse {
   total: number;
   hits: LibrarianHit[];
   confidence: LibrarianConfidence;
+  /** The tests that decided `confidence`, as stable codes (see LibrarianConfidenceReason). */
+  confidenceReasons?: LibrarianConfidenceReason[];
   coverage: SearchCoverage;
   corpusRevision: number;
   /** Present when the answer came through the hybrid (lexical + semantic) path. */
@@ -630,7 +652,8 @@ interface Term { word: string; id: number; col: Uint16Array; df: number; weight:
 
 const K1 = 1.2, B = 0.75, HEAD_BONUS = 3, EXPANSION_WEIGHT = 0.2, RRF_K = 60;
 const LIST_WEIGHT = { lexical: 1, expanded: 0.7, name: 0.8, semantic: 1 } as const;
-const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
+/** How many notes each ranked list keeps before fusion: the ranking window. */
+export const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
 const NAME_MIN = 0.5;
 
 /**
@@ -971,6 +994,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   });
 
   let confidence: LibrarianConfidence = "none";
+  const confidenceReasons: LibrarianConfidenceReason[] = [];
   if (hits.length) {
     const top = order[0];
     const share = lexical.coverage[top];
@@ -983,17 +1007,21 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     // question's weight: "qwen embedding pooling" resembles a note named "Qwen
     // embedding" whether or not that note says anything about pooling.
     const named = nameScore[top] >= 1 || (nameScore[top] >= 0.8 && share >= 0.5);
+    if (!strongWords) confidenceReasons.push("coverage_below_threshold");
+    if (!about) confidenceReasons.push("not_about_question");
+    if (!lexical.matched[top]) confidenceReasons.push("no_word_match");
+    if (named) confidenceReasons.push(nameScore[top] >= 1 ? "exact_name" : "close_name");
     confidence = (strongWords && about && lexical.matched[top] > 0) || named ? "strong" : "weak";
     // Two independent readings agreeing on the same note: the closest by meaning
     // is also what the words (or the name) rank first, and it carries most of them.
     const ranks = fused.get(top)!.ranks;
-    if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) confidence = "strong";
+    if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) { confidence = "strong"; confidenceReasons.push("semantic_agrees"); }
     // Quoting a phrase asks for those exact words: a note without them is not a strong answer.
-    if (!parsed.phrases.every((phrase) => pool[top].prepared.body.includes(phrase))) confidence = "weak";
+    if (!parsed.phrases.every((phrase) => pool[top].prepared.body.includes(phrase))) { confidence = "weak"; confidenceReasons.push("phrase_missing"); }
     // A note that leaves out part of the question is not the strong answer while
     // one of the next few notes carries all of it: the reader has to choose.
-    if (nameScore[top] < 1 && share < 0.99 && order.slice(1, RIVAL_DEPTH).some((i) => lexical.coverage[i] >= 0.99 && lexical.specificity[i] >= 0.34)) confidence = "weak";
-  }
+    if (nameScore[top] < 1 && share < 0.99 && order.slice(1, RIVAL_DEPTH).some((i) => lexical.coverage[i] >= 0.99 && lexical.specificity[i] >= 0.34)) { confidence = "weak"; confidenceReasons.push("rival_note"); }
+  } else confidenceReasons.push("no_hits");
 
   return {
     contract: LIBRARIAN_CONTRACT,
@@ -1007,6 +1035,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     total: fused.size,
     hits,
     confidence,
+    confidenceReasons,
   };
 }
 
@@ -1174,6 +1203,7 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
     ...(b.heading ? { heading: clip(b.heading, 160) } : {}),
     text: clip(tidy(raw.slice(b.start, b.end)), LIBRARIAN_LIMITS.passageChars),
     offsetChars: b.start,
+    endChars: b.end,
   }));
 
   /* The section holding the best passage: its heading to the next heading. */
