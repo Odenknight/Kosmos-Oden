@@ -87,6 +87,10 @@ the search worker (`test/personal-librarian-noninterference.test.mjs`):
   is the 128 MiB limit on indexed text.
 
 Other:
+- **This note supersedes** waits until the vault has been read. Used while
+  the vault was still being read (just after Obsidian starts, or during a
+  re-read), it could answer "no matching note was found" for a note that
+  exists.
 - **Update this folder's map of content** creates the first index of a
   folder. It failed with "missing" when no index existed yet.
 - Agent requests no longer re-check every note on disk in a vault with more
