@@ -559,6 +559,27 @@ test("controller (server): the server stops while indexing — indexing pauses (
   } finally { await c.controller.dispose(); await srv.close(); }
 });
 
+test("controller (server): a busy server (429) pauses indexing and fails no note, though it answers one short word; the notes are embedded when it has room", async () => {
+  // Five characters is the one-word probe: it is answered while every passage gets HTTP 429.
+  const srv = await fakeEmbeddingServer({ maxChars: 5, tooLongStatus: 429 });
+  const c = await serverController({ url: srv.url, notes: NOTES });
+  try {
+    await c.controller.apply();
+    await until(() => c.controller.overview().phase === "paused", "paused");
+    const paused = c.controller.overview();
+    assert.deepEqual([paused.failedNotes, paused.indexedNotes, paused.retry], [0, 0, true], "no note is counted as one that could not be embedded");
+    assert.ok(c.sleeps.includes(CLIENT_LIMITS.retryAfterMs), "it was tried once more after 2 s before pausing");
+    // The server has room again. Nothing was edited: looking at every note again must send them.
+    srv.opts.maxChars = Infinity;
+    const sent = srv.log.length;
+    c.controller.noteChanges(null);
+    await c.controller.service.idle();
+    const o = c.controller.overview();
+    assert.deepEqual([o.phase, o.indexedNotes, o.failedNotes], ["ready", Object.keys(NOTES).length, 0]);
+    assert.ok(srv.log.length > sent, "the unchanged notes were sent again");
+  } finally { await c.controller.dispose(); await srv.close(); }
+});
+
 test("controller (server): a note too long for the server is halved; one that never fits is counted, not fatal", async () => {
   // Passages are at most ~1400 characters: three halvings bring any of them under 175, not under 150.
   const srv = await fakeEmbeddingServer({ maxChars: 150 });
@@ -703,4 +724,27 @@ test("source: the embedding server has exactly one request, behind the address c
   assert.doesNotMatch(remoteCase, /createEmbedder/, "the server path never loads the ONNX runtime");
   const entry = strip(readFileSync(new URL("../src/semantic/worker-entry.ts", import.meta.url), "utf8"));
   assert.match(entry, /createEmbedder: async \(files, recipe\) => \{\s*await \(ortReady \?\?=/, "the runtime is only unpacked when a model is loaded");
+});
+
+test("client: a server that answers 500 or 429 to everything is a server problem, not a failed text", async () => {
+  for (const status of [500, 429]) {
+    const down = scripted(() => ({ status, text: "{\"error\":\"internal error\"}" }));
+    const sleeps = [];
+    const c = new EmbeddingClient(config({ api: "openai" }), down, { sleep: async (ms) => { sleeps.push(ms); } });
+    await assert.rejects(c.embed(["one passage of text", "another passage"], "passage"), (e) => e.kind === "unavailable" && e.status === status && e.code === SERVER_ERROR_CODE);
+    assert.ok(down.calls.length <= 6, `${status}: a handful of requests, then indexing pauses (${down.calls.length})`);
+    if (status === 500) assert.equal(down.calls.at(-1).body.input[0], "probe", "the last request asks whether the server embeds one word");
+    // Too many requests is answered by waiting, not by sending more: one more try after 2 s, and no probe.
+    else assert.deepEqual([down.calls.length, sleeps, down.calls.some((call) => call.body.input[0] === "probe")], [2, [CLIENT_LIMITS.retryAfterMs], false]);
+  }
+  // A busy server that still answers one short word: the passage is not a failed text either.
+  const busy = scripted((url, body) => (body.input.some((t) => t.length > 5) ? { status: 429, text: "{\"error\":\"rate limit\"}" } : ok(body.input.map((t) => serverVector(t)))));
+  const limited = new EmbeddingClient(config({ api: "openai" }), busy, { sleep: async () => {} });
+  await assert.rejects(limited.embed(["one passage of text"], "passage"), (e) => e.kind === "unavailable" && e.status === 429 && e.code === SERVER_ERROR_CODE);
+  await assert.rejects(limited.embed(["a question"], "query"), (e) => e.kind === "unavailable" && e.code === SERVER_ERROR_CODE);
+  // One text the server chokes on while it answers others: that text fails, indexing goes on.
+  const picky = scripted((url, body) => (body.input.some((t) => t.startsWith("!")) ? { status: 500, text: "" } : ok(body.input.map((t) => serverVector(t)))));
+  const c = new EmbeddingClient(config({ api: "openai" }), picky);
+  await assert.rejects(c.embed(["!a text this server cannot take"], "passage"), (e) => e.kind === "http" && e.status === 500 && e.code === "");
+  assert.equal((await c.embed(["a fine passage"], "passage")).length, 1);
 });

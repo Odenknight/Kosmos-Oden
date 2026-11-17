@@ -13,11 +13,18 @@
  *   - Too-long input: a batch refused with an HTTP error is sent text by text;
  *     a text still refused (400/413/500) is cut in half and sent again, at
  *     most three times.
+ *   - A text the server still answers with a 5xx: one short word is sent. If
+ *     that fails too, the error is about the server ("unavailable"), not
+ *     about the text.
+ *   - HTTP 429 is always about the server ("unavailable"): it says how much
+ *     is being asked, not what is wrong with a text, and a short word may
+ *     still be answered while a passage is refused.
  *
  * Pure apart from the injected transport and clock.
  */
 import type { EmbedKind } from "./engine";
 import {
+  EmbeddingServerError,
   dimsError,
   embeddingRequest,
   httpError,
@@ -186,13 +193,17 @@ export class EmbeddingClient {
     return out;
   }
 
-  /** While indexing, a call that found no server is tried once more after 2 s. */
+  /** While indexing, a call that found no server, or a busy one (HTTP 429), is tried once more after 2 s. */
   private async retried<T>(kind: EmbedKind, run: () => Promise<T>): Promise<T> {
-    try { return await run(); }
+    const attempt = (): Promise<T> => run().catch((error) => {
+      throw isEmbeddingServerError(error) && error.kind === "http" && error.status === 429
+        ? new EmbeddingServerError("unavailable", error.message, 429) : error;
+    });
+    try { return await attempt(); }
     catch (error) {
       if (kind !== "passage" || !isEmbeddingServerError(error) || !["unreachable", "timeout", "unavailable"].includes(error.kind)) throw error;
       await this.sleep(CLIENT_LIMITS.retryAfterMs);
-      return run();
+      return attempt();
     }
   }
 
@@ -217,12 +228,25 @@ export class EmbeddingClient {
         const [vector] = await this.retried(kind, () => this.send([current]));
         return vector;
       } catch (error) {
-        const refused = isEmbeddingServerError(error) && error.kind === "http" && HALVABLE.has(error.status);
+        const http = isEmbeddingServerError(error) && error.kind === "http";
+        const refused = http && HALVABLE.has(error.status);
         const shorter = halveText(current);
-        if (!refused || halvings >= CLIENT_LIMITS.halvings || !shorter) throw error;
-        current = shorter;
+        if (refused && halvings < CLIENT_LIMITS.halvings && shorter) { current = shorter; continue; }
+        // A 5xx that shortening did not cure: this text, or the server?
+        // If the server will not embed one word either, the server is the
+        // problem and indexing pauses, where an error about this text would
+        // go on to mark every note failed.
+        if (http && error.status >= 500 && !(await this.answers())) {
+          throw new EmbeddingServerError("unavailable", error.message, error.status);
+        }
+        throw error;
       }
     }
+  }
+
+  /** Whether the server embeds one short word now. */
+  private async answers(): Promise<boolean> {
+    try { await this.send([`${expandPrefix(this.config.queryPrefix)}probe`]); return true; } catch { return false; }
   }
 }
 

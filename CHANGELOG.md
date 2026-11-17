@@ -9,6 +9,83 @@ the archive):
 | --- | --- |
 | `0.9.5-alpha.1` | The Librarian, the Map of Content command, `/ui`, and semantic search inside the plugin. |
 | `0.9.5-alpha.2` | alpha.1 plus the embedding server engine, the Librarian fixes and the speed work listed next. |
+| `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
+
+Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
+`npm run verify`: 818 tests). The fixes were themselves reviewed
+independently before merge, and that review's findings are included.
+
+Left as they are: a fence written as `----` or with a line above it is not
+frontmatter in Obsidian either, and is not treated as a mistyped fence here.
+In **Upgrade all** and **Convert to 2.3** the Engine replaces a label it does
+not recognise with the default level; that is the Engine's rule and is not
+changed by this build. An `AGENT-API.md` written by an earlier build still
+holds the token until you write the guide again or delete the file.
+
+Privacy:
+- **Map of Content.** A note whose sensitivity label keeps it from assistants
+  (above the agent ceiling, or not a known level) is left out of the generated
+  index. So is a note whose frontmatter cannot be read. The index has no
+  label of its own, so it used to share that note's title and summary. The
+  check reads the note's own text, as the connector does, not Obsidian's
+  cache. The notice says how many notes were left out.
+- **Unclosed frontmatter.** A note that opens with `---` and has no closed
+  block is still read as having no frontmatter, as in Obsidian, unless a line
+  under it reads as `sensitivity:` or `gkx:`. Then the note is not shared
+  until the fence is fixed. A fence with a trailing blank counts as unclosed.
+- **GKX conversion.** In the Existing profile an unlabelled note is stamped
+  with your Default sensitivity when that is stricter than `internal`. It
+  used to be stamped `internal` always, which lowered a stricter default and
+  widened what agents could read. Enrichment applies the same default when it
+  decides which notes a model may be sent.
+- **Diagnostics.** Lineage and shared-UID diagnostics on a readable note keep
+  their code, severity and field; their text is withheld on the Agent API
+  (`get_note`, diagnostics, assessment, `assess_vault`), because the graph build writes it
+  from other notes too and it could carry a hidden note's title.
+- **Write guide to vault.** `AGENT-API.md` is written without the token in
+  both profiles. A note is synced, indexed and readable by the agents the
+  token admits.
+
+Nextcloud sync:
+- A sync run keeps the settings it started with and never plans with records
+  kept for another server, account or folder. Before, changing the server or
+  folder while a run was going could leave the old records in place, and with
+  **Propagate deletions** on the next run could delete local files. A remote
+  folder or user name that differs only in capitals now counts as another
+  folder.
+- **Sync records saved by an earlier build are not used.** Earlier builds
+  saved the folder address in lower case, so their records cannot say which
+  of two folders differing only in capitals they belong to; used for the
+  wrong one they could delete or overwrite local files. The first sync after
+  the update therefore compares every file that exists on both sides, which
+  downloads each one once. Nothing is deleted in that run; a file deleted on
+  one side since the last sync comes back.
+- A file sync deletes locally goes to the trash (the system's, else the
+  vault's `.trash`).
+- Plain HTTP is accepted only for a literal private or loopback address. The
+  old test compared the start of the host name, so `http://10.example.com`
+  passed and the app password went out unencrypted.
+
+Semantic search:
+- Index saves run one after another; two could write the same temporary file.
+- An index file that cannot be read is an error and the file is left alone.
+  It used to count as an empty index: every note was embedded again and the
+  stored index overwritten.
+- An embedding server that answers a text with HTTP 5xx even after the text
+  was shortened is asked to embed one word. If that fails too, indexing
+  pauses with the server's error and continues on Retry. Before, every note
+  was marked failed and waited for an edit or a restart.
+- HTTP 429 (too many requests) always pauses indexing and never marks a
+  note failed. A busy server can still answer one short word while it
+  refuses a passage, and the note was then counted as one that could not be
+  embedded and skipped until it was edited.
+
+Other:
+- **Update this folder's map of content** creates the first index of a
+  folder. It failed with "missing" when no index existed yet.
+- Agent requests no longer re-check every note on disk in a vault with more
+  than 10,000 shared notes (the cache of checked paths cleared itself at
+  10,001 entries).
 
 Added in alpha.2 — an embedding server instead of the built-in model
 ([guide](docs/v0.9.5/SEMANTIC-SEARCH.md#use-an-embedding-server)):

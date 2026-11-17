@@ -10,7 +10,7 @@ import { App, normalizePath, requestUrl, type RequestUrlResponse } from "obsidia
 import {
   buildNextcloudDavRoot, effectiveSyncExcludes, encodePath, emptyNextcloudState, isExcluded,
   migrateNextcloudSettings, migrateNextcloudState, planSync, safeRelativePath,
-  syncScope,
+  stateForScope, syncScope,
   type LocalEntry, type NextcloudSettings, type NextcloudSyncState,
   type RemoteEntry, type SyncAction, type SyncSummary,
 } from "./nextcloud-sync-core";
@@ -18,7 +18,7 @@ export {
   DEFAULT_NEXTCLOUD_SETTINGS, DEFAULT_SYNC_EXCLUDES, NEXTCLOUD_SYNC_SCHEMA,
   OBSIDIAN_CONFIG_PATTERN, PROTECTED_SYNC_EXCLUDES, effectiveSyncExcludes,
   buildNextcloudDavRoot, emptyNextcloudState, isExcluded, migrateNextcloudSettings,
-  migrateNextcloudState, normalizeRemotePath, planSync, safeRelativePath, syncScope,
+  migrateNextcloudState, normalizeRemotePath, planSync, safeRelativePath, stateForScope, syncScope,
 } from "./nextcloud-sync-core";
 export type {
   LocalEntry, NextcloudSettings, NextcloudSyncState, RemoteEntry, SyncAction,
@@ -156,16 +156,23 @@ export async function sha256Hex(data: ArrayBuffer): Promise<string> {
 
 export class NextcloudSyncEngine {
   private running = false;
+  private readonly settings: NextcloudSettings;
+  private state: NextcloudSyncState;
   constructor(
     private readonly app: App,
-    private readonly settings: NextcloudSettings,
-    private state: NextcloudSyncState,
+    settings: NextcloudSettings,
+    state: NextcloudSyncState,
     private readonly password: string,
     private readonly saveState: (state: NextcloudSyncState) => Promise<void>,
     /** Actual install directory, so the plugin's own data.json stays excluded
      *  however the folder was named on disk. */
     private readonly pluginDir?: string,
-  ) {}
+  ) {
+    // The settings tab edits its object in place. A run keeps the settings it
+    // started with, and never plans with state recorded for another scope.
+    this.settings = { ...settings, excludePatterns: [...settings.excludePatterns] };
+    this.state = stateForScope(state, this.settings);
+  }
 
   async run(): Promise<SyncSummary> {
     if (this.running) throw new Error("A Nextcloud sync is already running");
@@ -285,7 +292,10 @@ export class NextcloudSyncEngine {
           return;
         }
       }
-      await this.app.vault.adapter.remove(normalizePath(path)); delete this.state.files[path]; summary.deletedLocal++; return;
+      // To the trash (the system's, else the vault's .trash), so a deletion that was wrong can be undone.
+      if (live) await this.app.vault.trash(live, true);
+      else await this.app.vault.adapter.remove(normalizePath(path));
+      delete this.state.files[path]; summary.deletedLocal++; return;
     }
     if (action.kind === "delete-remote") {
       await client.delete(path, remote[path].etag); delete this.state.files[path]; summary.deletedRemote++;

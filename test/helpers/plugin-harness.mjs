@@ -42,7 +42,8 @@ export const parseYaml = (text) => globalThis.__kosmosParseYaml(text);
 
 const entry = `
 export { default as KosmosOdenPlugin, KosmosView } from "./src/plugin/main.ts";
-export { buildNoteMeta, isPhysicallyContained, strictYaml } from "./src/plugin/personal-source.ts";
+export { ObsidianPersonalSource, buildNoteMeta, isPhysicallyContained, strictYaml } from "./src/plugin/personal-source.ts";
+export { scanVaultForGkx } from "./src/plugin/gkx-migration.ts";
 export { PersonalDeviceState, deviceNamespace } from "./src/plugin/personal-runtime.ts";
 export { notices } from "obsidian";
 `;
@@ -157,6 +158,10 @@ export function makeApp(files, { persisted = {}, secretStorage = true, localStor
         for (const m of body.matchAll(/(!?)\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)) (m[1] ? embeds : links).push({ link: m[2] });
         for (const m of body.matchAll(/(?:^|\s)(#[\p{L}\p{N}_/-]+)/gu)) tags.push({ tag: m[1] });
         return { links, embeds, tags };
+      },
+      getFileCache: (file) => {
+        const header = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(store.get(file.path) ?? "");
+        try { return header ? { frontmatter: globalThis.__kosmosParseYaml(header[1]) } : {}; } catch { return {}; }
       },
       getFirstLinkpathDest: (linkpath, from) => dest(linkpath, from),
     },

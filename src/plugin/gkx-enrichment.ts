@@ -75,7 +75,7 @@ async function buildRecords(app: App, settings: AgentSettings): Promise<{ record
       const data = parsed.data;
       if ((data.gkx_version !== "2.2" && data.gkx_version !== "2.3") || parsed.issues.length) { skipped.push(`${file.path}: not valid editable GKX 2.2 or native GKX 2.3`); continue; }
       const sensitivityBlock = data.sensitivity && typeof data.sensitivity === "object" && !Array.isArray(data.sensitivity) ? data.sensitivity as Record<string, unknown> : {};
-      const sensitivityValue = String(sensitivityBlock.level ?? data.sensitivity ?? "internal");
+      const sensitivityValue = String(sensitivityBlock.level ?? data.sensitivity ?? settings.defaultSensitivity);
       const sensitivity = (["public", "internal", "restricted", "confidential", "regulated", "phi", "secret"].includes(sensitivityValue) ? sensitivityValue : "secret") as GkxSensitivity;
       const blocks = await selectGkxEvidenceWindow(raw, { maxParagraphs: settings.gkxEnrichmentMaxParagraphs, maxChars: settings.gkxEnrichmentMaxInputChars });
       if (!blocks.length) { skipped.push(`${file.path}: insufficient prose-shaped evidence`); continue; }

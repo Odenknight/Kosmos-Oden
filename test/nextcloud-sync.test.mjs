@@ -8,6 +8,8 @@ import {
   migrateNextcloudState,
   planSync,
   safeRelativePath,
+  stateForScope,
+  syncScope,
 } from "../dist/kosmos-nextcloud-sync.mjs";
 
 const L = (hash) => ({ hash, size: 1 });
@@ -95,7 +97,50 @@ test(".obsidian sync is selectable while Kosmos credential state stays protected
 });
 
 test("sync state resets when the remote scope changes", () => {
-  const old = { schemaVersion: 2, scope: "one", files: { "a.md": S("a", "1") } };
+  const old = { schemaVersion: 3, scope: "one", files: { "a.md": S("a", "1") } };
   assert.equal(Object.keys(migrateNextcloudState(old, "one").files).length, 1);
   assert.equal(Object.keys(migrateNextcloudState(old, "two").files).length, 0);
+});
+
+test("a run never plans with state recorded for another server or folder", () => {
+  const settings = migrateNextcloudSettings({ serverUrl: "https://cloud.example.com", username: "ada", remoteFolder: "New" });
+  const other = { schemaVersion: 3, scope: syncScope({ ...settings, remoteFolder: "Old" }), files: { "a.md": S("a", "1") } };
+  // With the old state, an unchanged local file missing from the new folder would be planned as a local delete.
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, other.files, true).map((a) => a.kind), ["delete-local"]);
+  const used = stateForScope(other, settings);
+  assert.equal(used.scope, syncScope(settings));
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, used.files, true).map((a) => a.kind), ["upload"]);
+  const same = { schemaVersion: 3, scope: syncScope(settings), files: { "a.md": S("a", "1") } };
+  assert.equal(stateForScope(same, settings), same);
+  // "New" and "new" are two folders on the server.
+  assert.notEqual(syncScope(settings), syncScope({ ...settings, remoteFolder: "new" }));
+  assert.equal(Object.keys(stateForScope(same, { ...settings, remoteFolder: "new" }).files).length, 0);
+  // State saved by an earlier build carries the lower-cased scope. It cannot say which of two folders differing
+  // only in capitals it was kept for. Used for the wrong one, it deletes or overwrites an unchanged local file.
+  const legacy = { ...same, schemaVersion: 2, scope: syncScope(settings).toLowerCase() };
+  assert.notEqual(legacy.scope, syncScope(settings));
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, legacy.files, true).map((a) => a.kind), ["delete-local"]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, { "a.md": R("2") }, legacy.files, false).map((a) => a.kind), ["download"]);
+  // So it is not used: the file is uploaded or compared instead.
+  const migrated = migrateNextcloudState(legacy, syncScope(settings));
+  assert.deepEqual([migrated.scope, Object.keys(migrated.files)], [syncScope(settings), []]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, migrated.files, true).map((a) => a.kind), ["upload"]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, { "a.md": R("2") }, migrated.files, false).map((a) => a.kind), ["compare"]);
+  // The exact scope is still kept. An earlier build's state for an all-lower-case folder also reads as exact,
+  // though it may have been kept for the capitalised one, so no state of the earlier schema is used at all.
+  assert.deepEqual(Object.keys(migrateNextcloudState(same, syncScope(settings)).files), ["a.md"]);
+  const lower = { ...settings, remoteFolder: "new" };
+  const earlier = { schemaVersion: 2, scope: syncScope(lower), files: { "a.md": S("a", "1") } };
+  assert.equal(syncScope(lower), syncScope(settings).toLowerCase());
+  assert.deepEqual(Object.keys(migrateNextcloudState(earlier, syncScope(lower)).files), []);
+  assert.equal(migrateNextcloudState(null, syncScope(lower)).schemaVersion, 3);
+});
+
+test("plain HTTP is refused for a hostname that only looks like a private address", () => {
+  for (const url of ["http://10.evil.example", "http://192.168.evil.example", "http://172.16.evil.example", "http://169.254.evil.example", "http://fc00.example", "http://127.0.0.1.evil.example"]) {
+    assert.throws(() => buildNextcloudDavRoot(url, "ada", "Vault"), /HTTP is allowed only/, url);
+  }
+  for (const url of ["http://10.0.0.5", "http://192.168.1.20:8080", "http://172.20.0.2", "http://127.0.0.1", "http://localhost", "http://[::1]", "http://[fd00::1]"]) {
+    assert.ok(buildNextcloudDavRoot(url, "ada", "Vault").startsWith("http://"), url);
+  }
 });

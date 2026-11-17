@@ -156,6 +156,12 @@ Obsidian, Node, clock, randomness or locale. Contract `kosmos-moc/1`:
 Command: **Update this folder's map of content (deterministic)** (active note's
 folder). The block is stable, so re-running it is a no-op (`unchanged`).
 
+Since build alpha.3 the command leaves out a note whose sensitivity label keeps
+it from assistants (above the agent ceiling, or not a known level). The index
+note has no label of its own, so an assistant may read it; listing such a note
+would share its title and summary. The notice counts the notes left out. If
+you raise or lower the ceiling later, run the command again.
+
 ## Known limits
 
 - No stemming for irregular forms (`ran` / `run`), no cross-language folding, no

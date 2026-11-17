@@ -113,3 +113,11 @@ test("run: recursive grouping lists a subfolder under its own heading", async ()
   assert.ok(run.plan.proposedRaw.includes("## Notes"));
   assert.ok(run.plan.proposedRaw.includes("Sub task"));
 });
+test("run: a host that rejects for a missing file (as the plugin's does) still gets its first index", async () => {
+  const host = memoryHost(FILES);
+  host.readRaw = async (path) => { if (!host.store.has(path)) throw new Error("missing"); return host.store.get(path); };
+  const run = await runFolderMoc("Projects", host);
+  assert.equal(run.plan.action, "create");
+  assert.deepEqual(run.applied.failed, []);
+  assert.ok(host.store.get("Projects/index.md").includes("Build plan 2025"));
+});

@@ -1110,3 +1110,27 @@ test("duplicate names and aliases reject ambiguity while exact paths still work"
     await assert.rejects(server.qNote({ title }), /Ambiguous note name/);
   assert.equal((await server.qNote({ path: "B/Shared.md" })).path, "B/Shared.md");
 });
+
+test("a readable note's diagnostics never carry the title of a note the connector may not read", async () => {
+  const files = [
+    { relativePath: "Public.md", content: "---\ntype: semantic\nsensitivity: public\ntimestamp: 2026-01-01T00:00:00Z\n---\npublic" },
+    { relativePath: "Hidden Plan.md", content: "---\ntype: semantic\nsensitivity: secret\ntimestamp: 2026-02-01T00:00:00Z\nsuperseded_by:\n  - Public\n---\nhidden" },
+  ];
+  const graph = buildProductGraph(files, []);
+  const raw = graph.nodes.find((n) => n.path === "Public.md").gkx.projection;
+  assert.ok(JSON.stringify(raw.diagnostics).includes("Hidden Plan") && JSON.stringify(raw.assessment.diagnostics).includes("Hidden Plan"), "the graph build writes the hidden title onto the readable note");
+  const server = new KosmosAgentServer(http, settings({ agentSensitivityCeiling: "internal" }), {
+    getGraph: async () => graph,
+    getNoteContent: async (p) => files.find((f) => f.relativePath === p)?.content || null,
+    vaultName: () => "Sensitive", vaultIdentity: () => "sensitive-vault", lanAddresses: () => [],
+  });
+  const sel = { path: "Public.md" };
+  const diagnostics = await server.qGkxDiagnostics(sel);
+  for (const answer of [await server.qNote(sel), diagnostics, await server.qAssessment(sel), await server.qAssessVault()]) {
+    assert.ok(!JSON.stringify(answer).includes("Hidden Plan"));
+  }
+  const lineage = diagnostics.diagnostics.find((d) => d.code === "GKX-LINEAGE-005");
+  assert.ok(lineage && lineage.field === "lineage" && /withheld/.test(lineage.message), "the code and field stay; the text does not");
+  assert.equal(diagnostics.count, raw.diagnostics.length);
+  assert.ok(diagnostics.diagnostics.some((d) => d.code.startsWith("GKX-") && !/withheld/.test(d.message)), "the note's own diagnostics are unchanged");
+});

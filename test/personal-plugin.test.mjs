@@ -11,7 +11,7 @@ import { posix } from "node:path";
 import { resolveObjectURL } from "node:buffer";
 import { delay, indexed, loadPlugin, makeApp, mod, testYaml, unloadPlugin, workers } from "./helpers/plugin-harness.mjs";
 
-const { buildNoteMeta, isPhysicallyContained, strictYaml, PersonalDeviceState, deviceNamespace, notices } = mod;
+const { ObsidianPersonalSource, buildNoteMeta, isPhysicallyContained, scanVaultForGkx, strictYaml, PersonalDeviceState, deviceNamespace, notices } = mod;
 const parse = strictYaml(testYaml);
 
 function freePort() {
@@ -91,6 +91,11 @@ test("S01: metadata cache entry → PersonalNoteMeta for plain, Importer, partia
   assert.equal(broken.frontmatterError, true);
   assert.equal(meta("Notes/Dup.md", "---\nsensitivity: public\nsensitivity: secret\n---\nx").frontmatterError, true, "duplicate keys are a broken block");
   assert.equal(meta("Notes/Rule.md", "---\nnot closed\n").frontmatterError, undefined, "an unclosed --- is not frontmatter (as in Obsidian)");
+  // ...unless a label was meant: a missing or mistyped closing fence must not turn a labelled note into a shared one.
+  assert.equal(meta("Notes/Open.md", "---\ntitle: x\nsensitivity: secret\n\nbody").frontmatterError, true, "a label under an unclosed fence is not ignored");
+  assert.equal(meta("Notes/Space.md", "---\nsensitivity: secret\n--- \nbody").frontmatterError, true, "a closing fence with a trailing blank");
+  assert.equal(meta("Notes/Lead.md", "--- \nsensitivity: secret\n---\nbody").frontmatterError, true, "an opening fence with a trailing blank");
+  assert.equal(meta("Notes/Gkx.md", "---\ngkx:\n  sensitivity: secret\nbody").frontmatterError, true, "a gkx block under an unclosed fence");
 });
 
 test("physical containment: symlink, junction, outside root, traversal and normal files", () => {
@@ -185,6 +190,8 @@ test("Write Agent API guide: the Personal profile gets its own token-free guide;
     await plugin.writeAgentGuide();
     guide = app.adapterFiles.get("AGENT-API.md");
     assert.ok(guide.includes("/lineage?title="), "the existing profile keeps its guide");
+    assert.ok(plugin.agentSettings.agentToken.length > 20 && !guide.includes(plugin.agentSettings.agentToken), "the token is never written into a note");
+    assert.ok(guide.includes("<paste your token: Settings"), "the guide says where the token is");
     assert.ok(guide.includes('"Accept older MCP clients" is off, so only 2026-07-28 is served.') && !guide.includes("2025-06-18"));
     assert.ok(guide.includes("Node.js 22 or 24") && !guide.includes("Node.js 18+"));
     plugin.agentSettings.agentLegacyMcp = true;
@@ -599,4 +606,62 @@ test("B01/B03: existing profile builds no Personal runtime; unload leaves no wor
   assert.equal(calls, 1, "one final status notification on detach, none after");
   assert.equal((await get(port, "/overview", "x")).error, "ECONNREFUSED");
   assert.ok(Array.isArray(notices));
+});
+
+/* ------------------------------------------------- 0.9.5 alpha.3 regressions */
+
+test("containment: a vault larger than 10,000 notes is checked once, not on every request; missing paths are not remembered", () => {
+  const existing = new Set(Array.from({ length: 10_050 }, (_, i) => `Notes/n${i}.md`));
+  let calls = 0;
+  const fs = { lstatSync: () => { calls++; return { isSymbolicLink: () => false }; }, realpathSync: (p) => { calls++; return p; } };
+  const app = { vault: { getAbstractFileByPath: (p) => (existing.has(p) ? {} : null), adapter: { getBasePath: () => "/vault" } } };
+  const source = new ObsidianPersonalSource(app, { parse, fs, path: posix });
+  for (const path of existing) assert.equal(source.physicallyContained(path), true);
+  assert.ok(calls > 10_050);
+  calls = 0;
+  for (const path of existing) source.physicallyContained(path);
+  assert.equal(calls, 0, "the second pass over the vault touches the file system for no note");
+  for (let i = 0; i < 50; i++) source.physicallyContained(`Notes/ghost${i}.md`);
+  const afterGhosts = calls;
+  for (let i = 0; i < 50; i++) source.physicallyContained(`Notes/ghost${i}.md`);
+  assert.equal(calls, afterGhosts * 2, "a path that does not exist is checked again, never stored");
+  source.invalidate();
+  calls = 0;
+  source.physicallyContained("Notes/n0.md");
+  assert.ok(calls > 0, "create, delete and rename still drop what was remembered");
+});
+
+test("map of content: the first index is created, and a note whose label keeps it from assistants is left out", async () => {
+  const files = {
+    "Notes/Garden.md": PLAIN,
+    "Notes/Plan.md": "---\ntitle: Launch plan\nsummary: Ships in May\nsensitivity: secret\n---\nbody\n",
+    "Notes/Odd.md": "---\ntitle: Odd label\nsensitivity: eyes-only\n---\nbody\n",
+    "Notes/Team.md": "---\ntitle: Team list\nsummary: Who does what\nsensitivity: internal\n---\nbody\n",
+    // The connector refuses these two as well; Obsidian's cache sees no label in either.
+    "Notes/Unclosed.md": "---\ntitle: Budget\nsensitivity: secret\n\nbody\n",
+    "Notes/Broken.md": "---\ntitle: x\nsensitivity: !!broken\n---\nbody\n",
+    // Hidden, outside the folder, same base name as a listed note: it still counts when links are chosen.
+    "Garden.md": "---\nsensitivity: secret\n---\nanother garden\n",
+  };
+  const app = makeApp(files, { persisted: personalSettings() });
+  app.workspace.getActiveFile = () => ({ path: "Notes/Garden.md", extension: "md", parent: { path: "Notes" } });
+  const plugin = await loadPlugin(app);
+  try {
+    notices.length = 0;
+    await plugin.updateFolderMoc();
+    const index = app.adapterFiles.get("Notes/index.md");
+    assert.ok(index, `the index was written (${notices.join(" | ")})`);
+    assert.ok(index.includes("[[Notes/Garden|Garden]]") && index.includes("Team list") && index.includes("Who does what"), index);
+    for (const hidden of ["Launch plan", "Ships in May", "Plan", "Odd", "Unclosed", "Budget", "Broken"]) assert.ok(!index.includes(hidden), `${hidden} is not in an index an assistant may read`);
+    assert.match(notices.at(-1), /created Notes\/index\.md \(2 notes\)\. 4 notes are not listed/);
+  } finally { unloadPlugin(plugin); }
+});
+
+test("GKX conversion: an unlabelled note is stamped with the level it already has, never a lower one", async () => {
+  const app = makeApp({ "Notes/Garden.md": PLAIN });
+  const proposed = async (settings) => (await scanVaultForGkx(app, "safe-onboarding", { gkxExcludePatterns: [], gkxDeveloperExclusions: false, ...settings })).plan.entries[0].proposedContent;
+  assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "secret" }), /sensitivity: "secret"/, "the GKX profile's Default sensitivity");
+  assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "confidential" }), /sensitivity: "confidential"/);
+  assert.match(await proposed({ activeProfile: "personal", defaultSensitivity: "secret" }), /sensitivity: "internal"/, "Personal Notes shares unlabelled notes; internal does not widen that");
+  assert.match(await proposed({ activeProfile: "existing", defaultSensitivity: "public" }), /sensitivity: "internal"/, "a default below internal is not passed on: the Engine also writes it over an invalid label");
 });

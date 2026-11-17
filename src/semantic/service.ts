@@ -109,6 +109,7 @@ export interface RemoteModel { label: string; key: string; dims: number; batch: 
 
 export class SemanticService {
   private worker: SemanticWorkerLike | null = null;
+  private saving: Promise<void> = Promise.resolve();
   private nextId = 1;
   private readonly waiting = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   private _status: SemanticStatus = { ...EMPTY };
@@ -226,7 +227,11 @@ export class SemanticService {
         this.worker = null;
         this.set({ state: "error", error: message });
       };
-      const database = await this.options.readDatabase(key).catch(() => null);
+      // A file that cannot be read is not an empty index: starting empty would
+      // embed every note again and then overwrite the stored index.
+      const database = await this.options.readDatabase(key).catch((error) => {
+        throw new Error(`The saved search index could not be read (${error instanceof Error ? error.message : String(error)}). It was left as it is; try again.`);
+      });
       if (session !== this.session) return;
       const { request, transfer } = load(database);
       const loaded = await this.call<LoadResult>(request, transfer);
@@ -449,8 +454,14 @@ export class SemanticService {
     this.set({ state: "ready", pendingNotes: 0, indexedNotes: stats.notes, chunks: stats.chunks, failedNotes: this.failed.size });
   }
 
-  /** Write the database file. */
-  async save(): Promise<void> {
+  /** Write the database file. Saves run one after another: they share one temporary file. */
+  save(): Promise<void> {
+    const run = this.saving.then(() => this.saveNow());
+    this.saving = run.catch(() => undefined);
+    return run;
+  }
+
+  private async saveNow(): Promise<void> {
     if (!this.worker || !this._status.modelKey) return;
     const key = this._status.modelKey;
     const bytes = await this.call<ArrayBuffer>({ op: "export" });

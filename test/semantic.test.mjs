@@ -928,3 +928,36 @@ test("source: the worker is built with both WebAssembly runtimes inside it and i
   assert.doesNotMatch(worker, /cdn\.jsdelivr\.net\/npm\/onnxruntime-web|unpkg\.com|sql\.js\.org\/dist/, "no runtime is fetched from a CDN");
   assert.doesNotMatch(worker, /^\s*import\s|^\s*export\s/m, "a classic worker script: no imports to resolve");
 });
+
+test("service: saves run one after another, and an index that cannot be read is not replaced by an empty one", async () => {
+  const source = noteSource(NOTES);
+  let active = 0, overlapped = false, writes = 0;
+  const saved = new Map();
+  const service = new SemanticService({
+    createWorker: fakeWorkerFactory(), source,
+    readDatabase: async (key) => saved.get(key)?.slice(0) ?? null,
+    writeDatabase: async (key, data) => {
+      if (++active > 1) overlapped = true;
+      await new Promise((r) => setTimeout(r, 5));
+      saved.set(key, data.slice(0)); writes++; active--;
+    },
+  });
+  await service.start(MODEL, modelBytes());
+  await service.idle();
+  const before = writes;
+  await Promise.all([service.save(), service.save(), service.save()]);
+  assert.equal(writes, before + 3);
+  assert.equal(overlapped, false, "two saves never write the one temporary file at the same time");
+  await service.stop();
+
+  let wrote = false;
+  const unreadable = new SemanticService({
+    createWorker: fakeWorkerFactory(), source,
+    readDatabase: async () => { throw new Error("EBUSY: resource busy or locked"); },
+    writeDatabase: async () => { wrote = true; },
+  });
+  await assert.rejects(unreadable.start(MODEL, modelBytes()), /saved search index could not be read \(EBUSY/);
+  assert.equal(unreadable.status().state, "error");
+  await unreadable.stop();
+  assert.equal(wrote, false, "the stored index is left as it is");
+});

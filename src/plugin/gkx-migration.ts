@@ -1,6 +1,6 @@
 /** Obsidian host for the safety-first GKX audit/backup/apply workflow. */
 import { App, Modal, Notice, Setting, TFile, normalizePath } from "obsidian";
-import { matchedGkxExclusion } from "gkos-engine";
+import { SENSITIVITY_RANK, matchedGkxExclusion } from "gkos-engine";
 import {
   createGkxMigrationPlan,
   publicGkxMigrationPlan,
@@ -59,7 +59,15 @@ export async function scanVaultForGkx(app: App, mode: GkxMigrationMode = "safe-o
       modifiedTime: file.stat.mtime,
     });
   }
-  return { plan: await createGkxMigrationPlan(sources, { mode }), excluded };
+  // A note without a label is stamped with the level it already has. In the
+  // GKX profile that is the Default sensitivity setting: the Engine's own
+  // default ("internal") would lower a stricter one and widen what agents read.
+  // Personal Notes shares unlabelled notes, so the Engine default does not widen an unlabelled note there.
+  // A default below "internal" is not passed on: the Engine also writes this value over an invalid label
+  // in the upgrade modes, and "internal" is then the stricter of the two.
+  const strict = settings && settings.activeProfile !== "personal" && SENSITIVITY_RANK[settings.defaultSensitivity] > SENSITIVITY_RANK.internal;
+  const sensitivity = strict ? settings.defaultSensitivity : undefined;
+  return { plan: await createGkxMigrationPlan(sources, { mode, ...(sensitivity ? { sensitivity } : {}) }), excluded };
 }
 
 function persistedResult(result: GkxMigrationApplyResult): string {

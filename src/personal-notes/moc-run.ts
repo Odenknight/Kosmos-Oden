@@ -56,7 +56,9 @@ export async function runFolderMoc(folder: string, io: MocFolderIo, options: Moc
       ...(meta.summary !== undefined ? { summary: meta.summary } : {}),
     });
   }
-  const existingRaw = await io.readRaw(target);
+  // MocWriterHost.readRaw may answer "no such file" with null or with a rejection.
+  // Reading a rejection as "missing" cannot overwrite anything: createFile refuses an existing file.
+  const existingRaw = await io.readRaw(target).catch(() => null);
   const plan = planMoc({ folder: clean, notes, existingRaw, options });
   const applied = plan.action === "create" || plan.action === "update" ? await applyMocPlan(plan, io) : null;
   return { plan, applied };
