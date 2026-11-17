@@ -41,8 +41,10 @@ export function migrateNextcloudSettings(raw: any): NextcloudSettings {
 }
 export function emptyNextcloudState(scope = ""): NextcloudSyncState { return { schemaVersion: NEXTCLOUD_SYNC_SCHEMA, scope, files: {} }; }
 export function migrateNextcloudState(raw: any, scope: string): NextcloudSyncState {
-  // Builds before 0.9.5 alpha.3 stored the scope lower-cased; that form is accepted once and rewritten.
-  if (!raw || raw.schemaVersion !== NEXTCLOUD_SYNC_SCHEMA || (raw.scope !== scope && raw.scope !== scope.toLowerCase()) || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
+  // Exact match only. Earlier builds stored the scope lower-cased, so their records cannot say which of two
+  // folders differing only in capitals they were kept for; trusting them could delete or overwrite local files.
+  // Without records every file present on both sides is compared once, and nothing is deleted.
+  if (!raw || raw.schemaVersion !== NEXTCLOUD_SYNC_SCHEMA || raw.scope !== scope || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
   const files: Record<string, SyncRecord> = {};
   for (const [path, value] of Object.entries(raw.files as Record<string, any>).slice(0, 100_000)) {
     if (!safeRelativePath(path) || !value || typeof value !== "object" || Array.isArray(value)) continue; const v = value as any;

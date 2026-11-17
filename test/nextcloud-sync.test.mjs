@@ -115,9 +115,19 @@ test("a run never plans with state recorded for another server or folder", () =>
   // "New" and "new" are two folders on the server.
   assert.notEqual(syncScope(settings), syncScope({ ...settings, remoteFolder: "new" }));
   assert.equal(Object.keys(stateForScope(same, { ...settings, remoteFolder: "new" }).files).length, 0);
-  // State saved by an earlier build carries the lower-cased scope: it is kept, under the exact scope.
-  const legacy = migrateNextcloudState({ ...same, scope: syncScope(settings).toLowerCase() }, syncScope(settings));
-  assert.deepEqual([legacy.scope, Object.keys(legacy.files)], [syncScope(settings), ["a.md"]]);
+  // State saved by an earlier build carries the lower-cased scope. It cannot say which of two folders differing
+  // only in capitals it was kept for. Used for the wrong one, it deletes or overwrites an unchanged local file.
+  const legacy = { ...same, scope: syncScope(settings).toLowerCase() };
+  assert.notEqual(legacy.scope, syncScope(settings));
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, legacy.files, true).map((a) => a.kind), ["delete-local"]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, { "a.md": R("2") }, legacy.files, false).map((a) => a.kind), ["download"]);
+  // So it is not used: the file is uploaded or compared instead.
+  const migrated = migrateNextcloudState(legacy, syncScope(settings));
+  assert.deepEqual([migrated.scope, Object.keys(migrated.files)], [syncScope(settings), []]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, {}, migrated.files, true).map((a) => a.kind), ["upload"]);
+  assert.deepEqual(planSync({ "a.md": L("a") }, { "a.md": R("2") }, migrated.files, false).map((a) => a.kind), ["compare"]);
+  // The exact scope is still kept.
+  assert.deepEqual(Object.keys(migrateNextcloudState(same, syncScope(settings)).files), ["a.md"]);
 });
 
 test("plain HTTP is refused for a hostname that only looks like a private address", () => {
