@@ -1,6 +1,9 @@
 /** Pure, DOM-free Nextcloud sync settings, URL, exclusion, and three-way planning logic. */
 import { isGkxLoopbackHost, isGkxPrivateLanIpLiteral } from "gkos-engine";
 export const NEXTCLOUD_SYNC_SCHEMA = 2;
+/** Saved sync records. 3: the scope is the exact folder address. Up to 2 it was stored lower-cased, so those
+ *  records cannot say which of two folders differing only in capitals they were kept for, and are not used. */
+export const NEXTCLOUD_STATE_SCHEMA = 3;
 export const OBSIDIAN_CONFIG_PATTERN = ".obsidian/**";
 /** Kosmos-Oden's own plugin data holds the Agent API credential and local
  *  sync state and must never be uploaded. The glob also covers
@@ -39,18 +42,17 @@ export function migrateNextcloudSettings(raw: any): NextcloudSettings {
     : [...DEFAULT_SYNC_EXCLUDES];
   s.schemaVersion = NEXTCLOUD_SYNC_SCHEMA; return s;
 }
-export function emptyNextcloudState(scope = ""): NextcloudSyncState { return { schemaVersion: NEXTCLOUD_SYNC_SCHEMA, scope, files: {} }; }
+export function emptyNextcloudState(scope = ""): NextcloudSyncState { return { schemaVersion: NEXTCLOUD_STATE_SCHEMA, scope, files: {} }; }
 export function migrateNextcloudState(raw: any, scope: string): NextcloudSyncState {
-  // Exact match only. Earlier builds stored the scope lower-cased, so their records cannot say which of two
-  // folders differing only in capitals they were kept for; trusting them could delete or overwrite local files.
-  // Without records every file present on both sides is compared once, and nothing is deleted.
-  if (!raw || raw.schemaVersion !== NEXTCLOUD_SYNC_SCHEMA || raw.scope !== scope || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
+  // Records of an earlier schema, or for another scope, are not used: trusting them could delete or overwrite
+  // local files. Without records every file present on both sides is compared once, and nothing is deleted.
+  if (!raw || raw.schemaVersion !== NEXTCLOUD_STATE_SCHEMA || raw.scope !== scope || !raw.files || typeof raw.files !== "object" || Array.isArray(raw.files)) return emptyNextcloudState(scope);
   const files: Record<string, SyncRecord> = {};
   for (const [path, value] of Object.entries(raw.files as Record<string, any>).slice(0, 100_000)) {
     if (!safeRelativePath(path) || !value || typeof value !== "object" || Array.isArray(value)) continue; const v = value as any;
     files[path] = { localHash: String(v.localHash || ""), remoteEtag: String(v.remoteEtag || ""), remoteMtime: Number(v.remoteMtime) || 0, remoteSize: Number(v.remoteSize) || 0, syncedAt: Number(v.syncedAt) || 0 };
   }
-  return { schemaVersion: NEXTCLOUD_SYNC_SCHEMA, scope, files };
+  return { schemaVersion: NEXTCLOUD_STATE_SCHEMA, scope, files };
 }
 export function normalizeRemotePath(path: string): string { return path.replace(/\\/g, "/").split("/").filter((p) => p && p !== ".").join("/"); }
 export function safeRelativePath(path: string): boolean {
