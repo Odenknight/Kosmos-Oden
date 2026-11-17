@@ -469,8 +469,29 @@ export class PersonalQueryService {
     throw NOT_FOUND();
   }
 
-  async searchNotes(args: SearchArgs): Promise<SearchResult> {
+  /**
+   * An answer is built from three things read at different moments: the notes
+   * the requester may read, the `corpus_revision` reported for them, and what
+   * the search worker found. They describe one corpus only if the worker
+   * searched the revision the request started from and the corpus has not
+   * moved since. Otherwise the attempt returns null and is made again, so an
+   * answer never carries a revision older or newer than the text it quotes.
+   */
+  private async fromOneRevision<T>(attempt: () => Promise<T | null>): Promise<T> {
+    for (let tries = 0; tries < 3; tries++) {
+      const result = await attempt();
+      if (result !== null) return result;
+    }
+    throw new PersonalError("search_unavailable", "notes kept changing during the search; try again");
+  }
+
+  searchNotes(args: SearchArgs): Promise<SearchResult> {
+    return this.fromOneRevision(() => this.searchNotesOnce(args));
+  }
+
+  private async searchNotesOnce(args: SearchArgs): Promise<SearchResult | null> {
     const { policy, check } = this.begin();
+    const at = this.deps.corpus.revision;
     const allowed = this.visiblePaths(policy);
     const revision = this.scopedRevision(allowed);
     for (const path of this.omittedInScope(policy)) allowed.add(path);
@@ -479,6 +500,7 @@ export class PersonalQueryService {
     if (response.hits.some((hit) => !allowed.has(hit.path))) {
       throw new PersonalError("search_unavailable", "search returned a result outside the shared notes; refusing to answer");
     }
+    if (response.corpusRevision !== at || this.deps.corpus.revision !== at) return null;
     const result: SearchResult = {
       contract: PERSONAL_CONTRACT,
       terms: [...response.terms],
@@ -506,9 +528,14 @@ export class PersonalQueryService {
    * Semantic search can only add evidence. If it is off, still loading, slow
    * or failing, the answer is the lexical one and `semantic.state` says so.
    */
-  async askLibrarian(args: LibrarianArgs): Promise<LibrarianResult> {
+  askLibrarian(args: LibrarianArgs): Promise<LibrarianResult> {
+    return this.fromOneRevision(() => this.askLibrarianOnce(args));
+  }
+
+  private async askLibrarianOnce(args: LibrarianArgs): Promise<LibrarianResult | null> {
     const { policy, check } = this.begin();
     if (!this.deps.librarian) throw new PersonalError("search_unavailable", "the Librarian is not available on this connection");
+    const at = this.deps.corpus.revision;
     const visible = this.visiblePaths(policy);
     const revision = this.scopedRevision(visible);
     const allowed = new Set(visible);
@@ -543,6 +570,7 @@ export class PersonalQueryService {
     }
     const related = await this.relatedToAnswer(response, visible, semantic.state === "ready" || semantic.state === "partial");
     check();
+    if (response.corpusRevision !== at || this.deps.corpus.revision !== at) return null;
     const format = args.format ?? "both";
     const result: LibrarianResult = {
       contract: LIBRARIAN_CONTRACT,

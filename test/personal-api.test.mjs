@@ -340,3 +340,78 @@ test("corpus_revision moves only when a note the assistant may read changes", as
   vault.write("Import/Sealed.md", "---\nsensitivity: public\n---\nNo longer sealed.", { authoredSensitivity: "public" });
   assert.ok((await revisions())[0] > third[0], "and a note that becomes readable");
 });
+
+test("an answer and its corpus_revision describe the same notes when a note changes during the request", async () => {
+  const EDITED = "---\nsensitivity: public\n---\nOpen plumber note, revised text.";
+  const edit = (vault) => vault.write("Import/Open.md", EDITED, { authoredSensitivity: "public" });
+  const passageText = (answer) => answer.results.find((r) => r.path === "Import/Open.md").passages.map((p) => p.text).join(" ");
+  // Semantic lookup that stays open, once, until the test lets it go.
+  const pausedSemantic = () => {
+    const gate = { hold: true };
+    gate.released = new Promise((resolve) => { gate.release = resolve; });
+    gate.entered = new Promise((resolve) => { gate.enter = resolve; });
+    return {
+      gate,
+      semantic: {
+        info: () => ({ state: "ready" }),
+        async candidates() { if (gate.hold) { gate.hold = false; gate.enter(); await gate.released; } return []; },
+        async related() { return []; },
+      },
+    };
+  };
+
+  // ask_librarian: a readable note is edited while the semantic lookup is open.
+  {
+    const { gate, semantic } = pausedSemantic();
+    const { vault, service } = setup(undefined, { semantic });
+    const before = (await service.vaultOverview()).corpus_revision;
+    const pending = service.askLibrarian({ question: "plumber" });
+    await gate.entered;
+    edit(vault);
+    gate.release();
+    const answer = await pending;
+    const after = (await service.vaultOverview()).corpus_revision;
+    assert.ok(after > before);
+    assert.match(passageText(answer), /revised text/u);
+    assert.equal(answer.corpus_revision, after, "the edited passage is reported at the revision that contains it");
+    const next = await service.askLibrarian({ question: "plumber" });
+    assert.deepEqual(next.results, answer.results);
+    assert.equal(next.corpus_revision, answer.corpus_revision, "the same passage does not appear under two revisions");
+  }
+
+  // ask_librarian: a note it may not read is edited instead. Nothing it sees moves.
+  {
+    const { gate, semantic } = pausedSemantic();
+    const { vault, service } = setup(undefined, { semantic });
+    gate.hold = false;
+    const baseline = await service.askLibrarian({ question: "plumber", format: "structured" });
+    gate.hold = true;
+    const pending = service.askLibrarian({ question: "plumber", format: "structured" });
+    await gate.entered;
+    vault.write("Journal/Private.md", "An edited private thought about the plumber.");
+    gate.release();
+    assert.deepEqual(await pending, baseline);
+  }
+
+  // search_notes: the edit lands after the request starts and before the search runs.
+  {
+    const { vault, service } = setup();
+    const before = (await service.vaultOverview()).corpus_revision;
+    const search = vault.search.search;
+    let once = true;
+    vault.search.search = async (request) => {
+      if (once) { once = false; vault.write("Import/Open.md", "---\nsensitivity: public\n---\nRevised plumber note.", { authoredSensitivity: "public" }); }
+      return search(request);
+    };
+    const found = await service.searchNotes({ query: "plumber" });
+    const after = (await service.vaultOverview()).corpus_revision;
+    assert.ok(after > before);
+    assert.match(found.results.find((r) => r.path === "Import/Open.md").excerpt, /Revised/u);
+    assert.equal(found.corpus_revision, after);
+
+    // Notes that never stop changing: the request is refused, not answered under a wrong revision.
+    let n = 0;
+    vault.search.search = async (request) => { vault.write("Import/Open.md", `${EDITED} ${n++}`, { authoredSensitivity: "public" }); return search(request); };
+    await assert.rejects(service.searchNotes({ query: "plumber" }), code("search_unavailable"));
+  }
+});

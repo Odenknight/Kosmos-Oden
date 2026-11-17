@@ -82,6 +82,14 @@ the search worker (`test/personal-librarian-noninterference.test.mjs`):
   on every change in the vault, which told an assistant when hidden notes
   were being edited. It now goes up when a readable note is added, removed or
   changed. The number is smaller than before and still only ever goes up.
+- **An answer and its `corpus_revision` describe the same notes.** The
+  number was read when a request started and the notes were searched a moment
+  later, so a readable note edited in between came back with its new text
+  under the old number, and the next answer gave the same text under the new
+  one. `search_notes` and `ask_librarian` now answer only when the notes
+  searched are the notes the number was read for, and otherwise search again.
+  If the notes change on three attempts in a row the request is refused with
+  `search_unavailable` ("notes kept changing during the search; try again").
 - Not changed: an answer still waits while the vault is being re-read, the
   vocabulary limit (2,000,000 distinct words) is shared by all notes, and so
   is the 128 MiB limit on indexed text.
