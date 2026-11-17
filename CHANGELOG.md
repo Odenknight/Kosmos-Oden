@@ -53,14 +53,13 @@ Nextcloud sync:
   **Propagate deletions** on the next run could delete local files. A remote
   folder or user name that differs only in capitals now counts as another
   folder.
-- **Sync records saved by an earlier build are used only if they name the
-  same folder exactly.** Earlier builds saved the folder address in lower
-  case, so their records cannot say which of two folders differing only in
-  capitals they belong to. If the address has a capital letter (the default
-  folder `Kosmos-Oden` does), the records are set aside and the first sync
-  after the update compares every file that exists on both sides, which
-  downloads each one once. Nothing is deleted in that run; a file deleted
-  on one side since the last sync comes back.
+- **Sync records saved by an earlier build are not used.** Earlier builds
+  saved the folder address in lower case, so their records cannot say which
+  of two folders differing only in capitals they belong to; used for the
+  wrong one they could delete or overwrite local files. The first sync after
+  the update therefore compares every file that exists on both sides, which
+  downloads each one once. Nothing is deleted in that run; a file deleted on
+  one side since the last sync comes back.
 - A file sync deletes locally goes to the trash (the system's, else the
   vault's `.trash`).
 - Plain HTTP is accepted only for a literal private or loopback address. The
