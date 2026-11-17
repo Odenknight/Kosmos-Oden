@@ -9,7 +9,7 @@
  * A revision becomes visible to queries only when all of its chunks are prepared.
  */
 import { parseQuery, prepareDoc, SearchRun, type PreparedDoc, type SearchDoc } from "./fulltext";
-import { LibrarianIndex, indexDoc, runLibrarian, type DocVector, type LibrarianEntry, type LibrarianResponse, type SemanticCandidate } from "./librarian";
+import { LibrarianIndex, indexDoc, runLibrarian, scopedFrequencies, type DocVector, type LibrarianEntry, type LibrarianResponse, type SemanticCandidate } from "./librarian";
 import { PERSONAL_CONTRACT, PERSONAL_LIMITS, PersonalError, type CorpusOmission, type CorpusState, type PersonalErrorCode, type SearchResponse } from "./types";
 
 /* ------------------------------------------------------------------ protocol */
@@ -72,6 +72,12 @@ export class SearchWorkerEngine {
   private state: CorpusState = "indexing";
   private omitted: { path: string; reason: CorpusOmission }[] = [];
   private readonly scopes = new Map<number, Set<string>>();
+  /**
+   * Document frequencies of each held scope's notes, for the Librarian. Keyed
+   * by the scope's set, so an entry goes when no scope id holds that set any
+   * more (at most SCOPE_SLOTS entries); emptied whenever a revision is published.
+   */
+  private scopedDf = new WeakMap<Set<string>, Uint32Array>();
   private readonly queue: ToWorker[] = [];
   private readonly cancelled = new Set<number>();
   private staging: Staging | null = null;
@@ -105,7 +111,12 @@ export class SearchWorkerEngine {
   }
 
   private setScope(scopeId: number, paths: string[]): void {
-    this.scopes.set(scopeId, new Set(paths));
+    // The client sends a new scope id per request, so an equal set already held
+    // is reused: the Librarian statistics cached for it then serve this id too.
+    const fresh = new Set(paths);
+    let same: Set<string> | undefined;
+    for (const held of this.scopes.values()) if (held.size === fresh.size && paths.every((p) => held.has(p))) { same = held; break; }
+    this.scopes.set(scopeId, same ?? fresh);
     while (this.scopes.size > SCOPE_SLOTS) this.scopes.delete(this.scopes.keys().next().value!);
   }
 
@@ -163,6 +174,7 @@ export class SearchWorkerEngine {
     }
     // The indexing scratch refers to the text of the notes just read; let it go with the batch.
     this.librarianIndex.vocab.release();
+    this.scopedDf = new WeakMap();
     this.revision = op.revision;
     this.state = op.state;
     this.omitted = op.omitted;
@@ -225,6 +237,10 @@ export class SearchWorkerEngine {
    * Hybrid Librarian answer over the requester's own notes. Deterministic: the
    * same question over the same revision returns the same response. The scan is
    * synchronous (no mid-answer yield) so the response describes one revision.
+   * Hits, ranking, corrections, expansion words and counts depend only on the
+   * requester's notes. `corpusRevision` and `coverage.state` do not: they are
+   * the whole corpus's revision and indexing state, so a change to any note,
+   * readable or not, moves the revision.
    */
   private async librarian(op: Extract<ToWorker, { type: "librarian" }>): Promise<void> {
     const { id, generation } = op;
@@ -243,9 +259,16 @@ export class SearchWorkerEngine {
       const vector = this.vectors.get(path);
       if (vector) pool.push({ prepared, vector });
     }
+    // Statistics of the requester's notes only. The whole corpus has them in the index already.
+    let frequencies: ArrayLike<number> = this.librarianIndex.frequencies;
+    if (scope) {
+      let df = this.scopedDf.get(scope);
+      if (!df) this.scopedDf.set(scope, df = scopedFrequencies(pool, this.librarianIndex.vocab.terms.length));
+      frequencies = df;
+    }
     let body: Omit<LibrarianResponse, "coverage" | "corpusRevision">;
     try {
-      body = runLibrarian(op.question, pool, this.librarianIndex, { limit: op.limit, semantic: op.semantic });
+      body = runLibrarian(op.question, pool, this.librarianIndex, { limit: op.limit, semantic: op.semantic, frequencies });
     } catch (error) {
       if (error instanceof PersonalError) { fail(error.code, error.message); return; }
       throw error;

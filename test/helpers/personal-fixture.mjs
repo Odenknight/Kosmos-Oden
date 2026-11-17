@@ -73,10 +73,11 @@ export function makeVault(files, { others = [] } = {}) {
   const corpus = {
     get revision() { return revision; },
     state: "ready",
+    // One record object per version of a note, as the real corpus keeps it.
     get(path) {
       const n = notes.get(path);
       if (!n || n.omitted) return undefined;
-      return { ...source.stat(path), raw: n.raw, meta: structuredClone(n.meta) };
+      return (n.record ??= { ...source.stat(path), raw: n.raw, meta: structuredClone(n.meta) });
     },
     paths: () => [...notes.keys()].filter((p) => !notes.get(p).omitted).sort(),
     omitted: () => [...notes.keys()].filter((p) => notes.get(p).omitted).sort().map((path) => ({ path, reason: notes.get(path).omitted })),

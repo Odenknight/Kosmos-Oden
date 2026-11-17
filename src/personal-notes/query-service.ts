@@ -417,6 +417,30 @@ export class PersonalQueryService {
     return visible;
   }
 
+  /**
+   * The number reported as `corpus_revision`: it goes up when a note this
+   * requester may read is added, removed or changed, and stays when any other
+   * note is. The corpus's own revision counts every change, so reporting it
+   * would tell an assistant when notes it may not read were being edited.
+   * The corpus keeps one record object per version of a note, so comparing
+   * records by identity sees every change to text or metadata.
+   */
+  private scopedRevision(visible: ReadonlySet<string>): number {
+    const seen = this.scopedRecords;
+    let changed = seen.size !== visible.size;
+    for (const path of visible) {
+      if (changed) break;
+      changed = seen.get(path) !== this.deps.corpus.get(path);
+    }
+    if (changed) {
+      this.scopedRecords = new Map([...visible].map((path) => [path, this.deps.corpus.get(path)]));
+      this.scopedCount++;
+    }
+    return this.scopedCount;
+  }
+  private scopedRecords = new Map<string, unknown>();
+  private scopedCount = 0;
+
   /** Omitted files inside the requester's folder selection (their labels are unknown; only a count is reported). */
   private omittedInScope(policy: PersonalReadPolicy): string[] {
     return this.deps.corpus.omitted()
@@ -445,15 +469,38 @@ export class PersonalQueryService {
     throw NOT_FOUND();
   }
 
-  async searchNotes(args: SearchArgs): Promise<SearchResult> {
+  /**
+   * An answer is built from three things read at different moments: the notes
+   * the requester may read, the `corpus_revision` reported for them, and what
+   * the search worker found. They describe one corpus only if the worker
+   * searched the revision the request started from and the corpus has not
+   * moved since. Otherwise the attempt returns null and is made again, so an
+   * answer never carries a revision older or newer than the text it quotes.
+   */
+  private async fromOneRevision<T>(attempt: () => Promise<T | null>): Promise<T> {
+    for (let tries = 0; tries < 3; tries++) {
+      const result = await attempt();
+      if (result !== null) return result;
+    }
+    throw new PersonalError("search_unavailable", "notes kept changing during the search; try again");
+  }
+
+  searchNotes(args: SearchArgs): Promise<SearchResult> {
+    return this.fromOneRevision(() => this.searchNotesOnce(args));
+  }
+
+  private async searchNotesOnce(args: SearchArgs): Promise<SearchResult | null> {
     const { policy, check } = this.begin();
+    const at = this.deps.corpus.revision;
     const allowed = this.visiblePaths(policy);
+    const revision = this.scopedRevision(allowed);
     for (const path of this.omittedInScope(policy)) allowed.add(path);
     const response = await this.deps.search.search({ query: args.query, limit: args.limit, tag: args.tag, allowedPaths: allowed });
     check();
     if (response.hits.some((hit) => !allowed.has(hit.path))) {
       throw new PersonalError("search_unavailable", "search returned a result outside the shared notes; refusing to answer");
     }
+    if (response.corpusRevision !== at || this.deps.corpus.revision !== at) return null;
     const result: SearchResult = {
       contract: PERSONAL_CONTRACT,
       terms: [...response.terms],
@@ -465,7 +512,7 @@ export class PersonalQueryService {
         ...(hit.updatedAt !== undefined ? { updated_at: hit.updatedAt } : {}),
       })),
       coverage: { state: scopedState(response.coverage.state, response.coverage.omitted), searched: response.coverage.searched, omitted: response.coverage.omitted },
-      corpus_revision: response.corpusRevision,
+      corpus_revision: revision,
     };
     check();
     return result;
@@ -481,10 +528,16 @@ export class PersonalQueryService {
    * Semantic search can only add evidence. If it is off, still loading, slow
    * or failing, the answer is the lexical one and `semantic.state` says so.
    */
-  async askLibrarian(args: LibrarianArgs): Promise<LibrarianResult> {
+  askLibrarian(args: LibrarianArgs): Promise<LibrarianResult> {
+    return this.fromOneRevision(() => this.askLibrarianOnce(args));
+  }
+
+  private async askLibrarianOnce(args: LibrarianArgs): Promise<LibrarianResult | null> {
     const { policy, check } = this.begin();
     if (!this.deps.librarian) throw new PersonalError("search_unavailable", "the Librarian is not available on this connection");
+    const at = this.deps.corpus.revision;
     const visible = this.visiblePaths(policy);
+    const revision = this.scopedRevision(visible);
     const allowed = new Set(visible);
     for (const path of this.omittedInScope(policy)) allowed.add(path);
     const semantic: LibrarianSemanticInfo = { state: "off", candidates: 0 };
@@ -517,6 +570,7 @@ export class PersonalQueryService {
     }
     const related = await this.relatedToAnswer(response, visible, semantic.state === "ready" || semantic.state === "partial");
     check();
+    if (response.corpusRevision !== at || this.deps.corpus.revision !== at) return null;
     const format = args.format ?? "both";
     const result: LibrarianResult = {
       contract: LIBRARIAN_CONTRACT,
@@ -554,7 +608,7 @@ export class PersonalQueryService {
       semantic: { state: semantic.state, ...(semantic.model ? { model: semantic.model } : {}), candidates: semantic.candidates, ...(semantic.detail ? { detail: semantic.detail } : {}) },
       related: related.map((r) => ({ path: r.path, title: r.title, related_to: r.relatedTo, reason: r.reason, ...(r.score !== undefined ? { score: r.score } : {}) })),
       coverage: { state: scopedState(response.coverage.state, response.coverage.omitted), searched: response.coverage.searched, omitted: response.coverage.omitted },
-      corpus_revision: response.corpusRevision,
+      corpus_revision: revision,
     };
     if (format !== "structured") result.brief = renderLibrarianBrief({ ...response, semantic, related });
     check();
@@ -754,13 +808,14 @@ export class PersonalQueryService {
     const { policy, check } = this.begin();
     const { corpus } = this.deps;
     const omitted = this.omittedInScope(policy).length;
+    const visible = this.visiblePaths(policy);
     const result: OverviewResult = {
       contract: PERSONAL_CONTRACT,
       profile: "personal",
-      notes: this.visiblePaths(policy).size,
+      notes: visible.size,
       omitted,
       state: scopedState(corpus.state, omitted),
-      corpus_revision: corpus.revision,
+      corpus_revision: this.scopedRevision(visible),
       tools: [...PERSONAL_TOOL_NAMES],
       protocols: this.deps.protocols(),
       capabilities: {

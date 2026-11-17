@@ -12,7 +12,7 @@ the archive):
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
-`npm run verify`: 818 tests). The fixes were themselves reviewed
+`npm run verify`: 826 tests). The fixes were themselves reviewed
 independently before merge, and that review's findings are included.
 
 Left as they are: a fence written as `----` or with a line above it is not
@@ -80,7 +80,36 @@ Semantic search:
   refuses a passage, and the note was then counted as one that could not be
   embedded and skipped until it was edited.
 
+The Librarian, found by Astra's review of 2026-11-16 and reproduced through
+the search worker (`test/personal-librarian-noninterference.test.mjs`):
+- **Notes an assistant may not read no longer change its answers.** Typo
+  correction looked at the twelve nearest words of the whole vault before
+  checking that a word is in a readable note, so words in hidden notes could
+  push a correction out: one hit became none. The words added to a question
+  were weighted by how common they are in the whole vault, so hidden notes
+  changed which words were added. Both now use the readable notes only, and
+  so do words left behind by deleted notes.
+- **`corpus_revision` counts only what the assistant may read.** It went up
+  on every change in the vault, which told an assistant when hidden notes
+  were being edited. It now goes up when a readable note is added, removed or
+  changed. The number is smaller than before and still only ever goes up.
+- **An answer and its `corpus_revision` describe the same notes.** The
+  number was read when a request started and the notes were searched a moment
+  later, so a readable note edited in between came back with its new text
+  under the old number, and the next answer gave the same text under the new
+  one. `search_notes` and `ask_librarian` now answer only when the notes
+  searched are the notes the number was read for, and otherwise search again.
+  If the notes change on three attempts in a row the request is refused with
+  `search_unavailable` ("notes kept changing during the search; try again").
+- Not changed: an answer still waits while the vault is being re-read, the
+  vocabulary limit (2,000,000 distinct words) is shared by all notes, and so
+  is the 128 MiB limit on indexed text.
+
 Other:
+- **This note supersedes** waits until the vault has been read. Used while
+  the vault was still being read (just after Obsidian starts, or during a
+  re-read), it could answer "no matching note was found" for a note that
+  exists.
 - **Update this folder's map of content** creates the first index of a
   folder. It failed with "missing" when no index existed yet.
 - Agent requests no longer re-check every note on disk in a vault with more

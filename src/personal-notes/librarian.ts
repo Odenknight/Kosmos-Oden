@@ -19,10 +19,13 @@
  *
  * For each hit the best passages, the outbound web links (forms flagged),
  * list steps and note links are extracted from the raw text. Everything is
- * computed from the requester's own scope: statistics, corrections and
- * expansion words never come from a note the requester cannot read. The one
- * exception is the corpus-wide document frequency used to pick expansion
- * words among those already found in the requester's top matches.
+ * computed from the requester's own notes (the pool): document frequencies,
+ * note counts, corrections and expansion words never depend on a note the
+ * requester cannot read, nor on a note that was deleted. The shared
+ * vocabulary only maps words to ids; whether a word counts is decided by the
+ * pool. One limit remains: the vocabulary holds at most
+ * LIBRARIAN_LIMITS.maxVocabulary words for the whole corpus, so once it is
+ * full a new word in any note gets no id and cannot be matched by words.
  *
  * Pure: no Obsidian, no Node, no DOM. Runs in the search worker.
  */
@@ -62,6 +65,20 @@ export const LIBRARIAN_LIMITS = {
 
 export type LibrarianIntent = "locate" | "howto" | "history" | "troubleshoot" | "lookup";
 export type LibrarianConfidence = "strong" | "weak" | "none";
+/**
+ * One test the confidence decision evaluated, about the first hit:
+ * no_hits                 nothing matched, so confidence is none;
+ * coverage_below_threshold its words carry less of the question than "strong" needs;
+ * not_about_question      the question's words are not mostly in its title, aliases, tags or file name;
+ * no_word_match           no question word is in it (found by name or meaning only);
+ * exact_name              the question is its name, word for word;
+ * close_name              its name reads like the question and it carries half the question's weight;
+ * semantic_agrees         the closest by meaning is also first by words or name;
+ * phrase_missing          a quoted phrase is not in it;
+ * rival_note              one of the next notes carries the whole question and it does not.
+ */
+export type LibrarianConfidenceReason = "no_hits" | "coverage_below_threshold" | "not_about_question" | "no_word_match" |
+  "exact_name" | "close_name" | "semantic_agrees" | "phrase_missing" | "rival_note";
 
 export interface LibrarianRequest {
   question: string;
@@ -132,6 +149,12 @@ export interface LibrarianPassage {
   text: string;
   /** Start of the passage in the raw note, UTF-16 code units. */
   offsetChars: number;
+  /**
+   * End (exclusive) of the source block the passage was cut from, UTF-16 code
+   * units: raw.slice(offsetChars, endChars) is that block exactly as written,
+   * before spaces are collapsed or the text is clipped.
+   */
+  endChars?: number;
 }
 
 export interface LibrarianLink {
@@ -198,6 +221,8 @@ export interface LibrarianResponse {
   total: number;
   hits: LibrarianHit[];
   confidence: LibrarianConfidence;
+  /** The tests that decided `confidence`, as stable codes (see LibrarianConfidenceReason). */
+  confidenceReasons?: LibrarianConfidenceReason[];
   coverage: SearchCoverage;
   corpusRevision: number;
   /** Present when the answer came through the hybrid (lexical + semantic) path. */
@@ -483,16 +508,27 @@ function find(sorted: Uint32Array, id: number): number {
   return -1;
 }
 
-/** The Librarian's corpus-wide state: the vocabulary and document frequencies. Vectors are held by the caller. */
+/**
+ * The Librarian's corpus-wide state: the vocabulary and document frequencies.
+ * Vectors are held by the caller. The frequencies describe every note, so a
+ * question asked over fewer notes must not use them (see runLibrarian).
+ */
 export class LibrarianIndex {
   readonly vocab = new Vocabulary();
   private df: number[] = [];
-  docs = 0;
 
-  add(v: DocVector): void { this.docs++; for (const id of v.ids) this.df[id] = (this.df[id] ?? 0) + 1; }
-  remove(v: DocVector): void { this.docs--; for (const id of v.ids) this.df[id] = Math.max(0, (this.df[id] ?? 0) - 1); }
-  clear(): void { this.df = []; this.docs = 0; }
-  frequency(id: number): number { return this.df[id] ?? 0; }
+  add(v: DocVector): void { for (const id of v.ids) this.df[id] = (this.df[id] ?? 0) + 1; }
+  remove(v: DocVector): void { for (const id of v.ids) this.df[id] = Math.max(0, (this.df[id] ?? 0) - 1); }
+  clear(): void { this.df = []; }
+  /** Document frequency by id over every note added (undefined for an id no note has had). */
+  get frequencies(): ArrayLike<number> { return this.df; }
+}
+
+/** Document frequency by id within `pool`: how many of its notes contain each word. One pass over the pool. */
+export function scopedFrequencies(pool: readonly LibrarianEntry[], vocabularySize: number): Uint32Array {
+  const df = new Uint32Array(vocabularySize);
+  for (const e of pool) { const ids = e.vector.ids; for (let k = 0; k < ids.length; k++) df[ids[k]]++; }
+  return df;
 }
 
 /* ------------------------------------------------------------------- question */
@@ -587,8 +623,12 @@ export function editDistance(a: string, b: string, max: number): number {
   return prev[b.length];
 }
 
-/** Vocabulary ids close to `word` (same first letter), nearest first, then alphabetical. */
-function nearest(vocab: Vocabulary, word: string): { id: number; distance: number }[] {
+/**
+ * Vocabulary ids close to `word` (same first letter) that occur in at least
+ * one note of the pool (`df` > 0), nearest first, then alphabetical. A word
+ * only in notes outside the pool, or only in deleted notes, is never listed.
+ */
+function nearest(vocab: Vocabulary, word: string, df: ArrayLike<number>): { id: number; distance: number }[] {
   if (word.length < 4 || HAS_DIGIT.test(word)) return [];
   const max = word.length >= 8 ? 2 : 1;
   const first = word.charCodeAt(0);
@@ -596,7 +636,7 @@ function nearest(vocab: Vocabulary, word: string): { id: number; distance: numbe
   const terms = vocab.terms;
   for (let id = 0; id < terms.length; id++) {
     const term = terms[id];
-    if (term.charCodeAt(0) !== first || term === word) continue;
+    if (term.charCodeAt(0) !== first || term === word || !(df[id] > 0)) continue;
     const distance = editDistance(word, term, max);
     if (distance <= max) found.push({ id, distance, term });
   }
@@ -612,7 +652,8 @@ interface Term { word: string; id: number; col: Uint16Array; df: number; weight:
 
 const K1 = 1.2, B = 0.75, HEAD_BONUS = 3, EXPANSION_WEIGHT = 0.2, RRF_K = 60;
 const LIST_WEIGHT = { lexical: 1, expanded: 0.7, name: 0.8, semantic: 1 } as const;
-const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
+/** How many notes each ranked list keeps before fusion: the ranking window. */
+export const LIST_DEPTH = { lexical: 100, expanded: 100, name: 50, semantic: 100 } as const;
 const NAME_MIN = 0.5;
 
 /**
@@ -651,13 +692,21 @@ class GramSet {
 }
 
 /**
- * Rank `pool` (the requester's notes, in stable path order) for one question.
+ * Rank `pool` (the requester's notes, in any order) for one question.
  * Synchronous: the caller gathers the pool in bounded batches, then calls this.
+ *
+ * `index` supplies only the vocabulary (word <-> id). Every statistic comes
+ * from the pool: `opts.frequencies` must be the pool's document frequency by
+ * id, scopedFrequencies(pool, ...) or, when the pool is every note added to
+ * `index`, index.frequencies. Left out, it is computed here from the pool.
+ * So with the pool unchanged, adding, editing or removing notes outside it
+ * changes nothing in the answer.
  */
-export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number; semantic?: readonly SemanticCandidate[] } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
+export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[], index: LibrarianIndex, opts: { limit?: number; semantic?: readonly SemanticCandidate[]; frequencies?: ArrayLike<number> } = {}): Omit<LibrarianResponse, "coverage" | "corpusRevision"> {
   const parsed = parseQuestion(question);
   const limit = Math.max(1, Math.min(LIBRARIAN_LIMITS.maxFetch, Math.floor(opts.limit ?? LIBRARIAN_LIMITS.defaultResults)));
   const n = pool.length;
+  const df = opts.frequencies ?? scopedFrequencies(pool, index.vocab.terms.length);
   let totalLength = 0;
   for (const e of pool) totalLength += e.vector.length;
   const avgdl = n ? Math.max(1, totalLength / n) : 1;
@@ -707,7 +756,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     if (term.df === 0) {
       let best: Term | null = null;
       let bestDistance = Infinity;
-      for (const candidate of nearest(index.vocab, key).slice(0, LIBRARIAN_LIMITS.correctionCandidates)) {
+      for (const candidate of nearest(index.vocab, key, df).slice(0, LIBRARIAN_LIMITS.correctionCandidates)) {
         if (candidate.distance > bestDistance) break;
         const c = column(candidate.id);
         if (c.df > 0 && (!best || c.df > best.df)) { best = { word: index.vocab.terms[candidate.id], id: candidate.id, ...c, weight: 1, expanded: false }; bestDistance = candidate.distance; }
@@ -855,7 +904,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
       if (c.docs < 2) continue;
       const term = index.vocab.terms[id];
       if (term.length < 3 || /^\d+$/.test(term)) continue;
-      scored.push({ id, term, value: c.weight * idf(index.frequency(id), Math.max(index.docs, 1)) });
+      scored.push({ id, term, value: c.weight * idf(df[id], n) });
     }
     scored.sort((a, b) => (b.value - a.value) || (a.term < b.term ? -1 : 1));
     const chosen = scored.slice(0, LIBRARIAN_LIMITS.feedbackTerms);
@@ -945,6 +994,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
   });
 
   let confidence: LibrarianConfidence = "none";
+  const confidenceReasons: LibrarianConfidenceReason[] = [];
   if (hits.length) {
     const top = order[0];
     const share = lexical.coverage[top];
@@ -957,17 +1007,21 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     // question's weight: "qwen embedding pooling" resembles a note named "Qwen
     // embedding" whether or not that note says anything about pooling.
     const named = nameScore[top] >= 1 || (nameScore[top] >= 0.8 && share >= 0.5);
+    if (!strongWords) confidenceReasons.push("coverage_below_threshold");
+    if (!about) confidenceReasons.push("not_about_question");
+    if (!lexical.matched[top]) confidenceReasons.push("no_word_match");
+    if (named) confidenceReasons.push(nameScore[top] >= 1 ? "exact_name" : "close_name");
     confidence = (strongWords && about && lexical.matched[top] > 0) || named ? "strong" : "weak";
     // Two independent readings agreeing on the same note: the closest by meaning
     // is also what the words (or the name) rank first, and it carries most of them.
     const ranks = fused.get(top)!.ranks;
-    if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) confidence = "strong";
+    if (confidence === "weak" && ranks.semantic === 1 && (ranks.lexical === 1 || ranks.name === 1) && share >= 0.5) { confidence = "strong"; confidenceReasons.push("semantic_agrees"); }
     // Quoting a phrase asks for those exact words: a note without them is not a strong answer.
-    if (!parsed.phrases.every((phrase) => pool[top].prepared.body.includes(phrase))) confidence = "weak";
+    if (!parsed.phrases.every((phrase) => pool[top].prepared.body.includes(phrase))) { confidence = "weak"; confidenceReasons.push("phrase_missing"); }
     // A note that leaves out part of the question is not the strong answer while
     // one of the next few notes carries all of it: the reader has to choose.
-    if (nameScore[top] < 1 && share < 0.99 && order.slice(1, RIVAL_DEPTH).some((i) => lexical.coverage[i] >= 0.99 && lexical.specificity[i] >= 0.34)) confidence = "weak";
-  }
+    if (nameScore[top] < 1 && share < 0.99 && order.slice(1, RIVAL_DEPTH).some((i) => lexical.coverage[i] >= 0.99 && lexical.specificity[i] >= 0.34)) { confidence = "weak"; confidenceReasons.push("rival_note"); }
+  } else confidenceReasons.push("no_hits");
 
   return {
     contract: LIBRARIAN_CONTRACT,
@@ -981,6 +1035,7 @@ export function runLibrarian(question: unknown, pool: readonly LibrarianEntry[],
     total: fused.size,
     hits,
     confidence,
+    confidenceReasons,
   };
 }
 
@@ -1148,6 +1203,7 @@ export function extractFromNote(raw: string, weights: ReadonlyMap<string, number
     ...(b.heading ? { heading: clip(b.heading, 160) } : {}),
     text: clip(tidy(raw.slice(b.start, b.end)), LIBRARIAN_LIMITS.passageChars),
     offsetChars: b.start,
+    endChars: b.end,
   }));
 
   /* The section holding the best passage: its heading to the next heading. */

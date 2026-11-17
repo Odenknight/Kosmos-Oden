@@ -1159,6 +1159,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
 
   async previewSupersedes(replacement: TFile, targetLinkText: string): Promise<{ check: SupersedesCheck; plan: TaggingPlan | null }> {
     const runtime = this.local();
+    // The older note is looked up among the notes already read; a scan still
+    // running would report an existing note as not found.
+    await runtime.corpus.whenIdle();
     const source = this.personalSource!;
     const input = await this.taggingInput(replacement.path);
     const notes: LineageInputNote[] = [];

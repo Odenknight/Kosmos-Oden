@@ -310,3 +310,108 @@ test("overview: scoped counts, tools, protocols and the content rule", async () 
   assert.ok(!JSON.stringify(o).includes("Journal"), "no hidden folder names");
   assert.deepEqual(o.protocols.mcp["streamable-http"], ["2026-07-28", "2025-11-25"]);
 });
+
+test("corpus_revision moves only when a note the assistant may read changes", async () => {
+  const { vault, service } = setup();
+  const revisions = async () => [
+    (await service.vaultOverview()).corpus_revision,
+    (await service.searchNotes({ query: "plumber" })).corpus_revision,
+    (await service.askLibrarian({ question: "invoice from the plumber" })).corpus_revision,
+  ];
+  const first = await revisions();
+  assert.deepEqual(first, [first[0], first[0], first[0]], "the three tools report the same number");
+
+  // Outside the shared folder, labelled above the ceiling, created and deleted: none of it is the assistant's to see.
+  vault.write("Journal/Private.md", "An edited private thought.");
+  vault.write("Import/Sealed.md", "---\nsensitivity: secret\n---\nAn edited sealed note.", { authoredSensitivity: "secret" });
+  vault.write("Journal/New.md", "A new private note.");
+  assert.deepEqual(await revisions(), first, "changes to notes it may not read do not move the number");
+  vault.remove("Journal/New.md");
+  assert.deepEqual(await revisions(), first);
+
+  vault.write("Import/Open.md", "---\nsensitivity: public\n---\nOpen plumber note, edited.", { authoredSensitivity: "public" });
+  const second = await revisions();
+  assert.ok(second[0] > first[0], "an edit to a readable note moves it");
+  assert.deepEqual(second, [second[0], second[0], second[0]]);
+
+  vault.remove("Import/Keep/Shopping.md");
+  const third = await revisions();
+  assert.ok(third[0] > second[0], "so does removing one");
+  vault.write("Import/Sealed.md", "---\nsensitivity: public\n---\nNo longer sealed.", { authoredSensitivity: "public" });
+  assert.ok((await revisions())[0] > third[0], "and a note that becomes readable");
+});
+
+test("an answer and its corpus_revision describe the same notes when a note changes during the request", async () => {
+  const EDITED = "---\nsensitivity: public\n---\nOpen plumber note, revised text.";
+  const edit = (vault) => vault.write("Import/Open.md", EDITED, { authoredSensitivity: "public" });
+  const passageText = (answer) => answer.results.find((r) => r.path === "Import/Open.md").passages.map((p) => p.text).join(" ");
+  // Semantic lookup that stays open, once, until the test lets it go.
+  const pausedSemantic = () => {
+    const gate = { hold: true };
+    gate.released = new Promise((resolve) => { gate.release = resolve; });
+    gate.entered = new Promise((resolve) => { gate.enter = resolve; });
+    return {
+      gate,
+      semantic: {
+        info: () => ({ state: "ready" }),
+        async candidates() { if (gate.hold) { gate.hold = false; gate.enter(); await gate.released; } return []; },
+        async related() { return []; },
+      },
+    };
+  };
+
+  // ask_librarian: a readable note is edited while the semantic lookup is open.
+  {
+    const { gate, semantic } = pausedSemantic();
+    const { vault, service } = setup(undefined, { semantic });
+    const before = (await service.vaultOverview()).corpus_revision;
+    const pending = service.askLibrarian({ question: "plumber" });
+    await gate.entered;
+    edit(vault);
+    gate.release();
+    const answer = await pending;
+    const after = (await service.vaultOverview()).corpus_revision;
+    assert.ok(after > before);
+    assert.match(passageText(answer), /revised text/u);
+    assert.equal(answer.corpus_revision, after, "the edited passage is reported at the revision that contains it");
+    const next = await service.askLibrarian({ question: "plumber" });
+    assert.deepEqual(next.results, answer.results);
+    assert.equal(next.corpus_revision, answer.corpus_revision, "the same passage does not appear under two revisions");
+  }
+
+  // ask_librarian: a note it may not read is edited instead. Nothing it sees moves.
+  {
+    const { gate, semantic } = pausedSemantic();
+    const { vault, service } = setup(undefined, { semantic });
+    gate.hold = false;
+    const baseline = await service.askLibrarian({ question: "plumber", format: "structured" });
+    gate.hold = true;
+    const pending = service.askLibrarian({ question: "plumber", format: "structured" });
+    await gate.entered;
+    vault.write("Journal/Private.md", "An edited private thought about the plumber.");
+    gate.release();
+    assert.deepEqual(await pending, baseline);
+  }
+
+  // search_notes: the edit lands after the request starts and before the search runs.
+  {
+    const { vault, service } = setup();
+    const before = (await service.vaultOverview()).corpus_revision;
+    const search = vault.search.search;
+    let once = true;
+    vault.search.search = async (request) => {
+      if (once) { once = false; vault.write("Import/Open.md", "---\nsensitivity: public\n---\nRevised plumber note.", { authoredSensitivity: "public" }); }
+      return search(request);
+    };
+    const found = await service.searchNotes({ query: "plumber" });
+    const after = (await service.vaultOverview()).corpus_revision;
+    assert.ok(after > before);
+    assert.match(found.results.find((r) => r.path === "Import/Open.md").excerpt, /Revised/u);
+    assert.equal(found.corpus_revision, after);
+
+    // Notes that never stop changing: the request is refused, not answered under a wrong revision.
+    let n = 0;
+    vault.search.search = async (request) => { vault.write("Import/Open.md", `${EDITED} ${n++}`, { authoredSensitivity: "public" }); return search(request); };
+    await assert.rejects(service.searchNotes({ query: "plumber" }), code("search_unavailable"));
+  }
+});
