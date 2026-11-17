@@ -53,6 +53,14 @@ Nextcloud sync:
   **Propagate deletions** on the next run could delete local files. A remote
   folder or user name that differs only in capitals now counts as another
   folder.
+- **Sync records saved by an earlier build are used only if they name the
+  same folder exactly.** Earlier builds saved the folder address in lower
+  case, so their records cannot say which of two folders differing only in
+  capitals they belong to. If the address has a capital letter (the default
+  folder `Kosmos-Oden` does), the records are set aside and the first sync
+  after the update compares every file that exists on both sides, which
+  downloads each one once. Nothing is deleted in that run; a file deleted
+  on one side since the last sync comes back.
 - A file sync deletes locally goes to the trash (the system's, else the
   vault's `.trash`).
 - Plain HTTP is accepted only for a literal private or loopback address. The
@@ -64,10 +72,14 @@ Semantic search:
 - An index file that cannot be read is an error and the file is left alone.
   It used to count as an empty index: every note was embedded again and the
   stored index overwritten.
-- An embedding server that answers a text with HTTP 5xx or 429 even after the
-  text was shortened is asked to embed one word. If that fails too, indexing
+- An embedding server that answers a text with HTTP 5xx even after the text
+  was shortened is asked to embed one word. If that fails too, indexing
   pauses with the server's error and continues on Retry. Before, every note
   was marked failed and waited for an edit or a restart.
+- HTTP 429 (too many requests) always pauses indexing and never marks a
+  note failed. A busy server can still answer one short word while it
+  refuses a passage, and the note was then counted as one that could not be
+  embedded and skipped until it was edited.
 
 The Librarian, found by Astra's review of 2026-11-16 and reproduced through
 the search worker (`test/personal-librarian-noninterference.test.mjs`):
