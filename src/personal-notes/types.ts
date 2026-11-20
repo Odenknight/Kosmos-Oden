@@ -319,12 +319,8 @@ export type PersonalErrorCode =
   | "search_unavailable"
   | "cancelled";
 
-/** Error with a stable machine code. `message` never names a path outside the caller's scope. */
-export class PersonalError extends Error {
-  readonly code: PersonalErrorCode;
-  constructor(code: PersonalErrorCode, message: string) {
-    super(message);
-    this.name = "PersonalError";
-    this.code = code;
-  }
-}
+/**
+ * Error with a stable machine code. `message` never names a path outside the caller's scope.
+ * The class is the Engine's: the Librarian core throws it, and `instanceof` must hold for those errors.
+ */
+export { PersonalError } from "gkos-engine/librarian";

@@ -379,7 +379,7 @@ full per-version history is in [CHANGELOG.md](CHANGELOG.md).
 
 [Graphiti 0.30.2 and agent identity upgrade report](docs/reviews/2026-09-12-graphiti-runtime-upgrade.md)
 
-[Current Engine development-pin qualification](docs/reviews/2026-10-21-engine-7511233.md)
+[Engine development-pin qualification of 2026-10-21 (commit 7511233, since replaced)](docs/reviews/2026-10-21-engine-7511233.md)
 
 [Reconciled roadmap and experiment results](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md)
  · [Opt-in exact-source-byte export](docs/reviews/2026-09-13-source-evidence-export.md)
@@ -595,7 +595,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`7511233717cd5ab9ce8f6cec76e9623a21e3c728`. Its Effects contract says
+`8955672b9e151ba3ca957c8d9ef527aad42c56f0`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

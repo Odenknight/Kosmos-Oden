@@ -155,8 +155,12 @@ test("Q03: a worker failure rejects with search_unavailable (no main-thread fall
   assert.deepEqual(paths(await search(client, "alpha")), ["a.md"]);
 
   // The worker dies mid-life: the pending query rejects, retry starts a fresh one.
+  // The query must still be open when the worker exits. A live worker can
+  // answer one note before terminate() lands, so this query never reaches it.
+  const live = good.made[0];
+  live.postMessage = () => {};
   const pending = search(client, "alpha");
-  void good.made[0].worker.terminate(); // abrupt exit, not via the client
+  void live.worker.terminate(); // abrupt exit, not via the client
   await assert.rejects(pending, code("search_unavailable"));
   assert.equal(client.status, "failed");
   await client.retry();

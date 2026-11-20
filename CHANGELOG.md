@@ -11,6 +11,25 @@ the archive):
 | `0.9.5-alpha.2` | alpha.1 plus the embedding server engine, the Librarian fixes and the speed work listed next. |
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 
+After alpha.3, not yet in a build — **the Librarian core is imported from
+GKOS-Engine** instead of being kept here as a copy:
+
+- `src/personal-notes/librarian.ts` and `fulltext.ts` (1,797 lines) are now
+  one-line imports of `gkos-engine/librarian`. The error class
+  `PersonalError` is the Engine's too, so an error thrown by the core is
+  still recognised by the plugin. Nothing a user sees changes: the plugin
+  replays the Engine's frozen answers
+  (`test/personal-librarian-engine-vectors.test.mjs`).
+- The Engine dependency moves from the 2.2.0 development line at `7511233`
+  to the 2.5.0 development line at `8955672`. For the parts the plugin
+  already used, the bundled Engine code differs only in its version number.
+  This pin has not been through the qualification the earlier pin had
+  (`docs/reviews/2026-10-21-engine-7511233.md`).
+- `main.js` is 760 bytes larger (7,830,051): the limits table is now in the
+  bundle twice, once from the Engine. A check keeps the two tables equal.
+- A test of the search worker could fail when the worker answered before it
+  was killed; the query in that test no longer reaches the worker.
+
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
 `npm run verify`: 826 tests). The fixes were themselves reviewed
 independently before merge, and that review's findings are included.

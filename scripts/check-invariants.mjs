@@ -160,7 +160,16 @@ const licences = sem.allowed_model_licenses?.__list || [];
 const catalogSrc = read(`${semDir}/catalog.ts`);
 must(licences.join(",") === "MIT,Apache-2.0" && /ALLOWED_MODEL_LICENSES = \["MIT", "Apache-2\.0"\] as const/.test(catalogSrc), "the model catalog must allow exactly MIT and Apache-2.0");
 for (const m of catalogSrc.matchAll(/^\s*license:\s*"([^"]+)"/gm)) must(licences.includes(m[1]), `catalog model licence ${m[1]} is not MIT or Apache-2.0`);
-for (const f of [...semFiles, "src/ui/semantic-settings.ts", "src/personal-notes/librarian.ts"]) {
+// The Librarian core is the Engine's, at the pinned commit; the two files here only import it.
+const librarianCore = ["node_modules/gkos-engine/src/notes/librarian.ts", "node_modules/gkos-engine/src/notes/fulltext.ts"];
+for (const shim of ["src/personal-notes/librarian.ts", "src/personal-notes/fulltext.ts"]) {
+  must(stripComments(read(shim)).trim() === 'export * from "gkos-engine/librarian";', `${shim} must hold no Librarian logic, only the import of gkos-engine/librarian`);
+}
+// The core reads the Engine's limits table; everything else here reads the local one. They must be the same table.
+const limitsTable = (file) => /export const PERSONAL_LIMITS = \{[\s\S]*?\} as const;/.exec(read(file))?.[0];
+must(limitsTable("src/personal-notes/types.ts") !== undefined && limitsTable("src/personal-notes/types.ts") === limitsTable("node_modules/gkos-engine/src/notes/types.ts"),
+  "PERSONAL_LIMITS in src/personal-notes/types.ts must equal the pinned Engine's (src/notes/types.ts)");
+for (const f of [...semFiles, "src/ui/semantic-settings.ts", ...librarianCore]) {
   must(!NETWORK.test(stripComments(read(f))), `${f} must make no network request (only src/plugin/semantic-host.ts and src/plugin/embedding-endpoint.ts may)`);
 }
 const semHost = stripComments(read("src/plugin/semantic-host.ts"));
@@ -203,7 +212,7 @@ const schema = /const DDL = `([\s\S]*?)`;/.exec(read(`${semDir}/store.ts`))?.[1]
 must(sem.index_stores_note_text === false && /CREATE TABLE chunks/.test(schema) && (schema.match(/\bTEXT\b/g) || []).length === 4 && /path TEXT NOT NULL UNIQUE/.test(schema) && /content_key TEXT NOT NULL/.test(schema) && /key TEXT PRIMARY KEY, value TEXT NOT NULL/.test(schema),
   "the semantic index must not store note text");
 const queryService = read("src/personal-notes/query-service.ts");
-must(sem.widens_read_scope === false && /found\.filter\(\(c\) => allowed\.has\(c\.path\)\)/.test(queryService) && /!visible\.has\(hit\.path\)/.test(queryService) && /only notes in this requester's pool count/.test(read("src/personal-notes/librarian.ts")),
+must(sem.widens_read_scope === false && /found\.filter\(\(c\) => allowed\.has\(c\.path\)\)/.test(queryService) && /!visible\.has\(hit\.path\)/.test(queryService) && /only notes in this requester's pool count/.test(read(librarianCore[0])),
   "semantic candidates must be filtered to the requester's readable notes");
 if (sem.catalog_pinned_and_hashed === true) {
   if (existsSync(resolve(root, "dist/kosmos-semantic.mjs"))) {
