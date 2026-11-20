@@ -1,5 +1,5 @@
 /**
- * The Librarian core is imported from GKOS-Engine (`gkos-engine/librarian`),
+ * The Librarian core is imported from GKOS-Engine (inside `gkos-engine/notes`),
  * not kept here. These tests replay the Engine's frozen vectors, as shipped
  * in the pinned package, through this plugin's own build: the answers a user
  * gets are the answers the Engine froze, byte for byte.

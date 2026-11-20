@@ -65,7 +65,9 @@ must(new RegExp(`agentSensitivityCeiling:\\s*"${sec.default_agent_sensitivity_ce
 must(sec.default_unlabeled_sensitivity === "secret", "policy: default_unlabeled_sensitivity must be secret (fail closed)");
 must(/defaultSensitivity:\s*FAIL_CLOSED_SENSITIVITY_DEFAULT/.test(server), "DEFAULT_AGENT_SETTINGS.defaultSensitivity must be the engine fail-closed default (secret)");
 /* ---- Personal Notes profile boundary (0.9.0) ---- */
-const personalSettings = read("src/personal-notes/settings.ts");
+// Personal Notes and semantic search are the Engine's modules at the pinned commit; the files here only import them.
+const ENGINE_SRC = "node_modules/gkos-engine/src";
+const personalSettings = read(`${ENGINE_SRC}/notes/settings.ts`);
 must(sec.personal_notes_default_folders_empty === true && /includeFolders:\s*\[\],/.test(personalSettings) && /autoStart:\s*false/.test(personalSettings), "Personal Notes must share no folders and not autostart by default");
 must(/activeProfile:\s*"existing"/.test(server), "DEFAULT_AGENT_SETTINGS.activeProfile must be the existing profile");
 must(sec.personal_fails_closed_without_runtime === true && /if \(this\.personalActive\(\) && !this\.personal\)/.test(server), "the Personal profile must fail closed when its runtime is absent");
@@ -152,23 +154,24 @@ must(mig.llm_required === false && mig.network_dispatch_allowed === false && !/\
 
 /* ---- semantic search (0.9.5) ---- */
 const sem = policy.semantic || {};
-const semDir = "src/semantic";
-const semFiles = readdirSync(resolve(root, semDir)).filter((f) => f.endsWith(".ts")).map((f) => `${semDir}/${f}`);
+const semDir = `${ENGINE_SRC}/semantic`;
+const localSemDir = "src/semantic";
+const tsFiles = (dir) => readdirSync(resolve(root, dir)).filter((f) => f.endsWith(".ts")).map((f) => `${dir}/${f}`);
+const semFiles = [...tsFiles(semDir), ...tsFiles(localSemDir)];
 const NETWORK = /\bfetch\s*\(|\brequestUrl\s*\(|XMLHttpRequest|WebSocket|EventSource|\bimportScripts\s*\(|sendBeacon/;
 must(sem.default_enabled === false && /return \{ enabled: false, modelId: DEFAULT_MODEL_ID/.test(read(`${semDir}/settings.ts`)), "semantic search must be off by default");
 const licences = sem.allowed_model_licenses?.__list || [];
 const catalogSrc = read(`${semDir}/catalog.ts`);
 must(licences.join(",") === "MIT,Apache-2.0" && /ALLOWED_MODEL_LICENSES = \["MIT", "Apache-2\.0"\] as const/.test(catalogSrc), "the model catalog must allow exactly MIT and Apache-2.0");
 for (const m of catalogSrc.matchAll(/^\s*license:\s*"([^"]+)"/gm)) must(licences.includes(m[1]), `catalog model licence ${m[1]} is not MIT or Apache-2.0`);
-// The Librarian core is the Engine's, at the pinned commit; the two files here only import it.
-const librarianCore = ["node_modules/gkos-engine/src/notes/librarian.ts", "node_modules/gkos-engine/src/notes/fulltext.ts"];
-for (const shim of ["src/personal-notes/librarian.ts", "src/personal-notes/fulltext.ts"]) {
-  must(stripComments(read(shim)).trim() === 'export * from "gkos-engine/librarian";', `${shim} must hold no Librarian logic, only the import of gkos-engine/librarian`);
+const librarianCore = [`${ENGINE_SRC}/notes/librarian.ts`, `${ENGINE_SRC}/notes/fulltext.ts`];
+// Every file of the two folders is a one-line import, except the three that are the plugin's own.
+const LOCAL_ONLY = new Set(["src/personal-notes/plugin-host.ts", "src/semantic/embedder.ts", "src/semantic/worker-entry.ts", "src/semantic/sqljs.d.ts"]);
+for (const [dir, subpath] of [["src/personal-notes", "gkos-engine/notes"], [localSemDir, "gkos-engine/semantic"]]) {
+  for (const shim of tsFiles(dir).filter((f) => !LOCAL_ONLY.has(f))) {
+    must(stripComments(read(shim)).trim() === `export * from "${subpath}";`, `${shim} must hold no logic of its own, only the import of ${subpath}`);
+  }
 }
-// The core reads the Engine's limits table; everything else here reads the local one. They must be the same table.
-const limitsTable = (file) => /export const PERSONAL_LIMITS = \{[\s\S]*?\} as const;/.exec(read(file))?.[0];
-must(limitsTable("src/personal-notes/types.ts") !== undefined && limitsTable("src/personal-notes/types.ts") === limitsTable("node_modules/gkos-engine/src/notes/types.ts"),
-  "PERSONAL_LIMITS in src/personal-notes/types.ts must equal the pinned Engine's (src/notes/types.ts)");
 for (const f of [...semFiles, "src/ui/semantic-settings.ts", ...librarianCore]) {
   must(!NETWORK.test(stripComments(read(f))), `${f} must make no network request (only src/plugin/semantic-host.ts and src/plugin/embedding-endpoint.ts may)`);
 }
@@ -191,7 +194,7 @@ must(sem.embedding_server_address === "loopback_or_private_literal"
   && epFn.indexOf("validateEmbeddingAddress(") < epFn.indexOf("requestUrl(") && /requestUrl\(\{ url: check\.url,/.test(epFn) && /throw: false/.test(epFn),
   "the embedding server address must be validated before the one request, and only the validated address may be requested");
 const endpointSrc = stripComments(read(`${semDir}/endpoint.ts`));
-must(/import \{ isGkxLoopbackHost, isGkxPrivateLanIpLiteral \} from "gkos-engine";/.test(endpointSrc)
+must(/import \{ isGkxLoopbackHost, isGkxPrivateLanIpLiteral \} from "\.\.\/gkx-network";/.test(endpointSrc)
   && /const local = isGkxLoopbackHost\(host\);\s*if \(!local && !isGkxPrivateLanIpLiteral\(host\)\) return \{ ok: false/.test(endpointSrc)
   && /if \(url\.username \|\| url\.password\) return \{ ok: false/.test(endpointSrc) && /if \(url\.hash \|\| text\.includes\("#"\)\) return \{ ok: false/.test(endpointSrc)
   && /url\.protocol !== "http:" && url\.protocol !== "https:"\) return \{ ok: false/.test(endpointSrc),
@@ -206,12 +209,12 @@ must(sem.api_key_in_settings === false && !/api_?key|\btoken\b|secret|password|a
 const workerSrc = stripComments(read(`${semDir}/worker.ts`));
 const remoteCase = workerSrc.slice(workerSrc.indexOf('case "load-remote"'), workerSrc.indexOf('case "manifest"'));
 must(remoteCase.length > 50 && !/createEmbedder|wasm|onnx/i.test(remoteCase), "with an embedding server the worker must load no model and no ONNX runtime");
-must(sem.worker_network === false && /numThreads = 1/.test(read(`${semDir}/embedder.ts`)) && /wasmBinary/.test(read(`${semDir}/embedder.ts`)),
+must(sem.worker_network === false && /numThreads = 1/.test(read(`${localSemDir}/embedder.ts`)) && /wasmBinary/.test(read(`${localSemDir}/embedder.ts`)),
   "the embedding worker must run from bytes it carries or is given (no runtime fetched, no threads)");
 const schema = /const DDL = `([\s\S]*?)`;/.exec(read(`${semDir}/store.ts`))?.[1] ?? "";
 must(sem.index_stores_note_text === false && /CREATE TABLE chunks/.test(schema) && (schema.match(/\bTEXT\b/g) || []).length === 4 && /path TEXT NOT NULL UNIQUE/.test(schema) && /content_key TEXT NOT NULL/.test(schema) && /key TEXT PRIMARY KEY, value TEXT NOT NULL/.test(schema),
   "the semantic index must not store note text");
-const queryService = read("src/personal-notes/query-service.ts");
+const queryService = read(`${ENGINE_SRC}/notes/query-service.ts`);
 must(sem.widens_read_scope === false && /found\.filter\(\(c\) => allowed\.has\(c\.path\)\)/.test(queryService) && /!visible\.has\(hit\.path\)/.test(queryService) && /only notes in this requester's pool count/.test(read(librarianCore[0])),
   "semantic candidates must be filtered to the requester's readable notes");
 if (sem.catalog_pinned_and_hashed === true) {

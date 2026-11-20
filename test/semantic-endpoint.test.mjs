@@ -718,7 +718,7 @@ test("source: the embedding server has exactly one request, behind the address c
   assert.doesNotMatch(ep, /console\./, "nothing is logged");
   const host = strip(readFileSync(new URL("../src/plugin/semantic-host.ts", import.meta.url), "utf8"));
   assert.doesNotMatch(host, /Authorization/);
-  const worker = strip(readFileSync(new URL("../src/semantic/worker.ts", import.meta.url), "utf8"));
+  const worker = strip(readFileSync(new URL("../node_modules/gkos-engine/src/semantic/worker.ts", import.meta.url), "utf8"));
   const remoteCase = worker.slice(worker.indexOf('case "load-remote"'), worker.indexOf('case "manifest"'));
   assert.ok(remoteCase.length > 50);
   assert.doesNotMatch(remoteCase, /createEmbedder/, "the server path never loads the ONNX runtime");

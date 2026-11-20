@@ -30,6 +30,29 @@ GKOS-Engine** instead of being kept here as a copy:
 - A test of the search worker could fail when the worker answered before it
   was killed; the query in that test no longer reaches the worker.
 
+Then, also not yet in a build — **Personal Notes and semantic search are
+imported from GKOS-Engine** as whole modules:
+
+- All of `src/personal-notes` except `plugin-host.ts` (23 files) is now
+  one-line imports of `gkos-engine/notes`, and `src/semantic` except
+  `embedder.ts`, `worker-entry.ts` and `sqljs.d.ts` (12 files) one-line
+  imports of `gkos-engine/semantic`. 32 of them were copies of the Engine's
+  files: 30 byte for byte, 2 differing in one import path. About 7,900 lines
+  leave this repository. Nothing a user sees changes.
+- The search worker is built from `gkos-engine/notes/search-worker`, the
+  worker's code alone; its text is 15 bytes smaller than before.
+- The Engine pin moves to `fd971cd` (still the 2.5.0 development line).
+  This pin has not had the qualification the October pin had either.
+- The checks that read these sources (`scripts/check-invariants.mjs`, two
+  tests) now read them from the pinned package, and a check requires every
+  file of the two folders, apart from the four named above, to hold nothing
+  but the import. The limits table exists once again, so the check that
+  compared two copies is gone.
+- `main.js` is 7,840,204 bytes, 10,153 more than before this step (0.13%):
+  each Engine bundle is self-contained, so a little code that the two
+  modules share is now in the plugin twice. The semantic worker's text grew
+  by 4,495 bytes for the same reason.
+
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
 `npm run verify`: 826 tests). The fixes were themselves reviewed
 independently before merge, and that review's findings are included.

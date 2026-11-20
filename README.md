@@ -595,7 +595,7 @@ and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is an exact development pin to Engine commit
-`8955672b9e151ba3ca957c8d9ef527aad42c56f0`. Its Effects contract says
+`fd971cdb568f37e016f908ef13db2d82440dd7e6`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

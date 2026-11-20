@@ -174,7 +174,7 @@ async function buildEmbed() {
 async function buildSearchWorker() {
   const res = await esbuild.build({
     stdin: {
-      contents: 'import { installSearchWorker } from "./src/personal-notes/search-worker";\ninstallSearchWorker(self);\n',
+      contents: 'import { installSearchWorker } from "gkos-engine/notes/search-worker";\ninstallSearchWorker(self);\n',
       resolveDir: root,
       sourcefile: "kosmos-personal-search-worker-entry.ts",
       loader: "ts",

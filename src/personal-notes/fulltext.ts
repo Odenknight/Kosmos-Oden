@@ -1,6 +1,5 @@
 /**
- * The Librarian core and its text preparation live in GKOS-Engine
- * (`gkos-engine/librarian`), at the commit pinned in package.json. This file
- * keeps the import path the rest of Personal Notes uses.
+ * Personal Notes lives in GKOS-Engine (`gkos-engine/notes`), at the commit pinned in
+ * package.json. This file keeps the import path the rest of the plugin uses.
  */
-export * from "gkos-engine/librarian";
+export * from "gkos-engine/notes";
