@@ -201,6 +201,22 @@ try {
   const names = (legacyTools.json?.result?.tools || []).map((t) => t.name).sort().join(",");
   check("older MCP lists exactly the six Personal tools", names === "ask_librarian,get_lineage,get_note,get_related,search_notes,vault_overview", names);
 
+  // A question through the packaged plugin's Librarian, with only Notes shared: it is answered
+  // from a shared note, and the note in Private is neither named nor quoted.
+  const askLibrarian = async (question) => {
+    const r = await request("/mcp", { method: "POST", token, headers: { "MCP-Protocol-Version": "2025-06-18" }, body: { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "ask_librarian", arguments: { question } } } });
+    let answer = null;
+    try { answer = JSON.parse(r.json?.result?.content?.[0]?.text ?? "null"); } catch { /* reported by the check */ }
+    return { status: r.status, text: r.text, answer };
+  };
+  const sharedAnswer = await askLibrarian("where is the heliotrope canary sentence");
+  check("ask_librarian answers a question from a shared note", sharedAnswer.status === 200 && sharedAnswer.answer?.results?.[0]?.path === "Notes/plain.md"
+    && JSON.stringify(sharedAnswer.answer.results[0]).includes("heliotrope canary"), JSON.stringify(sharedAnswer.answer?.results?.map((h) => h.path) ?? sharedAnswer.text.slice(0, 160)));
+  const hiddenAnswer = await askLibrarian("which note is not shared");
+  check("ask_librarian neither names nor quotes a note outside the shared folder", hiddenAnswer.status === 200 && Array.isArray(hiddenAnswer.answer?.results)
+    && !hiddenAnswer.answer.results.some((h) => String(h.path).startsWith("Private/")) && !/Private\/|zebrafinch/.test(hiddenAnswer.text),
+    JSON.stringify(hiddenAnswer.answer?.results?.map((h) => h.path) ?? hiddenAnswer.text.slice(0, 160)));
+
   /* ---- optional: hold the connection open for a real client application ---- */
   const hold = Number(arg("hold", "0"));
   if (hold > 0) {

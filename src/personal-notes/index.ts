@@ -1,22 +1,5 @@
-/** Personal Notes (0.9.0) — pure helpers shared by the plugin and the Agent API. */
-export * from "./types";
-export * from "./scope";
-export * from "./hash";
-export * from "./pagination";
-export * from "./policy";
-export * from "./settings";
-export * from "./fulltext";
-export * from "./librarian";
-export * from "./corpus";
-export * from "./search-worker";
-export * from "./worker-client";
-export * from "./attachments";
-export * from "./status";
-export * from "./lineage";
-export * from "./frontmatter-patch";
-export * from "./tagging";
-export * from "./tagging-writer";
-export * from "./query-service";
-export * from "./moc";
-export * from "./moc-writer";
-export * from "./moc-run";
+/**
+ * Personal Notes lives in GKOS-Engine (`gkos-engine/notes`), at the commit pinned in
+ * package.json. This file keeps the import path the rest of the plugin uses.
+ */
+export * from "gkos-engine/notes";

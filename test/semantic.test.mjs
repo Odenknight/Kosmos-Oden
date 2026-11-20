@@ -906,11 +906,15 @@ test("controller: while the index is being built it says so, and an agent is tol
 /* ------------------------------------------------------------ source rules */
 
 test("source: semantic search has one place that can reach the network, and it only fetches catalog files", () => {
-  const dir = new URL("../src/semantic/", import.meta.url);
   const network = /\bfetch\s*\(|XMLHttpRequest|WebSocket|requestUrl|EventSource|sendBeacon|importScripts\s*\(/;
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith(".ts")) continue;
-    assert.doesNotMatch(readFileSync(new URL(name, dir), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), network, `src/semantic/${name} must not reach the network`);
+  // The module is the Engine's at the pinned commit; the files here import it, apart from the embedder and the worker entry.
+  for (const folder of ["../node_modules/gkos-engine/src/semantic/", "../src/semantic/"]) {
+    const dir = new URL(folder, import.meta.url);
+    const names = readdirSync(dir).filter((name) => name.endsWith(".ts"));
+    assert.ok(names.length >= 10, folder);
+    for (const name of names) {
+      assert.doesNotMatch(readFileSync(new URL(name, dir), "utf8").replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""), network, `${folder}${name} must not reach the network`);
+    }
   }
   const host = readFileSync(new URL("../src/plugin/semantic-host.ts", import.meta.url), "utf8");
   assert.equal(host.match(/\bfetch\s*\(/g).length, 1);

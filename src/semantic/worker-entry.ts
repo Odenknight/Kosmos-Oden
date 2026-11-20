@@ -10,8 +10,8 @@ import initSqlJs from "sql.js/dist/sql-wasm-browser.js";
 import ORT_WASM_GZ from "../../dist/kosmos-ort-wasm.gz.b64.txt";
 import SQL_WASM_GZ from "../../dist/kosmos-sql-wasm.gz.b64.txt";
 import { configureOnnxRuntime, createOnnxEmbedder } from "./embedder";
-import type { SqlModule } from "./store";
-import { installSemanticWorker, type SemanticWorkerScope } from "./worker";
+// The installer alone: the catalog, the controller and the rest of the module stay out of the worker script.
+import { installSemanticWorker, type SemanticWorkerScope, type SqlModule } from "gkos-engine/semantic/worker";
 
 async function gunzipBase64(b64: string): Promise<ArrayBuffer> {
   const binary = atob(b64);

@@ -30,6 +30,35 @@ GKOS-Engine** instead of being kept here as a copy:
 - A test of the search worker could fail when the worker answered before it
   was killed; the query in that test no longer reaches the worker.
 
+Then, also not yet in a build — **Personal Notes and semantic search are
+imported from GKOS-Engine** as whole modules:
+
+- All of `src/personal-notes` except `plugin-host.ts` (23 files) is now
+  one-line imports of `gkos-engine/notes`, and `src/semantic` except
+  `embedder.ts`, `worker-entry.ts` and `sqljs.d.ts` (12 files) one-line
+  imports of `gkos-engine/semantic`. 32 of them were copies of the Engine's
+  files: 30 byte for byte, 2 differing in one import path. About 7,900 lines
+  leave this repository. Nothing a user sees changes.
+- The two workers are built from `gkos-engine/notes/search-worker` and
+  `gkos-engine/semantic/worker`, each the worker's installer alone. The
+  search worker's text is 7 bytes smaller than before and the semantic
+  worker's 26 bytes larger.
+- The Engine pin moves to `8655452` (still the 2.5.0 development line).
+  This pin has not had the qualification the October pin had either.
+- The checks that read these sources (`scripts/check-invariants.mjs`, two
+  tests) now read them from the pinned package, and a check requires every
+  file of the two folders, apart from the four named above, to hold nothing
+  but the import. The limits table exists once again, so the check that
+  compared two copies is gone.
+- `main.js` is 7,829,985 bytes: 66 fewer than before this step, and 694 more
+  than before the Librarian core was imported (7,829,291).
+- Checked against the build before any of this: the answers to the bench's
+  40 questions over its 10,000-note corpus and to 50 questions over a real
+  folder of 104 Markdown files are byte for byte the same. The Obsidian
+  trial now asks the packaged plugin's Librarian two questions with one
+  folder shared: one is answered from a shared note, and the other neither
+  names nor quotes the note outside it.
+
 Fixed in alpha.3 — found by a code review of alpha.2 (each has a test;
 `npm run verify`: 826 tests). The fixes were themselves reviewed
 independently before merge, and that review's findings are included.

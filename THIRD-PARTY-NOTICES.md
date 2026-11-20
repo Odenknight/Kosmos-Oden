@@ -110,7 +110,7 @@ the MCP conformance tests. It and the packages it installs
 ## GKOS-Engine
 
 Kosmos-Oden bundles the **GKOS-Engine 2.5.0 development line**, © OdenKnight contributors, under
-the Apache License 2.0. The exact commit (`8955672b9e151ba3ca957c8d9ef527aad42c56f0`) is recorded in
+the Apache License 2.0. The exact commit (`8655452dcc7f9d652887b9cdf975e1f538f61386`) is recorded in
 `package.json` and `package-lock.json`. Navigation is consumed only through
 the source-content-read-only Engine surface; Kosmos-Oden does not configure a
 Governance Store or expose source-content write capabilities through it.
