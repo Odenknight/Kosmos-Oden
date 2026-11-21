@@ -7,7 +7,7 @@ viewer** stay cleanly separated, and how to publish and submit it.
 
 | Kind | Files | Where it lives | How a user gets it |
 |---|---|---|---|
-| **Plugin** | `manifest.json`, `styles.css`, `versions.json` (committed) + `main.js` (build output, gitignored) | source at repo root; all four attached to each release | Obsidian **Community plugins** browser / BRAT — Obsidian downloads only these files from the release |
+| **Plugin** | `manifest.json`, `styles.css`, `versions.json` (committed) + `main.js` (build output, gitignored) | source at repo root; all four attached to each release | Obsidian **Community plugins** browser / BRAT — Obsidian installs the three runtime files; versions.json is a compatibility map |
 | **Standalone** | `kosmos-oden-stand-alone.html` (one self-contained file) | **not** committed (build output); attached to each release as its own asset | download the single file from the **Releases** page and open it in a browser |
 
 The standalone is **never** part of the plugin download — Obsidian only fetches
@@ -42,37 +42,16 @@ with each file as an individual asset.
 > Legacy `v*` tags still trigger the workflow, but new releases should use the
 > unprefixed form so they're valid for the community listing.
 
-## First-time submission to the community catalog
+## Directory submission and build verification
 
-One-time PR to [`obsidianmd/obsidian-releases`](https://github.com/obsidianmd/obsidian-releases)
-adding an entry to `community-plugins.json`:
+In the [Obsidian Community directory](https://community.obsidian.md/), sign in, link the GitHub account that owns this repository, choose **Plugins → New plugin**, and enter the public Kosmos-Oden repository. The directory reads the default branch manifest and installs `main.js`, `manifest.json` and `styles.css` from the matching release. The optional stdio bridge and standalone viewer are separate downloads. [Official submission guide](https://docs.obsidian.md/plugins/releasing/submit-plugin)
 
-```json
-{
-  "id": "kosmos-oden",
-  "name": "Kosmos-Oden (Kosmos-Oden)",
-  "author": "OdenKnight",
-  "description": "A 3D constellation view of your notes …",
-  "repo": "Odenknight/Kosmos-Oden"
-}
-```
+The production command is `npm run build` after `npm ci` on Node 22. The lockfile resolves GKOS-Engine 2.5.2 to commit `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. Maintainer CI uses a read-only repository deploy key. That key is available only to the project's own workflows.
 
-Pre-flight checklist (Obsidian bot + reviewers check these):
-- [ ] `manifest.json` at repo root with `id`, `name`, `version`, `minAppVersion`, `description`, `author`, `isDesktopOnly`. ✔ (current)
-- [ ] `id` is unique, lowercase-hyphen, no "obsidian"/"plugin". ✔ `kosmos-oden`
-- [ ] `name` does not contain "Obsidian". ✔
-- [ ] A GitHub **release whose tag == manifest version, no `v` prefix**, with `manifest.json`, `main.js`, `styles.css` as individual assets. ← use the flow above (the only prior tag, `v0.5.1`, is prefixed and pre-dates this policy).
-- [ ] `versions.json` maps plugin version → minAppVersion. ✔
-- [ ] `README.md` describes the plugin. ✔
-- [ ] `LICENSE` present. ✔
+To keep Engine private, prepare a private build-source repository containing the tagged Kosmos sources and the pinned Engine build inputs. Bind the dependency to an integrity-checked local package built from that commit, including required package exports and provenance. From a fresh checkout of that single repository, install and build without a second repository credential. Compare all three plugin assets with the public release's SHA-256 values. Grant the Obsidian Community directory GitHub App read access to the private build-source repository, associate it with the public entry, and run **Review branch**. Obsidian documents this single-private-source arrangement. Its documentation does not establish that an external private Git dependency will be fetched automatically. [Private source and preview scans](https://docs.obsidian.md/community-directory/manage-entry)
 
-After the PR merges, the plugin appears in **Settings → Community plugins →
-Browse**. Subsequent releases are picked up automatically from new tags.
+This arrangement was tested locally for 0.9.5 on Windows with Node 24.18.0 and npm 11.16.0. In the Engine directory installed by the authorized lockfile, `npm pack --ignore-scripts` packaged the prepared modules and their source. In a separate clean Kosmos checkout, the dependency was changed to `file:vendor/gkos-engine-2.5.2.tgz` and the private Git install-script entry removed. Running `npm install --package-lock-only --ignore-scripts` bound the tarball to its SHA-512 digest. With an empty cache and no Engine credentials, `npm ci` and `npm run build` reproduced the release build's `main.js`, `manifest.json` and `styles.css` byte for byte. Keep the package and this alternate lockfile together in the private review checkout. A directory preview scan remains a separate check.
 
-## Testing before submission
+Alternatively, the Engine owner can publish a reviewed, versioned package containing the required Engine modules and license notices, then update the dependency, lockfile and provenance checks and repeat the clean build anonymously. Both routes require the same release asset comparison before claiming an independent rebuild.
 
-- **BRAT** (Beta Reviewers Auto-update Tool): add `Odenknight/Kosmos-Oden` to
-  install directly from releases, including `0.6.0-beta.*` pre-releases for the
-  r185 renderer line.
-- **Manual**: copy `manifest.json` + `main.js` + `styles.css` into
-  `<vault>/.obsidian/plugins/kosmos-oden/` and enable it.
+Use the directory review results to resolve any outstanding findings. Installation from the in-app directory becomes available after the listing passes review and is published.
