@@ -82,7 +82,7 @@ Open the **[numbered guide to all capabilities and features](TECHNICAL_README.md
 
 ## Origin, source and licensing
 
-Kosmos-Oden began as an independent fork of **H4R7W16’s vault-kosmos**, inspired by its idea of exploring a vault as a star field. Kosmos-Oden carries that idea into note history, local search and read-only access for assistants. [Original vault-kosmos project](https://github.com/H4R7W16/vault-kosmos) · [Upstream credits and notices](THIRD-PARTY-NOTICES.md) · [Acknowledgments](ACKNOWLEDGMENTS.md)
+Shaun Marshall built Kosmos-Oden as a greenfield project. H4R7W16’s vault-kosmos inspired the stars concept. Kosmos-Oden implements its own Engine integration and scales celestial bodies to reflect the relative weights of notes. Kosmos-Oden carries that idea into note history, local search and read-only access for assistants. [Original vault-kosmos project](https://github.com/H4R7W16/vault-kosmos) · [Upstream credits and notices](THIRD-PARTY-NOTICES.md) · [Acknowledgments](ACKNOWLEDGMENTS.md)
 
 Local viewing and word search work offline. Optional services use the endpoints you choose above. The standalone viewer reads a folder you select, and the plugin can import model files you choose from disk. The public release includes a compiled private GKOS-Engine dependency. The tagged build and the private reviewer source package were independently reproduced on Linux x64 with Node 22.23.5. [Source build and directory review](docs/COMMUNITY-PLUGIN.md) · [Contributor setup](CONTRIBUTING.md) · [Release and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/0.9.5)
 
