@@ -273,7 +273,7 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     const showMonitorControls = m.mode === "persistent";
     status.innerHTML = `<h4><span>Kosmos Status</span><button title="Collapse" data-act="min">▾</button></h4>
       <div class="ko-body">
-        ${rows.map(([k, v]) => `<div class="ko-row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}
+        ${rows.map(([k, v]) => `<div class="ko-row"><span>${k}</span><b${k === "Last scan" ? " data-last-scan" : ""}>${esc(v)}</b></div>`).join("")}
         <div class="ko-actions">
           ${m.mode === "live" ? `<button data-act="refreshEngine">Refresh Graph</button>` : ""}
           ${showMonitorControls ? `<button data-act="rescan">Rescan Now</button>
@@ -302,7 +302,10 @@ export function createStandaloneUI(handlers: StandaloneUIHandlers): StandaloneUI
     model = { ...model, ...m };
     status.style.display = "block";
     render();
-    if (!tick) tick = setInterval(() => { const el = status.querySelector(".ko-row b"); if (el && model.lastScanAt) render(); }, 5000);
+    if (!tick) tick = setInterval(() => {
+      const lastScan = status.querySelector("[data-last-scan]");
+      if (lastScan && model.lastScanAt) lastScan.textContent = fmtAgo(model.lastScanAt);
+    }, 5000);
   }
   function setMonitorState(state: "active" | "paused" | "unavailable"): void {
     setStatus({ monitoring: state });
