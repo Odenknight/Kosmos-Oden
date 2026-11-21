@@ -1,14 +1,13 @@
 # Install v0.9.5 (alpha)
 
 1. Close Obsidian.
-2. Unzip `kosmos-oden-0.9.5-alpha.4.zip`. It contains a `kosmos-oden/` folder
+2. Download and unzip [the alpha.4 plugin ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.4/kosmos-oden-0.9.5-alpha.4.zip). It contains a `kosmos-oden/` folder
    (`manifest.json`, `main.js`, `styles.css`, `kosmos-mcp-stdio.mjs`) plus
    `docs/`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `BUILD-INFO.json` and
    `SHA256SUMS`.
-3. Copy the `kosmos-oden/` folder into
-   `<vault>/.obsidian/plugins/kosmos-oden/`, replacing the old folder. Do not
-   copy `data.json` from the archive; there is none, and your settings live in
-   the vault's existing plugin data.
+3. Copy the files **inside** the extracted `kosmos-oden/` folder into
+   `<vault>/.obsidian/plugins/kosmos-oden/`. On upgrade, overwrite the supplied
+   files individually and keep the existing plugin folder and its `data.json` settings file.
 4. Start Obsidian and enable **Kosmos-Oden** under **Settings → Community
    plugins**. The manifest asks for Obsidian 1.13.0 or newer.
 5. **Settings → Kosmos-Oden → Personal Notes**: choose the folders shared with

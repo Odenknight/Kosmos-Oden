@@ -4,7 +4,11 @@ Thanks for your interest. This is a small, single-maintainer project with a
 deliberately strong assurance pipeline — please work with it rather than around
 it.
 
-## Setup
+## Source access and setup
+
+The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.4).
+
+To build from source, use a GitHub identity with Engine read access. Check SSH access with `git ls-remote git@github.com:Odenknight/GKOS-Engine.git HEAD` before installing. Use the dependency in the lockfile. A local substitute invalidates the pin and provenance checks.
 
 ```bash
 nvm use            # Node 22 (see .nvmrc)
@@ -14,13 +18,14 @@ npm run verify     # typecheck + build + test + version/artifact/invariant check
 
 ## The golden rule
 
-> There is **one** graph-semantics implementation: `src/core/`. The plugin,
+> The pinned **GKOS-Engine** package owns graph semantics. The plugin,
 > standalone viewer, Agent API, Graphiti exporter and CLI all consume it. Never
 > fork parsing, resolution, lineage, temporal or graph logic into a surface.
 
 ## Before opening a PR
 
-- `npm run verify` passes locally.
+- Run `npm run verify` locally. The TypeScript gate rejects implicit `any` throughout `src/`. Explicit `any` annotations remain and full strict mode is disabled.
+- The invariant checker detects source and configuration drift, including in the pinned Engine. Runtime tests separately exercise folder exclusion, request authorization and cancellation.
 - New behavior has tests; fixed defects get a regression test.
 - Security-relevant changes keep `npm run check:invariants` green (see
   `kosmos-invariants.yml`).

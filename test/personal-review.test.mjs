@@ -82,7 +82,7 @@ test("review: in network mode the configured connection hostname passes Host/Ori
   assert.equal(make("").hostAllowed("obsidian-pc.example.net"), false);
 });
 
-test("review: a synced timestamp-only change from another device does not trigger another automatic stamp", async () => {
+test("review: a synced timestamp-only change from another device does not trigger another automatic stamp", { timeout: 30_000 }, async (t) => {
   const persisted = settings(["Notes"]);
   persisted.personalNotes.tagging = { enabled: true, folders: ["Notes"], timestamps: true, uniqueIds: false, supersession: false, automaticTimestamps: true };
   const app = makeApp({ "Notes/Garden.md": "# Garden\n" }, { persisted });
@@ -90,26 +90,37 @@ test("review: a synced timestamp-only change from another device does not trigge
   try {
     app.layoutReady();
     await indexed(plugin);
-    app.edit("Notes/Garden.md", "# Garden\nPlant tomatoes.\n"); // a real user edit on this device
-    await delay(1100);
+    // The debounce timer starts async hashing and writing. Observe its completion
+    // so the no-write assertion also waits for the timestamp decision.
+    const runAutoStamp = plugin.runAutoStamp.bind(plugin);
+    let observe;
+    t.mock.method(plugin, "runAutoStamp", (...args) => {
+      const stamping = runAutoStamp(...args);
+      observe?.(stamping);
+      observe = undefined;
+      return stamping;
+    });
+    function editAndWait(text) {
+      return new Promise((resolve) => {
+        observe = resolve;
+        app.edit("Notes/Garden.md", text);
+      });
+    }
+    await editAndWait("# Garden\nPlant tomatoes.\n");
     const stamped = app.store.get("Notes/Garden.md");
     assert.match(stamped, /updated_at: "(.+)"/, "the user edit is stamped");
     const writes = app.writes.length;
 
     // The other device (same synced settings) stamps the synced edit with its own clock; sync brings it back here.
     const fromOtherDevice = stamped.replace(/updated_at: "[^"]+"/, 'updated_at: "2031-01-01T00:00:00.000Z"');
-    app.edit("Notes/Garden.md", fromOtherDevice);
-    await delay(1100);
+    await editAndWait(fromOtherDevice);
     assert.equal(app.writes.length, writes, "a change to updated_at alone is not a content change: no new stamp, no cross-device loop");
     assert.equal(app.store.get("Notes/Garden.md"), fromOtherDevice);
 
-    app.edit("Notes/Garden.md", fromOtherDevice + "More.\n"); // a real edit is still stamped
-    await delay(1100);
+    await editAndWait(fromOtherDevice + "More.\n");
     assert.equal(app.writes.length, writes + 1);
   } finally { unloadPlugin(plugin); }
 });
-
-const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 
 function freePort() {
   return new Promise((done) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => done(port)); }); });

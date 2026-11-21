@@ -540,12 +540,17 @@ test("controller (server): the server stops while indexing — indexing pauses (
   const many = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`N/${i}.md`, `# Note ${i}\n\nThe nightly backup of the disk number ${i}.`]));
   const c = await serverController({ url: srv.url, notes: many, server: { batch: 1 } });
   try {
-    let stopped = false;
-    const off = c.listen(() => { if (!stopped && c.controller.overview().indexedNotes >= 6) { stopped = true; void srv.down(); } });
+    let stopping;
+    const off = c.listen(() => {
+      if (!stopping && c.controller.overview().indexedNotes >= 6) stopping = srv.down();
+    });
     await c.controller.apply();
-    await until(() => c.controller.overview().phase === "paused", "paused");
+    await c.controller.service.idle();
     off();
+    assert.ok(stopping, "the first batch committed and initiated the server shutdown");
+    await stopping;
     const o = c.controller.overview();
+    assert.equal(o.phase, "paused");
     assert.equal(o.retry, true);
     assert.equal(o.failedNotes, 0, "a missing server does not fail notes");
     assert.match(o.message, /^Paused: No embedding server answered at .*\. \d+ of 30 notes are embedded; questions use those\. Press Retry, or it continues when a note changes\.$/);
@@ -565,8 +570,9 @@ test("controller (server): a busy server (429) pauses indexing and fails no note
   const c = await serverController({ url: srv.url, notes: NOTES });
   try {
     await c.controller.apply();
-    await until(() => c.controller.overview().phase === "paused", "paused");
+    await c.controller.service.idle();
     const paused = c.controller.overview();
+    assert.equal(paused.phase, "paused");
     assert.deepEqual([paused.failedNotes, paused.indexedNotes, paused.retry], [0, 0, true], "no note is counted as one that could not be embedded");
     assert.ok(c.sleeps.includes(CLIENT_LIMITS.retryAfterMs), "it was tried once more after 2 s before pausing");
     // The server has room again. Nothing was edited: looking at every note again must send them.
