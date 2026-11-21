@@ -24,7 +24,7 @@ Run **Open Kosmos-Oden** and select a star to focus on a note and its connection
 
 ### Find a passage by words or meaning
 
-Use **Search my notes** for exact words or a quoted phrase across your own vault. An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md)
+Use **Search my notes** for exact words or a quoted phrase across your own vault. If its tab opens blank on Windows, use Obsidian’s built-in **Search** for word lookup. An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md) · [Observed display issue](docs/v0.9.5/KNOWN-LIMITATIONS.md#search-my-notes-on-windows)
 
 ![The Librarian answers a question about a sample garden folder with links to matching notes](docs/assets/librarian.png)
 

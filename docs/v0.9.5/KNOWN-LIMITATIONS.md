@@ -1,5 +1,9 @@
 # v0.9.5 — known limitations
 
+## Search my notes on Windows
+
+While preparing the 0.9.5 screenshots in a disposable vault on Windows with Obsidian 1.15.1, **Search my notes** opened a tab with that title but no visible input. The result repeated through the command palette after reloading the vault. The automated plugin smoke checks that the view opens; that check alone does not establish that the input rendered. Obsidian’s built-in **Search** is an alternative for word searches. The authenticated Librarian page returned both sample notes in the same test environment. The scope of the display issue on other devices is unverified.
+
 ## The Librarian (`ask_librarian`, `GET /librarian`, `/ui`)
 
 - **Lexical unless semantic search is turned on.** Without it, a question that
