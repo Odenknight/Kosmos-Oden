@@ -10,8 +10,9 @@ the archive):
 | `0.9.5-alpha.1` | The Librarian, the Map of Content command, `/ui`, and semantic search inside the plugin. |
 | `0.9.5-alpha.2` | alpha.1 plus the embedding server engine, the Librarian fixes and the speed work listed next. |
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
+| `0.9.5-alpha.4` | GKOS-Engine 2.5.1 metadata, Personal Notes and semantic imports, guarded folder indexing, page-memory Librarian tokens, and stable viewer focus. |
 
-After alpha.3, not yet in a build — **the Librarian core is imported from
+Included in alpha.4 — **the Librarian core is imported from
 GKOS-Engine** instead of being kept here as a copy:
 
 - `src/personal-notes/librarian.ts` and `fulltext.ts` (1,797 lines) are now

@@ -1,6 +1,6 @@
 # Kosmos-Oden v0.9.5 (alpha)
 
-**Build:** `kosmos-oden-0.9.5-alpha.3` · **Plugin version:** 0.9.5 ·
+**Build:** `kosmos-oden-0.9.5-alpha.4` · **Plugin version:** 0.9.5 ·
 **Needs:** Obsidian 1.13.0 or newer · **Status:** alpha, not a qualified
 release (see [Honest status](#honest-status)).
 
@@ -31,7 +31,7 @@ only by the words they contain.
 ### 1. Install the alpha
 
 1. Close Obsidian.
-2. Unzip `kosmos-oden-0.9.5-alpha.3.zip`. It holds a `kosmos-oden/` folder.
+2. Unzip `kosmos-oden-0.9.5-alpha.4.zip`. It holds a `kosmos-oden/` folder.
 3. Copy that folder into `<your vault>/.obsidian/plugins/kosmos-oden/`,
    replacing the old one if there is one.
 4. Start Obsidian and switch on **Kosmos-Oden** under **Settings → Community
@@ -137,6 +137,13 @@ Where to read more, further down this page:
 [GKX 2.3 profile](docs/GKX-2.3-PROFILE.md)
 
 ## What's new in 0.9.5
+
+**New in alpha.4 with GKOS-Engine 2.5.1**
+
+- Single wiki links in lineage fields survive parsing, and large tag and link lists keep their original order with less indexing work.
+- Folder indexes check physical containment and use the title and summary from the same note snapshot that passed the sensitivity check.
+- The Librarian holds its bearer token in page memory. Reloading the page clears it. Viewer controls retain keyboard focus when the scan age changes.
+- For a home vault, keep Personal Notes on localhost, select the folders your assistant needs, and start at the Internal ceiling. Your existing device token still works.
 
 New in build alpha.3 (fixes from a code review of alpha.2; no new features):
 
@@ -332,12 +339,8 @@ The full list, with the changes and security notes of each version, is in
 ## Honest status
 
 - **This is an alpha**, not a qualified release.
-- **Automated checks pass:** `npm run verify` gave 826 tests passing and 0
-  failing for build alpha.3 (809 at alpha.2, 771 at alpha.1, commit
-  `33c8945`). The alpha.3 fixes each have a test; none was tried inside a
-  real Obsidian. The five
-  listed embedding models were each run for real in a headless Chromium
-  browser at alpha.1 (80 of 80 smoke checks); that run was not repeated.
+- **Alpha.4 verification on Windows, Node 24.18.0:** 832 checks passed in the plugin test suite. Playwright passed 54 desktop and mobile Chromium tests and 40 Firefox and WebKit tests. The previous stability review found a difference in the `star-focus` visual snapshot on unchanged upstream. Its reference image remains unchanged. See the [alpha test record](docs/v0.9.5/ALPHA-TEST.md).
+- The five listed embedding models ran in a headless Chromium browser at alpha.1 (80 of 80 smoke checks). That run belongs to alpha.1.
 - **The embedding server route was tried against real servers, outside
   Obsidian.** The plugin's client received real 768-number vectors from an
   OpenAI-compatible gateway (LiteLLM) at a private-network address, and gave
@@ -595,8 +598,8 @@ been adopted or written; automatic writes remain unavailable and off. The
 and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence, not runtime or qualification standing.
 
-The dependency is an exact development pin to Engine commit
-`8655452dcc7f9d652887b9cdf975e1f538f61386`. Its Effects contract says
+The dependency is pinned to the Engine 2.5.1 release commit
+`d57c26fc5858474a0fa0cb601cbeef32fe12c233`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
