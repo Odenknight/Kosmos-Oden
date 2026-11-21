@@ -63,10 +63,10 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#7fc2862bde45d145b3809c93ff36e3640c4da096",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#44c62208b8a82d350d29bc7fcf44c8a0a13a575b",
     "three": "0.187.0"
   },
   "allowScripts": {
-    "github:Odenknight/GKOS-Engine#7fc2862bde45d145b3809c93ff36e3640c4da096": true
+    "github:Odenknight/GKOS-Engine#44c62208b8a82d350d29bc7fcf44c8a0a13a575b": true
   }
 }

@@ -14,7 +14,7 @@ mix: a request is answered entirely by the active profile.
 `GET /` on the running server reports which profile is active (`profile:
 "personal"` appears only in the Personal profile) and lists its routes. MCP
 transport behavior (eras, batches, the stdio bridge) is shared and described in
-[docs/v0.9.0/MCP-COMPATIBILITY.md](docs/v0.9.0/MCP-COMPATIBILITY.md).
+[MCP compatibility](docs/v0.9.5/MCP-COMPATIBILITY.md).
 
 ## Existing profile
 
@@ -412,7 +412,7 @@ user asks you to."
 - MCP: `POST /mcp`, the same modern and initialize-era behavior as the
   existing profile, governed by the Personal setting **Accept older MCP
   clients** (`personalNotes.connection.acceptOlderMcp`, default on). See
-  [MCP-COMPATIBILITY.md](docs/v0.9.0/MCP-COMPATIBILITY.md).
+  [MCP-COMPATIBILITY.md](docs/v0.9.5/MCP-COMPATIBILITY.md).
 - Limits shared with the existing profile: 4 MiB request bodies, rate and
   concurrency limits (`429`), and a 25-second operation deadline.
 - If the Personal profile is active but its runtime is not ready, every

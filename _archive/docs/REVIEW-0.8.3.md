@@ -2,7 +2,7 @@
 
 ## September 12 startup and renderer update
 
-The [startup and connection-line bugfix report](reviews/2026-09-12-startup-and-links-bugfix.md)
+The [startup and connection-line bugfix report](../../docs/reviews/2026-09-12-startup-and-links-bugfix.md)
 records the newer reliability baseline, timestamp repair, forced full reindex,
 and All links behavior. The full-reindex evidence belongs to startup candidate
 `d56d0d3`; renderer candidate `f862d45` adds line visibility changes and passed

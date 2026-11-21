@@ -62,3 +62,22 @@ jobs:
           name: browser-full-report-${{ github.sha }}
           path: test-results/
           retention-days: 14
+
+  macos-engine-pair:
+    name: Installed Engine and Kosmos viewer on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - uses: ./.github/actions/engine-access
+        with:
+          deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
+      - name: Resolve the temporary directory for Engine filesystem checks
+        run: echo "TMPDIR=$(cd "$TMPDIR" && pwd -P)" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install chromium
+      - run: npm run test:renderer:pair -- --workers=1

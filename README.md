@@ -2,9 +2,9 @@
 
 Explore an Obsidian vault as a 3D sky, search notes by words or meaning, and let an AI assistant read folders you choose. Your notes stay ordinary Markdown files.
 
-**[Download the plugin ZIP for 0.9.5-alpha.5](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.5/kosmos-oden-0.9.5-alpha.5.zip)** · [Standalone offline viewer](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.5/kosmos-oden-stand-alone.html) · [Release files and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.5)
+**[Download the plugin ZIP for 0.9.5-alpha.6](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.6/kosmos-oden-0.9.5-alpha.6.zip)** · [Standalone offline viewer](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.6/kosmos-oden-stand-alone.html) · [Release files and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.6)
 
-Verify the download with the [SHA-256 checksum published with the ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.5/kosmos-oden-0.9.5-alpha.5.zip.sha256).
+Verify the download with the [SHA-256 checksum published with the ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.6/kosmos-oden-0.9.5-alpha.6.zip.sha256).
 
 ![A vault rendered as a navigable night sky](docs/assets/kosmos-oden-night-sky.png)
 
@@ -35,7 +35,9 @@ Press **Connect** to create the device bearer token, then **Copy configuration**
 
 ## What the alpha has demonstrated
 
-Alpha.5 uses GKOS-Engine 2.5.2. The plugin and the Engine viewer use Three.js r187. The standalone HTML works offline and is also bundled with Engine. The alpha includes the Librarian, Map of Content generation and optional semantic search. On a 542-note evaluation corpus the Librarian ranked the expected note first for 39 of 44 questions. One incorrect answer received a strong confidence label. On 28 public Obsidian Help pages, the semantic worker ranked the reference page first on 8 of 16 questions and in the top five on 14. This measures semantic ranking before the Librarian combines evidence. Desktop and mobile Chromium, Firefox and WebKit test results, visual comparisons and pending trials are recorded in the [alpha test record](docs/v0.9.5/ALPHA-TEST.md), [known limitations](docs/v0.9.5/KNOWN-LIMITATIONS.md) and [changelog](CHANGELOG.md).
+Alpha.6 pins GKOS-Engine 2.5.2 at `44c62208`, which includes the macOS filesystem fixes from Engine #121. Engine now verifies watcher recovery on APFS and checks the exact filenames of its ingest state. The Obsidian plugin ships as a ZIP. The separate desktop Engine has its own Mac executables. The plugin and the Engine viewer use Three.js r187. The standalone HTML works offline and is also bundled with Engine. The alpha includes the Librarian, Map of Content generation and optional semantic search. On a 542-note evaluation corpus the Librarian ranked the expected note first for 39 of 44 questions. One incorrect answer received a strong confidence label. On 28 public Obsidian Help pages, the semantic worker ranked the reference page first on 8 of 16 questions and in the top five on 14. This measures semantic ranking before the Librarian combines evidence. Desktop and mobile Chromium, Firefox and WebKit test results, visual comparisons and pending trials are recorded in the [alpha test record](docs/v0.9.5/ALPHA-TEST.md), [known limitations](docs/v0.9.5/KNOWN-LIMITATIONS.md) and [changelog](CHANGELOG.md).
+
+Earlier installation guides, reviews and handoffs are in the [project archive](_archive/README.md).
 
 ## Source access and licensing
 

@@ -250,12 +250,12 @@ journal/archive/lease, event coordinator, recovery or reconciliation runtime,
 self-write suppression, complete operator workflow, rollback/audit workflow,
 cross-platform crash evidence, scale evidence, or 24-hour soak. No MOC has
 been adopted or written; automatic writes remain unavailable and off. The
-[Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+[Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+and [Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is pinned to the Engine 2.5.2 release commit
-`7fc2862bde45d145b3809c93ff36e3640c4da096`. Its Effects contract says
+`44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

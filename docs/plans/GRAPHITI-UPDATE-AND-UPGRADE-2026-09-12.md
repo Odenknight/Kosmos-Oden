@@ -2,7 +2,7 @@
 
 Date: 2026-09-12; reconciled 2026-09-13
 Status: active roadmap with bounded adapter/fixture work implemented; full semantic service remains unqualified.
-Handoff: [HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md](../../HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md)
+Handoff: [_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md](../../_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md)
 
 ## Reconciled implementation and experiment status
 

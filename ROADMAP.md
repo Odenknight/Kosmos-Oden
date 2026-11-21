@@ -41,7 +41,7 @@ dual-era MCP and Quick Connect for this or another computer are built and
 pass automated checks. Owner trials remain open (real Keep and OneNote
 imports, real MCP client applications, a second machine, the archive in a
 clean vault, measurements inside Obsidian); see
-[docs/v0.9.0/ALPHA-TEST.md](docs/v0.9.0/ALPHA-TEST.md).
+[_archive/docs/v0.9.0/ALPHA-TEST.md](_archive/docs/v0.9.0/ALPHA-TEST.md).
 
 Later work, not in 0.9.0: OCR and handwriting transcription, embeddings or
 semantic search, live or two-way sync with source apps, Apple Notes and

@@ -2,12 +2,12 @@
 
 ## Scope and status vocabulary
 
-Kosmos-Oden 0.9.5-alpha.5 consumes the TypeScript Engine 2.5.2
-release at exact commit `7fc2862bde45d145b3809c93ff36e3640c4da096`.
+Kosmos-Oden 0.9.5-alpha.6 consumes TypeScript Engine 2.5.2
+with the macOS filesystem follow-up at exact commit `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`.
 It adds the Personal Notes profile and dual-era MCP; see
-[docs/v0.9.0/](docs/v0.9.0/BUILD-PROGRESS.md) for build evidence and pending
+[the current alpha test record](docs/v0.9.5/ALPHA-TEST.md) for build evidence and pending
 trials. Navigation Effects remain experimental and default-disabled. Earlier
-candidate evidence: [REVIEW-0.8.3.md](docs/REVIEW-0.8.3.md).
+candidate evidence: [REVIEW-0.8.3.md](_archive/docs/REVIEW-0.8.3.md).
 
 Use these states independently:
 
@@ -27,7 +27,7 @@ makes no GKOS conformance or certification claim.
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
 | Obsidian Agent API | Read-only REST and Streamable HTTP MCP (modern and initialize-era), stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
-| Personal Notes profile | Folder-scoped read policy, in-memory worker search, six read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; trials in `docs/v0.9.0/ALPHA-TEST.md` pending |
+| Personal Notes profile | Folder-scoped read policy, in-memory worker search, six read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; see the [current test record](docs/v0.9.5/ALPHA-TEST.md) |
 | Standalone service client | Loopback address validation, bearer graph fetch, capability negotiation, authenticated event stream | Requires an external compatible service and viewer credential | Client validates Draft.1; service is not bundled |
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
@@ -72,17 +72,17 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.9.5** (alpha.5); minimum Obsidian: **1.13.0**.
+Product version: **0.9.5** (alpha.6); minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
-`github:Odenknight/GKOS-Engine#7fc2862bde45d145b3809c93ff36e3640c4da096` (2.5.2 release).
+`github:Odenknight/GKOS-Engine#44c62208b8a82d350d29bc7fcf44c8a0a13a575b` (2.5.2 with the #121 fixes).
 The dependency guard verifies the exact lock coordinate. Three.js is
 0.187.0. Supported build runtimes are Node 22 and 24. The only dependency
 added in 0.9.0 is the development-only MCP test client
 `@modelcontextprotocol/client@2.4.0`; it is not bundled. No Rust runtime or
 Node Effects executor is added to the browser or Obsidian plugin.
 Historical Effects evidence remains in docs/navigation-effects; current
-consumer validation is in [REVIEW-0.8.2.md](docs/REVIEW-0.8.2.md).
+consumer validation is in [REVIEW-0.8.2.md](_archive/docs/REVIEW-0.8.2.md).
 
 ## Semantic and graph behavior
 
@@ -158,8 +158,8 @@ The following are not implemented in this branch and remain hard blockers:
 Consequently, no existing MOC has been adopted or managed, no generated-region
 marker has been inserted, no MOC or source note is written, no current effect
 is authorized, and automatic maintenance/creation remain unavailable and off.
-The [Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+The [Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+and [Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence only; neither establishes configured,
 authorized, runtime-safe, qualified, or released standing.
 The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
@@ -347,7 +347,7 @@ Since 0.9.0 the same endpoint also answers initialize-era clients while
 `2025-03-26` natively (March-2025 batches included), and `2024-11-05` only
 through the bridge. `src/plugin/mcp-compat.ts` classifies each POST by the
 presence of modern markers and serves the legacy path statelessly. See
-[MCP-COMPATIBILITY.md](docs/v0.9.0/MCP-COMPATIBILITY.md).
+[MCP-COMPATIBILITY.md](docs/v0.9.5/MCP-COMPATIBILITY.md).
 
 ### Personal Notes profile
 
@@ -589,8 +589,8 @@ configured, authorized, qualified, or released:
 - [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
 - [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 - [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
-- [Navigation Effects Packet B working-result receipt](docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-- [Navigation Effects Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)

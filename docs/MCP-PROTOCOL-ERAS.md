@@ -6,7 +6,7 @@ By owner direction of 2026-11-12 the Agent API server answers both eras. This
 supersedes the modern-only scope recorded below for the server; the rest of
 this document remains accurate for the modern path, which is unchanged. The
 full matrix, rules and evidence are in
-[v0.9.0/MCP-COMPATIBILITY.md](v0.9.0/MCP-COMPATIBILITY.md).
+[v0.9.5/MCP-COMPATIBILITY.md](v0.9.5/MCP-COMPATIBILITY.md).
 
 - Modern (`2026-07-28`): as described below, on native HTTP and the bridge.
 - Initialize era on native Streamable HTTP `/mcp`: `2025-11-25`,
