@@ -77,7 +77,7 @@ Product version: **0.9.5** (alpha.4); minimum Obsidian: **1.13.0**.
 Engine is pinned in package.json and package-lock.json to
 `github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233` (2.5.1 release).
 The dependency guard verifies the exact lock coordinate. Three.js is
-0.186.1. Supported build runtimes are Node 22 and 24. The only dependency
+0.187.0. Supported build runtimes are Node 22 and 24. The only dependency
 added in 0.9.0 is the development-only MCP test client
 `@modelcontextprotocol/client@2.4.0`; it is not bundled. No Rust runtime or
 Node Effects executor is added to the browser or Obsidian plugin.

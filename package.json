@@ -53,7 +53,7 @@
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
-    "@types/three": "0.186.0",
+    "@types/three": "0.187.0",
     "esbuild": "0.28.2",
     "obsidian": "1.14.4",
     "onnxruntime-web": "1.31.1",
@@ -63,7 +63,7 @@
   "author": "OdenKnight",
   "dependencies": {
     "gkos-engine": "github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233",
-    "three": "0.186.1"
+    "three": "0.187.0"
   },
   "allowScripts": {
     "github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233": true
