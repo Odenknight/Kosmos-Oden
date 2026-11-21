@@ -22,7 +22,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const rel = resolve(root, "release");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
-const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md", "LICENSE", "THIRD-PARTY-NOTICES.md"];
+const NOTICE_FILES = ["LICENSE", "LICENSING.md", "LICENSES/CC-BY-4.0.txt", "ACKNOWLEDGMENTS.md", "THIRD-PARTY-NOTICES.md"];
+const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md", ...NOTICE_FILES];
 
 function git(cmd, fallback = "") {
   try { return execSync(`git ${cmd}`, { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }
@@ -96,8 +97,7 @@ if (missingDocs.length) {
 const entries = [
   ...PLUGIN_FILES.map((f) => ({ name: `kosmos-oden/${f}`, data: readFileSync(resolve(root, f)) })),
   ...docFiles.map((f) => ({ name: `docs/${f}`, data: readFileSync(resolve(root, versionDocs, f)) })),
-  { name: "LICENSE", data: readFileSync(resolve(root, "LICENSE")) },
-  { name: "THIRD-PARTY-NOTICES.md", data: readFileSync(resolve(root, "THIRD-PARTY-NOTICES.md")) },
+  ...NOTICE_FILES.map((name) => ({ name, data: readFileSync(resolve(root, name)) })),
   { name: "BUILD-INFO.json", data: readFileSync(resolve(rel, "BUILD-INFO.json")) },
 ];
 const digest = (buf) => createHash("sha256").update(buf).digest("hex");

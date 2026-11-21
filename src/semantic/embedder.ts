@@ -51,12 +51,12 @@ export async function createOnnxEmbedder(files: EmbedderFiles, recipe: Embedding
   }
   const inputs = new Set(session.inputNames);
   if (!inputs.has("input_ids") || !inputs.has("attention_mask")) {
-    await session.release().catch(() => undefined);
+    await session.release().catch((): undefined => undefined);
     throw new Error(`this ONNX model takes inputs [${session.inputNames.join(", ")}]; a text embedding model with input_ids and attention_mask is needed`);
   }
   for (const name of session.inputNames) {
     if (name !== "input_ids" && name !== "attention_mask" && name !== "token_type_ids") {
-      await session.release().catch(() => undefined);
+      await session.release().catch((): undefined => undefined);
       throw new Error(`this ONNX model needs an input named "${name}", which is not supported`);
     }
   }
@@ -64,7 +64,7 @@ export async function createOnnxEmbedder(files: EmbedderFiles, recipe: Embedding
   try {
     tokenizer = new Tokenizer(files.tokenizer as never, (files.tokenizerConfig ?? {}) as never);
   } catch (error) {
-    await session.release().catch(() => undefined);
+    await session.release().catch((): undefined => undefined);
     throw new Error(`tokenizer.json could not be used (${error instanceof Error ? error.message : String(error)})`);
   }
   const pooledName = POOLED_OUTPUTS.find((n) => session.outputNames.includes(n));
@@ -115,7 +115,7 @@ export async function createOnnxEmbedder(files: EmbedderFiles, recipe: Embedding
   // The vector length comes from one real run, so a custom model needs no declared size.
   const probe = await one(`${recipe.queryPrefix}probe`);
   if (recipe.dims && probe.length !== recipe.dims) {
-    await session.release().catch(() => undefined);
+    await session.release().catch((): undefined => undefined);
     throw new Error(`the model makes ${probe.length}-number vectors but ${recipe.dims} were expected; the files do not match the selected model`);
   }
 
@@ -128,6 +128,6 @@ export async function createOnnxEmbedder(files: EmbedderFiles, recipe: Embedding
       for (const text of texts) out.push(await one(prefix + text));
       return out;
     },
-    async dispose() { await session.release().catch(() => undefined); },
+    async dispose() { await session.release().catch((): undefined => undefined); },
   };
 }

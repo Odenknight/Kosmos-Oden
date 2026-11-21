@@ -343,7 +343,7 @@ test("engine: a model whose vectors do not fit the index is refused", async () =
 const MODEL = activeModel("arctic-embed-s", defaultSemanticSettings().custom);
 const modelBytes = () => ({ model: bytes("onnx bytes"), tokenizer: "{}", tokenizerConfig: "{}" });
 
-function serviceWith(notes = NOTES, { embedder, saveEveryMs } = {}) {
+function serviceWith(notes = NOTES, { embedder, saveEveryMs, onChange } = {}) {
   const source = noteSource(notes);
   const createWorker = fakeWorkerFactory(embedder);
   const saved = new Map();
@@ -352,7 +352,7 @@ function serviceWith(notes = NOTES, { embedder, saveEveryMs } = {}) {
     createWorker, source,
     readDatabase: async (key) => saved.get(key)?.slice(0) ?? null,
     writeDatabase: async (key, data) => { saved.set(key, data.slice(0)); },
-    onChange: () => changes.push(service.status().state),
+    onChange: () => { changes.push(service.status().state); onChange?.(service); },
     ...(saveEveryMs !== undefined ? { saveEveryMs } : {}),
   });
   return { service, source, createWorker, saved, changes };
@@ -503,7 +503,13 @@ test("service: a worker that dies fails the waiting question and reports the err
 test("service: pause holds embedding (questions still work), resume continues, rebuild embeds everything again", async () => {
   const notes = {};
   for (let i = 0; i < 40; i++) notes[`N/${String(i).padStart(2, "0")}.md`] = `# N${i}\n\nbread flour oven number ${i}.\n`;
-  const { service, createWorker } = serviceWith(notes);
+  let pauseAfterFirstBatch = true;
+  const { service, createWorker } = serviceWith(notes, { onChange(current) {
+    if (pauseAfterFirstBatch && current.status().indexedNotes >= SERVICE_LIMITS.batchNotes) {
+      pauseAfterFirstBatch = false;
+      current.setPaused(true);
+    }
+  } });
   service.setPaused(true);
   await service.start(MODEL, modelBytes());
   await service.idle();
@@ -511,8 +517,6 @@ test("service: pause holds embedding (questions still work), resume continues, r
   assert.equal(service.status().indexedNotes, 0, "paused before the first batch");
   assert.deepEqual(await service.candidates("bread", null), []);
   service.setPaused(false);
-  await until(() => service.status().indexedNotes >= SERVICE_LIMITS.batchNotes, "the first batch");
-  service.setPaused(true);
   await service.idle();
   const partial = service.status().indexedNotes;
   assert.ok(partial >= SERVICE_LIMITS.batchNotes && partial < 40, `stopped part-way (${partial})`);
@@ -886,16 +890,22 @@ test("controller: while the index is being built it says so, and an agent is tol
   await c.controller.apply();
   await c.controller.service.idle();
   assert.equal(c.controller.overview().phase, "paused");
+  let partial;
+  const unsubscribe = c.listen(() => {
+    const overview = c.controller.overview();
+    if (!partial && overview.indexedNotes > 0 && overview.indexedNotes < 40) {
+      partial = { overview, info: c.controller.info() };
+    }
+  });
   c.controller.setPaused(false);
-  await until(() => c.controller.overview().indexedNotes > 0, "some progress");
-  const mid = c.controller.overview();
-  if (mid.phase === "indexing") {
-    assert.match(mid.message, /^Reading your notes: \d+ of 40 embedded\. Search already works and improves as this finishes\.$/);
-    assert.deepEqual(Object.keys(c.controller.info()).sort(), ["detail", "model", "state"]);
-    assert.equal(c.controller.info().state, "partial");
-    assert.match(c.controller.info().detail, /of 40 notes are embedded so far/);
-  }
   await c.controller.service.idle();
+  unsubscribe();
+  assert.ok(partial, "the controller publishes progress before the last batch");
+  assert.equal(partial.overview.phase, "indexing");
+  assert.match(partial.overview.message, /^Reading your notes: \d+ of 40 embedded\. Search already works and improves as this finishes\.$/);
+  assert.deepEqual(Object.keys(partial.info).sort(), ["detail", "model", "state"]);
+  assert.equal(partial.info.state, "partial");
+  assert.match(partial.info.detail, /of 40 notes are embedded so far/);
   assert.equal(c.controller.overview().phase, "ready");
   await c.controller.rebuild();
   await c.controller.service.idle();

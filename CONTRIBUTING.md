@@ -4,7 +4,11 @@ Thanks for your interest. This is a small, single-maintainer project with a
 deliberately strong assurance pipeline — please work with it rather than around
 it.
 
-## Setup
+## Source access and setup
+
+The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.4).
+
+To build from source, use a GitHub identity with Engine read access. Check SSH access with `git ls-remote git@github.com:Odenknight/GKOS-Engine.git HEAD` before installing. Use the dependency in the lockfile. A local substitute invalidates the pin and provenance checks.
 
 ```bash
 nvm use            # Node 22 (see .nvmrc)
@@ -14,13 +18,14 @@ npm run verify     # typecheck + build + test + version/artifact/invariant check
 
 ## The golden rule
 
-> There is **one** graph-semantics implementation: `src/core/`. The plugin,
+> The pinned **GKOS-Engine** package owns graph semantics. The plugin,
 > standalone viewer, Agent API, Graphiti exporter and CLI all consume it. Never
 > fork parsing, resolution, lineage, temporal or graph logic into a surface.
 
 ## Before opening a PR
 
-- `npm run verify` passes locally.
+- Run `npm run verify` locally. The TypeScript gate rejects implicit `any` throughout `src/`. Explicit `any` annotations remain and full strict mode is disabled.
+- The invariant checker detects source and configuration drift, including in the pinned Engine. Runtime tests separately exercise folder exclusion, request authorization and cancellation.
 - New behavior has tests; fixed defects get a regression test.
 - Security-relevant changes keep `npm run check:invariants` green (see
   `kosmos-invariants.yml`).
@@ -46,15 +51,7 @@ genuine regressions.
 | `npm run test:browser:full` — the same renderer specs on Firefox + WebKit | `Browser (full matrix)`, weekly + on demand | advisory |
 | `npm run test:visual` — deterministic screenshot baselines | `Browser (full matrix)`, weekly + on demand | advisory |
 
-GitHub-hosted runners have no GPU. Chromium can be pointed at ANGLE/SwiftShader,
-a conformant *software* WebGL2 implementation that this renderer initializes on
-happily, so the Chromium gate is genuine and reliably green — the flags live in
-`playwright.config.ts`. Firefox needs its WebGL2 gate re-opened via prefs (the
-Playwright build ships `AllowWebgl2:false`) and its headless-Linux software path
-is not dependable; WebKit has no software-WebGL knob at all. Visual regression
-has no baseline to compare against in CI because no reference images are
-committed to the repo yet. Nothing is deleted or skipped — those suites simply
-run where they can produce a trustworthy answer.
+The required desktop and mobile Chromium jobs use software WebGL2 through ANGLE/SwiftShader. The browser flags live in `playwright.config.ts`. Firefox and WebKit also run in an advisory workflow because WebGL availability varies by runner. Visual comparisons use the [committed reference images](test/browser/visual.spec.ts-snapshots/). Read the individual suite results in the advisory job summary. The workflow can finish successfully when a visual comparison fails.
 
 **Before cutting a release**, run the advisory suites locally on a GPU machine:
 

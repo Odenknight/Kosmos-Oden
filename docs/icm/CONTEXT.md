@@ -14,7 +14,7 @@ This folder grants no authority. It does not assign work, appoint a coordinator,
 6. `docs/reviews/UPGRADE-PRIORITIES-20260921.md`: the latest owner-requested priority order (reconcile the build baseline first).
 7. `docs/plans/2026-09-10-revised-execution/README.md` and `docs/plans/2026-09-10-revised-execution/WORK-PACKAGES.md`: the existing claim protocol, seam reservations and package IDs (R0, L0, R1-R3, Q1, Q2, E1, G1, M1, B1).
 8. `docs/reviews/2026-09-12-branch-disposition.md`: prior per-branch and per-PR dispositions.
-9. `Kosmos-Oden-Engineering-Review/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md`: a *proposed* directive (2026-07-12). Use its role split and renderer-upgrade gate where CONTRIBUTING is silent; it does not override CONTRIBUTING.
+9. `docs/archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md`: a *proposed* directive (2026-07-12). Use its role split and renderer-upgrade gate where CONTRIBUTING is silent; it does not override CONTRIBUTING.
 10. The workflow `README.md` and the one stage `CONTEXT.md` your packet names.
 
 ## Which workflow

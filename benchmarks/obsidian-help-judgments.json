@@ -1,0 +1,18 @@
+[
+  ["I erased three paragraphs yesterday and closed the app. Where can I find an older copy?", "File recovery.md"],
+  ["Which other pages refer to the one I am reading?", "Backlinks.md"],
+  ["How can I see destinations mentioned in this page that I never turned into hyperlinks?", "Outgoing links.md"],
+  ["I want tomorrow's writing session to reopen the same tabs and sidebar arrangement. How do I save it?", "Workspaces.md"],
+  ["Can I drag a chapter heading to move its whole section earlier in the same document?", "Outline.md"],
+  ["My research page got unwieldy. How can I spin the highlighted paragraphs off into a separate file?", "Note composer.md"],
+  ["How do I stash the results query I run every Friday so I can open it with one click?", "Bookmarks.md"],
+  ["Can I peek at the destination under my pointer while staying in the current editor?", "Page preview.md"],
+  ["I have hundreds of old YAML headers with a singular alias field. How do I update them together?", "Format converter.md"],
+  ["Can I capture what the lecturer says and attach the sound to my class notes?", "Audio recorder.md"],
+  ["Where do I arrange pictures and text on a board and draw arrows between them?", "Canvas.md"],
+  ["I want a fresh filename made of digits for the minute I started writing. What feature does that?", "Unique note creator.md"],
+  ["Can my meeting boilerplate fill in the current time when I insert it?", "Templates.md"],
+  ["How do I spot isolated pages as disconnected dots in my collection?", "Graph view.md"],
+  ["I remember only a few letters of a file's name. How do I jump to it without reaching for the mouse?", "Quick switcher.md"],
+  ["Can I put my favorite editor actions at the top of the keyboard launcher?", "Command palette.md"]
+]

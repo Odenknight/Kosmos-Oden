@@ -273,8 +273,8 @@ export class KosmosView extends ItemView {
   private schedule(): void {
     const { trailing, maxWait } = this.delays();
     window.clearTimeout(this.trailing);
-    this.trailing = window.setTimeout(() => void this.flush(), trailing);
-    if (!this.maxwaitId) this.maxwaitId = window.setTimeout(() => void this.flush(), maxWait);
+    this.trailing = window.setTimeout((): void => void this.flush(), trailing);
+    if (!this.maxwaitId) this.maxwaitId = window.setTimeout((): void => void this.flush(), maxWait);
   }
 
   private isVisible(): boolean {
@@ -560,7 +560,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
 
     if (this.nextcloudSettings.enabled && this.nextcloudSettings.intervalMinutes > 0) {
       this.registerInterval(window.setInterval(
-        () => void this.runNextcloudSync(false),
+        (): void => void this.runNextcloudSync(false),
         this.nextcloudSettings.intervalMinutes * 60_000,
       ));
     }
@@ -590,7 +590,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       for (const v of leaves) v.setVaultStatus(connected);
     };
     void probeVaultConnectivity();
-    this.registerInterval(window.setInterval(() => void probeVaultConnectivity(), 10_000));
+    this.registerInterval(window.setInterval((): void => void probeVaultConnectivity(), 10_000));
 
     // The engine projects source bytes, not Obsidian's metadata cache. Cache
     // refreshes can fire during cachedRead without a source edit; invalidating
@@ -856,10 +856,10 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   private async runAutoStamp(kind: "create" | "modify", file: TFile, eventTimeMs: number, prevRaw: string | undefined): Promise<void> {
     if (!this.eventsLive || this.agentSettings.activeProfile !== "personal") return;
     const raw = await this.app.vault.read(file);
-    const hash = await sha256Hex(raw).catch(() => null);
+    const hash = await sha256Hex(raw).catch((): null => null);
     // Content identity ignores the updated stamp itself (see withoutUpdatedStamp).
-    const contentHash = await this.stampKey(raw).catch(() => null);
-    const baseline = this.stampBaselines.get(file.path) ?? (prevRaw !== undefined ? await this.stampKey(prevRaw).catch(() => undefined) : undefined);
+    const contentHash = await this.stampKey(raw).catch((): null => null);
+    const baseline = this.stampBaselines.get(file.path) ?? (prevRaw !== undefined ? await this.stampKey(prevRaw).catch((): undefined => undefined) : undefined);
     const ownWrite = hash !== null && contentHash !== null && (this.ownWrites.get(file.path) ?? []).includes(hash);
     const decision = autoTimestampDecision({ kind, path: file.path, contentHash, eventTimeMs }, {
       tagging: this.agentSettings.personalNotes.tagging,
@@ -1535,7 +1535,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     this.searchStatusListeners.clear();
     // Saves the semantic index and stops its worker.
     this.semanticListeners.clear();
-    void this.semanticHandle?.dispose().catch(() => undefined);
+    void this.semanticHandle?.dispose().catch((): undefined => undefined);
     this.semanticHandle = null;
     // Cancel pending note-stamp debounce timers so no frontmatter write fires after teardown.
     for (const timer of this.timestampTimers.values()) window.clearTimeout(timer);
