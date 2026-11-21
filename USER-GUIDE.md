@@ -4,13 +4,12 @@
 
 You do not need to know anything about governance, GKX or MCP to use any of
 this. A few words used below: **MCP** is the standard way an AI assistant
-connects to a tool; a **token** is a private key that only lets your own
-assistant in; **semantic search** means finding notes by what they mean, not
+connects to a tool; a **token** is a secret that grants its holder the configured read access; **semantic search** means finding notes by what they mean, not
 only by the words they contain.
 
-### 1. Install the alpha
+### 1. Install Kosmos-Oden
 
-Follow the [alpha installation guide](docs/v0.9.5/ALPHA-INSTALL.md), then run **Open Kosmos-Oden** from the command palette.
+Follow the [quick installation guide](README.md#quick-installation), then run **Open Kosmos-Oden** from the command palette.
 
 ### 2. Bring in and search your notes (Personal Notes)
 
@@ -186,7 +185,7 @@ to satisfy the visual metaphor.
 ## Lineage, time, and GKX
 
 Kosmos reads human-editable GKX metadata through GKOS-Engine
-2.2.0 candidate. Declaring
+2.5.2. Declaring
 either `supersedes` or `superseded_by` contributes to one canonical lineage
 graph. Cycles, ambiguous targets, self-links, multiple successors, and invalid
 time order are reported instead of silently becoming trusted edges.
@@ -250,8 +249,8 @@ journal/archive/lease, event coordinator, recovery or reconciliation runtime,
 self-write suppression, complete operator workflow, rollback/audit workflow,
 cross-platform crash evidence, scale evidence, or 24-hour soak. No MOC has
 been adopted or written; automatic writes remain unavailable and off. The
-[Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-and [Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+[Packet B working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+and [Packet C0 working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence, not runtime or qualification standing.
 
 The dependency is pinned to the Engine 2.5.2 release commit

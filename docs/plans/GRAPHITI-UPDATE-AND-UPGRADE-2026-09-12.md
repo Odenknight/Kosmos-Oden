@@ -2,7 +2,7 @@
 
 Date: 2026-09-12; reconciled 2026-09-13
 Status: active roadmap with bounded adapter/fixture work implemented; full semantic service remains unqualified.
-Handoff: [_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md](../../_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md)
+Handoff: [_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/HANDOFF-2026-09-12-GRAPHITI-UPGRADE.md)
 
 ## Reconciled implementation and experiment status
 

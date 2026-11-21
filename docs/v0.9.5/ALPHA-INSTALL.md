@@ -1,7 +1,7 @@
-# Install v0.9.5 (alpha)
+# Install Kosmos-Oden 0.9.5
 
 1. Close Obsidian.
-2. Download and unzip [the alpha.6 plugin ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/kosmos-oden-0.9.5-alpha.6/kosmos-oden-0.9.5-alpha.6.zip). It contains a `kosmos-oden/` folder
+2. Download and unzip [the 0.9.5 plugin ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/kosmos-oden-0.9.5.zip). It contains a `kosmos-oden/` folder
    (`manifest.json`, `main.js`, `styles.css`, `kosmos-mcp-stdio.mjs`) plus
    `docs/`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, `BUILD-INFO.json` and
    `SHA256SUMS`.

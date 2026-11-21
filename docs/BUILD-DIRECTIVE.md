@@ -2,7 +2,7 @@
 
 **Repository:** `Odenknight/Kosmos-Oden`
 **Target release:** `v0.5.5`
-**Current baseline:** `v0.5.1`
+**Historical directive baseline:** `v0.5.1`
 **Primary objective:** Correct the architectural and documentation issues identified during external review while preserving the existing visual experience and Obsidian plugin functionality.
 
 ---
