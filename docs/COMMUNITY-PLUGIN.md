@@ -42,6 +42,10 @@ with each file as an individual asset.
 > Legacy `v*` tags still trigger the workflow, but new releases should use the
 > unprefixed form so they're valid for the community listing.
 
+## Fork attribution and submission evidence
+
+Kosmos-Oden is an independent fork of H4R7W16/vault-kosmos. Credit H4R7W16 as a contributor in the listing. Keep a publicly verifiable link to the upstream author’s written approval with the submission. If relying on the inactive-author route, follow Obsidian’s six-month inactivity and 30-day public contact requirements and retain the evidence. The upstream license and the required directory evidence serve different purposes. Confirm the mobile manifest with the directory reviewer because the MCP listener uses desktop Node APIs. [Upstream project](https://github.com/H4R7W16/vault-kosmos) · [Obsidian developer policies](https://docs.obsidian.md/community-directory/developer-policies) · [Plugin submission requirements](https://docs.obsidian.md/community-directory/submission-requirements-for-plugins)
+
 ## Directory submission and build verification
 
 In the [Obsidian Community directory](https://community.obsidian.md/), sign in, link the GitHub account that owns this repository, choose **Plugins → New plugin**, and enter the public Kosmos-Oden repository. The directory reads the default branch manifest and installs `main.js`, `manifest.json` and `styles.css` from the matching release. The optional stdio bridge and standalone viewer are separate downloads. [Official submission guide](https://docs.obsidian.md/plugins/releasing/submit-plugin)

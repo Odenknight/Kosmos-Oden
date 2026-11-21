@@ -8,7 +8,7 @@
 ## 0.9.5-alpha.6
 
 - Pinned GKOS-Engine 2.5.2 to `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. This includes the macOS APFS watcher recovery and ingest filename fixes from Engine #121.
-- Moved superseded installation guides, reviews and handoffs into [the archive](_archive/README.md). Release staging now includes the current alpha test record.
+- Moved superseded installation guides, reviews and handoffs into [the archive](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/README.md). Release staging now includes the current alpha test record.
 
 ## 0.9.5-alpha.5
 
@@ -385,7 +385,7 @@ machine connecting and localhost mode being unreachable from it (N02, N01
 remote half), real older and modern MCP clients (C01), the archive installed
 in a clean vault (B02), runtime checks inside Obsidian, performance inside
 Obsidian, and the visual review on the owner's GPU. See
-[_archive/docs/v0.9.0/ALPHA-TEST.md](_archive/docs/v0.9.0/ALPHA-TEST.md). The installable
+[_archive/docs/v0.9.0/ALPHA-TEST.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/v0.9.0/ALPHA-TEST.md). The installable
 archive is `kosmos-oden-0.9.0-alpha.1.zip` (`npm run package:release`); the
 manifest version is `0.9.0`.
 
@@ -460,10 +460,10 @@ Changed:
   `"streamable-http"`).
 - Existing-profile Agent API retrieval is faster with byte-identical results
   (for example `qSearch` p95 at 15,000 notes 86.66 → 9.68 ms on one machine);
-  see [PERFORMANCE-AGENT-API.md](_archive/docs/v0.9.0/PERFORMANCE-AGENT-API.md).
+  see [PERFORMANCE-AGENT-API.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/v0.9.0/PERFORMANCE-AGENT-API.md).
 - While the Personal profile is active, the existing automatic timestamp
   option writes nothing.
-- Renderer ([RENDERER-STABILITY.md](_archive/docs/v0.9.0/RENDERER-STABILITY.md)): the
+- Renderer ([RENDERER-STABILITY.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/v0.9.0/RENDERER-STABILITY.md)): the
   adaptive pixel ratio never exceeds the display's own ratio (capped at 2), so
   close-ups on standard-density screens are slightly less smooth than in
   0.8.4; the adaptive ratio no longer flaps; hidden link layers are no longer
@@ -635,7 +635,7 @@ Actual Hermes qualification remains pending; this is not a stable-release claim.
 - Restore separate execution limits for named MCP clients sharing a User-Agent;
   bound all HTTP admission, including loopback, to 24 concurrent requests.
 - Correct connection guides and ship a locally installable candidate with checksums.
-- Real Obsidian/Hermes qualification is tracked in `_archive/docs/REVIEW-0.8.3.md`;
+- Real Obsidian/Hermes qualification is tracked in [historical REVIEW-0.8.3.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/REVIEW-0.8.3.md);
   a candidate build is not a claim that those checks passed.
 
 ## 0.8.2 — 2026-09-08

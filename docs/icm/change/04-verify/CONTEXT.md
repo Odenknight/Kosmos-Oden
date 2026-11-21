@@ -11,7 +11,7 @@ Independently of the author, run Kosmos-Oden's verification on the exact candida
 - `.github/workflows/browser.yml` — the required `browser-chromium (software WebGL2)` job; on push it runs only when `src/`, `scripts/`, `test/browser/`, `playwright.config.ts`, the package files or the workflow change; on pull requests it always runs.
 - `kosmos-invariants.yml` — the policy the invariant check enforces.
 - `renderer-provenance.json` — the exact `three` version and integrity the provenance check expects.
-- `_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed: a test agent must not change production code to make a test pass.
+- [historical CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md) — proposed: a test agent must not change production code to make a test pass.
 
 ## Inputs
 

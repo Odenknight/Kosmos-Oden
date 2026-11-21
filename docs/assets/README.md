@@ -1,14 +1,5 @@
-# Product images
+# Documentation images
 
-These images are authentic browser-test snapshots of Kosmos-Oden v0.8.0. They
-illustrate product behavior and are informative, not normative.
+The sky overview and focused note are the Chromium renderer baselines shipped in tag 0.9.5, from `test/browser/visual.spec.ts-snapshots/`. The overview uses `overview-high-chromium.png` and the focused note uses `star-focus-chromium.png`.
 
-| File | Source | Purpose |
-| --- | --- | --- |
-| `kosmos-oden-night-sky.png` | `test/browser/visual.spec.ts-snapshots/overview-high-chromium.png` | Full-vault night-sky overview |
-| `kosmos-oden-lineage-traversal.png` | `test/browser/visual.spec.ts-snapshots/star-focus-chromium.png` | Focused labels and lineage links |
-
-The images do not establish certification, compliance, endorsement, approval,
-implementation equivalence, or conformance. They show a visualization product
-using GKOS/GKX concepts. Read-only visualization does not confer promotion,
-decision, or activation authority and changes no source content.
+The remaining screenshots show the public 0.9.5 plugin running in a disposable vault on Windows with Obsidian 1.15.1. The garden notes are synthetic. The Librarian screenshot shows the actual read-only page served by that vault. The Quick Connect screenshot uses a temporary loopback port; the normal default is 4816. The Nextcloud example shows an unconfigured account and the semantic example shows the local model option before download.

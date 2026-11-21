@@ -8,9 +8,9 @@ Produce an owner-facing delivery for one verified candidate: what changed and wh
 
 - `.github/pull_request_template.md` — the checklist and the review-required flags reviewers verify.
 - `CONTRIBUTING.md` — "Changes that require explicit review"; README must not claim more than the code proves.
-- `_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed: §5 Step 4 PR evidence sections; an agent must not approve or merge its own change.
+- [historical CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md) — proposed: §5 Step 4 PR evidence sections; an agent must not approve or merge its own change.
 - `docs/RELEASE-PROCESS.md` — for a release candidate: version source, changelog move, tag equals manifest version with no `v` prefix; tagging is an owner action.
-- `_archive/docs/REVIEW-0.8.3.md` — open 0.8.3 gates (native Hermes acceptance) that a delivery must not describe as closed.
+- [historical REVIEW-0.8.3.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/REVIEW-0.8.3.md) — open 0.8.3 gates (native Hermes acceptance) that a delivery must not describe as closed.
 
 ## Inputs
 

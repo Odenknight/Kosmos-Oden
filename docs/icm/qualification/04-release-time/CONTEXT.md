@@ -10,8 +10,8 @@ For a release candidate only, produce the evidence CONTRIBUTING requires before 
 - `docs/RELEASE-PROCESS.md` — update `src/kosmos-version.ts`, `npm run check:versions`, move CHANGELOG items, `npm run verify`, tag equals the manifest version with no `v` prefix; CI builds and publishes from the tag.
 - `.github/workflows/release.yml` — tag patterns, `npm run verify`, tag/manifest equality, `npm run package:release`, `sha256sum -c SHA256SUMS`, `contents: write`.
 - `.github/workflows/standalone-html-release.yml` — `viewer-v*` tags publish the HTML viewer prerelease; separate from plugin tags.
-- `_archive/docs/REVIEW-0.8.3.md` — gates still open for 0.8.3, including native Hermes acceptance; browser evidence does not close them.
-- `_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed §8.3 soak list and §8.4 promotion steps; agents prepare evidence, a human authorizes promotion.
+- [historical REVIEW-0.8.3.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/REVIEW-0.8.3.md) — gates still open for 0.8.3, including native Hermes acceptance; browser evidence does not close them.
+- [historical CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md) — proposed §8.3 soak list and §8.4 promotion steps; agents prepare evidence, a human authorizes promotion.
 
 ## Inputs
 

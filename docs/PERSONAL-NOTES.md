@@ -1,11 +1,11 @@
-# Personal Notes (0.9.0 alpha)
+# Personal Notes in Kosmos-Oden 0.9.5
 
 Personal Notes is a profile for everyday notes, including notes brought in from
 Google Keep or OneNote. Your notes stay ordinary Markdown files. They need no
 GKX formatting, no labels and no AI model. You can search them yourself and,
 if you want, let an AI assistant read the folders you choose.
 
-Status: alpha test candidate. Desktop Obsidian 1.13.0 or newer. The trials
+The desktop connector requires Obsidian 1.13.0 or newer. The trials
 still pending are listed in [v0.9.5/ALPHA-TEST.md](v0.9.5/ALPHA-TEST.md).
 
 ## The two profiles
@@ -106,7 +106,7 @@ How it works: when Obsidian starts, Kosmos-Oden reads your notes into memory
 and searches them in a background worker. Nothing is written to disk and no
 network is used. Edits, renames and deletions show up after a short delay.
 How long the first reading takes depends on the size of the vault; measured
-numbers are in [v0.9.0/PERFORMANCE.md](../_archive/docs/v0.9.0/PERFORMANCE.md).
+numbers are in [v0.9.0/PERFORMANCE.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/v0.9.0/PERFORMANCE.md).
 
 Limits: a note larger than 5 MiB is skipped whole, and reading stops adding
 notes after 128 MiB of text. The search then says how many files were skipped.
@@ -289,7 +289,7 @@ router; if another computer cannot connect, allow the port for your local
 network only.
 
 The **Write Agent API guide** command never writes the Personal key into the
-file. In the Personal profile it writes a Personal guide: the five tools with
+file. In the Personal profile it writes a Personal guide: the six tools with
 their REST routes and arguments, Bearer authentication with a placeholder for
 the key, the paging rule, and the MCP revisions served under the current
 **Accept older MCP clients** setting. Copy the configuration itself from

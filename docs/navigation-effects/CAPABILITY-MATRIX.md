@@ -32,7 +32,7 @@ Effects runtime.
 Later working-tree Packet C0 code defines a host-neutral contract and
 intentionally unavailable Obsidian and standalone/native descriptors. It
 imports or registers no writer and changes none of the audited runtime
-conclusions below. See the [Packet C0 working-result receipt](../../_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md).
+conclusions below. See the [Packet C0 working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md).
 
 ## Audited coordinates
 

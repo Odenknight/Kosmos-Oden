@@ -1,13 +1,43 @@
 # Kosmos-Oden Technical README
 
+## Capability index
+
+1. [Vault sky, layouts and navigation controls](#local-cluster-renderer)
+    1. [Note relationships, lineage, time and Navigation centers](#semantic-and-graph-behavior)
+    2. [Traffic heatmap](#heat) and [session recording and replay](#recording-and-replay)
+2. [Obsidian commands and vault events](#obsidian-plugin-host)
+    1. [Import, word search, timestamps, permanent IDs and supersession](#import-word-search-and-deterministic-tags)
+    2. [Librarian questions, embeddings and deterministic folder maps](#librarian-semantic-search-and-folder-maps)
+3. [Connect assistants through REST, MCP and the stdio bridge](#obsidian-agent-api-and-mcp)
+    1. [Personal Notes tools and folder filtering](#personal-notes-profile)
+    2. [Profiles, bearer access and sensitivity](#profiles-and-sensitivity)
+    3. [Protocol versions and client qualification](#mcp-qualification-scope)
+4. [Governed GKX maintenance](#explicit-gkx-maintenance-workflows)
+    1. [Audit, repair and conversion](#audit-migration-and-conversion)
+    2. [Deterministic and model-assisted enrichment proposals](#content-assisted-enrichment)
+5. [Nextcloud WebDAV sync, deletion settings and conflicts](#nextcloud-webdav-sync)
+6. [Standalone offline viewer, snapshots and folder access](#offline-standalone-application)
+    1. [Optional Engine service connection](#optional-standalone-service-client) and [credential handling](#address-and-credential-rules)
+    2. [Service capabilities](#capability-negotiation) and [live traversal events](#authenticated-traversal-stream)
+7. [Graphiti episodes, ingestion checks and command-line export](#graphiti-and-command-line-export)
+8. [Experimental Navigation Effects](#experimental-navigation-effects-reconciliation-scope)
+    1. [Implemented read-only components](#implemented-no-write-boundaries)
+    2. [Runtime and qualification limits](#runtime-and-qualification-blockers)
+9. [Architecture and Engine responsibilities](#controlling-architecture)
+    1. [Versions and pinned dependencies](#versions-and-dependency-integrity)
+    2. [Read and write boundaries](#readwrite-boundary) and [security and privacy](#security-and-privacy-boundaries)
+10. [Build, packaging and verification](#build-package-staging-and-verification)
+    1. [Status vocabulary](#scope-and-status-vocabulary) and [roadmap and release limits](#explicitly-excluded-roadmap-and-release-gates)
+    2. [Repository map](#repository-map), [related documents](#related-documents) and [licensing](#licensing)
+
 ## Scope and status vocabulary
 
-Kosmos-Oden 0.9.5-alpha.6 consumes TypeScript Engine 2.5.2
+Kosmos-Oden 0.9.5 consumes TypeScript Engine 2.5.2
 with the macOS filesystem follow-up at exact commit `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`.
 It adds the Personal Notes profile and dual-era MCP; see
 [the current alpha test record](docs/v0.9.5/ALPHA-TEST.md) for build evidence and pending
 trials. Navigation Effects remain experimental and default-disabled. Earlier
-candidate evidence: [REVIEW-0.8.3.md](_archive/docs/REVIEW-0.8.3.md).
+candidate evidence: [REVIEW-0.8.3.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/REVIEW-0.8.3.md).
 
 Use these states independently:
 
@@ -27,12 +57,12 @@ makes no GKOS conformance or certification claim.
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
 | Obsidian Agent API | Read-only REST and Streamable HTTP MCP (modern and initialize-era), stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
-| Personal Notes profile | Folder-scoped read policy, in-memory worker search, six read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; see the [current test record](docs/v0.9.5/ALPHA-TEST.md) |
+| Personal Notes profile | Folder-scoped read policy, in-memory worker search, six read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | See the [qualification record](docs/v0.9.5/ALPHA-TEST.md) |
 | Standalone service client | Loopback address validation, bearer graph fetch, capability negotiation, authenticated event stream | Requires an external compatible service and viewer credential | Client validates Draft.1; service is not bundled |
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
 | Nextcloud sync | WebDAV scan, three-way planning, conditional transfers, conflict preservation | Disabled by default; separately configured | One Nextcloud target; not a backup |
-| Navigation Effects feature branch | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, policy/authority validation, injected adoption/preview components, and a C0 host-neutral adapter contract with unavailable profile descriptors | All Effects and automatic flags false by default; every C0 host operation is unavailable and no host executor is imported or wired | No durable adoption store, executable host adapter, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
+| Experimental Navigation Effects | Operational-path exclusions, fail-closed settings/status, framework-neutral Engine adapter, policy/authority validation, injected adoption/preview components, and a C0 host-neutral adapter contract with unavailable profile descriptors | All Effects and automatic flags false by default; every C0 host operation is unavailable and no host executor is imported or wired | No durable adoption store, executable host adapter, source writer, journal/archive/lease, coordinator, recovery, reconciliation runtime, self-write suppression, complete UI, or qualification |
 
 ## Controlling architecture
 
@@ -40,7 +70,7 @@ makes no GKOS conformance or certification claim.
 Markdown / GKX corpus
         |
         v
-exact-pinned GKOS-Engine 2.2.0 candidate
+exact-pinned GKOS-Engine 2.5.2
  parsing | resolution | lineage | temporal projection | graph | Navigation 1.0
         |
         +--------------------+----------------------+-------------------+
@@ -72,7 +102,7 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.9.5** (alpha.6); minimum Obsidian: **1.13.0**.
+Product version: **0.9.5**; minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
 `github:Odenknight/GKOS-Engine#44c62208b8a82d350d29bc7fcf44c8a0a13a575b` (2.5.2 with the #121 fixes).
@@ -81,8 +111,8 @@ The dependency guard verifies the exact lock coordinate. Three.js is
 added in 0.9.0 is the development-only MCP test client
 `@modelcontextprotocol/client@2.4.0`; it is not bundled. No Rust runtime or
 Node Effects executor is added to the browser or Obsidian plugin.
-Historical Effects evidence remains in docs/navigation-effects; current
-consumer validation is in [REVIEW-0.8.2.md](_archive/docs/REVIEW-0.8.2.md).
+Historical Effects evidence remains in docs/navigation-effects; historical
+consumer validation is in [REVIEW-0.8.2.md](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/REVIEW-0.8.2.md).
 
 ## Semantic and graph behavior
 
@@ -108,7 +138,7 @@ authority.
 
 ## Experimental Navigation Effects reconciliation scope
 
-The feature branch contains configuration and validation primitives plus a
+The release contains configuration and validation primitives plus a
 browser-safe Packet B ownership/adoption core and trusted preview modal. It has
 no source-effect path or durable host/runtime wiring.
 
@@ -158,8 +188,8 @@ The following are not implemented in this branch and remain hard blockers:
 Consequently, no existing MOC has been adopted or managed, no generated-region
 marker has been inserted, no MOC or source note is written, no current effect
 is authorized, and automatic maintenance/creation remain unavailable and off.
-The [Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-and [Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+The [Packet B working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+and [Packet C0 working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence only; neither establishes configured,
 authorized, runtime-safe, qualified, or released standing.
 The [initial capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
@@ -381,6 +411,22 @@ LAN mode is separately opt-in, token-required, and unencrypted. It is a
 compatibility feature for trusted private networks or secure tunnels, not a
 recommendation to expose the API publicly.
 
+### Profiles and sensitivity
+
+Personal Notes starts with an empty include list and a stopped connector. A shared folder admits ordinary unlabeled notes even at the Public ceiling. Exclusions take precedence. An unrecognized sensitivity label or malformed properties block fails closed. The Existing profile projects GKX notes through Engine, using Default sensitivity for unlabeled notes (Secret unless configured). Effective sensitivity can rise above that default. Both profiles cap labeled reads at the selected Agent sensitivity ceiling, Internal by default. The order from least to most sensitive is Public, Internal, Restricted, Confidential, Regulated, PHI and Secret. A profile switch stops the listener. The desktop bearer authenticates possession and profile. A caller’s display name grants no additional permissions. [Folder and label policy](docs/PERSONAL-NOTES.md) · [Agent API reference](AGENT-API.md)
+
+### Import, word search and deterministic tags
+
+**Add notes from another app** guides the user through Obsidian Importer for Google Keep and OneNote. Review the destination and the Importer’s own report. **Search my notes** uses an in-memory worker over the user’s vault with operational files excluded. It matches titles, aliases, tags, paths and bodies, supports quoted phrases, and can open a matching note. The assistant’s word search separately enforces the sharing policy. **Optional tags** previews missing timestamps and UIDs in user-selected folders. **This note supersedes…** records a selected replacement link. Applying selected changes backs up affected notes and checks that the preview still matches. [Personal commands and limits](docs/PERSONAL-NOTES.md)
+
+### Librarian, semantic search and folder maps
+
+The Personal tool `ask_librarian` and its REST mirror return ranked evidence and excerpts for a question. The desktop listener also offers an authenticated browser page at `/ui`. The Librarian combines lexical matches, related terms and note names with optional semantic results. Confidence reflects lexical evidence, and a high score can still point to the wrong note. On a 542-note evaluation the expected note ranked first for 39 of 44 questions. The semantic-only worker ranked the reference page first for 8 of 16 questions on a separate Obsidian Help sample. [Evidence and limitations](docs/v0.9.5/KNOWN-LIMITATIONS.md)
+
+Semantic search runs an embedding model in a worker and stores vectors and note paths in the plugin’s SQLite index. Choose a supported download, supply local model files or configure a loopback or private-network embedding server. That server receives the passages and questions it embeds. The index can resume after interruption, and search falls back to words while models or vectors are unavailable. Ranking only uses notes the caller may already read. [Model and server setup](docs/v0.9.5/SEMANTIC-SEARCH.md)
+
+The folder map command operates on the active note’s folder. It builds a deterministic index of Markdown links in a marked block, preserves text outside that block, refuses the vault root and refuses to overwrite an unmarked existing index. [Librarian and map generation](docs/v0.9.5/LIBRARIAN-AND-MOC.md)
+
 ## Graphiti and command-line export
 
 Graphiti episodes are origin-separated, non-authoritative projections. A valid
@@ -551,12 +597,10 @@ configured, authorized, qualified, or released:
   source writing, archives, journal, lease, coordinator, reconciliation,
   recovery, self-write suppression, complete trusted operator and
   rollback/audit UI, and automatic maintenance/creation;
-- a released Engine 2.2 effects dependency (the feature branch has only an
-  exact development commit);
 - a Tauri/native desktop shell, bundled standalone sidecar, Docker profile,
   portable/native installers, or uninstall workflow;
 - signing, notarization, an automatic updater, cross-platform package
-  qualification, or a new release label; and
+  qualification of native desktop installers; and
 - Rust 3.0 engine cutover.
 
 ## Repository map
@@ -589,8 +633,8 @@ configured, authorized, qualified, or released:
 - [Navigation Effects development pin](docs/navigation-effects/DEVELOPMENT-PIN.md)
 - [Navigation Effects capability matrix](docs/navigation-effects/CAPABILITY-MATRIX.md)
 - [Navigation Effects qualification plan](docs/navigation-effects/QUALIFICATION-PLAN.md)
-- [Navigation Effects Packet B working-result receipt](_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
-- [Navigation Effects Packet C0 working-result receipt](_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet B working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-B-WORKING-RESULT-20260827.md)
+- [Navigation Effects Packet C0 working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 - [Security policy](SECURITY.md)
 - [Threat model](docs/THREAT-MODEL.md)
 - [Contribution gates](CONTRIBUTING.md)

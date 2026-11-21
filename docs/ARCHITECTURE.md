@@ -1,14 +1,14 @@
 # Architecture
 
 Kosmos-Oden is **three products sharing one semantic engine**. Since 0.8.0 that
-engine is an exact-pinned external `gkos-engine` package (0.9.0: the 2.2.0
-development line at commit `7511233717cd5ab9ce8f6cec76e9623a21e3c728`). The plugin,
+engine is an exact-pinned external `gkos-engine` package (0.9.5: Engine 2.5.2
+at commit `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`). The plugin,
 standalone page, Agent API, Graphiti exporter, CLI, and opt-in Navigation
 integration all consume that same dependency.
 
 ```
                     ┌─────────────────────┐
-                    │ GKOS-Engine 2.1      │  node_modules/gkos-engine
+                    │ GKOS-Engine 2.5.2    │  node_modules/gkos-engine
                     │  parsing             │
                     │  link resolution     │
                     │  canonical lineage   │
@@ -102,12 +102,12 @@ not use the Engine projection for access decisions:
 | `scope.ts`, `policy.ts` | Strict vault paths and folder scope; the one `PersonalReadPolicy` with a monotonic **policy generation**; the read decision (scope, physical containment, authored sensitivity only). |
 | `corpus.ts` | In-memory corpus of exact raw Markdown, rebuilt at startup and kept current from vault events; whole-file size and aggregate budget limits. |
 | `fulltext.ts`, `search-worker.ts`, `worker-client.ts` | Lexical search in a Web Worker built to `dist/kosmos-personal-search-worker.txt`, embedded in `main.js` and started from a Blob URL. Requests carry corpus revision and policy generation; no main-thread fallback. |
-| `query-service.ts`, `pagination.ts`, `attachments.ts`, `lineage.ts` | The five read-only tools behind REST and every MCP era; exact UTF-16 pages with SHA-256 continuation; attachment references; supersession lineage among readable notes. |
+| `query-service.ts`, `pagination.ts`, `attachments.ts`, `lineage.ts` | The six read-only tools behind REST and every MCP era; exact UTF-16 pages with SHA-256 continuation; attachment references; supersession lineage among readable notes. |
 | `tagging.ts`, `frontmatter-patch.ts`, `tagging-writer.ts` | Optional deterministic tags: a frozen preview plan, a byte-preserving frontmatter patch, and a hash-checked, per-file serialized writer with exact backups. |
 
 `src/plugin/personal-runtime.ts` owns the runtime handed to the server and the
 device-local token store; `agent-server.ts` dispatches by profile
-(`PERSONAL_REST_ROUTES`, five tools) and bumps the policy generation on every
+(`PERSONAL_REST_ROUTES`, six tools) and bumps the policy generation on every
 access change; `mcp-compat.ts` holds the era classifier and stateless legacy
 adapter shared by both profiles; `connect-snippets.ts` is the single source
 of client configuration text. The UI windows live in `src/ui/`.
