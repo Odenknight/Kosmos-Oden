@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5-alpha.6
+
+- Pinned GKOS-Engine 2.5.2 to `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. This includes the macOS APFS watcher recovery and ingest filename fixes from Engine #121.
+- Moved superseded installation guides, reviews and handoffs into [the archive](_archive/README.md). Release staging now includes the current alpha test record.
+
 ## 0.9.5-alpha.5
 
 - Updated the renderer to Three.js r187 and aligned the star-focus reference image with the shipped link visibility and galaxy spacing.
@@ -19,6 +24,7 @@ the archive):
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 | `0.9.5-alpha.4` | GKOS-Engine 2.5.1 metadata, Personal Notes and semantic imports, guarded folder indexing, page-memory Librarian tokens, and stable viewer focus. |
 | `0.9.5-alpha.5` | Three.js r187, the matching Engine 2.5.2 viewer, public packaging and semantic-search verification. |
+| `0.9.5-alpha.6` | Engine 2.5.2 with the macOS filesystem fixes, paired with the r187 viewer. |
 
 Included in alpha.4 — **the Librarian core is imported from
 GKOS-Engine** instead of being kept here as a copy:
@@ -374,7 +380,7 @@ machine connecting and localhost mode being unreachable from it (N02, N01
 remote half), real older and modern MCP clients (C01), the archive installed
 in a clean vault (B02), runtime checks inside Obsidian, performance inside
 Obsidian, and the visual review on the owner's GPU. See
-[docs/v0.9.0/ALPHA-TEST.md](docs/v0.9.0/ALPHA-TEST.md). The installable
+[_archive/docs/v0.9.0/ALPHA-TEST.md](_archive/docs/v0.9.0/ALPHA-TEST.md). The installable
 archive is `kosmos-oden-0.9.0-alpha.1.zip` (`npm run package:release`); the
 manifest version is `0.9.0`.
 
@@ -449,10 +455,10 @@ Changed:
   `"streamable-http"`).
 - Existing-profile Agent API retrieval is faster with byte-identical results
   (for example `qSearch` p95 at 15,000 notes 86.66 → 9.68 ms on one machine);
-  see [PERFORMANCE-AGENT-API.md](docs/v0.9.0/PERFORMANCE-AGENT-API.md).
+  see [PERFORMANCE-AGENT-API.md](_archive/docs/v0.9.0/PERFORMANCE-AGENT-API.md).
 - While the Personal profile is active, the existing automatic timestamp
   option writes nothing.
-- Renderer ([RENDERER-STABILITY.md](docs/v0.9.0/RENDERER-STABILITY.md)): the
+- Renderer ([RENDERER-STABILITY.md](_archive/docs/v0.9.0/RENDERER-STABILITY.md)): the
   adaptive pixel ratio never exceeds the display's own ratio (capped at 2), so
   close-ups on standard-density screens are slightly less smooth than in
   0.8.4; the adaptive ratio no longer flaps; hidden link layers are no longer
@@ -624,7 +630,7 @@ Actual Hermes qualification remains pending; this is not a stable-release claim.
 - Restore separate execution limits for named MCP clients sharing a User-Agent;
   bound all HTTP admission, including loopback, to 24 concurrent requests.
 - Correct connection guides and ship a locally installable candidate with checksums.
-- Real Obsidian/Hermes qualification is tracked in `docs/REVIEW-0.8.3.md`;
+- Real Obsidian/Hermes qualification is tracked in `_archive/docs/REVIEW-0.8.3.md`;
   a candidate build is not a claim that those checks passed.
 
 ## 0.8.2 — 2026-09-08

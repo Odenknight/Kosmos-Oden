@@ -23,7 +23,7 @@ const rel = resolve(root, "release");
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 const NOTICE_FILES = ["LICENSE", "LICENSING.md", "LICENSES/CC-BY-4.0.txt", "ACKNOWLEDGMENTS.md", "THIRD-PARTY-NOTICES.md"];
-const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", "docs/REVIEW-0.8.3.md", ...NOTICE_FILES];
+const ARTIFACTS = ["manifest.json", "main.js", "styles.css", "versions.json", "kosmos-oden-stand-alone.html", "kosmos-mcp-stdio.mjs", `docs/v${pkg.version}/ALPHA-TEST.md`, ...NOTICE_FILES];
 
 function git(cmd, fallback = "") {
   try { return execSync(`git ${cmd}`, { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }
@@ -81,7 +81,7 @@ for (const line of sums.trim().split("\n")) console.log("  " + line);
  * notes or caches: every entry is listed explicitly below.
  */
 const labelArg = process.argv.find((a) => a.startsWith("--label="));
-const RELEASE_LABEL = labelArg ? labelArg.slice("--label=".length) : "alpha.5";
+const RELEASE_LABEL = labelArg ? labelArg.slice("--label=".length) : "alpha.6";
 const PLUGIN_FILES = ["manifest.json", "main.js", "styles.css", "kosmos-mcp-stdio.mjs"];
 const versionDocs = `docs/v${pkg.version}`;
 const REQUIRED_DOCS = ["ALPHA-INSTALL.md", "ALPHA-TEST.md", "KNOWN-LIMITATIONS.md", "MCP-COMPATIBILITY.md", "BUILD-PROGRESS.md"];

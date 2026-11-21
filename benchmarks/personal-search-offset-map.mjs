@@ -1,6 +1,6 @@
 /**
  * Personal Notes search: memory held by the searchable copy of one note whose
- * lowercase/NFC form changes length (0.9.0 review item, docs/v0.9.0/PERFORMANCE.md).
+ * lowercase/NFC form changes length (0.9.0 review item, _archive/docs/v0.9.0/PERFORMANCE.md).
  *
  *   node scripts/build.mjs --for-tests && node --expose-gc benchmarks/personal-search-offset-map.mjs
  *

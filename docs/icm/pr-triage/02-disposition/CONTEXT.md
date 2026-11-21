@@ -12,7 +12,7 @@ For each PR (or the one stacked chain) in the packet, compare the head recorded 
 - `README.md` — the exact GKOS-Engine pin on main and "It includes no Rust build"; a PR that moves the pin is a dependency change needing an owner decision.
 - `renderer-provenance.json` and `scripts/check-renderer-provenance.mjs` — `three` 0.185.1 and revision 185 are hard-coded; any `three` bump fails `validate` until both change together.
 - `.github/dependabot.yml` — build-tool bumps (esbuild, typescript, `@types/*`) are grouped and never auto-merged.
-- `docs/archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed: §9 a renderer upgrade is its own PR, never mixed with other changes.
+- `_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed: §9 a renderer upgrade is its own PR, never mixed with other changes.
 
 ## Inputs
 

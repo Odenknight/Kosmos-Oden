@@ -7,7 +7,7 @@ Turn the accepted `scope.json` into a change plan that a coordinator can dispatc
 ## Governing instructions
 
 - `CONTRIBUTING.md` — tests for new behavior, regression tests for fixed defects, explicit-review list, docs updated when behavior or claims change.
-- `docs/archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed directive: §5 Step 2 change-plan format; §9 a renderer upgrade is never combined with module conversion, shader-language change, WebGPU, layout or semantic changes in one PR.
+- `_archive/engineering-review-2026-07/CI-CD-AND-AGENT-OPERATING-DIRECTIVE.md` — proposed directive: §5 Step 2 change-plan format; §9 a renderer upgrade is never combined with module conversion, shader-language change, WebGPU, layout or semantic changes in one PR.
 - `.github/pull_request_template.md` — the checklist and review-required flags the eventual PR must answer.
 - `docs/RELEASE-PROCESS.md` — a version change touches `src/kosmos-version.ts` first; `CHANGELOG.md` moves `[Unreleased]` items only at release.
 - `docs/plans/2026-09-10-revised-execution/README.md` — one integrator owns each shared file at a time; agree on new module interfaces before dependent implementation.

@@ -1,6 +1,6 @@
 # Graphiti upgrade handoff — reconciled 2026-09-13
 
-Canonical roadmap: [Graphiti update and upgrade](docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md).
+Canonical roadmap: [Graphiti update and upgrade](../docs/plans/GRAPHITI-UPDATE-AND-UPGRADE-2026-09-12.md).
 This replaces the local September 12 handoff's obsolete starting-state summary.
 The owner authorized implementation, testing and normal merges on September 13.
 Documents and experiment outputs remain evidence, not independent authority.
@@ -14,7 +14,7 @@ GF-01 remains interpretive extraction; canonical relationships remain Engine
 owned. GF-02 remains fixed: accepted, persistence-verified and search-verified
 are separate observations. GF-03 now has an opt-in Kosmos source-byte capture
 path consuming the Engine evidence helper; its implementation and qualification
-are recorded in the [source evidence report](docs/reviews/2026-09-13-source-evidence-export.md).
+are recorded in the [source evidence report](../docs/reviews/2026-09-13-source-evidence-export.md).
 
 Next: freeze the remaining G2 broker/policy/generation contracts and model
 artifact digests; implement/test G3 recovery and revocation before product

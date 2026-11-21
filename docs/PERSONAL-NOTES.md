@@ -6,7 +6,7 @@ GKX formatting, no labels and no AI model. You can search them yourself and,
 if you want, let an AI assistant read the folders you choose.
 
 Status: alpha test candidate. Desktop Obsidian 1.13.0 or newer. The trials
-still pending are listed in [v0.9.0/ALPHA-TEST.md](v0.9.0/ALPHA-TEST.md).
+still pending are listed in [v0.9.5/ALPHA-TEST.md](v0.9.5/ALPHA-TEST.md).
 
 ## The two profiles
 
@@ -106,7 +106,7 @@ How it works: when Obsidian starts, Kosmos-Oden reads your notes into memory
 and searches them in a background worker. Nothing is written to disk and no
 network is used. Edits, renames and deletions show up after a short delay.
 How long the first reading takes depends on the size of the vault; measured
-numbers are in [v0.9.0/PERFORMANCE.md](v0.9.0/PERFORMANCE.md).
+numbers are in [v0.9.0/PERFORMANCE.md](../_archive/docs/v0.9.0/PERFORMANCE.md).
 
 Limits: a note larger than 5 MiB is skipped whole, and reading stops adding
 notes after 128 MiB of text. The search then says how many files were skipped.
@@ -390,5 +390,5 @@ Full guide, the model list and the limits:
 
 Disconnect first. Older versions do not know the shared-folder rules or the
 Personal key. Install and rollback steps are in
-[v0.9.0/ALPHA-INSTALL.md](v0.9.0/ALPHA-INSTALL.md); known limits are in
-[v0.9.0/KNOWN-LIMITATIONS.md](v0.9.0/KNOWN-LIMITATIONS.md).
+[v0.9.5/ALPHA-INSTALL.md](v0.9.5/ALPHA-INSTALL.md); known limits are in
+[v0.9.5/KNOWN-LIMITATIONS.md](v0.9.5/KNOWN-LIMITATIONS.md).

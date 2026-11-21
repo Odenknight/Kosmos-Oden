@@ -35,7 +35,7 @@ Establish whether the candidate passes the required Chromium gate: `npm run test
 1. Confirm `git rev-parse HEAD` equals `candidate.json.commit` and the tree is clean.
 2. Local run (commands from `.github/workflows/browser.yml`, not executed during layout authoring): `npm ci`, `npm run build`, `npx playwright install --with-deps chromium` (on Windows or macOS omit `--with-deps`), `npm run test:browser:chromium`. Record the port if `KOSMOS_TEST_PORT` is set.
 3. CI read: `gh api repos/Odenknight/Kosmos-Oden/commits/<commit>/check-runs --jq '.check_runs[]|select(.name|startswith("browser-chromium"))|[.conclusion,.html_url]'`. A missing run for a push that only changed documentation is `NOT_RUN` (path filter), not `PASS`.
-4. If a spec passed only on retry, record the first failure and the retry; report it as a flaky pass, as `docs/REVIEW-0.8.3.md` did for a mobile viewport timeout.
+4. If a spec passed only on retry, record the first failure and the retry; report it as a flaky pass, as `_archive/docs/REVIEW-0.8.3.md` did for a mobile viewport timeout.
 5. Write `required.json`, attach the report archive reference, then `HANDOFF.json` last.
 
 ## Verification

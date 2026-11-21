@@ -6,7 +6,7 @@ it.
 
 ## Source access and setup
 
-The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.5).
+The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.6).
 
 To build from source, use a GitHub identity with Engine read access. Check SSH access with `git ls-remote git@github.com:Odenknight/GKOS-Engine.git HEAD` before installing. Use the dependency in the lockfile. A local substitute invalidates the pin and provenance checks.
 

@@ -2,6 +2,10 @@
 
 **Status: alpha test candidate, not a qualified release.**
 
+## Alpha.6 Engine pairing
+
+The lockfile pins GKOS-Engine 2.5.2 at `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`, the merge that includes the APFS recovery and ingest fixes. The release qualification starts the installed Engine CLI with a temporary vault, compares its served HTML with the Kosmos build, authenticates through the viewer, and verifies the exported graph. The full browser workflow runs the pair on Ubuntu and macOS. [Release and verification notes](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.6)
+
 ## Alpha.5 renderer and Engine pair (2026-11-21)
 
 Kosmos 0.9.5-alpha.5 (PR 115) and Engine 2.5.2 (PR 119) were tested together on Windows with Node 24.18.0. The rebuilt standalone HTML and the HTML served by the installed Engine package were byte-identical (1,085,586 bytes, SHA-256 `c34a87cd1049cdaf094410cb5705e6406c8982fab72889b8acd9fe98f1eacae6`). The paired test starts `gkos-menu open-kosmos-oden` on loopback, connects the browser to a temporary one-note vault, and checks that its exported graph contains exactly that note.
