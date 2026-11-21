@@ -44,6 +44,7 @@
     "test:browser:chromium": "playwright test --project=chromium --project=mobile-chromium test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/context-loss.spec.ts test/browser/consumer-identity.spec.ts test/browser/standalone-flows.spec.ts test/browser/renderer-stability.spec.ts",
     "test:browser:full": "playwright test --project=firefox --project=webkit test/browser/standalone.spec.ts test/browser/embed.spec.ts test/browser/consumer-identity.spec.ts test/browser/standalone-flows.spec.ts",
     "test:visual": "playwright test test/browser/visual.spec.ts --project=chromium",
+    "test:renderer:pair": "playwright test --project=chromium test/browser/release-pair.spec.ts",
     "test:renderer": "npm run test:browser && npm run test:visual",
     "package:release": "node scripts/package-release.mjs"
   },
@@ -62,10 +63,10 @@
   },
   "author": "OdenKnight",
   "dependencies": {
-    "gkos-engine": "github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233",
+    "gkos-engine": "github:Odenknight/GKOS-Engine#68de6808738777a7b82b0dc7448c56698073fcc7",
     "three": "0.187.0"
   },
   "allowScripts": {
-    "github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233": true
+    "github:Odenknight/GKOS-Engine#68de6808738777a7b82b0dc7448c56698073fcc7": true
   }
 }

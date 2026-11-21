@@ -254,8 +254,8 @@ been adopted or written; automatic writes remain unavailable and off. The
 and [Packet C0 working-result receipt](docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence, not runtime or qualification standing.
 
-The dependency is pinned to the Engine 2.5.1 release commit
-`d57c26fc5858474a0fa0cb601cbeef32fe12c233`. Its Effects contract says
+The dependency is pinned to the Engine 2.5.2 release commit
+`68de6808738777a7b82b0dc7448c56698073fcc7`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),

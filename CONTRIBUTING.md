@@ -6,7 +6,7 @@ it.
 
 ## Source access and setup
 
-The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.4).
+The plugin repository is public. The private `Odenknight/GKOS-Engine` dependency implements graph semantics, folder scope, sensitivity policy and the Personal Notes query service. A public checkout alone cannot build or independently audit those implementations. Anyone can install the [compiled alpha](https://github.com/Odenknight/Kosmos-Oden/releases/tag/kosmos-oden-0.9.5-alpha.5).
 
 To build from source, use a GitHub identity with Engine read access. Check SSH access with `git ls-remote git@github.com:Odenknight/GKOS-Engine.git HEAD` before installing. Use the dependency in the lockfile. A local substitute invalidates the pin and provenance checks.
 
@@ -51,7 +51,7 @@ genuine regressions.
 | `npm run test:browser:full` — the same renderer specs on Firefox + WebKit | `Browser (full matrix)`, weekly + on demand | advisory |
 | `npm run test:visual` — deterministic screenshot baselines | `Browser (full matrix)`, weekly + on demand | advisory |
 
-The required desktop and mobile Chromium jobs use software WebGL2 through ANGLE/SwiftShader. The browser flags live in `playwright.config.ts`. Firefox and WebKit also run in an advisory workflow because WebGL availability varies by runner. Visual comparisons use the [committed reference images](test/browser/visual.spec.ts-snapshots/). Read the individual suite results in the advisory job summary. The workflow can finish successfully when a visual comparison fails.
+The desktop and mobile Chromium jobs use ANGLE/SwiftShader. The full-matrix workflow runs Firefox and WebKit in headed mode under Xvfb with Mesa llvmpipe, then compares Chromium screenshots with the [committed reference images](test/browser/visual.spec.ts-snapshots/). Each suite reports its own result. A failed comparison fails the workflow.
 
 **Before cutting a release**, run the advisory suites locally on a GPU machine:
 
@@ -59,7 +59,8 @@ The required desktop and mobile Chromium jobs use software WebGL2 through ANGLE/
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:browser:full          # Firefox + WebKit renderer specs
-npm run test:visual                # needs baselines on the reference machine
+npm run test:visual                # compare Chromium screenshots
+npm run test:renderer:pair         # connect the released viewer to the pinned Engine using a temporary vault
 ```
 
 Generate or refresh visual baselines with

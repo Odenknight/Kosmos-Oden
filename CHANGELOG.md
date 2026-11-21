@@ -1,7 +1,8 @@
 # Changelog
 
-## On main since the alpha.4 package
+## 0.9.5-alpha.5
 
+- Updated the renderer to Three.js r187 and aligned the star-focus reference image with the shipped link visibility and galaxy spacing.
 - The public installation page links to the verified ZIP and offline viewer. Contributor setup explains the private Engine dependency and identifies the policy code it owns.
 - Source type checking rejects implicit `any`. Release staging includes both project licenses, the artifact-specific terms and attribution. The SBOM workflow propagates generation failures.
 - Semantic controller tests synchronize on a committed batch. The optional scored search benchmark reports hit rates and reciprocal rank for a pinned public vault subset.
@@ -17,6 +18,7 @@ the archive):
 | `0.9.5-alpha.2` | alpha.1 plus the embedding server engine, the Librarian fixes and the speed work listed next. |
 | `0.9.5-alpha.3` | alpha.2 plus the eleven fixes from the 2026-11-15 code review, listed next. No new features. |
 | `0.9.5-alpha.4` | GKOS-Engine 2.5.1 metadata, Personal Notes and semantic imports, guarded folder indexing, page-memory Librarian tokens, and stable viewer focus. |
+| `0.9.5-alpha.5` | Three.js r187, the matching Engine 2.5.2 viewer, public packaging and semantic-search verification. |
 
 Included in alpha.4 — **the Librarian core is imported from
 GKOS-Engine** instead of being kept here as a copy:

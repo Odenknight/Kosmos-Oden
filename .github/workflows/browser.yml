@@ -5,15 +5,9 @@ name: Browser
 # asserts the r187 renderer initializes, draws the scene, survives a context
 # loss/restore cycle, and renders under the plugin's iframe sandbox.
 #
-# WHY CHROMIUM ONLY HERE (signal integrity): GitHub-hosted runners have no GPU.
-# Chromium can be driven onto ANGLE/SwiftShader — a conformant *software* WebGL2
-# implementation that this renderer accepts — so this job is a genuine,
-# reliably-passing gate. Firefox and WebKit have no dependable software-WebGL2
-# path on headless Linux, so they run in the advisory `Browser (full matrix)`
-# workflow (workflow_dispatch + weekly schedule) instead of being wired here as
-# a permanently-red required check. A check that is always red trains people to
-# merge through red and hides real regressions; nothing has been deleted or
-# skipped — see CONTRIBUTING.md "Browser and visual tests".
+# Chromium uses software WebGL2 on every tracked push or PR. The full matrix
+# runs headed Firefox and WebKit with Mesa/Xvfb and compares visual baselines.
+# See CONTRIBUTING.md for the release commands.
 
 on:
   push:

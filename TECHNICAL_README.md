@@ -2,8 +2,8 @@
 
 ## Scope and status vocabulary
 
-Kosmos-Oden 0.9.5-alpha.4 consumes the TypeScript Engine 2.5.1
-release at exact commit `d57c26fc5858474a0fa0cb601cbeef32fe12c233`.
+Kosmos-Oden 0.9.5-alpha.5 consumes the TypeScript Engine 2.5.2
+release at exact commit `68de6808738777a7b82b0dc7448c56698073fcc7`.
 It adds the Personal Notes profile and dual-era MCP; see
 [docs/v0.9.0/](docs/v0.9.0/BUILD-PROGRESS.md) for build evidence and pending
 trials. Navigation Effects remain experimental and default-disabled. Earlier
@@ -22,7 +22,7 @@ makes no GKOS conformance or certification claim.
 
 | Surface | Implemented on main | Default/activation boundary | Current limit |
 |---|---|---|---|
-| Semantic core | Engine 2.5.1 parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No configured Effects executor or Rust runtime |
+| Semantic core | Engine 2.5.2 parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No configured Effects executor or Rust runtime |
 | Local Cluster renderer | Shared cosmology, hierarchical layout, WebGL2 shaders, controls, Chrono, search, playback, agent trails | Viewer starts after a graph is loaded | Visual projection only |
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
@@ -72,10 +72,10 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.9.5** (alpha.4); minimum Obsidian: **1.13.0**.
+Product version: **0.9.5** (alpha.5); minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
-`github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233` (2.5.1 release).
+`github:Odenknight/GKOS-Engine#68de6808738777a7b82b0dc7448c56698073fcc7` (2.5.2 release).
 The dependency guard verifies the exact lock coordinate. Three.js is
 0.187.0. Supported build runtimes are Node 22 and 24. The only dependency
 added in 0.9.0 is the development-only MCP test client
