@@ -277,6 +277,67 @@ The index file is about 1.6 KB per passage for a 384-number model (16 MB per
 
 ## Limits to know
 
+### Retrieval quality on Obsidian Help
+
+On November 21, 2026, the built semantic worker searched all 28 Markdown
+pages in the English Plugins directory of Obsidian Help. Sixteen original
+questions each had one target page assigned before running the model. The
+default Snowflake Arctic Embed S model ranked the target first **8/16** times,
+in the first three **13/16**, and in the first five **14/16**. Mean reciprocal
+rank at five was **0.672**, counting a target outside the first five as zero.
+[Pinned corpus](https://github.com/obsidianmd/obsidian-help/tree/ced32050c0d9d1e1f8d3faa19a8ba8474d75a32d/en/Plugins)
+· [All questions and labels](../../benchmarks/obsidian-help-judgments.json)
+
+These eight targets missed first place. The script prints all five retrieved
+paths for every question in the order returned.
+
+| Task in the question | Target page | Target rank | First result |
+| --- | --- | ---: | --- |
+| Find unlinked destinations mentioned in this page | Outgoing links | 2 | Backlinks |
+| Restore tomorrow's tabs and sidebar arrangement | Workspaces | 4 | Daily notes |
+| Move a section by dragging its heading | Outline | 2 | File explorer |
+| Move highlighted paragraphs into a separate file | Note composer | Outside top 5 | Templates |
+| Save a frequently used search for one-click access | Bookmarks | Outside top 5 | Search |
+| Peek at a link destination while staying in the editor | Page preview | 2 | File explorer |
+| See isolated pages as dots | Graph view | 2 | Outgoing links |
+| Jump to a file using a few letters and the keyboard | Quick switcher | 2 | File explorer |
+
+One run on Windows with Chrome 157.0.8103.79, Node 24.18.0 and an Intel
+Core i7-10610U indexed 166 passages in 97.0 seconds. The 16 questions took
+158 ms each on average. These timings reflect a shared machine. The labels
+cover one English documentation topic, one author's notion of relevance,
+and answerable questions only. They measure the worker's five nearest
+notes before the controller's relevance cutoff. Fused Librarian rankings,
+other models, personal vaults, and retrieval inside Obsidian need separate
+measurements.
+
+To repeat, build the test artifacts from the repository root and check out
+the corpus beside it. Git sparse checkout limits the downloaded material.
+
+```sh
+npm ci
+node scripts/build.mjs --for-tests
+git clone --filter=blob:none --sparse https://github.com/obsidianmd/obsidian-help.git ../obsidian-help
+git -C ../obsidian-help sparse-checkout set en/Plugins
+git -C ../obsidian-help checkout --detach ced32050c0d9d1e1f8d3faa19a8ba8474d75a32d
+```
+
+Use the plugin's downloaded `semantic/models/arctic-embed-s` folder, or
+obtain the model's pinned `onnx/model_quantized.onnx` (save as `model.onnx`),
+`tokenizer.json`, and `tokenizer_config.json` in one directory.
+[Pinned model files](https://huggingface.co/Snowflake/snowflake-arctic-embed-s/tree/e596f507467533e48a2e17c007f0e1dacc837b33)
+
+```sh
+node scripts/semantic-smoke.mjs --model-dir "<model folder>" --chromium "<Chrome or Chromium executable>" --bench-dir ../obsidian-help/en/Plugins --judge-obsidian-help
+```
+
+The judged run checks the corpus digest after normalizing CRLF to LF and
+checks each model file against its catalog SHA-256 before launching the
+browser. Relevance scores are measurements. A smoke-test exit code of zero
+means the functional assertions passed.
+
+### Runtime and scale
+
 - **Not tried inside Obsidian yet.** The whole path is tested in Node (real
   SQLite, the real controller, a stand-in model) and in headless Chromium (real
   models). Download, file choosing and the settings section inside a running

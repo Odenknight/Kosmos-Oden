@@ -3,7 +3,7 @@
  * REAL model, in a real Chromium (the engine Obsidian runs on).
  *
  *   node scripts/semantic-smoke.mjs --model-dir <folder> [--id <catalog id>] [--chromium <path>]
- *                                   [--bench-dir <folder of .md notes> [--bench-limit <n>]]
+ *                                   [--bench-dir <folder of .md notes> [--bench-limit <n>] [--judge-obsidian-help]]
  *
  * --bench-dir also embeds real notes from a folder and prints how long it took
  * (a measurement, not a check; the notes are read by this script and never leave
@@ -17,16 +17,17 @@
  * plugin does, then: loads the model, embeds a few notes, asks questions that
  * share no words with the note they should find, exports the SQLite file,
  * reloads from it, and checks the reloaded index answers the same. The page
- * blocks every network request other than its own start page, so a pass also
- * shows the runtime fetches nothing.
+ * checks for unexpected network requests during the run.
  *
  * Not part of `npm test`: it needs a model (tens of MB) and a browser.
  */
 import http from "node:http";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { join, resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
+import { MODEL_CATALOG, contentKey } from "../dist/kosmos-semantic.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (name, fallback = "") => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
@@ -34,7 +35,6 @@ const modelDir = arg("model-dir");
 const id = arg("id", "arctic-embed-s");
 if (!modelDir || !existsSync(modelDir)) { console.error("usage: node scripts/semantic-smoke.mjs --model-dir <folder> [--id <catalog id>] [--chromium <path>]"); process.exit(2); }
 
-const { MODEL_CATALOG, contentKey } = await import(join(root, "dist/kosmos-semantic.mjs"));
 const entry = MODEL_CATALOG.find((m) => m.id === id);
 if (!entry) { console.error(`unknown catalog id ${id}; one of: ${MODEL_CATALOG.map((m) => m.id).join(", ")}`); process.exit(2); }
 const onnx = readdirSync(modelDir).find((f) => f.endsWith(".onnx"));
@@ -52,6 +52,8 @@ const NOTES = [
 
 /** Real notes for the optional timing run: up to --bench-limit Markdown files under --bench-dir. */
 const benchDir = arg("bench-dir");
+const judgeHelp = process.argv.includes("--judge-obsidian-help");
+if (judgeHelp && !benchDir) throw new Error("--judge-obsidian-help requires --bench-dir <obsidian-help/en/Plugins>");
 const benchLimit = Number(arg("bench-limit", "300")) || 300;
 const BENCH = [];
 if (benchDir) {
@@ -63,13 +65,31 @@ if (benchDir) {
       const st = statSync(full);
       if (st.isDirectory()) walk(full);
       else if (name.endsWith(".md") && st.size > 0 && st.size < 2_000_000) {
-        const raw = readFileSync(full, "utf8");
+        const text = readFileSync(full, "utf8");
+        const raw = judgeHelp ? text.replace(/\r\n/g, "\n") : text;
         const title = name.slice(0, -3);
-        BENCH.push({ path: full.slice(benchDir.length + 1), title, raw, key: contentKey(raw, title) });
+        BENCH.push({ path: relative(benchDir, full).split(sep).join("/"), title, raw, key: contentKey(raw, title) });
       }
     }
   };
   walk(resolve(benchDir));
+}
+let judgments = [];
+if (judgeHelp) {
+  const digest = createHash("sha256");
+  for (const { path, raw } of BENCH) digest.update(path).update("\0").update(raw).update("\0");
+  if (digest.digest("hex") !== "941e12f69cc01de020cfbad951983a29e1f8f74e9cfbdbd09c94766a6293493f") {
+    throw new Error("Corpus differs from the pinned en/Plugins Markdown set. See docs/v0.9.5/SEMANTIC-SEARCH.md.");
+  }
+  for (const file of entry.files) {
+    const local = file.name.endsWith(".onnx") ? onnx : file.name;
+    const hash = createHash("sha256").update(readFileSync(join(modelDir, local))).digest("hex");
+    if (hash !== file.sha256) throw new Error(`Model file ${local} differs from the catalog pin for ${id}`);
+  }
+  judgments = JSON.parse(readFileSync(join(root, "benchmarks/obsidian-help-judgments.json"), "utf8"));
+  for (const [, target] of judgments) {
+    if (!BENCH.some((note) => note.path === target)) throw new Error(`Missing judged target: ${target}`);
+  }
 }
 
 /** Questions that share no meaningful word with the note they should find. */
@@ -109,7 +129,7 @@ try {
   page.on("console", (m) => { if (m.type() === "error") console.log("[page error]", m.text().slice(0, 300)); });
   await page.goto(base);
 
-  const out = await page.evaluate(async ({ recipe, notes, questions, bench }) => {
+  const out = await page.evaluate(async ({ recipe, notes, questions, bench, judgments }) => {
     const bytes = async (p) => (await fetch(p)).arrayBuffer();
     const text = async (p) => (await fetch(p)).text();
     const model = await bytes("/model.onnx");
@@ -175,18 +195,34 @@ try {
       const embedMs = performance.now() - t;
       const chunks = (await d.call({ op: "stats" })).chunks;
       t = performance.now();
-      for (const [question] of questions) await d.call({ op: "query", question, allowed: paths, limit: 12 });
-      const askMs = (performance.now() - t) / questions.length;
+      const queries = judgments.length ? judgments : questions;
+      const ranked = [];
+      for (const [question] of queries) {
+        const hits = await d.call({ op: "query", question, allowed: paths, limit: judgments.length ? 5 : 12 });
+        ranked.push(hits.map((h) => h.path));
+      }
+      const askMs = (performance.now() - t) / queries.length;
       t = performance.now();
       const stored = await d.call({ op: "export" });
       const exportMs = performance.now() - t;
-      timing = { notes: bench.length, chars: bench.reduce((n, b) => n + b.raw.length, 0), chunks, embedMs, askMs, exportMs, bytes: stored.byteLength };
+      timing = { notes: bench.length, chars: bench.reduce((n, b) => n + b.raw.length, 0), chunks, embedMs, askMs, exportMs, bytes: stored.byteLength, ranked };
       d.worker.terminate();
     }
     return { loaded, indexed, first, second, scoped, nothing, related, header, dbBytes: dbText.length, leaks, reloaded, manifest, other, loadMs, indexMs, queryMs, timing };
-  }, { recipe, notes: NOTES, questions: QUESTIONS, bench: BENCH });
+  }, { recipe, notes: NOTES, questions: QUESTIONS, bench: BENCH, judgments });
   if (out.timing) {
     const b = out.timing;
+    if (judgeHelp) {
+      const ranks = judgments.map(([question, target], i) => {
+        const hits = b.ranked[i];
+        const rank = hits.indexOf(target) + 1;
+        console.log(JSON.stringify({ question, target, rankAt5: rank || null, top5: hits }));
+        return rank;
+      });
+      const hit = (k) => ranks.filter((rank) => rank > 0 && rank <= k).length;
+      const mrr = ranks.reduce((sum, rank) => sum + (rank ? 1 / rank : 0), 0) / ranks.length;
+      console.log(`judged ${ranks.length} queries: hit@1 ${hit(1)}, hit@3 ${hit(3)}, hit@5 ${hit(5)}, MRR@5 ${mrr.toFixed(3)}; Chrome ${browser.version()}`);
+    }
     console.log(`timing ${id}: ${b.notes} notes (${(b.chars / 1e6).toFixed(2)} million characters) → ${b.chunks} passages in ${(b.embedMs / 1000).toFixed(1)} s (${(b.chunks / (b.embedMs / 1000)).toFixed(1)} passages/s, ${(b.notes / (b.embedMs / 1000)).toFixed(1)} notes/s); question ${Math.round(b.askMs)} ms; index ${(b.bytes / 1e6).toFixed(1)} MB written in ${Math.round(b.exportMs)} ms`);
   }
 

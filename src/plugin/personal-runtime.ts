@@ -186,7 +186,7 @@ export class PersonalRuntime {
   }
 
   build(): Promise<void> {
-    const done = this.corpus.build().catch(() => undefined);
+    const done = this.corpus.build().catch((): undefined => undefined);
     this.notify(); // a rebuild is "indexing" until its revision is published
     return done;
   }
@@ -207,7 +207,7 @@ export class PersonalRuntime {
 
   retry(): void {
     if (this.disposed) return;
-    void this.search.retry().catch(() => undefined).finally(() => this.notify());
+    void this.search.retry().catch((): undefined => undefined).finally(() => this.notify());
     this.notify();
   }
 

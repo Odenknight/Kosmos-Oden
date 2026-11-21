@@ -13,7 +13,10 @@
     "kosmos-mcp-stdio.mjs",
     "README.md",
     "CHANGELOG.md",
+    "ACKNOWLEDGMENTS.md",
     "LICENSE",
+    "LICENSING.md",
+    "LICENSES/CC-BY-4.0.txt",
     "THIRD-PARTY-NOTICES.md"
   ],
   "engines": {
@@ -44,12 +47,13 @@
     "test:renderer": "npm run test:browser && npm run test:visual",
     "package:release": "node scripts/package-release.mjs"
   },
-  "license": "Apache-2.0",
+  "license": "(Apache-2.0 AND CC-BY-4.0)",
   "devDependencies": {
     "@huggingface/tokenizers": "0.2.0",
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
+    "@types/three": "0.186.0",
     "esbuild": "0.28.2",
     "obsidian": "1.14.4",
     "onnxruntime-web": "1.31.1",

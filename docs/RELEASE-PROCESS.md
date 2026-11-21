@@ -29,11 +29,12 @@ Releases are built **from the tag in CI**, not copied from a workstation
      lockfile SHA-256, dirty flag, build time.
    - `SHA256SUMS` — integrity hashes over every release file.
    Since 0.9.0 it also writes an installable archive,
-   `release/kosmos-oden-<version>-<label>.zip` (label `alpha.1` by default;
+   `release/kosmos-oden-<version>-<label>.zip` (label `alpha.4` by default;
    `--label=` changes it, `--label=` with no value drops it) and
    `<archive>.zip.sha256`. The archive holds a `kosmos-oden/` plugin folder
    (`main.js`, `manifest.json`, `styles.css`, `kosmos-mcp-stdio.mjs`), every
    `docs/v<version>/*.md` file under `docs/`, `LICENSE`,
+   `LICENSING.md`, `LICENSES/CC-BY-4.0.txt`, `ACKNOWLEDGMENTS.md`,
    `THIRD-PARTY-NOTICES.md`, `BUILD-INFO.json` and its own `SHA256SUMS`. The
    packager fails if `docs/v<version>/` lacks `ALPHA-INSTALL.md`,
    `ALPHA-TEST.md`, `KNOWN-LIMITATIONS.md`, `MCP-COMPATIBILITY.md` or

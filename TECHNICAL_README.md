@@ -22,12 +22,12 @@ makes no GKOS conformance or certification claim.
 
 | Surface | Implemented on main | Default/activation boundary | Current limit |
 |---|---|---|---|
-| Semantic core | Engine 2.2.0 candidate parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No configured Effects executor or Rust runtime |
+| Semantic core | Engine 2.5.1 parsing, projection, graph, temporal, incremental index, Graphiti, Navigation 1.0 | Exact package and lock pin | No configured Effects executor or Rust runtime |
 | Local Cluster renderer | Shared cosmology, hierarchical layout, WebGL2 shaders, controls, Chrono, search, playback, agent trails | Viewer starts after a graph is loaded | Visual projection only |
 | Offline standalone | Single-file HTML, persistent directory picker, snapshot fallback, incremental rescans, in-memory exports | User selects a source | No bundled service or native wrapper |
 | Obsidian plugin | Sandboxed renderer host, live vault deltas, note/folder actions, settings, explicit GKX workflows, optional sync | User installs/enables the plugin | Obsidian supplies host and Secret Storage APIs |
 | Obsidian Agent API | Read-only REST and Streamable HTTP MCP (modern and initialize-era), stdio bridge, sensitivity filter, limits | Off by default; loopback and authentication default | Port 4816 compatibility surface, not the standalone service |
-| Personal Notes profile (0.9.0) | Folder-scoped read policy, in-memory worker search, five read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; trials in `docs/v0.9.0/ALPHA-TEST.md` pending |
+| Personal Notes profile | Folder-scoped read policy, in-memory worker search, six read-only tools with exact paged reads, Importer onboarding, optional deterministic tags, Quick Connect | Fresh installs start here with nothing shared and the connection off; upgrades stay on the existing profile | Alpha; trials in `docs/v0.9.0/ALPHA-TEST.md` pending |
 | Standalone service client | Loopback address validation, bearer graph fetch, capability negotiation, authenticated event stream | Requires an external compatible service and viewer credential | Client validates Draft.1; service is not bundled |
 | Traffic and replay | Per-agent trails, recent-visit heat scalar, explicit bounded record/export/import/replay | Heat and recording off until selected | Observability only; no cost, fuel, quality, or authority meaning |
 | GKX maintenance | Deterministic audit/conversion, backups, guarded apply, optional bounded enrichment review | Explicit commands and acknowledgements | Not the newer immutable proposal/decision subsystem |
@@ -72,7 +72,7 @@ insert an executor into the plugin or standalone browser bundles.
 
 ## Versions and dependency integrity
 
-Product version: **0.9.0** (alpha test candidate); minimum Obsidian: **1.13.0**.
+Product version: **0.9.5** (alpha.4); minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
 `github:Odenknight/GKOS-Engine#d57c26fc5858474a0fa0cb601cbeef32fe12c233` (2.5.1 release).
@@ -349,12 +349,12 @@ through the bridge. `src/plugin/mcp-compat.ts` classifies each POST by the
 presence of modern markers and serves the legacy path statelessly. See
 [MCP-COMPATIBILITY.md](docs/v0.9.0/MCP-COMPATIBILITY.md).
 
-### Personal Notes profile (0.9.0)
+### Personal Notes profile
 
 `activeProfile` (settings schema 11) selects which profile the listener
-serves. In the Personal profile the server exposes exactly five read-only
+serves. In the Personal profile the server exposes six read-only
 tools (`vault_overview`, `search_notes`, `get_note`, `get_related`,
-`get_lineage`) and the matching REST routes; every existing-profile tool and
+`get_lineage`, `ask_librarian`) and the matching REST routes; every existing-profile tool and
 route is unknown. Access is decided by one read policy (shared folders,
 always-excluded paths, physical containment, authored sensitivity against the
 existing ceiling) with a monotonic policy generation that ends in-flight
@@ -512,7 +512,7 @@ Development requirements are Node.js 22–24 and npm 10 or newer.
 
 | Script | Purpose |
 |---|---|
-| `npm run typecheck` | TypeScript no-emit check |
+| `npm run typecheck` | No-emit check with implicit `any` rejected. Existing explicit `any` remains. |
 | `npm run build` | Plugin, embed, standalone HTML, and Node test/CLI bundles |
 | `npm run build:standalone` | Standalone HTML only |
 | `npm run dev` | Unminified development build |
@@ -601,11 +601,9 @@ configured, authorized, qualified, or released:
 Project-authored software is Apache-2.0. Project-authored documentation and
 original graphics are CC BY 4.0 where declared. Third-party and inherited
 materials remain under their original licenses and notices. See
-[LICENSE](LICENSE), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and
+[Licensing by artifact](LICENSING.md), [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), and
 [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md).
 
 ## MCP qualification scope
 
-The Agent API implements modern MCP `2026-07-28` only. Legacy clients cannot
-connect. The separate Engine retrieval client is not upgraded by this candidate;
-its service must be qualified independently of the bundled library version.
+The Agent API supports the modern revision and, when **Accept older MCP clients** is enabled, the initialize-era revisions listed in the [compatibility table](docs/v0.9.5/MCP-COMPATIBILITY.md). The separate Engine retrieval client has its own qualification evidence.

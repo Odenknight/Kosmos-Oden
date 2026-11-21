@@ -117,7 +117,7 @@ export class PersonalSearchView extends ItemView {
     window.clearTimeout(this.timer);
     this.controller?.abort();
     this.controller = null;
-    this.timer = window.setTimeout(() => void this.run(), SEARCH_DEBOUNCE_MS);
+    this.timer = window.setTimeout((): void => void this.run(), SEARCH_DEBOUNCE_MS);
   }
 
   private async run(): Promise<void> {

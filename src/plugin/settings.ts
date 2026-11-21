@@ -357,7 +357,7 @@ export class KosmosSettingTab extends PluginSettingTab {
       .setDesc(`On by default. Besides modern MCP ${LATEST_MCP_PROTOCOL_VERSION}, also answer clients that open with the initialize handshake: ${NATIVE_LEGACY_MCP_PROTOCOL_VERSIONS.join(", ")} directly over HTTP, and ${STDIO_ONLY_MCP_PROTOCOL_VERSIONS.join(", ")} only through the bundled stdio bridge. No session is created either way. Turn off to serve modern MCP only.`)
       .addToggle((t) => t.setValue(s.activeProfile === "personal" ? s.personalNotes.connection.acceptOlderMcp !== false : s.agentLegacyMcp !== false).onChange(async (v) => {
         // Each profile has its own setting; the Personal one goes through updatePersonalNotes so the connection is reconfigured.
-        if (s.activeProfile === "personal") await this.plugin.updatePersonalNotes((d) => { d.connection.acceptOlderMcp = v; });
+        if (s.activeProfile === "personal") await (this.plugin as PersonalPluginHost).updatePersonalNotes((d) => { d.connection.acceptOlderMcp = v; });
         else { s.agentLegacyMcp = v; await this.plugin.saveAgentSettings(); }
       }));
 
