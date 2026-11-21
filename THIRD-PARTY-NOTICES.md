@@ -4,7 +4,7 @@ Kosmos-Oden bundles and builds upon the following third-party work.
 
 ## Three.js
 
-The 3D renderer bundles **Three.js** (r186, npm `three@0.186.1`), © 2010–2025
+The 3D renderer bundles **Three.js** (r187, npm `three@0.187.0`), © 2010–2026
 three.js authors, under the MIT License. It is an exact-pinned npm dependency
 (`package.json` + `package-lock.json`, integrity recorded in
 `renderer-provenance.json`); esbuild bundles the ESM module into `main.js`,
@@ -16,7 +16,7 @@ optional frozen WebGL1-era compatibility artifact only.
 ```
 The MIT License
 
-Copyright © 2010-2021 three.js authors
+Copyright © 2010-2026 three.js authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
