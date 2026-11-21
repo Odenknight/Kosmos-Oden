@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 // The fixture's one-use token is entered through the ordinary connection form.
 test.use({ trace: "off" });
@@ -29,7 +29,10 @@ test("the packaged Engine serves the Kosmos release and renders its own vault", 
     if (!address || typeof address === "string") throw new Error("Expected a loopback TCP port");
     await new Promise<void>((done, reject) => socket.close(err => err ? reject(err) : done()));
     const api = `http://127.0.0.1:${address.port}`;
-    const child = spawn(process.execPath, [...childArgs, "--port", String(address.port)], { stdio: "ignore" });
+    const args = [...childArgs, "--port", String(address.port)];
+    const { data } = JSON.parse(execFileSync(process.execPath, [...args, "--print", "--json"], { encoding: "utf8" }));
+    expect(resolve(data.tokenFile).startsWith(resolve(state) + sep)).toBe(true);
+    const child = spawn(process.execPath, args, { stdio: "ignore" });
     const closed = once(child, "close");
     stop = async () => { child.kill(); await closed; };
 
@@ -43,7 +46,8 @@ test("the packaged Engine serves the Kosmos release and renders its own vault", 
     expect((await request.get(api + "/graph")).status()).toBe(401);
 
     await page.goto(api + "/?api=" + encodeURIComponent(api));
-    const token = (await readFile(join(state, "viewer/access-token"), "utf8")).trim();
+    await expect.poll(() => access(data.tokenFile).then(() => true, () => false)).toBe(true);
+    const token = (await readFile(data.tokenFile, "utf8")).trim();
     await page.getByLabel("Bearer token").fill(token);
     await page.getByRole("button", { name: "Connect", exact: true }).click();
     const download = page.waitForEvent("download");
