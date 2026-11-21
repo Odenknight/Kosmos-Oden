@@ -706,27 +706,28 @@ test("agent api", async (t) => {
   });
 });
 
-test("Mitigation 4: a single agent's concurrent requests are capped for fairness", async () => {
-  let release; const gate = new Promise((r) => { release = r; });
-  const provider = {
-    getGraph: async () => { await gate; return buildProductGraph(FILES, ["Ideas"]); },
-    getNoteContent: async () => "", vaultName: () => "V", lanAddresses: () => [],
-  };
+test("Mitigation 4: a single agent's concurrent requests are capped for fairness", { timeout: 10000 }, async (t) => {
+  const { promise: gate, resolve: release } = Promise.withResolvers();
+  const { promise: full, resolve: reached } = Promise.withResolvers();
+  let arrivals = 0;
+  const provider = { ...fixtureProvider(), getGraph: async () => {
+    if (++arrivals === MAX_CONCURRENT_PER_AGENT) reached();
+    await gate;
+    return buildProductGraph(FILES, ["Ideas"]);
+  } };
   const server = new KosmosAgentServer(http, settings(), provider);
   await new Promise((resolve) => { server.start(); server.server.on("listening", resolve); });
+  t.after(() => { release(); server.stop(); });
   const port = server.server.address().port;
-  const N = MAX_CONCURRENT_PER_AGENT;
-  const ua = { ...auth, "User-Agent": "BulkAgent/1" };
-  const reqs = [];
-  for (let i = 0; i < N + 2; i++) reqs.push(request(port, { path: "/overview", headers: ua }));
-  // let the first N pile up in-flight (blocked on the gate), then release them
-  setTimeout(() => release(), 60);
-  const results = await Promise.all(reqs);
-  const throttled = results.filter((r) => r.status === 429);
-  assert.equal(throttled.length, 2, "the 2 requests past the per-agent cap are throttled");
-  assert.match(throttled[0].json().hint, /concurrent/);
-  assert.equal(results.filter((r) => r.status === 200).length, N);
-  server.stop();
+  const call = () => request(port, { path: "/overview", headers: { ...auth, "User-Agent": "BulkAgent/1" } });
+  const admitted = Promise.all(Array.from({ length: MAX_CONCURRENT_PER_AGENT }, call));
+  await full;
+  for (const response of await Promise.all([call(), call()])) {
+    assert.equal(response.status, 429);
+    assert.match(response.json().hint, /concurrent/);
+  }
+  release();
+  assert.ok((await admitted).every(response => response.status === 200));
 });
 
 test("modern clients sharing User-Agent have independent bounded execution slots", { timeout: 10000 }, async (t) => {

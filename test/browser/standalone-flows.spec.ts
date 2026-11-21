@@ -77,6 +77,22 @@ for (const mode of ["snapshot", "engine"] as const) {
   });
 }
 
+test("last-scan timer updates the age and preserves the focused export button", async ({ page }) => {
+  const bundle = await build({ entryPoints: ["src/standalone/ui.ts"], bundle: true, write: false, format: "iife", globalName: "ReviewUI" });
+  await page.clock.install();
+  await page.setContent("<body></body>");
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  await page.evaluate(() => {
+    const ui = (window as any).ReviewUI.createStandaloneUI({});
+    ui.setStatus({ mode: "demo", lastScanAt: Date.now(), canExportGraph: true });
+  });
+  const button = page.getByRole("button", { name: "Export Graph JSON", exact: true });
+  await button.focus();
+  await page.clock.fastForward(5000);
+  await expect(page.locator("[data-last-scan]")).toHaveText(/^[5-9]s ago$/);
+  await expect(button).toBeFocused();
+});
+
 test("expanded connection form is reachable on a short viewport and folder names stay text", async ({ page }) => {
   const bundle = await build({ entryPoints: ["src/standalone/ui.ts"], bundle: true, write: false, format: "iife", globalName: "ReviewUI" });
   await page.setViewportSize({ width: 390, height: 600 });

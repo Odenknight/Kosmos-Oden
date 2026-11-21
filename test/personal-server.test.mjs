@@ -162,6 +162,8 @@ test("REST: the six Personal routes answer from the shared scope only", async ()
     for (const r of [overview, search, note, related, lineage]) assertNoHidden(r.text, "REST");
     const ui = await rest(port, "/ui");
     assert.equal(ui.status, 200);
+    assert.equal((await rest(port, "/ui", "")).status, 401);
+    assert.doesNotMatch(ui.text, /(?:sessionStorage|localStorage)\.(?:setItem|getItem)/);
     assert.match(ui.text, /Kosmos Librarian/);
     assert.match(ui.text, /\/librarian\?question=/);
     assert.doesNotMatch(ui.text, /Notes\/|PrivateVaultName/, "the page is static: no note, path or vault name");

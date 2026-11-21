@@ -325,8 +325,8 @@ they contain with forms marked, and the notes they link to. `format` chooses
 The same answer is available without an MCP client: `GET /ui` on the same port
 serves a one-page search box that calls `/librarian` directly, and
 `GET /librarian?question=...` returns the JSON. Neither spends a single model
-token; both require the same access token (the page asks for it once and keeps
-it in `sessionStorage`).
+token; both require the same access token. The first page request needs an
+authorization header. Any token entered in the page is cleared on reload.
 
 - It cannot change, create or delete anything.
 - `get_note` returns the note exactly as stored, properties included. A long

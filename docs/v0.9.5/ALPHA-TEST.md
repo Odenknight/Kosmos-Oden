@@ -2,6 +2,10 @@
 
 **Status: alpha test candidate, not a qualified release.**
 
+## Alpha.4 verification on Windows (2026-11-21)
+
+With Engine 2.5.1, `npm run verify` passed 832 plugin tests along with type, artifact, invariant and renderer checks. `npm run test:browser:chromium -- --workers=1` passed 54 desktop and mobile tests. `npm run test:browser:full -- --workers=1` passed 40 Firefox and WebKit tests. A concurrent local Chromium run timed out on several tests and was interrupted. The serial run completed with the original assertions and deadlines. The earlier review reproduced the advisory `star-focus` screenshot difference on the unmodified upstream viewer. No visual reference was regenerated.
+
 ## Verified on the build machine (2026-11-13)
 
 - `npm run verify`: typecheck, build, **721 tests**, and the version, lockfile,

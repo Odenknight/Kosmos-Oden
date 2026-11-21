@@ -5,7 +5,7 @@
  * port as REST and MCP. It calls /librarian, so the browser does exactly the
  * same hybrid search an agent gets: by words always, and by meaning when the
  * user has turned semantic search on. No language model runs and no tokens are
- * spent. The access token stays in sessionStorage and is sent as a
+ * spent. The access token stays in page memory and is sent as a
  * header; it is never put in a URL. No external assets, no CDN, no inline
  * script from anywhere but this string.
  */
@@ -53,17 +53,17 @@ export const PERSONAL_UI_HTML = String.raw`<!doctype html>
   var tokenRow = document.getElementById('token');
   var tok = document.getElementById('tok');
 
-  function headers() {
-    var t = sessionStorage.getItem('kosmosToken');
-    return t ? { Authorization: 'Bearer ' + t } : {};
-  }
+  var token = '';
+  // Discard the previous version's tab-scoped copy, including after an upgrade.
+  try { sessionStorage.removeItem('kosmosToken'); } catch (_) { /* Storage may be disabled. */ }
 
   function showToken() { tokenRow.style.display = 'flex'; tok.focus(); }
 
   document.getElementById('save').addEventListener('click', function () {
     var v = tok.value.trim();
     if (!v) { showToken(); return; }
-    sessionStorage.setItem('kosmosToken', v);
+    token = v;
+    tok.value = '';
     tokenRow.style.display = 'none';
     ask();
   });
@@ -76,8 +76,8 @@ export const PERSONAL_UI_HTML = String.raw`<!doctype html>
     status.textContent = 'Searching…';
     brief.hidden = true;
     var url = '/librarian?question=' + encodeURIComponent(question) + '&format=both';
-    fetch(url, { headers: headers(), cache: 'no-store' }).then(function (r) {
-      if (r.status === 401) { status.textContent = 'An access token is needed.'; showToken(); return null; }
+    fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {}, cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { token = ''; status.textContent = 'An access token is needed.'; showToken(); return null; }
       if (!r.ok) { return r.text().then(function (t) { throw new Error(t.slice(0, 300) || ('HTTP ' + r.status)); }); }
       return r.json();
     }).then(function (data) {

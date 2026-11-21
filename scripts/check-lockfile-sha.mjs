@@ -61,13 +61,13 @@ for (const group of ["dependencies", "devDependencies"]) {
 }
 
 const engine = packages["node_modules/gkos-engine"];
-const engineCommit = "8655452dcc7f9d652887b9cdf975e1f538f61386";
+const engineCommit = "d57c26fc5858474a0fa0cb601cbeef32fe12c233";
 if (
-  engine?.version !== "2.5.0"
+  engine?.version !== "2.5.1"
   || !String(engine.resolved ?? "").endsWith(`#${engineCommit}`)
 ) {
   console.error(`check-lockfile-sha: FAIL — gkos-engine is not bound to Engine commit ${engineCommit.slice(0, 12)}`);
   process.exit(1);
 }
 
-console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; gkos-engine 2.5.0 @ ${engineCommit.slice(0, 12)}.`);
+console.log(`check-lockfile-sha: OK — ${gitDeps} git dependenc${gitDeps === 1 ? "y" : "ies"} pinned to 40-hex commit SHAs; gkos-engine 2.5.1 @ ${engineCommit.slice(0, 12)}.`);

@@ -26,7 +26,7 @@ import { applyTaggingPlan, type TaggingApplyResult, type TaggingWriterHost } fro
 import { checkSupersedesProposal } from "../personal-notes/lineage";
 import { sha256Hex } from "../personal-notes/hash";
 import { PersonalDeviceState, PersonalRuntime, deviceNamespace } from "./personal-runtime";
-import { ObsidianPersonalSource, buildNoteMeta, strictYaml } from "./personal-source";
+import { ObsidianPersonalSource, authoredSensitivity, readNoteHeader, strictYaml } from "./personal-source";
 import { decidePersonalRead } from "../personal-notes/policy";
 import { testPersonalConnection, waitForListener } from "./personal-connection";
 import { personalSearchWorkerFactory } from "./personal-search-worker-url";
@@ -50,6 +50,7 @@ import { AddNotesModal } from "../ui/add-notes-modal";
 import { ConnectAiModal } from "../ui/connect-ai-modal";
 import { SupersedesModal } from "../ui/supersedes-modal";
 import { TaggingModal } from "../ui/tagging-modal";
+import { MOC_DEFAULT_FILE_NAME } from "../personal-notes/moc";
 import { runFolderMoc, type MocFolderIo } from "../personal-notes/moc-run";
 import type { MocWriterHost } from "../personal-notes/moc-writer";
 import {
@@ -386,6 +387,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
 
   /* Personal Notes (0.9.0) runtime state. Nothing here is persisted. */
   private personal: PersonalRuntime | null = null;
+  private readonly updatingMoc = new Set<string>();
   private personalSource: ObsidianPersonalSource | null = null;
   private device: PersonalDeviceState | null = null;
   private connecting = false;
@@ -678,15 +680,19 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     try { return nodeRequire("fs")?.realpathSync(base) ?? base; } catch { return base; }
   }
 
-  /** The local Personal runtime (corpus + search worker), created on first use in either profile. */
-  private local(): PersonalRuntime {
-    if (this.personal) return this.personal;
-    this.personalSource ??= new ObsidianPersonalSource(this.app, {
+  private newPersonalSource(): ObsidianPersonalSource {
+    return new ObsidianPersonalSource(this.app, {
       parse: this.yaml,
       fs: nodeRequire("fs"),
       path: nodeRequire("path"),
       timestampKeys: () => ({ createdKey: this.agentSettings.timestampCreatedKey, updatedKey: this.agentSettings.timestampUpdatedKey }),
     });
+  }
+
+  /** The local Personal runtime (corpus + search worker), created on first use in either profile. */
+  private local(): PersonalRuntime {
+    if (this.personal) return this.personal;
+    this.personalSource ??= this.newPersonalSource();
     const runtime = new PersonalRuntime({
       source: this.personalSource,
       settings: () => this.agentSettings,
@@ -922,6 +928,7 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       saveBackup: async (path, beforeText) => {
         if (!backupRoot) throw new Error("no backup location for this operation");
         const target = normalizePath(`${backupRoot}/files/${path}.bak`);
+        if (!this.newPersonalSource().physicallyContained(target)) throw new Error("Backup path is outside the vault");
         await this.ensureFolder(target.slice(0, target.lastIndexOf("/")));
         if (await this.app.vault.adapter.exists(target)) throw new Error(`backup already exists: ${target}`);
         await this.app.vault.adapter.write(target, beforeText);
@@ -930,10 +937,12 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       sha256: (text) => sha256Hex(text),
       createFile: async (path, text) => {
         const adapter = this.app.vault.adapter;
-        if (await adapter.exists(path)) return false;
-        const dir = path.slice(0, path.lastIndexOf("/"));
-        if (dir) await this.ensureFolder(dir);
-        await adapter.write(path, text);
+        try {
+          await this.app.vault.create(path, text);
+        } catch (error) {
+          if (await adapter.exists(path)) return false;
+          throw error;
+        }
         return true;
       },
       recordOwnWrite: (path, hash) => {
@@ -1292,54 +1301,68 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
       new Notice("Kosmos-Oden: open a note inside a folder, then run this again.");
       return;
     }
-    const root = normalizePath(`.gkx/backup/moc-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
-    const host = this.writerHost(root);
-    const vault = this.app.vault;
-    const metaCache = this.app.metadataCache;
-    const frontmatterOf = (path: string): Record<string, unknown> => {
-      const file = vault.getAbstractFileByPath(path);
-      return (file && "stat" in file ? metaCache.getFileCache(file as TFile)?.frontmatter : null) ?? {};
-    };
-    // The index carries no label of its own, so an assistant may read it. A note
-    // the connector would refuse for its label (above the ceiling, not a known
-    // level, or frontmatter that cannot be read) or for a link out of the vault
-    // is left out, or its name, title and summary would be shared through the
-    // index. Judged as the connector judges it: the note's own text through the
-    // strict reader, not Obsidian's cache. Only the folder's own notes are
-    // dropped; the rest of the vault stays, because the generator counts every
-    // base name to decide whether a short link is unambiguous.
-    const open = {
-      policy: { generation: 0, allowsPath: () => true },
-      source: { physicallyContained: (path: string) => this.personalSource?.physicallyContained(path) ?? true },
-      sensitivityRank: SENSITIVITY_RANK, ceiling: this.agentSettings.agentSensitivityCeiling,
-    };
-    const leftOut = new Set<string>();
-    for (const file of vault.getMarkdownFiles()) {
-      if (file.path.slice(0, file.path.lastIndexOf("/")) !== folder) continue;
-      const meta = buildNoteMeta({ path: file.path, raw: await vault.cachedRead(file), cache: null, parse: this.yaml, resolveLinkpath: () => null });
-      if (!decidePersonalRead(file.path, meta, open).allowed) leftOut.add(file.path);
+    if (this.updatingMoc.has(folder)) {
+      new Notice("Kosmos-Oden: this folder’s index is already being updated.");
+      return;
     }
-    const io: MocFolderIo = {
-      ...host,
-      listMarkdown: () => vault.getMarkdownFiles().map((f) => f.path).filter((path) => !leftOut.has(path)),
-      meta: (path) => {
-        const fm = frontmatterOf(path) as Record<string, any>;
-        const list = (value: unknown): string[] | null =>
-          Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : typeof value === "string" ? [value] : null;
-        const aliases = list(fm.aliases);
-        const tags = list(fm.tags);
-        const supersededBy = list(fm.superseded_by);
-        return {
-          title: typeof fm.title === "string" ? fm.title : null,
-          aliases,
-          tags,
-          updatedAt: typeof fm.updated_at === "string" ? fm.updated_at : null,
-          supersededBy,
-          summary: typeof fm.summary === "string" ? fm.summary : null,
-        };
-      },
-    };
+    this.updatingMoc.add(folder);
     try {
+      const root = normalizePath(`.gkx/backup/moc-${new Date().toISOString().replace(/[:.]/g, "-")}-${makeToken().slice(0, 8).toLowerCase().replace(/[^a-z0-9]/g, "0")}`);
+      const host = this.writerHost(root);
+      const source = this.newPersonalSource();
+      if (!source.physicallyContained(folder + "/" + MOC_DEFAULT_FILE_NAME)) {
+        new Notice("Kosmos-Oden: the index must be inside the vault.");
+        return;
+      }
+      const vault = this.app.vault;
+      // The index carries no label of its own, so an assistant may read it. A note
+      // the connector would refuse for its label (above the ceiling, not a known
+      // level, or frontmatter that cannot be read) or for a link out of the vault
+      // is left out, or its name, title and summary would be shared through the
+      // index. Judged as the connector judges it: the note's own text through the
+      // strict reader, not Obsidian's cache. Only the folder's own notes are
+      // dropped; the rest of the vault stays, because the generator counts every
+      // base name to decide whether a short link is unambiguous.
+      const open = {
+        policy: { generation: 0, allowsPath: () => true },
+        source,
+        sensitivityRank: SENSITIVITY_RANK, ceiling: this.agentSettings.agentSensitivityCeiling,
+      };
+      const leftOut = new Set<string>();
+      const paths: string[] = [];
+      const headers = new Map<string, Record<string, unknown>>();
+      for (const file of vault.getMarkdownFiles()) {
+        const path = file.path;
+        if (path.slice(0, path.lastIndexOf("/")) === folder) {
+          if (!source.physicallyContained(path)) { leftOut.add(path); continue; }
+          const header = readNoteHeader(await vault.cachedRead(file), this.yaml);
+          const meta = { authoredSensitivity: authoredSensitivity(header.data), frontmatterError: header.error };
+          if (!decidePersonalRead(path, meta, open).allowed) { leftOut.add(path); continue; }
+          headers.set(path, header.data);
+        }
+        paths.push(path);
+      }
+      const io: MocFolderIo = {
+        ...host,
+        listMarkdown: () => paths,
+        meta: (path) => {
+          const fm = headers.get(path);
+          if (!fm) return {};
+          const list = (value: unknown): string[] | null =>
+            Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : typeof value === "string" ? [value] : null;
+          const aliases = list(fm.aliases);
+          const tags = list(fm.tags);
+          const supersededBy = list(fm.superseded_by);
+          return {
+            title: typeof fm.title === "string" ? fm.title : null,
+            aliases,
+            tags,
+            updatedAt: typeof fm.updated_at === "string" ? fm.updated_at : null,
+            supersededBy,
+            summary: typeof fm.summary === "string" ? fm.summary : null,
+          };
+        },
+      };
       const { plan, applied } = await runFolderMoc(folder, io);
       if (plan.action === "refuse") {
         new Notice(`Kosmos-Oden: none written — ${plan.target}: ${plan.detail || plan.reason || "refused"}`);
@@ -1355,10 +1378,12 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
         return;
       }
       const entries = plan.entries.length;
-      const hidden = leftOut.size ? ` ${leftOut.size} note${leftOut.size === 1 ? " is" : "s are"} not listed: the sensitivity label keeps ${leftOut.size === 1 ? "it" : "them"} from assistants.` : "";
+      const hidden = leftOut.size ? ` ${leftOut.size} note${leftOut.size === 1 ? " is" : "s are"} not listed: outside the permitted scope or sensitivity ceiling.` : "";
       new Notice(`Kosmos-Oden: ${plan.action === "create" ? "created" : "updated"} ${plan.target} (${entries} note${entries === 1 ? "" : "s"}).${hidden}`);
     } catch (error) {
       new Notice(`Kosmos-Oden: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.updatingMoc.delete(folder);
     }
   }
 

@@ -450,7 +450,7 @@ export class KosmosSettingTab extends PluginSettingTab {
       }));
 
     new Setting(agentEl).setName("Agent sensitivity ceiling")
-      .setDesc("GKX read boundary. Unlabeled legacy notes count as internal. Confidential and PHI stay hidden unless you explicitly raise this ceiling.")
+      .setDesc("For home use, start at Internal and share only the folders your assistant needs in Personal Notes. Choose Public only for a collection limited to public material. Raising the ceiling admits notes with more sensitive labels.")
       .addDropdown((d) => d
         .addOption("public", "Public only")
         .addOption("internal", "Internal (recommended)")

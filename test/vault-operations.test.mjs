@@ -120,12 +120,12 @@ test("timed-out build cannot publish a stale graph or consume newer edits", asyn
   };
   const settings = { defaultSensitivity: "internal" };
   const provider = new VaultDataProvider({ vault }, settings, { readMs: 1000, buildMs: 10 });
-  const first = provider.getGraph();
+  const timedOut = assert.rejects(provider.getGraph(), (e) => e?.reason === "timeout" || e?.message === "Vault operation timed out");
   await new Promise((resolve) => setImmediate(resolve));
   files = [file("new.md", "# New")];
   provider.markChanged("old.md");
   provider.markChanged("new.md");
-  await assert.rejects(first, (e) => e?.reason === "timeout" || e?.message === "Vault operation timed out");
+  await timedOut;
   oldRead.resolve("# Old");
   // The timeout rejects the caller first; wait for the captured physical read
   // to settle and for the fenced rebuild to clear its in-flight slot.

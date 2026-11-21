@@ -48,7 +48,7 @@
 
 ## `/ui`
 
-- The page keeps the access token in `sessionStorage` for the tab; it is the
+- The page keeps an entered access token in memory until reload. It is the
   same bearer token agents use. Serve it over loopback or a trusted network, and
   rotate the token if the machine is shared.
 - It is a search box, not a note reader: it renders the brief, and note paths

@@ -143,7 +143,11 @@ export function makeApp(files, { persisted = {}, secretStorage = true, localStor
         return next;
       },
       modify: async (f) => { writes.push(["vault.modify", f.path]); },
-      create: async (p) => { writes.push(["vault.create", p]); },
+      create: async (p, text) => {
+        if (store.has(p) || adapterFiles.has(p) || dirs.has(p)) throw new Error("File already exists");
+        writes.push(["vault.create", p]);
+        return put(p, text);
+      },
       createFolder: async (p) => { writes.push(["vault.createFolder", p]); },
       delete: async (f) => { writes.push(["vault.delete", f.path]); },
       rename: async (f) => { writes.push(["vault.rename", f.path]); },

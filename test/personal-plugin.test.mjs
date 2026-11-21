@@ -80,6 +80,17 @@ test("S01: metadata cache entry → PersonalNoteMeta for plain, Importer, partia
   assert.equal(partial.title, "Shown title");
   assert.deepEqual(partial.aliases, ["Other name"]);
 
+  const singleUnquoted = meta("Notes/New.md", "---\nsupersedes:\n  - [[Plans/Old]]\n---\n", null,
+    () => ({ supersedes: [[["Plans/Old"]]] })); // Obsidian's YAML shape for one unquoted list item
+  assert.deepEqual(singleUnquoted.supersedes, ["[[Plans/Old]]"]);
+
+  const repeated = meta("Notes/A.md", "Plain", {
+    tags: [{ tag: "#z" }, { tag: "#a" }, { tag: "#z" }],
+    embeds: [{ link: "B" }], links: [{ link: "Notes/B.md" }],
+  });
+  assert.deepEqual(repeated.tags, ["z", "a"]);
+  assert.deepEqual(repeated.links, ["Notes/B.md"]);
+
   const gkx22 = meta("Notes/G.md", "---\ngkx_version: \"2.2\"\ntimestamp: 2025-01-01T00:00:00Z\n---\nx");
   assert.equal(gkx22.createdAt, "2025-01-01T00:00:00Z");
 
@@ -649,12 +660,52 @@ test("map of content: the first index is created, and a note whose label keeps i
   try {
     notices.length = 0;
     await plugin.updateFolderMoc();
-    const index = app.adapterFiles.get("Notes/index.md");
+    const index = app.store.get("Notes/index.md");
     assert.ok(index, `the index was written (${notices.join(" | ")})`);
     assert.ok(index.includes("[[Notes/Garden|Garden]]") && index.includes("Team list") && index.includes("Who does what"), index);
     for (const hidden of ["Launch plan", "Ships in May", "Plan", "Odd", "Unclosed", "Budget", "Broken"]) assert.ok(!index.includes(hidden), `${hidden} is not in an index an assistant may read`);
     assert.match(notices.at(-1), /created Notes\/index\.md \(2 notes\)\. 4 notes are not listed/);
   } finally { unloadPlugin(plugin); }
+});
+
+test("folder index checks containment before reading in both profiles", async () => {
+  for (const activeProfile of ["personal", "existing"]) {
+    const app = makeApp({ "Notes/A.md": PLAIN, "Notes/Excluded.md": "excluded" }, {
+      persisted: { ...personalSettings(), activeProfile },
+    });
+    app.workspace.getActiveFile = () => ({ parent: { path: "Notes" } });
+    const plugin = await loadPlugin(app);
+    try {
+      const getFiles = app.vault.getMarkdownFiles;
+      let lists = 0;
+      app.vault.getMarkdownFiles = () => {
+        lists++;
+        return getFiles();
+      };
+      const read = app.vault.cachedRead;
+      const reads = [];
+      app.vault.cachedRead = (file) => { reads.push(file.path); return read(file); };
+      const source = plugin.newPersonalSource();
+      source.physicallyContained = (path) => path !== "Notes/Excluded.md";
+      plugin.newPersonalSource = () => source;
+      await Promise.all([plugin.updateFolderMoc(), plugin.updateFolderMoc()]);
+      assert.equal(lists, 1, "write only from the checked inventory");
+      assert.equal(reads.includes("Notes/Excluded.md"), false);
+      const index = app.store.get("Notes/index.md");
+      assert.ok(index && !index.includes("Excluded"));
+      assert.equal(app.writes.filter(([op]) => op === "vault.create").length, 1);
+      const priorWrites = app.writes.length;
+      reads.length = 0;
+      source.physicallyContained = (path) => path !== "Notes/index.md";
+      await plugin.updateFolderMoc();
+      assert.equal(reads.length, 0);
+      assert.equal(app.writes.length, priorWrites);
+
+      source.physicallyContained = (path) => !path.startsWith(".gkx/");
+      await assert.rejects(plugin.writerHost(".gkx/backup/test").saveBackup("Notes/A.md", PLAIN), /outside the vault/);
+      assert.equal(app.writes.length, priorWrites);
+    } finally { unloadPlugin(plugin); }
+  }
 });
 
 test("GKX conversion: an unlabelled note is stamped with the level it already has, never a lower one", async () => {
