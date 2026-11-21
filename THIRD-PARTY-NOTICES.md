@@ -4,7 +4,7 @@ Kosmos-Oden bundles and builds upon the following third-party work. See [LICENSI
 
 ## Three.js
 
-The 3D renderer bundles **Three.js** (r186, npm `three@0.186.1`), © 2010–2026
+The 3D renderer bundles **Three.js** (r187, npm `three@0.187.0`), © 2010–2026
 three.js authors, under the MIT License. It is an exact-pinned npm dependency
 (`package.json` + `package-lock.json`, integrity recorded in
 `renderer-provenance.json`); esbuild bundles the ESM module into `main.js`,
@@ -109,8 +109,8 @@ the MCP conformance tests. It and the packages it installs
 
 ## GKOS-Engine
 
-Kosmos-Oden bundles the **GKOS-Engine 2.5.1**, © OdenKnight contributors, under
-the Apache License 2.0. The exact commit (`d57c26fc5858474a0fa0cb601cbeef32fe12c233`) is recorded in
+Kosmos-Oden bundles the **GKOS-Engine 2.5.2**, © OdenKnight contributors, under
+the Apache License 2.0. The exact commit (`7fc2862bde45d145b3809c93ff36e3640c4da096`) is recorded in
 `package.json` and `package-lock.json`. Navigation is consumed only through
 the source-content-read-only Engine surface; Kosmos-Oden does not configure a
 Governance Store or expose source-content write capabilities through it.

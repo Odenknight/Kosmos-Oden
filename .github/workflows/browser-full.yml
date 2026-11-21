@@ -1,31 +1,9 @@
 name: Browser (full matrix)
 
-# ADVISORY — requires a GPU/WebGL runner. NOT a required check.
-#
-# Firefox and WebKit renderer specs plus the deterministic visual-regression
-# suite (CI/CD directive §7.4/§7.5). These cannot be made to pass dependably on
-# GPU-less GitHub-hosted runners:
-#
-#   * Firefox — the Playwright build refuses WebGL2 context creation
-#     ("AllowWebgl2:false restricts context creation on this system"). The prefs
-#     in playwright.config.ts re-open that gate and pass locally, but the
-#     headless-Linux software path (Mesa/llvmpipe) is not dependable enough to
-#     gate every push on.
-#   * WebKit — no software-WebGL knob exists; WebGL on headless Linux WebKit is
-#     unreliable.
-#   * Visual — reviewed Chromium/SwiftShader reference images are committed and
-#     shared across platforms with a perceptual tolerance for driver variance.
-#
-# Rather than leave these as a required check that is red on every single push
-# — which trains humans to merge through red and hides real failures — they run
-# on demand and weekly, and MUST be run locally before a release (see
-# CONTRIBUTING.md "Browser and visual tests"). Per-push coverage of the built
-# artifact is provided by the required `Browser / browser-chromium` job.
-
+# Scheduled and on-demand release qualification. Chromium smoke tests also run on PRs.
 on:
   workflow_dispatch:
   schedule:
-    # Mondays 05:17 UTC
     - cron: "17 5 * * 1"
 
 permissions:
@@ -33,8 +11,8 @@ permissions:
 
 jobs:
   browser-full:
-    name: browser-full (advisory — requires GPU/WebGL runner)
-    runs-on: ubuntu-latest
+    name: Firefox, WebKit and Chromium visual regression
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v7
@@ -46,38 +24,41 @@ jobs:
           deploy-key: ${{ secrets.GKOS_ENGINE_DEPLOY_KEY }}
       - run: npm ci
       - run: npm run build
-      - name: Install Playwright + browsers
-        run: npx playwright install --with-deps chromium firefox webkit
-      - name: Renderer specs — Firefox + WebKit (advisory)
+      - name: Install browsers and the Mesa X11 software renderer
+        run: |
+          npx playwright install --with-deps chromium firefox webkit
+          sudo apt-get install -y mesa-utils libgl1-mesa-dri libegl-mesa0 xvfb xauth
+      - name: Firefox and WebKit renderer tests on Xvfb
         id: ffwk
-        continue-on-error: true
-        run: npm run test:browser:full
-      - name: Visual regression (Chromium / SwiftShader baselines)
+        env:
+          GDK_BACKEND: x11
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24 +extension GLX" sh -ec '
+            glxinfo -B
+            npm run test:browser:full -- --headed --workers=1 --output=test-results/full
+          '
+      - name: Chromium visual regression
         id: visual
-        continue-on-error: true
-        run: npm run test:visual
-      - name: Advisory result summary
+        if: ${{ !cancelled() && (steps.ffwk.outcome == 'success' || steps.ffwk.outcome == 'failure') }}
+        run: npm run test:visual -- --workers=1 --output=test-results/visual
+      - name: Test the packaged Engine and Kosmos viewer together
+        id: pair
+        run: npm run test:renderer:pair -- --workers=1 --output=test-results/pair
+      - name: Record suite outcomes
         if: always()
         run: |
           {
-            echo "### Browser (full matrix) — advisory"
-            echo ""
-            echo "This workflow is informational; it does not gate merges."
-            echo ""
-            echo "| suite | outcome |"
-            echo "| --- | --- |"
-            echo "| Firefox + WebKit renderer specs | ${{ steps.ffwk.outcome }} |"
-            echo "| Visual regression | ${{ steps.visual.outcome }} |"
-            echo ""
-            echo "Failures here are expected on GPU-less GitHub-hosted runners."
-            echo "Run these locally on a GPU machine before cutting a release —"
-            echo "see CONTRIBUTING.md, \"Browser and visual tests\"."
+            echo '| Suite | Outcome |'
+            echo '| --- | --- |'
+            echo '| Firefox and WebKit | ${{ steps.ffwk.outcome }} |'
+            echo '| Chromium visual | ${{ steps.visual.outcome }} |'
+            echo '| Paired Engine viewer | ${{ steps.pair.outcome }} |'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: browser-full-report-${{ github.sha }}
-          path: |
-            test-results/
-            playwright-report/
+          path: test-results/
           retention-days: 14

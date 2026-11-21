@@ -2,6 +2,21 @@
 
 **Status: alpha test candidate, not a qualified release.**
 
+## Alpha.5 renderer and Engine pair (2026-11-21)
+
+Kosmos 0.9.5-alpha.5 (PR 115) and Engine 2.5.2 (PR 119) were tested together on Windows with Node 24.18.0. The rebuilt standalone HTML and the HTML served by the installed Engine package were byte-identical (1,085,586 bytes, SHA-256 `c34a87cd1049cdaf094410cb5705e6406c8982fab72889b8acd9fe98f1eacae6`). The paired test starts `gkos-menu open-kosmos-oden` on loopback, connects the browser to a temporary one-note vault, and checks that its exported graph contains exactly that note.
+
+| Command or check | Result |
+| --- | --- |
+| `npm run verify` | 832 tests passed, zero skipped. Type, build, lockfile, artifact, invariant and r187 provenance gates passed. |
+| `npm run test:browser:chromium -- --workers=1` | 54 desktop and mobile Chromium tests passed. |
+| `npm run test:browser:full -- --workers=1` | 40 Firefox and WebKit tests passed on Windows. |
+| `npm run test:browser -- --workers=1` | 105 passed across Chromium, Firefox and WebKit. Six declared skips cover Chromium-only context-loss and long-task checks in the other two browsers. The live Engine test passed in all three desktop browsers. |
+| `npm run test:visual -- --workers=1` | Three Chromium scenes passed. All nine desktop visual comparisons passed in the broader run. |
+| [Ubuntu full-matrix qualification](https://github.com/Odenknight/Kosmos-Oden/actions/runs/44914987982) | 20 Firefox and 20 WebKit tests passed using Mesa llvmpipe and a 24-bit Xvfb display. The Chromium visual and live Engine pair steps passed. |
+
+The old star-focus references showed visible connections and wider galaxy spacing. The new references were compared independently with the shipped behavior from [PR 57](https://github.com/Odenknight/Kosmos-Oden/pull/57) and [PR 59](https://github.com/Odenknight/Kosmos-Oden/pull/59). The same star remains focused in each browser. The overview references and screenshot tolerances remain in force.
+
 ## Alpha.4 verification on Windows (2026-11-21)
 
 With Engine 2.5.1, `npm run verify` passed 832 plugin tests along with type, artifact, invariant and renderer checks. `npm run test:browser:chromium -- --workers=1` passed 54 desktop and mobile tests. `npm run test:browser:full -- --workers=1` passed 40 Firefox and WebKit tests. A concurrent local Chromium run timed out on several tests and was interrupted. The serial run completed with the original assertions and deadlines. The earlier review reproduced the advisory `star-focus` screenshot difference on the unmodified upstream viewer. No visual reference was regenerated.

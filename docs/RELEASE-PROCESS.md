@@ -29,7 +29,7 @@ Releases are built **from the tag in CI**, not copied from a workstation
      lockfile SHA-256, dirty flag, build time.
    - `SHA256SUMS` — integrity hashes over every release file.
    Since 0.9.0 it also writes an installable archive,
-   `release/kosmos-oden-<version>-<label>.zip` (label `alpha.4` by default;
+   `release/kosmos-oden-<version>-<label>.zip` (label `alpha.5` by default;
    `--label=` changes it, `--label=` with no value drops it) and
    `<archive>.zip.sha256`. The archive holds a `kosmos-oden/` plugin folder
    (`main.js`, `manifest.json`, `styles.css`, `kosmos-mcp-stdio.mjs`), every
@@ -50,6 +50,10 @@ the owner separately asks for that.
 
 `GITHUB_TOKEN` permission for the release job is `contents: write`; CI
 validation runs with `contents: read`.
+
+## Paired renderer releases
+
+Build Kosmos with the exact Engine commit in the lockfile, then run `npm run test:renderer:pair`. This starts the installed Engine menu on loopback with a temporary vault, compares the HTML it serves with the local Kosmos artifact, connects through the viewer, and exports the graph rendered from that vault. The full browser workflow also runs this check.
 
 ## Independent verification (any user or agent)
 
