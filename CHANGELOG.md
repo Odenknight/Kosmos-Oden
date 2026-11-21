@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5
+
+- Promotes the alpha.6 Engine pin and renderer to a versioned release with individual Obsidian installation files, a stable ZIP, the offline viewer and checksums.
+- Updates the manual installation and Community directory instructions, including the private dependency required for a source rebuild.
+
 ## 0.9.5-alpha.6
 
 - Pinned GKOS-Engine 2.5.2 to `44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. This includes the macOS APFS watcher recovery and ingest filename fixes from Engine #121.

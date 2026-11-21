@@ -81,7 +81,7 @@ for (const line of sums.trim().split("\n")) console.log("  " + line);
  * notes or caches: every entry is listed explicitly below.
  */
 const labelArg = process.argv.find((a) => a.startsWith("--label="));
-const RELEASE_LABEL = labelArg ? labelArg.slice("--label=".length) : "alpha.6";
+const RELEASE_LABEL = labelArg ? labelArg.slice("--label=".length) : "";
 const PLUGIN_FILES = ["manifest.json", "main.js", "styles.css", "kosmos-mcp-stdio.mjs"];
 const versionDocs = `docs/v${pkg.version}`;
 const REQUIRED_DOCS = ["ALPHA-INSTALL.md", "ALPHA-TEST.md", "KNOWN-LIMITATIONS.md", "MCP-COMPATIBILITY.md", "BUILD-PROGRESS.md"];
