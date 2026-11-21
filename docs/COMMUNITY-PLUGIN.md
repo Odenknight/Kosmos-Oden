@@ -44,7 +44,7 @@ with each file as an individual asset.
 
 ## Fork attribution and submission evidence
 
-The maintainer identifies Kosmos-Oden as a greenfield implementation and credits H4R7W16 for the stars concept. Confirm the mobile manifest with the directory reviewer because the MCP listener uses desktop Node APIs. [Upstream project](https://github.com/H4R7W16/vault-kosmos) · [Obsidian developer policies](https://docs.obsidian.md/community-directory/developer-policies) · [Plugin submission requirements](https://docs.obsidian.md/community-directory/submission-requirements-for-plugins)
+Kosmos-Oden’s 3D renderer began from H4R7W16’s MIT-licensed vault-kosmos and was later rebuilt. Derived portions remain, so the original MIT notice ships in `THIRD-PARTY-NOTICES.md`, which every release includes. GKOS-Engine and the Engine integration are original work by the maintainer. Confirm the mobile manifest with the directory reviewer because the MCP listener uses desktop Node APIs. [Upstream project](https://github.com/H4R7W16/vault-kosmos) · [Obsidian developer policies](https://docs.obsidian.md/community-directory/developer-policies) · [Plugin submission requirements](https://docs.obsidian.md/community-directory/submission-requirements-for-plugins)
 
 ## Directory submission and build verification
 

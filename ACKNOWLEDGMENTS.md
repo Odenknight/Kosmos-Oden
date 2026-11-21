@@ -2,7 +2,7 @@
 
 ## H4R7W16 and vault-kosmos
 
-H4R7W16’s vault-kosmos provided visual inspiration for this greenfield build. Its navigable star field inspired this project’s visual approach to exploring notes. [Original project](https://github.com/H4R7W16/vault-kosmos) · [Attribution and license notices](THIRD-PARTY-NOTICES.md)
+H4R7W16 created vault-kosmos, which originated the star-field rendering and concept. Kosmos-Oden’s 3D renderer began from that code and was later rebuilt, with celestial bodies matched to real astronomical objects and a new scale and rendering. Credit to H4R7W16 for the original renderer and the idea of exploring a vault as a star field. [Original project](https://github.com/H4R7W16/vault-kosmos) · [Attribution and license notices](THIRD-PARTY-NOTICES.md)
 
 ## Andrej Karpathy — LLM Wiki
 
