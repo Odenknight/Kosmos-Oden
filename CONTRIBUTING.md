@@ -51,15 +51,7 @@ genuine regressions.
 | `npm run test:browser:full` — the same renderer specs on Firefox + WebKit | `Browser (full matrix)`, weekly + on demand | advisory |
 | `npm run test:visual` — deterministic screenshot baselines | `Browser (full matrix)`, weekly + on demand | advisory |
 
-GitHub-hosted runners have no GPU. Chromium can be pointed at ANGLE/SwiftShader,
-a conformant *software* WebGL2 implementation that this renderer initializes on
-happily, so the Chromium gate is genuine and reliably green — the flags live in
-`playwright.config.ts`. Firefox needs its WebGL2 gate re-opened via prefs (the
-Playwright build ships `AllowWebgl2:false`) and its headless-Linux software path
-is not dependable; WebKit has no software-WebGL knob at all. Visual regression
-has no baseline to compare against in CI because no reference images are
-committed to the repo yet. Nothing is deleted or skipped — those suites simply
-run where they can produce a trustworthy answer.
+The required desktop and mobile Chromium jobs use software WebGL2 through ANGLE/SwiftShader. The browser flags live in `playwright.config.ts`. Firefox and WebKit also run in an advisory workflow because WebGL availability varies by runner. Visual comparisons use the [committed reference images](test/browser/visual.spec.ts-snapshots/). Read the individual suite results in the advisory job summary. The workflow can finish successfully when a visual comparison fails.
 
 **Before cutting a release**, run the advisory suites locally on a GPU machine:
 

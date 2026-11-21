@@ -4,7 +4,6 @@
 
 - The public installation page links to the verified ZIP and offline viewer. Contributor setup explains the private Engine dependency and identifies the policy code it owns.
 - Source type checking rejects implicit `any`. Release staging includes both project licenses, the artifact-specific terms and attribution. The SBOM workflow propagates generation failures.
-
 - Semantic controller tests synchronize on a committed batch. The optional scored search benchmark reports hit rates and reciprocal rank for a pinned public vault subset.
 
 ## 0.9.5 — alpha builds (Librarian + deterministic MoC + semantic search)
