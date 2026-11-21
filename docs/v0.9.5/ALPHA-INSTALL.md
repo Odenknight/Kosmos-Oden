@@ -16,9 +16,9 @@
    the device token and start the listener (default port 4816).
 6. In an MCP client, use the configuration from **Connect my AI → Copy
    configuration**: `POST /mcp`, `Authorization: Bearer <token>`.
-7. In a browser on the same computer (or the LAN, if "Local network" is on),
-   open `http://127.0.0.1:4816/ui`. Enter the same token once; the page keeps it
-   in `sessionStorage` for that tab.
+7. The optional browser page at `http://127.0.0.1:4816/ui` requires an
+   authorization header on the initial navigation. With an ordinary browser
+   address bar, use the MCP client from step 6 to ask the same question.
 
 ## Upgrading from 0.9.0
 

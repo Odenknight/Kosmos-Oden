@@ -61,7 +61,7 @@ const LABEL_LINE = /^[ \t]*(?:sensitivity|gkx)[ \t]*:/m;
  * sensitivity label: the author meant a label that this reader cannot apply
  * (a missing or mistyped closing fence), so the note is not shared.
  */
-function readHeader(raw: string, parse: StrictYaml): Header {
+export function readNoteHeader(raw: string, parse: StrictYaml): Header {
   const none: Header = { data: {}, scalar: () => undefined, error: false };
   if (OPEN_FENCE.test(raw) && headerOf(raw) === null) return { ...none, error: LABEL_LINE.test(raw) };
   try {
@@ -96,12 +96,14 @@ function linkTexts(v: unknown): string[] {
     if (Array.isArray(x) && x.length === 1 && Array.isArray(x[0]) && x[0].length === 1 && typeof x[0][0] === "string") return `[[${x[0][0]}]]`;
     return null;
   };
-  const list = Array.isArray(v) && !(v.length === 1 && Array.isArray(v[0])) ? v : [v];
+  const single = one(v);
+  if (single !== null) return [single];
+  const list = Array.isArray(v) ? v : [];
   return list.map(one).filter((x): x is string => x !== null);
 }
 
 /** Authored sensitivity: flat string, `{ level }` mapping, or a `gkx:` block's. Anything else present is reported as written (and fails closed). */
-function authoredSensitivity(data: Rec): string | undefined {
+export function authoredSensitivity(data: Rec): string | undefined {
   const pick = (holder: Rec): string | undefined => {
     if (!hasOwn(holder, "sensitivity")) return undefined;
     const v = holder.sensitivity;
@@ -133,14 +135,14 @@ const extOf = (p: string) => { const name = p.slice(p.lastIndexOf("/") + 1); con
 
 /** Cache entry + raw text → PersonalNoteMeta. Pure. */
 export function buildNoteMeta(input: NoteMetaInput): PersonalNoteMeta {
-  const header = readHeader(input.raw, input.parse);
+  const header = readNoteHeader(input.raw, input.parse);
   const data = header.data;
   const title = typeof data.title === "string" && data.title.trim() ? data.title : baseName(input.path);
-  const tags: string[] = [];
-  const addTag = (t: string) => { const v = stripHash(t.trim()); if (v && !tags.includes(v)) tags.push(v); };
+  const tags = new Set<string>();
+  const addTag = (t: string) => { const v = stripHash(t.trim()); if (v) tags.add(v); };
   for (const t of stringList(data.tags ?? data.tag, true)) addTag(t);
   for (const t of input.cache?.tags ?? []) addTag(t.tag);
-  const links: string[] = [];
+  const links = new Set<string>();
   const attachments: PersonalAttachmentRef[] = [];
   const seen = new Set<string>();
   const refs = [
@@ -151,7 +153,7 @@ export function buildNoteMeta(input: NoteMetaInput): PersonalNoteMeta {
     const linkpath = linkpathOf(ref.link);
     if (!linkpath) continue;
     const dest = input.resolveLinkpath(linkpath, input.path);
-    if (dest && dest.extension === "md") { if (!links.includes(dest.path)) links.push(dest.path); continue; }
+    if (dest && dest.extension === "md") { links.add(dest.path); continue; }
     if (!dest && ref.kind === "link" && (extOf(linkpath) === "" || extOf(linkpath) === "md")) continue; // an unresolved note link, not an attachment
     const key = `${ref.kind}\0${ref.link}`;
     if (seen.has(key)) continue;
@@ -161,10 +163,10 @@ export function buildNoteMeta(input: NoteMetaInput): PersonalNoteMeta {
   const meta: PersonalNoteMeta = {
     title,
     aliases: stringList(data.aliases ?? data.alias, false),
-    tags,
+    tags: [...tags],
     supersedes: linkTexts(data.supersedes),
     supersededBy: linkTexts(data.superseded_by),
-    links,
+    links: [...links],
     attachments,
   };
   const uid = header.scalar("uid");

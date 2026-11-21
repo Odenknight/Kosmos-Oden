@@ -114,9 +114,10 @@ stays on this computer. If your assistant runs in the cloud, the notes it reads
 are sent to that service. Connecting needs desktop Obsidian and works only
 while Obsidian is open.
 
-You can also open `http://127.0.0.1:4816/ui` in a browser on the same computer,
-enter the token once, and ask a question yourself. It is a search box that
-needs no AI service.
+To ask the Librarian from a browser, the first request to
+`http://127.0.0.1:4816/ui` needs the same authorization header as the API.
+Opening the address directly returns `401`. For a home setup, the MCP client
+configured in **Connect my AI** can ask the same questions.
 
 ## Governance is an option
 

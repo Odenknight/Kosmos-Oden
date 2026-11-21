@@ -1,4 +1,4 @@
-# Kosmos-Oden — Agent API reference (0.9.0)
+# Kosmos-Oden — Agent API reference (0.9.5)
 
 **Read-only · localhost by default · token-protected · MCP 2026-07-28 plus initialize-era clients**
 
@@ -19,8 +19,8 @@ transport behavior (eras, batches, the stdio bridge) is shared and described in
 ## Existing profile
 
 > In Obsidian, run **Write Agent API guide** to create a vault-local copy of
-> this profile's guide with the actual address, token, and stdio-adapter path
-> filled in.
+> this profile's guide with the connection address and stdio-adapter path.
+> Copy the token separately from Quick Connect.
 
 Kosmos-Oden exposes one vendor-neutral MCP Streamable HTTP endpoint. Anthropic,
 OpenAI, and other harnesses use the same tools and protocol; their config files
@@ -432,6 +432,8 @@ All routes are `GET` (anything else answers `405`) and all require the token.
 | `/overview` | `vault_overview` | none |
 | `/notes` | `search_notes` | `query` (required), `limit`, `tag` |
 | `/note` | `get_note` | `path` or `uid`, `offset_chars`, `limit_chars`, `expected_hash` |
+| `/ui` | — | Authenticated HTML search page. The initial navigation requires an authorization header. |
+| `/librarian` | `ask_librarian` | `question` (required), `limit`, `format` |
 | `/related` | `get_related` | `path` or `uid`, `limit` |
 | `/lineage` | `get_lineage` | `path` or `uid`, `limit`, `cursor` |
 

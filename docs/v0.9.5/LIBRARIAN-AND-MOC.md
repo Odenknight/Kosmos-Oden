@@ -173,5 +173,5 @@ you raise or lower the ceiling later, run the command again.
   form service is reported as `link`.
 - The MoC generator lists Markdown only, one folder per run, and refuses the
   vault root and files without the managed block.
-- The web page keeps the token in `sessionStorage`; it is the same bearer token
+- The web page keeps an entered token in page memory; it is the same bearer token
   the agents use, so serve it over loopback or a trusted network only.
