@@ -41,11 +41,7 @@ Three.js: <https://github.com/mrdoob/three.js>
 
 ## Upstream project — vault-kosmos
 
-Kosmos-Oden is an independent fork and rebuild of
-[**H4R7W16/vault-kosmos**](https://github.com/H4R7W16/vault-kosmos), also MIT
-licensed. The MIT license permits this fork; substantial modifications in this
-repository are described in `CHANGELOG.md` and `docs/ARCHITECTURE.md`. This
-project is not endorsed by or affiliated with the upstream author.
+The maintainer credits [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos), published under the MIT license, for inspiring the star-field concept.
 
 ## GKX provenance
 

@@ -24,7 +24,11 @@ Run **Open Kosmos-Oden** and select a star to focus on a note and its connection
 
 ### Find a passage by words or meaning
 
-Use **Search my notes** for exact words or a quoted phrase across your own vault. If its tab opens blank on Windows, use Obsidian’s built-in **Search** for word lookup. An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md) · [Observed display issue](docs/v0.9.5/KNOWN-LIMITATIONS.md#search-my-notes-on-windows)
+Use **Search my notes** for exact words or a quoted phrase across your own vault.
+
+![Search my notes showing results for garden in a sample vault](docs/assets/word-search.png)
+
+An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md) · [Observed display issue](docs/v0.9.5/KNOWN-LIMITATIONS.md#search-my-notes-on-windows)
 
 ![The Librarian answers a question about a sample garden folder with links to matching notes](docs/assets/librarian.png)
 
@@ -82,7 +86,7 @@ Open the **[numbered guide to all capabilities and features](TECHNICAL_README.md
 
 ## Origin, source and licensing
 
-Kosmos-Oden began as an independent fork of **H4R7W16’s vault-kosmos**, inspired by its idea of exploring a vault as a star field. Kosmos-Oden carries that idea into note history, local search and read-only access for assistants. [Original vault-kosmos project](https://github.com/H4R7W16/vault-kosmos) · [Upstream credits and notices](THIRD-PARTY-NOTICES.md) · [Acknowledgments](ACKNOWLEDGMENTS.md)
+Shaun Marshall built Kosmos-Oden as a greenfield project. H4R7W16’s vault-kosmos inspired the stars concept. Kosmos-Oden implements its own Engine integration and scales celestial bodies to reflect the relative weights of notes. Kosmos-Oden carries that idea into note history, local search and read-only access for assistants. [Original vault-kosmos project](https://github.com/H4R7W16/vault-kosmos) · [Upstream credits and notices](THIRD-PARTY-NOTICES.md) · [Acknowledgments](ACKNOWLEDGMENTS.md)
 
 Local viewing and word search work offline. Optional services use the endpoints you choose above. The standalone viewer reads a folder you select, and the plugin can import model files you choose from disk. The public release includes a compiled private GKOS-Engine dependency. The tagged build and the private reviewer source package were independently reproduced on Linux x64 with Node 22.23.5. [Source build and directory review](docs/COMMUNITY-PLUGIN.md) · [Contributor setup](CONTRIBUTING.md) · [Release and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/0.9.5)
 

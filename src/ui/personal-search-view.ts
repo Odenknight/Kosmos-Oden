@@ -81,7 +81,7 @@ export class PersonalSearchView extends ItemView {
     });
     this.registerDomEvent(list, "click", (event: MouseEvent) => {
       const index = this.hitIndex(event.target);
-      if (index !== null) { event.preventDefault(); this.open(index); }
+      if (index !== null) { event.preventDefault(); this.openResult(index); }
     });
     this.registerDomEvent(list, "keydown", (event: KeyboardEvent) => this.listKey(event));
     this.register(this.host.onSearchStatus(() => this.renderIndexStatus()));
@@ -190,11 +190,11 @@ export class PersonalSearchView extends ItemView {
     else if (event.key === "ArrowUp") { event.preventDefault(); if (index === 0) this.input?.focus(); else this.focusHit(index - 1); }
     else if (event.key === "Home") { event.preventDefault(); this.focusHit(0); }
     else if (event.key === "End") { event.preventDefault(); this.focusHit(this.hits.length - 1); }
-    else if (event.key === "Enter") { event.preventDefault(); this.open(index); }
+    else if (event.key === "Enter") { event.preventDefault(); this.openResult(index); }
     else if (event.key === "Escape") { event.preventDefault(); this.input?.focus(); }
   }
 
-  private open(index: number): void {
+  private openResult(index: number): void {
     const hit = this.hits[index];
     if (!hit) return;
     const file = this.app.vault.getAbstractFileByPath(hit.path);

@@ -2,7 +2,7 @@
 
 ## H4R7W16 and vault-kosmos
 
-Kosmos-Oden began as an independent fork of H4R7W16’s vault-kosmos. Its navigable star field inspired this project’s visual approach to exploring notes. [Original project](https://github.com/H4R7W16/vault-kosmos) · [Attribution and license notices](THIRD-PARTY-NOTICES.md)
+H4R7W16’s vault-kosmos provided visual inspiration for this greenfield build. Its navigable star field inspired this project’s visual approach to exploring notes. [Original project](https://github.com/H4R7W16/vault-kosmos) · [Attribution and license notices](THIRD-PARTY-NOTICES.md)
 
 ## Andrej Karpathy — LLM Wiki
 

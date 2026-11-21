@@ -44,7 +44,7 @@ with each file as an individual asset.
 
 ## Fork attribution and submission evidence
 
-Kosmos-Oden is an independent fork of H4R7W16/vault-kosmos. Credit H4R7W16 as a contributor in the listing. Keep a publicly verifiable link to the upstream author’s written approval with the submission. If relying on the inactive-author route, follow Obsidian’s six-month inactivity and 30-day public contact requirements and retain the evidence. The upstream license and the required directory evidence serve different purposes. Confirm the mobile manifest with the directory reviewer because the MCP listener uses desktop Node APIs. [Upstream project](https://github.com/H4R7W16/vault-kosmos) · [Obsidian developer policies](https://docs.obsidian.md/community-directory/developer-policies) · [Plugin submission requirements](https://docs.obsidian.md/community-directory/submission-requirements-for-plugins)
+The maintainer identifies Kosmos-Oden as a greenfield implementation and credits H4R7W16 for the stars concept. Confirm the mobile manifest with the directory reviewer because the MCP listener uses desktop Node APIs. [Upstream project](https://github.com/H4R7W16/vault-kosmos) · [Obsidian developer policies](https://docs.obsidian.md/community-directory/developer-policies) · [Plugin submission requirements](https://docs.obsidian.md/community-directory/submission-requirements-for-plugins)
 
 ## Directory submission and build verification
 
