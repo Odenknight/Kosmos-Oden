@@ -18,7 +18,7 @@ For the standalone viewer, open the downloaded HTML in a browser and select **Op
 
 ## Connect an assistant at home
 
-On **desktop Obsidian**, open **Connect my AI**, select a folder to share and keep the **Agent sensitivity ceiling** at **Internal** for ordinary household notes. Choose **Public** if the assistant should see only notes classified public. Review the classification of unlabeled notes before raising the ceiling. Keep **Localhost only** when the assistant runs on this computer.
+On **desktop Obsidian**, open **Connect my AI**, select a folder to share and keep the **Agent sensitivity ceiling** at **Internal** for ordinary household notes. The ceiling filters notes that have a sensitivity label. **Unlabeled notes in a shared folder are readable even at Public.** To share only public material, choose a folder containing only those notes and add private subfolders to **Never share**. Keep **Localhost only** when the assistant runs on this computer.
 
 Press **Connect** to create the device bearer token, then **Copy configuration** for your assistant. The six Personal Notes tools are read-only. A cloud assistant receives the notes it reads. The desktop listener runs while Obsidian is open. The plugin also supports mobile viewing. Device-specific limits and manual trials are listed in the [alpha test record](docs/v0.9.5/ALPHA-TEST.md).
 
