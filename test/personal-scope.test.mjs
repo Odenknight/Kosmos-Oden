@@ -146,6 +146,9 @@ test("read decision: scope, containment, absent / valid / invalid authored sensi
   const ctx = { policy, source: contained, sensitivityRank: RANK, ceiling: "internal" };
   const plain = { aliases: [], tags: [] };
   assert.deepEqual(decidePersonalRead("Notes/a.md", plain, ctx), { allowed: true }, "no label: an ordinary note is readable");
+  const publicOnly = { ...ctx, ceiling: "public" };
+  assert.deepEqual(decidePersonalRead("Notes/a.md", plain, publicOnly), { allowed: true });
+  assert.equal(decidePersonalRead("Notes/a.md", { authoredSensitivity: "internal" }, publicOnly).reason, "sensitivity");
   assert.equal(decidePersonalRead("Other/a.md", plain, ctx).reason, "out_of_scope");
   assert.equal(decidePersonalRead("Notes/link.md", plain, ctx).reason, "not_contained", "symlink/junction escape");
   assert.deepEqual(decidePersonalRead("Notes/a.md", { authoredSensitivity: "public" }, ctx), { allowed: true });
