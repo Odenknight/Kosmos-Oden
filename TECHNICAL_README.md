@@ -3,7 +3,7 @@
 ## Scope and status vocabulary
 
 Kosmos-Oden 0.9.5-alpha.5 consumes the TypeScript Engine 2.5.2
-release at exact commit `68de6808738777a7b82b0dc7448c56698073fcc7`.
+release at exact commit `7fc2862bde45d145b3809c93ff36e3640c4da096`.
 It adds the Personal Notes profile and dual-era MCP; see
 [docs/v0.9.0/](docs/v0.9.0/BUILD-PROGRESS.md) for build evidence and pending
 trials. Navigation Effects remain experimental and default-disabled. Earlier
@@ -75,7 +75,7 @@ insert an executor into the plugin or standalone browser bundles.
 Product version: **0.9.5** (alpha.5); minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
-`github:Odenknight/GKOS-Engine#68de6808738777a7b82b0dc7448c56698073fcc7` (2.5.2 release).
+`github:Odenknight/GKOS-Engine#7fc2862bde45d145b3809c93ff36e3640c4da096` (2.5.2 release).
 The dependency guard verifies the exact lock coordinate. Three.js is
 0.187.0. Supported build runtimes are Node 22 and 24. The only dependency
 added in 0.9.0 is the development-only MCP test client
