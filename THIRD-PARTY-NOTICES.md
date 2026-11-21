@@ -41,7 +41,40 @@ Three.js: <https://github.com/mrdoob/three.js>
 
 ## Upstream project — vault-kosmos
 
-The maintainer credits [H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos), published under the MIT license, for inspiring the star-field concept.
+Kosmos-Oden's 3D renderer began from code copied from
+[H4R7W16/vault-kosmos](https://github.com/H4R7W16/vault-kosmos), which
+originated the star-field rendering and concept. The renderer has since been
+rebuilt and extended: celestial bodies now map to real astronomical object
+types, and their scale and rendering changed. Portions remain derived from the
+original, notably the layout in `src/renderer/layout.ts`. The original code is
+used under the MIT License:
+
+```
+MIT License
+
+Copyright (c) 2026 H4R7W16
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+vault-kosmos: <https://github.com/H4R7W16/vault-kosmos>. This project is not
+endorsed by or affiliated with the upstream author.
 
 ## GKX provenance
 

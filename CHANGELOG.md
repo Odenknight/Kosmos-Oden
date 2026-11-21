@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Restores the vault-kosmos MIT copyright and permission notice in `THIRD-PARTY-NOTICES.md`, and corrects the attribution: the 3D renderer began from vault-kosmos and was later rebuilt; GKOS-Engine and the Engine integration are original work.
+
 ## 0.9.5
 
 - Promotes the alpha.6 Engine pin and renderer to a versioned release with individual Obsidian installation files, a stable ZIP, the offline viewer and checksums.
