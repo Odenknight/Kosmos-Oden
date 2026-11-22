@@ -1,6 +1,6 @@
 {
   "name": "kosmos-oden",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Kosmos-Oden — explore an Obsidian vault as a 3D knowledge view, search it by words or meaning, and give AI agents read-only access through MCP (GKOS-Engine). Optional GKX governance, Graphiti export and Nextcloud WebDAV sync.",
   "main": "main.js",
   "type": "module",

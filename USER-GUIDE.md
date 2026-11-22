@@ -17,7 +17,7 @@ Follow the [quick installation guide](README.md#quick-installation), then run **
 formatting and no labels. A new installation starts in it with nothing shared
 and the connection off.
 
-**E-Z setup (development build).** Click **Settings → Kosmos-Oden → E-Z setup** or the open-book icon in the ribbon. The Librarian starts reading the Markdown notes in this vault, including notes at its root. The status shows how many it can search and whether any files were skipped. Ask a question such as “Which seeds did I plan to plant?” and open a result to read the original passage. The plugin keeps this local index up to date as you edit. You can return to the tab through the same button or the **E-Z setup: ask the Librarian** command.
+**E-Z setup (0.9.6).** Click **Settings → Kosmos-Oden → E-Z setup** or the open-book icon in the ribbon. The Librarian starts reading the Markdown notes in this vault, including notes at its root. The status shows how many it can search and whether any files were skipped. Ask a question such as “Which seeds did I plan to plant?” and open a result to read the original passage. The plugin keeps this local index up to date as you edit. You can return to the tab through the same button or the **E-Z setup: ask the Librarian** command.
 
 | What you want to do | Where the note content goes |
 | --- | --- |

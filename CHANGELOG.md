@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.9.6
+
+- Adds **E-Z setup** to plugin settings, the ribbon and the command palette. Ask the local Librarian about this vault’s Markdown notes without an account or model download, then open a matching source passage.
+- Adds offline help for MCP connections, Basic, Intermediate and GKXtreme tagging, and available sync providers. External sharing, tagging and sync remain separate choices.
+- Preserves the final search status during plugin shutdown and exercises offline search, reload, and note creation, edits, renames and deletion in the Obsidian smoke test.
 
 - Restores the vault-kosmos MIT copyright and permission notice in `THIRD-PARTY-NOTICES.md`, and corrects the attribution: the 3D renderer began from vault-kosmos and was later rebuilt; GKOS-Engine and the Engine integration are original work.
 
@@ -374,7 +378,11 @@ Changed:
 - The Personal profile now lists six tools; `vault_overview`, the served
   instructions and the REST index report `ask_librarian` and `/librarian`.
 
-## Unreleased
+## 0.9.6
+
+- Adds **E-Z setup** to plugin settings, the ribbon and the command palette. Ask the local Librarian about this vault’s Markdown notes without an account or model download, then open a matching source passage.
+- Adds offline help for MCP connections, Basic, Intermediate and GKXtreme tagging, and available sync providers. External sharing, tagging and sync remain separate choices.
+- Preserves the final search status during plugin shutdown and exercises offline search, reload, and note creation, edits, renames and deletion in the Obsidian smoke test.
 
 - Naming pass: use the GKOS-Engine and GKOS-Engine-Lite spellings in UI text and docs, rename local scratch-directory ignores to `kosmos-oden_v*`, and rewrite the manifest description in plain language. The existing read-only compatibility for the pre-rename `vault-kosmos-view` view type and `vault-kosmos-nextcloud-*` secret key is kept, so saved layouts and stored WebDAV passwords still carry over.
 

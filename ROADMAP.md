@@ -54,7 +54,7 @@ measurements on a larger corpus require it).
 
 ### Easier setup and optional services
 
-- **Local first use (development build).** E-Z setup opens a word-based Librarian over the user's Markdown notes with no extra download. Users can try a real question and open the source before deciding whether to connect an assistant, add tags, or sync. Check this path in a fresh vault and after a plugin reload.
+- **Local first use (0.9.6).** E-Z setup opens a word-based Librarian over the user's Markdown notes with no extra download. Users can try a real question and open the source before deciding whether to connect an assistant, add tags, or sync. Check this path in a fresh vault and after a plugin reload.
 - **Sync coverage.** Nextcloud WebDAV is available today. S3-compatible storage is the next planned integration. Dropbox, OneDrive and Google Drive are candidates. Qualify conflict handling, recovery and credential storage for each provider before listing it as available.
 - **Possible paid service (exploratory).** Explore whether users would pay for managed sync across additional providers or for an assistant to prepare scheduled reading briefs and propose tags for review. Keep the local Librarian usable independently. Before committing to a service or price, test demand and operating cost, and show users which folders, passages and credentials each service needs. Any proposed note edits still require review.
 
