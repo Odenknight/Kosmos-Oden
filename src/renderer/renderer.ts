@@ -22,7 +22,7 @@
  */
 import * as THREE from "three";
 import { createDemoVaultEvents, createDemoVaultGraph } from "gkos-engine";
-import { KOSMOS_VERSION } from "../kosmos-version";
+import { VIEWER_VERSION } from "../viewer-version.mjs";
 import { layoutGraph, positionCosmos } from "./layout";
 import { bodyMaterial, bodyMaterialLite, glowMaterial } from "./shaders";
 import { detectLang, I18N } from "./i18n";
@@ -154,7 +154,7 @@ export function createKosmosApp(opts: KosmosAppOptions = {}): KosmosApp {
   const dom = renderer.domElement;
 
   const brandSub = document.querySelector(".brand .sub");
-  if (brandSub) brandSub.textContent = `Local Cluster · v${KOSMOS_VERSION}`;
+  if (brandSub) brandSub.textContent = `Local Cluster · v${VIEWER_VERSION}`;
 
   const COLOR = new THREE.Color();
   const lin = (hex: any) => { COLOR.set(hex || "#ffffff").convertSRGBToLinear(); return [COLOR.r, COLOR.g, COLOR.b]; };

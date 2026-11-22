@@ -25,6 +25,7 @@ import esbuild from "esbuild";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { dirname, resolve } from "node:path";
+import { VIEWER_VERSION } from "../src/viewer-version.mjs";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -153,7 +154,7 @@ ${escapeInline(appJs)}
 
 async function buildStandalone() {
   const app = await bundle("src/standalone/standalone.ts");
-  const html = composePage(`Kosmos-Oden ${VERSION} — Standalone`, app);
+  const html = composePage(`Kosmos-Oden ${VIEWER_VERSION} — Standalone`, app);
   writeFileSync(resolve(root, "kosmos-oden-stand-alone.html"), html);
   console.log(`built kosmos-oden-stand-alone.html (${(html.length / 1024).toFixed(0)} KB, single file)`);
 }

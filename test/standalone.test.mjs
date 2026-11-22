@@ -12,6 +12,7 @@
  * flows depend on real browser chrome that Node cannot host.
  */
 import test from "node:test";
+import { VIEWER_VERSION } from "../src/viewer-version.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -21,7 +22,6 @@ import { positionCosmos, countIntersections } from "../dist/kosmos-layout.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(resolve(root, "kosmos-oden-stand-alone.html"), "utf8");
-const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
 test("standalone HTML exists and is one self-contained file", () => {
   assert.ok(html.length > 400_000, "artifact suspiciously small");
@@ -53,8 +53,8 @@ test("bundled renderer + core + both folder-access paths are inlined", () => {
   assert.ok(html.includes("Open Knowledge Folder"), "startup control (§19)");
 });
 
-test("artifact title carries the package version (§29)", () => {
-  assert.ok(html.includes(`Kosmos-Oden ${pkg.version}`), "version in title");
+test("standalone title identifies the paired viewer version", () => {
+  assert.ok(html.includes(`<title>Kosmos-Oden ${VIEWER_VERSION} — Standalone</title>`), "version in title");
 });
 
 test("demo graph flows through cosmology + layout: positions for every visible node", () => {
