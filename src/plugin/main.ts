@@ -45,7 +45,7 @@ import { isKosmosOperationalPath } from "../operational-paths";
 import { readBatches } from "./read-batches";
 import { deadline, ProviderError, readVaultText, VAULT_BUILD_TIMEOUT_MS } from "./vault-operations";
 import { summarizePersonalNotes, type PersonalNotesStatus } from "../personal-notes/status";
-import { PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-view";
+import { LOCAL_LIBRARIAN_VIEW, PERSONAL_SEARCH_VIEW, PersonalSearchView } from "../ui/personal-search-view";
 import { AddNotesModal } from "../ui/add-notes-modal";
 import { ConnectAiModal } from "../ui/connect-ai-modal";
 import { SupersedesModal } from "../ui/supersedes-modal";
@@ -367,7 +367,7 @@ const AUTO_STAMP_DEBOUNCE_MS = 900;
 interface AppRegistries {
   plugins?: { manifests?: Record<string, { version?: unknown } | undefined>; enabledPlugins?: Set<string>; plugins?: Record<string, unknown> };
   commands?: { executeCommandById?(id: string): boolean };
-  setting?: { open?(): void; openTabById?(id: string): unknown };
+  setting?: { open?(): void; close?(): void; openTabById?(id: string): unknown };
 }
 
 export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHost, SemanticSettingsHost {
@@ -516,6 +516,9 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
     // Personal Notes (0.9.0). Only registerView, addRibbonIcon and addCommand
     // are used here: the plugin test stub implements nothing else.
     this.registerView(PERSONAL_SEARCH_VIEW, (leaf: WorkspaceLeaf) => new PersonalSearchView(leaf, this));
+    this.registerView(LOCAL_LIBRARIAN_VIEW, (leaf: WorkspaceLeaf) => new PersonalSearchView(leaf, this, LOCAL_LIBRARIAN_VIEW));
+    this.addRibbonIcon("book-open", "E-Z setup: ask the Librarian", () => void this.openLocalLibrarian());
+    this.addCommand({ id: "ez-librarian", name: "E-Z setup: ask the Librarian", callback: () => void this.openLocalLibrarian() });
     this.addRibbonIcon("search", "Search my notes", () => void this.openPersonalSearch());
     this.addCommand({ id: "search-my-notes", name: "Search my notes", callback: () => void this.openPersonalSearch() });
     this.addCommand({ id: "add-notes", name: "Add notes from another app", callback: () => this.openAddNotes() });
@@ -1030,6 +1033,10 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
 
   searchStatus(): PersonalSearchStatus { return this.local().status(); }
 
+  askLocalLibrarian(question: string, signal: AbortSignal) {
+    return this.local().search.librarian({ question, allowedPaths: null, signal });
+  }
+
   onSearchStatus(listener: () => void): () => void {
     this.searchStatusListeners.add(listener);
     return () => { this.searchStatusListeners.delete(listener); };
@@ -1388,13 +1395,22 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   }
 
   async openPersonalSearch(): Promise<void> {
+    await this.openSearchView(PERSONAL_SEARCH_VIEW);
+  }
+
+  async openLocalLibrarian(fromSettings = false): Promise<void> {
+    await this.openSearchView(LOCAL_LIBRARIAN_VIEW);
+    if (fromSettings) (this.app as typeof this.app & AppRegistries).setting?.close?.();
+  }
+
+  private async openSearchView(type: string): Promise<void> {
     const ws = this.app.workspace;
-    let leaf = ws.getLeavesOfType(PERSONAL_SEARCH_VIEW)[0];
+    let leaf = ws.getLeavesOfType(type)[0];
     if (!leaf) {
       leaf = ws.getLeaf(true);
-      await leaf.setViewState({ type: PERSONAL_SEARCH_VIEW, active: true });
+      await leaf.setViewState({ type, active: true });
     }
-    ws.revealLeaf(leaf);
+    await ws.revealLeaf(leaf);
   }
 
   openAddNotes(): void { new AddNotesModal(this).open(); }
@@ -1531,8 +1547,10 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   onunload(): void {
     this.eventsLive = false;
     this.agentApi?.stop();
-    this.detachPersonal();
+    // A view reading the final status must still see the current runtime.
+    this.emitSearchStatus();
     this.searchStatusListeners.clear();
+    this.detachPersonal();
     // Saves the semantic index and stops its worker.
     this.semanticListeners.clear();
     void this.semanticHandle?.dispose().catch((): undefined => undefined);

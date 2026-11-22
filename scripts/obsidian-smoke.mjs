@@ -142,9 +142,35 @@ try {
   check("fresh install opens in the Personal profile with nothing shared", (await P("(p) => { const s = p.settings(); return s.activeProfile === 'personal' && s.personalNotes.includeFolders.length === 0; }")));
   check("connection is off on a fresh install", (await P("(p) => p.connection().state")) === "stopped");
   const before = hashTree(vault);
+  await page.context().setOffline(true);
+  await page.evaluate(() => { window.app.setting.open(); window.app.setting.openTabById("kosmos-oden"); });
+  // Settings can be a separate desktop window or a modal in the vault window.
+  const ezButton = (p) => p.getByRole("button", { name: "E-Z setup", exact: true });
+  let settingsWindow;
+  for (let i = 0; i < 50 && !settingsWindow; i++) {
+    for (const p of page.context().pages()) if (await ezButton(p).isVisible()) settingsWindow = p;
+    if (!settingsWindow) await sleep(100);
+  }
+  if (!settingsWindow) throw new Error("E-Z setup button missing from plugin settings");
+  await ezButton(settingsWindow).click();
+  const question = page.getByRole("searchbox", { name: "Ask the Librarian" });
+  await question.waitFor({ state: "visible" });
   let status = null;
   for (let i = 0; i < 60; i++) { status = await P("(p) => p.searchStatus()"); if (status.state === "ready" || status.state === "partial" || status.state === "failed") break; await sleep(500); }
   check("search worker runs from its Blob URL inside Obsidian", status.state === "ready", JSON.stringify(status));
+  const askPrivate = async () => {
+    await question.fill("Where did I write zebrafinch?");
+    await question.press("Enter");
+    await page.getByRole("option").filter({ hasText: "Private/secret.md" }).waitFor({ state: "visible" });
+  };
+  await askPrivate();
+  check("E-Z finds an unshared note locally while the connection is off", (await P("(p) => p.connection().state")) === "stopped" && (await P("(p) => p.sharedNoteCount()")) === 0);
+  await page.getByText("Which sync services can I use?", { exact: true }).click();
+  check("E-Z guide opens in the Librarian", await page.getByText("Nextcloud is built in.", { exact: false }).isVisible());
+  await page.getByRole("option").filter({ hasText: "Private/secret.md" }).click();
+  await page.waitForFunction(() => window.app.workspace.getActiveFile()?.path === "Private/secret.md");
+  check("opening an E-Z result offline takes the user to the source note", true);
+  await page.context().setOffline(false);
   const tail = await P("(p) => p.search('quasarfinch').then((r) => ({ total: r.total, path: r.hits[0]?.path, excerpt: r.hits[0]?.excerpt }))");
   check("search finds text after 200,000 characters", tail.path === "Notes/long.md", JSON.stringify(tail));
   const mixed = await P("(p) => p.search('mixedcase excerpt').then((r) => r.hits[0]?.excerpt || '')");
@@ -152,7 +178,11 @@ try {
   const bad = await P("(p) => p.search('\"unclosed').then(() => 'accepted', (e) => e.code || String(e))");
   check("an unclosed quote is rejected, not rewritten", bad === "invalid_query", bad);
   await P("(p) => p.openPersonalSearch()");
-  check("Search my notes view opens", await P("(p) => window.app.workspace.getLeavesOfType('kosmos-oden-notes-search').length === 1"));
+  const wordSearch = page.getByRole("searchbox", { name: "Search my notes" });
+  await wordSearch.fill("heliotrope");
+  await wordSearch.press("Enter");
+  await page.getByRole("option").filter({ hasText: "Notes/plain.md" }).waitFor({ state: "visible" });
+  check("Search my notes renders an input and finds a passage", true);
 
   /* ---- sharing and connection ---- */
   const saved = await P("(p) => p.updatePersonalNotes((d) => { d.includeFolders = ['Notes']; })");
@@ -293,6 +323,28 @@ try {
   } else check("Importer absent is reported, not thrown", ["missing", "unknown"].includes((await P("(p) => p.importer().state"))));
   await page.evaluate(() => window.app.plugins.disablePlugin("kosmos-oden"));
   check("plugin unloads cleanly", await page.evaluate(() => !window.app.plugins.plugins["kosmos-oden"]));
+  await page.evaluate(() => window.app.plugins.enablePlugin("kosmos-oden"));
+  await page.evaluate(() => window.app.commands.executeCommandById("kosmos-oden:ez-librarian"));
+  await page.waitForFunction(() => window.app.plugins.plugins["kosmos-oden"].searchStatus().state === "ready");
+  await askPrivate();
+  check("E-Z reopens after plugin reload with the same local results and saved sharing scope",
+    (await P("(p) => JSON.stringify(p.settings().personalNotes.includeFolders)")) === '["Notes"]' && (await P("(p) => p.connection().state")) === "stopped");
+
+  const waitForPaths = (term, paths) => page.waitForFunction(async ({ term, paths }) => {
+    const plugin = window.app.plugins.plugins["kosmos-oden"];
+    const answer = await plugin.askLocalLibrarian(term, new AbortController().signal);
+    return JSON.stringify(answer.hits.map((hit) => hit.path).sort()) === JSON.stringify(paths);
+  }, { term, paths });
+  await page.evaluate(() => window.app.vault.create("Lifecycle.md", "turquoisecanary").then(() => {}));
+  await waitForPaths("turquoisecanary", ["Lifecycle.md"]);
+  await page.evaluate(() => window.app.vault.modify(window.app.vault.getAbstractFileByPath("Lifecycle.md"), "purplebadger"));
+  await waitForPaths("purplebadger", ["Lifecycle.md"]);
+  await waitForPaths("turquoisecanary", []);
+  await page.evaluate(() => window.app.vault.rename(window.app.vault.getAbstractFileByPath("Lifecycle.md"), "Moved.md"));
+  await waitForPaths("purplebadger", ["Moved.md"]);
+  await page.evaluate(() => window.app.vault.delete(window.app.vault.getAbstractFileByPath("Moved.md")));
+  await waitForPaths("purplebadger", []);
+  check("the local Librarian tracks note creation, edits, renames and deletion in Obsidian", true);
 
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed on Obsidian ${appVersion}${older ? ` (required ${requiredApp}: runtime evidence only)` : ""}`);

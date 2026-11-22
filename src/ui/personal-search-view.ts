@@ -14,11 +14,40 @@ import type { PersonalPluginHost, PersonalSearchStatus } from "../personal-notes
 import { PERSONAL_LIMITS, type SearchField, type SearchHit } from "../personal-notes/types";
 
 export const PERSONAL_SEARCH_VIEW = "kosmos-oden-notes-search";
+export const LOCAL_LIBRARIAN_VIEW = "kosmos-oden-local-librarian";
 export const SEARCH_DEBOUNCE_MS = 250;
 const SEARCH_LIMIT = 50;
 const HINT = "Type words to find. Put an exact phrase in quotes.";
 
 const FIELD_NAMES: Record<SearchField, string> = { title: "title", alias: "alias", tag: "tag", path: "folder or file name", body: "text" };
+type ResultRow = Pick<SearchHit, "path" | "title" | "excerpt" | "matchedIn">;
+
+function renderLibrarianHelp(root: HTMLElement): (query: string) => void {
+  const topics = [
+    ["How do I connect an AI assistant?", /\bmcp\b|\bconnect\b.*\b(ai|assistant)\b/i, [
+      "MCP lets a desktop assistant ask the Librarian for notes. In Personal Notes, open Connect my AI, choose the folders it may read and put private folders in Never share. Use Localhost only for an assistant on this computer.",
+      "Press Connect, then use Quick Connect to copy the client configuration and test it. Keep the token private. A cloud assistant receives the passages it reads.",
+    ]],
+    ["Which GKX tags should I use?", /\b(gkx|gkxtreme|tagging)\b/i, [
+      "Basic — Start with ordinary Markdown. If dates would help, use Optional tags to preview created and updated timestamps.",
+      "Intermediate — Add permanent note IDs to track identity over time. Use This note supersedes… to record which earlier note a new one replaces.",
+      "GKXtreme — For a governed collection, use GKOS Note Formatting to review structured properties and proposed topic tags or relationships. Start with Deterministic only. Preview changes and review backups before applying them.",
+    ]],
+    ["Which sync services can I use?", /\bsync (services|providers|options)\b|\b(nextcloud|dropbox|onedrive|google drive|s3)\b/i, [
+      "Nextcloud is built in. Under Connectivity to Sync Vault, enter your server, remote folder and app password. Test the connection before running Sync now.",
+      "S3-compatible storage is planned. Dropbox, OneDrive and Google Drive are candidates for later releases.",
+    ]],
+  ] as const;
+  const sections = topics.map(([question, keywords, paragraphs]) => {
+    const details = root.createEl("details");
+    details.createEl("summary", { text: question });
+    for (const text of paragraphs) details.createEl("p", { text });
+    return { details, keywords };
+  });
+  return (query) => {
+    for (const { details, keywords } of sections) details.open = keywords.test(query);
+  };
+}
 
 /** Plain explanation of a rejected query. */
 export function invalidQueryMessage(query: string, fallback: string): string {
@@ -42,34 +71,45 @@ export class PersonalSearchView extends ItemView {
   private indexEl: HTMLElement | null = null;
   private summaryEl: HTMLElement | null = null;
   private resultsEl: HTMLElement | null = null;
-  private hits: SearchHit[] = [];
+  private hits: ResultRow[] = [];
   private timer = 0;
   private controller: AbortController | null = null;
   private turn = 0;
+  private showHelpFor?: (query: string) => void;
 
-  constructor(leaf: WorkspaceLeaf, private host: PersonalPluginHost) { super(leaf); }
+  constructor(leaf: WorkspaceLeaf, private host: PersonalPluginHost, private viewType = PERSONAL_SEARCH_VIEW) { super(leaf); }
 
-  getViewType(): string { return PERSONAL_SEARCH_VIEW; }
-  getDisplayText(): string { return "Search my notes"; }
-  getIcon(): string { return "search"; }
+  private get librarian(): boolean { return this.viewType === LOCAL_LIBRARIAN_VIEW; }
+  private get hint(): string { return this.librarian ? "Ask a question using words from your notes. Open a match to read the source." : HINT; }
+  getViewType(): string { return this.viewType; }
+  getDisplayText(): string { return this.librarian ? "Ask the Librarian" : "Search my notes"; }
+  getIcon(): string { return this.librarian ? "book-open" : "search"; }
 
   async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
     root.addClass("kosmos-notes-search");
-    root.createEl("p", { cls: "kosmos-notes-search-scope", text: "Your own search over the whole vault. Assistants can read only the Folders shared with agents." });
+    root.createEl("p", { cls: "kosmos-notes-search-scope", text: this.librarian
+      ? "Your Librarian looks for passages in this vault’s Markdown notes on this device. You choose separately what an assistant can read."
+      : "Your own search over the whole vault. Assistants can read only the Folders shared with agents." });
     const input = root.createEl("input", { type: "search", cls: "kosmos-notes-search-input" });
-    input.setAttribute("placeholder", "Search my notes");
-    input.setAttribute("aria-label", "Search my notes");
-    input.setAttribute("aria-controls", "kosmos-notes-search-results");
+    input.setAttribute("placeholder", this.librarian ? "What did I write about…?" : "Search my notes");
+    input.setAttribute("aria-label", this.getDisplayText());
+    const listId = this.viewType + "-results";
+    input.setAttribute("aria-controls", listId);
     this.input = input;
+    if (this.librarian) {
+      const ask = root.createEl("button", { text: "Ask the Librarian" });
+      this.registerDomEvent(ask, "click", () => { window.clearTimeout(this.timer); void this.run(); });
+    }
     this.indexEl = root.createDiv({ cls: "kosmos-notes-search-index" });
     this.indexEl.setAttribute("role", "status");
-    this.summaryEl = root.createEl("p", { cls: "kosmos-notes-search-status", text: HINT });
+    this.summaryEl = root.createEl("p", { cls: "kosmos-notes-search-status", text: this.hint });
     this.summaryEl.setAttribute("role", "status");
     this.summaryEl.setAttribute("aria-live", "polite");
+    if (this.librarian) this.showHelpFor = renderLibrarianHelp(root);
     const list = root.createDiv({ cls: "kosmos-notes-search-results" });
-    list.setAttribute("id", "kosmos-notes-search-results");
+    list.setAttribute("id", listId);
     list.setAttribute("role", "listbox");
     list.setAttribute("aria-label", "Search results");
     this.resultsEl = list;
@@ -95,6 +135,7 @@ export class PersonalSearchView extends ItemView {
     this.controller?.abort();
     this.controller = null;
     this.turn++;
+    this.showHelpFor = undefined;
     this.contentEl.empty();
     this.input = null; this.indexEl = null; this.summaryEl = null; this.resultsEl = null; this.hits = [];
   }
@@ -117,29 +158,38 @@ export class PersonalSearchView extends ItemView {
     window.clearTimeout(this.timer);
     this.controller?.abort();
     this.controller = null;
-    this.timer = window.setTimeout((): void => void this.run(), SEARCH_DEBOUNCE_MS);
+    if (this.librarian) this.show(this.hint, []);
+    else this.timer = window.setTimeout((): void => void this.run(), SEARCH_DEBOUNCE_MS);
   }
 
   private async run(): Promise<void> {
     const query = this.input?.value ?? "";
     this.controller?.abort();
     const turn = ++this.turn;
-    if (!query.trim()) { this.controller = null; this.show(HINT, []); return; }
+    this.showHelpFor?.(query);
+    if (!query.trim()) { this.controller = null; this.show(this.hint, []); return; }
     const controller = new AbortController();
     this.controller = controller;
     this.summaryEl?.setText("Searching…");
     try {
-      const r = await this.host.search(query, { limit: SEARCH_LIMIT, signal: controller.signal });
+      const r = this.librarian
+        ? await this.host.askLocalLibrarian(query, controller.signal)
+        : await this.host.search(query, { limit: SEARCH_LIMIT, signal: controller.signal });
       if (turn !== this.turn || controller.signal.aborted) return;
       const shown = r.hits.length;
       let summary = r.total === 0 ? "No notes found." : shown < r.total ? `Showing ${shown} of ${r.total} notes found.` : `${r.total} ${r.total === 1 ? "note" : "notes"} found.`;
       if (r.coverage.state === "indexing") summary += " Still reading your notes, so more may appear.";
       if (r.coverage.omitted > 0) summary += ` ${r.coverage.omitted} ${r.coverage.omitted === 1 ? "file was" : "files were"} not searched (too large or unreadable).`;
-      this.show(summary, r.hits);
+      if ("confidence" in r) {
+        if (r.confidence === "weak") summary += " These matches share only some clues. Check the passages.";
+        this.show(summary, r.hits.map((hit): ResultRow => ({
+          title: hit.title, path: hit.path, excerpt: hit.passages[0]?.text ?? "", matchedIn: [],
+        })));
+      } else this.show(summary, r.hits);
     } catch (error: any) {
       if (turn !== this.turn || controller.signal.aborted || error?.name === "AbortError" || error?.code === "cancelled") return;
       const message = String(error?.message || error);
-      if (error?.code === "invalid_query") this.show(invalidQueryMessage(query, message), []);
+      if (error?.code === "invalid_query") this.show(this.librarian ? message : invalidQueryMessage(query, message), []);
       else if (error?.code === "search_unavailable") { this.show("Search is not available right now. Press Retry above, or try again in a moment.", []); this.renderIndexStatus(); }
       else if (error?.code === "policy_changed") this.show("Your settings changed while searching. Press Enter to search again.", []);
       else this.show(`Search failed: ${message}`, []);
@@ -148,7 +198,7 @@ export class PersonalSearchView extends ItemView {
     }
   }
 
-  private show(summary: string, hits: SearchHit[]): void {
+  private show(summary: string, hits: ResultRow[]): void {
     this.summaryEl?.setText(summary);
     this.hits = hits;
     const list = this.resultsEl;
@@ -157,7 +207,7 @@ export class PersonalSearchView extends ItemView {
     hits.forEach((hit, index) => {
       const row = list.createDiv({ cls: "kosmos-notes-search-row" });
       row.setAttribute("role", "option");
-      row.setAttribute("id", `kosmos-notes-search-hit-${index}`);
+      row.setAttribute("id", `${this.viewType}-hit-${index}`);
       row.setAttribute("data-index", String(index));
       row.setAttribute("aria-selected", "false");
       row.tabIndex = -1;

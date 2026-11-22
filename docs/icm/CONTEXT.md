@@ -6,6 +6,8 @@ This folder grants no authority. It does not assign work, appoint a coordinator,
 
 ## Read first, in this order
 
+For the 0.9.6 E-Z Librarian, start with the [release behavior map](../v0.9.6/BUILD-PROGRESS.md). It traces the local question, note-opening and assistant-sharing paths to source and tests.
+
 1. `CONTRIBUTING.md`: setup, the one-semantics rule, the before-PR list, the browser test table, and the changes that require explicit review.
 2. `README.md`: the current version note, the exact GKOS-Engine development pin, and the statement that the build includes no Rust Engine.
 3. `kosmos-invariants.yml` and `SECURITY.md`: the security and build properties that `npm run check:invariants` enforces.

@@ -7,6 +7,7 @@
  */
 import type { App, TFile } from "obsidian";
 import type { checkSupersedesProposal } from "./lineage";
+import type { LibrarianResponse } from "./librarian";
 import type { RejectedFolder } from "./scope";
 import type { PersonalNotesStatus } from "./status";
 import type { TaggingPlan } from "./tagging";
@@ -81,6 +82,7 @@ export interface PersonalPluginHost {
 
   /* ---- local search (the user's own view: whole vault, operational files excluded) ---- */
   search(query: string, opts?: { limit?: number; signal?: AbortSignal }): Promise<SearchResponse>;
+  askLocalLibrarian(question: string, signal: AbortSignal): Promise<LibrarianResponse>;
   searchStatus(): PersonalSearchStatus;
   /** Subscribe to search status changes. Returns the unsubscribe function. */
   onSearchStatus(listener: () => void): () => void;

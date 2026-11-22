@@ -247,6 +247,9 @@ export class KosmosSettingTab extends PluginSettingTab {
     containerEl.empty();
     const s: AgentSettings = this.plugin.agentSettings;
     const nc = this.plugin.nextcloudSettings;
+    new Setting(containerEl).setName("Connect your notes to the Librarian")
+      .setDesc("Ask about the Markdown notes in this vault on this device. No model download or account needed.")
+      .addButton((button) => button.setButtonText("E-Z setup").setCta().onClick(() => this.plugin.openLocalLibrarian(true)));
     const sections = this.createSectionTabs(containerEl);
     const agentEl = sections["agent-api"];
     const gkxEl = sections["gkx-formatting"];

@@ -6,13 +6,15 @@ An AI assistant can use the same library. For example, you can share a garden pr
 
 ## Quick installation
 
-1. Use Obsidian **1.13.0 or newer**. Close Obsidian and download the [0.9.5 plugin ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/kosmos-oden-0.9.5.zip). A [SHA-256 checksum](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/kosmos-oden-0.9.5.zip.sha256) is available.
+1. Use Obsidian **1.13.0 or newer**. Close Obsidian and download the [0.9.6 plugin ZIP](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/kosmos-oden-0.9.6.zip). A [SHA-256 checksum](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/kosmos-oden-0.9.6.zip.sha256) is available.
 2. Extract the ZIP. Copy the files **inside** its `kosmos-oden` folder directly into `<your vault>/.obsidian/plugins/kosmos-oden/`. Create that folder if needed. On upgrade, keep your existing `data.json`.
-3. Reopen Obsidian. Under **Settings → Community plugins**, enable **Kosmos-Oden**. Open the command palette and run **Open Kosmos-Oden** to see the sky or **Search my notes** to look something up.
+3. Reopen Obsidian. Under **Settings → Community plugins**, enable **Kosmos-Oden**. Click **E-Z setup** in **Settings → Kosmos-Oden** to ask about your notes. To see the sky, run **Open Kosmos-Oden** from the command palette.
 
-For a manual install, the three base files are [main.js](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/main.js), [manifest.json](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/manifest.json) and [styles.css](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/styles.css). Clients using the local stdio bridge also need [kosmos-mcp-stdio.mjs](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/kosmos-mcp-stdio.mjs) in that folder. To explore a folder without installing the plugin, open the [offline HTML viewer](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.5/kosmos-oden-stand-alone.html) and select **Open Knowledge Folder**.
+For a manual install, the three base files are [main.js](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/main.js), [manifest.json](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/manifest.json) and [styles.css](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/styles.css). Clients using the local stdio bridge also need [kosmos-mcp-stdio.mjs](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/kosmos-mcp-stdio.mjs) in that folder. The 0.9.6 plugin ships with standalone viewer 0.9.5, the same viewer bundled with the pinned GKOS-Engine. To explore a folder without installing the plugin, open the [offline HTML viewer](https://github.com/Odenknight/Kosmos-Oden/releases/download/0.9.6/kosmos-oden-stand-alone.html) and select **Open Knowledge Folder**.
 
 ## Find your way around
+
+**Start with E-Z setup.** Open **Settings → Kosmos-Oden → E-Z setup**, or select the open-book ribbon icon. Ask the Librarian a question using words you remember, then open a matching passage. It reads Markdown notes in this vault on your device. Once the plugin is installed, this takes no further download, account, or AI connection. The same tab explains assistant connections, three levels of optional tagging, and sync. [Getting started](USER-GUIDE.md#2-bring-in-and-search-your-notes-personal-notes)
 
 Open the **command palette** for everyday actions. Open **Settings → Kosmos-Oden** to configure **Agent API (HTTP + MCP)**, **GKOS Note Formatting**, **Quick Connect MCP**, or **Connectivity to Sync Vault**.
 
@@ -28,7 +30,7 @@ Use **Search my notes** for exact words or a quoted phrase across your own vault
 
 ![Search my notes showing results for garden in a sample vault](docs/assets/word-search.png)
 
-An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md) · [Observed display issue](docs/v0.9.5/KNOWN-LIMITATIONS.md#search-my-notes-on-windows)
+An assistant can ask the **Librarian** a whole question and receive ranked notes, excerpts and links. Check the source passage, especially when several notes look plausible. To bring in an old notebook first, **Add notes from another app** guides you through Obsidian Importer for Google Keep or OneNote. [Personal Notes guide](docs/PERSONAL-NOTES.md) · [Search limits in 0.9.6](docs/v0.9.6/KNOWN-LIMITATIONS.md)
 
 ![The Librarian answers a question about a sample garden folder with links to matching notes](docs/assets/librarian.png)
 
@@ -76,7 +78,7 @@ For governed GKX notes, open **GKOS Note Formatting → Content-assisted enrichm
 
 ### Sync with Nextcloud
 
-Open **Connectivity to Sync Vault**, enter your Nextcloud URL, username, app password and remote vault folder, then test the connection before choosing **Sync now**, startup sync or a schedule. The app password goes into Obsidian SecretStorage. By default, a file missing on one side is restored from the other. **Propagate deletions** changes that behavior. Keep a separate backup. Additional providers are planned, starting with S3-compatible storage, followed by candidates including Dropbox, OneDrive and Google Drive. Version 0.9.5 ships Nextcloud sync. [Sync behavior and conflict handling](TECHNICAL_README.md#nextcloud-webdav-sync)
+Open **Connectivity to Sync Vault**, enter your Nextcloud URL, username, app password and remote vault folder, then test the connection before choosing **Sync now**, startup sync or a schedule. The app password goes into Obsidian SecretStorage. By default, a file missing on one side is restored from the other. **Propagate deletions** changes that behavior. Keep a separate backup. Additional providers are planned, starting with S3-compatible storage, followed by candidates including Dropbox, OneDrive and Google Drive. Nextcloud is included in 0.9.6. [Sync behavior and conflict handling](TECHNICAL_README.md#nextcloud-webdav-sync)
 
 ![Nextcloud settings showing the sync switch and server address field](docs/assets/nextcloud.png)
 
@@ -88,6 +90,6 @@ Open the **[numbered guide to all capabilities and features](TECHNICAL_README.md
 
 GKOS-Engine and Kosmos-Oden’s Engine integration are original work by Shaun Marshall. The 3D renderer began from H4R7W16’s vault-kosmos, which originated the star-field rendering and concept, and was later rebuilt: celestial bodies match real astronomical objects and scale with the relative weight of notes. Derived portions remain under vault-kosmos’s MIT license. Kosmos-Oden carries that idea into note history, local search and read-only access for assistants. [Original vault-kosmos project](https://github.com/H4R7W16/vault-kosmos) · [Upstream credits and notices](THIRD-PARTY-NOTICES.md) · [Acknowledgments](ACKNOWLEDGMENTS.md)
 
-Local viewing and word search work offline. Optional services use the endpoints you choose above. The standalone viewer reads a folder you select, and the plugin can import model files you choose from disk. The public release includes a compiled private GKOS-Engine dependency. The tagged build and the private reviewer source package were independently reproduced on Linux x64 with Node 22.23.5. [Source build and directory review](docs/COMMUNITY-PLUGIN.md) · [Contributor setup](CONTRIBUTING.md) · [Release and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/0.9.5)
+Local viewing and word search work offline. Optional services use the endpoints you choose above. The standalone viewer reads a folder you select, and the plugin can import model files you choose from disk. The public release includes a compiled private GKOS-Engine dependency. The 0.9.5 tagged build and its private reviewer source package were independently reproduced on Linux x64 with Node 22.23.5. [Source build and directory review](docs/COMMUNITY-PLUGIN.md) · [Contributor setup](CONTRIBUTING.md) · [Release and checksums](https://github.com/Odenknight/Kosmos-Oden/releases/tag/0.9.6)
 
 Project-authored software uses Apache-2.0. Project-authored documentation and original graphics use CC BY 4.0. Third-party materials retain their own terms. [Licensing](LICENSING.md) · [Third-party notices](THIRD-PARTY-NOTICES.md)

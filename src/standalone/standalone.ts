@@ -41,7 +41,7 @@ import {
   TraversalReplay, TraversalSessionRecorder, TRAVERSAL_SESSION_MAX_BYTES,
   type TraversalEventEnvelope, type TraversalSessionExport,
 } from "./observability";
-import { KOSMOS_VERSION } from "../kosmos-version";
+import { VIEWER_VERSION } from "../viewer-version.mjs";
 
 const app = createKosmosApp({ autoStart: "wait" });
 // No settings context in this viewer-only surface, so projection options are
@@ -449,7 +449,7 @@ const ui: StandaloneUI = createStandaloneUI({
       sessionRecorder.start({
         started_at: new Date().toISOString(),
         service_protocol: String(engineCapabilities?.protocol?.version || "unknown"),
-        viewer_version: KOSMOS_VERSION,
+        viewer_version: VIEWER_VERSION,
         corpus_hash: engineCapabilities?.corpus_hash || null,
         redaction: "",
       });

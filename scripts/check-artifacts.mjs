@@ -64,8 +64,8 @@ const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const manifest = JSON.parse(readFileSync(resolve(root, "manifest.json"), "utf8"));
 must(pkg.version === manifest.version, `package (${pkg.version}) and manifest (${manifest.version}) versions differ`);
 if (existsSync(standalonePath)) {
-  const html = readFileSync(standalonePath, "utf8");
-  must(html.includes(`Kosmos-Oden ${pkg.version}`), "standalone artifact was built from a different version");
+  const pairedViewer = resolve(root, "node_modules/gkos-engine/viewer/kosmos-oden-stand-alone.html");
+  must(readFileSync(standalonePath).equals(readFileSync(pairedViewer)), "standalone differs from the HTML bundled by the pinned Engine");
 }
 const versions = JSON.parse(readFileSync(resolve(root, "versions.json"), "utf8"));
 must(!!versions[pkg.version], `versions.json has no entry for ${pkg.version}`);
