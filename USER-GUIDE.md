@@ -17,6 +17,16 @@ Follow the [quick installation guide](README.md#quick-installation), then run **
 formatting and no labels. A new installation starts in it with nothing shared
 and the connection off.
 
+**E-Z setup (development build).** Click **Settings → Kosmos-Oden → E-Z setup** or the open-book icon in the ribbon. The Librarian starts reading the Markdown notes in this vault, including notes at its root. The status shows how many it can search and whether any files were skipped. Ask a question such as “Which seeds did I plan to plant?” and open a result to read the original passage. The plugin keeps this local index up to date as you edit. You can return to the tab through the same button or the **E-Z setup: ask the Librarian** command.
+
+| What you want to do | Where the note content goes |
+| --- | --- |
+| Ask the E-Z Librarian | Questions and matching run on this device using words in your notes. No model download or account is required. |
+| Ask a cloud assistant through MCP | On desktop, use **Connect my AI** to choose folders and exclusions. The assistant’s provider can receive passages its client retrieves. |
+| Keep a copy on your Nextcloud server | Configure **Connectivity to Sync Vault** and review its exclusions before syncing. Sync has its own scope. |
+
+The questions below the E-Z search box explain MCP, sync availability and three ways to use GKX tags. **Basic** covers optional timestamps. **Intermediate** covers permanent IDs and links between revisions. **GKXtreme** covers governed properties and reviewed enrichment proposals. These are learning levels. Opening the guide leaves your notes and access settings alone.
+
 - **Add notes from another app** walks you through bringing in Google Keep or
   OneNote notes. The conversion itself is done by Obsidian's own **Importer**
   community plugin.

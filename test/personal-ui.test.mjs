@@ -13,8 +13,8 @@ function deferred() { let resolve, reject; const promise = new Promise((a, b) =>
 const hit = (path, extra = {}) => ({ path, title: path.split("/").pop().replace(/\.md$/, ""), score: 1, matchedIn: ["body"], excerpt: `excerpt of ${path}`, ...extra });
 const response = (hits, total = hits.length, coverage = { state: "ready", searched: 10, omitted: 0 }) => ({ contract: "kosmos-personal-notes/1", terms: [], total, hits, coverage, corpusRevision: 1 });
 
-async function openSearch(host) {
-  const view = new ui.PersonalSearchView({ app: host.app }, host);
+async function openSearch(host, viewType) {
+  const view = new ui.PersonalSearchView({ app: host.app }, host, viewType);
   await view.onOpen();
   const input = all(view.contentEl).find((n) => n.tagName === "INPUT");
   const list = byClass(view.contentEl, "kosmos-notes-search-results")[0];
@@ -23,6 +23,33 @@ async function openSearch(host) {
 async function search(input, query) { input.value = query; input.key("Enter"); await settle(); }
 
 /* ------------------------------------------------------------------ search */
+
+test("E-Z opens the local Librarian, explains setup offline and opens a ranked passage", async () => {
+  resetDom();
+  const app = fakeApp(["Private/Garden.md"]);
+  const questions = [];
+  const host = fakeHost(app, { askLocalLibrarian: async (question, signal) => {
+    questions.push(question);
+    assert.equal(signal.aborted, false);
+    return { ...response([{ title: "Garden", path: "Private/Garden.md", passages: [{ text: "Plant lupine in March." }] }]), confidence: "weak" };
+  } });
+  const { input, view, list } = await openSearch(host, ui.LOCAL_LIBRARIAN_VIEW);
+  assert.equal(view.getDisplayText(), "Ask the Librarian");
+  for (const topic of ["MCP", "Basic", "Intermediate", "GKXtreme", "Nextcloud", "S3-compatible"]) assert.ok(text(view.contentEl).includes(topic));
+  input.value = "Which seeds should I plant?";
+  button(view.contentEl, "Ask the Librarian").click();
+  await settle();
+  assert.deepEqual(questions, [input.value]);
+  assert.match(text(list), /Plant lupine in March/);
+  assert.match(text(view.contentEl), /Check the passages/);
+  input.key("ArrowDown");
+  list.children[0].key("Enter");
+  await settle();
+  assert.deepEqual(app.opened, ["Private/Garden.md"]);
+  await search(input, "Which sync services are available?");
+  assert.deepEqual(all(view.contentEl).filter((el) => el.tagName === "DETAILS" && el.open).map((el) => el.children[0].textContent), ["Which sync services can I use?"]);
+  view.unload();
+});
 
 test("search: index status for indexing, partial and failed (with Retry); subscription is released on unload", async () => {
   resetDom();

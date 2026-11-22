@@ -307,6 +307,26 @@ test("testConnection: a real Streamable HTTP exchange succeeds, and a wrong toke
 
 /* ----------------------------------------------------------- T01 no-write */
 
+test("the E-Z Librarian can read private and root notes locally in a governed vault without changing its settings", async () => {
+  const app = makeApp(FIXTURE, { persisted: { ...personalSettings(), activeProfile: "existing", agentEnabled: false } });
+  const plugin = await loadPlugin(app);
+  try {
+    app.layoutReady();
+    const settings = structuredClone(plugin.settings());
+    plugin.onSearchStatus(() => plugin.searchStatus()); // an open Librarian tab
+    plugin.searchStatus();
+    await indexed(plugin);
+    const answer = await plugin.askLocalLibrarian("tomatoes", new AbortController().signal);
+    assert.ok(answer.hits.some((h) => h.path === "Private/Diary.md"));
+    assert.ok(answer.hits.some((h) => h.path === "AGENT-API.md"));
+    assert.deepEqual(plugin.settings(), settings);
+    assert.equal(plugin.agentApi.personal, null);
+    assert.equal(plugin.agentApi.server, null);
+    assert.deepEqual(app.writes, []);
+  } finally { unloadPlugin(plugin); }
+  assert.equal(plugin.personal, null, "status callbacks cannot recreate the index during unload");
+});
+
 test("T01: with tagging off, load + index + search + connect + agent reads + edits write nothing", async () => {
   const port = await freePort();
   const app = makeApp(FIXTURE, { persisted: { ...personalSettings(), agentPort: port } });

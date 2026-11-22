@@ -14,6 +14,8 @@ For a manual install, the three base files are [main.js](https://github.com/Oden
 
 ## Find your way around
 
+**Try E-Z setup in the development build.** Open **Settings → Kosmos-Oden → E-Z setup**, or select the open-book ribbon icon. Ask the Librarian a question using words you remember, then open a matching passage. It reads Markdown notes in this vault on your device. Once the plugin is installed, this takes no further download, account, or AI connection. The same tab explains assistant connections, three levels of optional tagging, and sync. [Getting started](USER-GUIDE.md#2-bring-in-and-search-your-notes-personal-notes)
+
 Open the **command palette** for everyday actions. Open **Settings → Kosmos-Oden** to configure **Agent API (HTTP + MCP)**, **GKOS Note Formatting**, **Quick Connect MCP**, or **Connectivity to Sync Vault**.
 
 ### Explore the sky
