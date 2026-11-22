@@ -1547,6 +1547,8 @@ export default class KosmosOdenPlugin extends Plugin implements PersonalPluginHo
   onunload(): void {
     this.eventsLive = false;
     this.agentApi?.stop();
+    // A view reading the final status must still see the current runtime.
+    this.emitSearchStatus();
     this.searchStatusListeners.clear();
     this.detachPersonal();
     // Saves the semantic index and stops its worker.
