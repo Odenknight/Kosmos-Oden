@@ -105,7 +105,7 @@ insert an executor into the plugin or standalone browser bundles.
 Product version: **0.9.5**; minimum Obsidian: **1.13.0**.
 
 Engine is pinned in package.json and package-lock.json to
-`github:Odenknight/GKOS-Engine#44c62208b8a82d350d29bc7fcf44c8a0a13a575b` (2.5.2 with the #121 fixes).
+`github:Odenknight/GKOS-Engine#ea084adc40e16af3e15e9f6ffc9acfc5fba2e6ae` (2.5.2 with Personal request cancellation).
 The dependency guard verifies the exact lock coordinate. Three.js is
 0.187.0. Supported build runtimes are Node 22 and 24. The only dependency
 added in 0.9.0 is the development-only MCP test client

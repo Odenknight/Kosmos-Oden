@@ -263,8 +263,8 @@ been adopted or written; automatic writes remain unavailable and off. The
 and [Packet C0 working-result receipt](https://github.com/Odenknight/Kosmos-Oden/blob/e20b1b7dbd7fb2aee3abfc525e518312970d37d9/_archive/docs/navigation-effects/PACKET-C0-WORKING-RESULT-20260827.md)
 record historical local evidence, not runtime or qualification standing.
 
-The dependency is pinned to the Engine 2.5.2 release commit
-`44c62208b8a82d350d29bc7fcf44c8a0a13a575b`. Its Effects contract says
+The dependency is pinned to the Engine 2.5.2 source commit
+`ea084adc40e16af3e15e9f6ffc9acfc5fba2e6ae`. Its Effects contract says
 `integration-only`, targets an unreleased Engine 2.2, labels the Node executor
 experimental, and claims no GKOS conformance. See the
 [development pin](docs/navigation-effects/DEVELOPMENT-PIN.md),
