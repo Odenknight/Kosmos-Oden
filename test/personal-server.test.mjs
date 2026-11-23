@@ -478,3 +478,28 @@ test("existing profile: tools, shapes and token unchanged, even with a Personal 
     assert.deepEqual(legacyTools.map((t) => t.name), EXISTING_TOOLS);
   } finally { server.stop(); }
 });
+
+test("closing a Personal REST client cancels its pending search worker request", { timeout: 5000 }, async (t) => {
+  const setup = personalSetup();
+  let entered, cancelled;
+  const started = new Promise(resolve => { entered = resolve; });
+  const stopped = new Promise(resolve => { cancelled = resolve; });
+  setup.vault.librarian.librarian = async ({ signal }) => {
+    entered(signal);
+    return new Promise((_, reject) => {
+      signal.addEventListener("abort", () => { cancelled(); reject(signal.reason); }, { once: true });
+    });
+  };
+  const { port, server } = await start({ setup });
+  t.after(() => server.stop());
+  const req = http.get({ host: "127.0.0.1", port, path: "/librarian?question=plumber",
+    headers: { Authorization: "Bearer " + PERSONAL_TOKEN } });
+  req.on("error", () => {});
+  t.after(() => req.destroy());
+  const signal = await started;
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(signal.aborted, false);
+  req.destroy();
+  await stopped;
+  assert.equal((await request(port, { path: "/health" })).status, 200);
+});
