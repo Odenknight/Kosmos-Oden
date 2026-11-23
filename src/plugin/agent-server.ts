@@ -511,6 +511,8 @@ export class KosmosAgentServer {
   status = "stopped";
   private inFlight = 0;
   private epoch = 0;
+  // Set only on the per-request dispatch context.
+  private requestSignal?: AbortSignal;
   private activeRequests = new Set<(reason?: "timeout" | "provider_unavailable") => void>();
   private hits = new Map<string, number[]>(); // client -> recent request timestamps
   private lastSweep = -Infinity; // last time stale client keys were swept from `hits`
@@ -1661,7 +1663,7 @@ export class KosmosAgentServer {
     const runtime = this.personal;
     if (!runtime) return { error: "not_ready", message: PERSONAL_NOT_READY };
     try {
-      return await runtime.service.call(name, args, origin);
+      return await runtime.service.call(name, args, origin, this.requestSignal);
     } catch (e: any) {
       // By name as well as class: a service bundled separately (tests, a
       // future worker) throws its own copy of the class.
@@ -1878,6 +1880,7 @@ export class KosmosAgentServer {
     const ceiling = settings.agentSensitivityCeiling, defaultSensitivity = settings.defaultSensitivity;
     const token = this.effectiveToken(), requireToken = this.effectiveRequireToken();
     const until = performance.now() + this.operationTimeoutMs;
+    const operation = new AbortController();
     const policyGeneration = this.policyGeneration, generation = policyGeneration?.();
     // Profile, scope, token, bind and runtime changes: any of them ends the request.
     const accessEpoch = this.accessEpoch, profile = settings.activeProfile;
@@ -1895,6 +1898,7 @@ export class KosmosAgentServer {
     const finish = (reason?: "timeout" | "provider_unavailable") => {
       if (finished) return;
       finished = true;
+      operation.abort();
       clearTimeout(timer);
       req.removeListener?.("aborted", disconnected);
       res.removeListener?.("close", disconnected);
@@ -1944,6 +1948,7 @@ export class KosmosAgentServer {
     // redirect an old suspended dispatch into a replacement provider.
     const context = Object.create(this) as KosmosAgentServer;
     context.provider = provider; context.settings = settings; context.personal = personal;
+    context.requestSignal = operation.signal;
     const guarded = new Proxy(res, { get(target, key) {
       const value = Reflect.get(target, key, target);
       if (typeof value !== "function") return value;
