@@ -86,7 +86,9 @@ validation, exclusions, and the deterministic three-way planner.
 `nextcloud-sync.ts` is the Obsidian/WebDAV adapter: it scans local binary files,
 enumerates Nextcloud with bounded depth-1 `PROPFIND` requests, applies
 conditional transfers, stores common-state metadata, and preserves remote
-conflict copies. Credentials remain in Obsidian Secret Storage rather than
+conflict copies. Conflict copies are local only: both scans skip them, a
+version already kept is not written again, and one note keeps at most
+`MAX_CONFLICT_COPIES`. Credentials remain in Obsidian Secret Storage rather than
 plugin data.
 
 ### `src/personal-notes/` and the Personal profile (0.9.0)

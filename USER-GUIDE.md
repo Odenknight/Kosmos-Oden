@@ -394,7 +394,11 @@ Obsidian Secret Storage.
 
 Sync compares local SHA-256 values, remote ETags, and the last common state.
 When both sides changed, the remote bytes are preserved as a timestamped
-conflict copy. Deletion propagation is off by default; when it is on, a file
+conflict copy beside the note (`note.nextcloud-conflict-<time>.md`). A conflict
+copy stays on the device that made it and is never uploaded. The same Nextcloud
+version is saved once, and a note gets at most five copies: after that the note
+is left as it is on both sides until you settle it and delete the copies.
+Deletion propagation is off by default; when it is on, a file
 sync deletes locally goes to the trash, not away for good. `.git/**`, `.trash/**`,
 and `.obsidian/**` are excluded by default; `.obsidian` can be opted in, but
 Kosmos's credential-bearing plugin data remains forcibly excluded.

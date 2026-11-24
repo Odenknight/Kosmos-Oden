@@ -8,6 +8,11 @@
 
 - Restores the vault-kosmos MIT copyright and permission notice in `THIRD-PARTY-NOTICES.md`, and corrects the attribution: the 3D renderer began from vault-kosmos and was later rebuilt; GKOS-Engine and the Engine integration are original work.
 
+Fixed after the 0.9.6 release, in the source only (the published 0.9.6 files do not have it):
+- **Nextcloud sync no longer saves a new conflict copy on every run.** A note that differed between the device and Nextcloud, with no saved sync record for it, got another `note.nextcloud-conflict-<time>.md` at each timed sync, and each copy was then uploaded. Every build with Nextcloud sync did this. Now the same Nextcloud version is saved once, a note gets at most five copies, and after five the note is left as it is on both sides until it is settled and the copies are deleted.
+- Conflict copies are no longer synced. Copies an earlier build uploaded stay where they are, on both sides; delete them by hand.
+- When both sides were edited and five copies exist already, the local version is not uploaded over a Nextcloud version that could not be saved.
+
 ## 0.9.5
 
 - Promotes the alpha.6 Engine pin and renderer to a versioned release with individual Obsidian installation files, a stable ZIP, the offline viewer and checksums.

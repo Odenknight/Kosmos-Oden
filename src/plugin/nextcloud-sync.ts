@@ -8,7 +8,8 @@
  */
 import { App, normalizePath, requestUrl, type RequestUrlResponse } from "obsidian";
 import {
-  buildNextcloudDavRoot, effectiveSyncExcludes, encodePath, emptyNextcloudState, isExcluded,
+  MAX_CONFLICT_COPIES, buildNextcloudDavRoot, conflictCopyPath, effectiveSyncExcludes, encodePath, emptyNextcloudState,
+  isConflictCopyOf, isConflictCopyPath, isExcluded,
   migrateNextcloudSettings, migrateNextcloudState, planSync, safeRelativePath,
   stateForScope, syncScope,
   type LocalEntry, type NextcloudSettings, type NextcloudSyncState,
@@ -184,7 +185,8 @@ export class NextcloudSyncEngine {
       const excludes = effectiveSyncExcludes(this.settings, this.pluginDir);
       const local = await this.scanLocal();
       const allRemote = await client.listTree();
-      const remote = Object.fromEntries(Object.entries(allRemote).filter(([p]) => !isExcluded(p, excludes)));
+      // Conflict copies stay out on both sides: copies an earlier build uploaded are left where they are.
+      const remote = Object.fromEntries(Object.entries(allRemote).filter(([p]) => !isExcluded(p, excludes) && !isConflictCopyPath(p)));
       const actions = planSync(local, remote, this.state.files, this.settings.propagateDeletes);
       summary.unchanged = Math.max(0, new Set([...Object.keys(local), ...Object.keys(remote)]).size - actions.length);
       for (const action of actions) {
@@ -201,7 +203,7 @@ export class NextcloudSyncEngine {
     const excludes = effectiveSyncExcludes(this.settings, this.pluginDir);
     for (const file of this.app.vault.getFiles()) {
       const path = file.path.replace(/\\/g, "/");
-      if (!safeRelativePath(path) || isExcluded(path, excludes)) continue;
+      if (!safeRelativePath(path) || isExcluded(path, excludes) || isConflictCopyPath(path)) continue;
       const data = await this.app.vault.readBinary(file);
       out[path] = { hash: await sha256Hex(data), size: data.byteLength };
     }
@@ -225,7 +227,8 @@ export class NextcloudSyncEngine {
     if (action.kind === "conflict") {
       if (remote[path] && local[path]) {
         const remoteData = await client.get(path, remote[path].etag);
-        await this.preserveConflict(path, remoteData, summary, action.reason);
+        // Uploading replaces the Nextcloud version. Without a copy of it, both sides are left as they are.
+        if (!(await this.preserveConflict(path, remoteData, summary, action.reason))) return;
         const file = this.app.vault.getAbstractFileByPath(path) as any;
         if (!file) throw new Error("local file disappeared while preserving conflict");
         const localData = await this.app.vault.readBinary(file);
@@ -310,14 +313,50 @@ export class NextcloudSyncEngine {
     }
   }
 
-  private async preserveConflict(path: string, remoteData: ArrayBuffer, summary: SyncSummary, reason: string): Promise<void> {
-    const dot = path.lastIndexOf(".");
-    const stem = dot > path.lastIndexOf("/") ? path.slice(0, dot) : path;
-    const ext = dot > path.lastIndexOf("/") ? path.slice(dot) : "";
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const conflictPath = `${stem}.nextcloud-conflict-${stamp}${ext}`;
+  /** Conflict copies of `path` already in its folder. The folder is read from disk as well as from the vault
+   *  index, because a copy written a moment ago may not be indexed yet. */
+  private async conflictCopies(path: string): Promise<string[]> {
+    const found = new Set<string>();
+    for (const file of this.app.vault.getFiles()) {
+      const candidate = file.path.replace(/\\/g, "/");
+      if (isConflictCopyOf(candidate, path)) found.add(candidate);
+    }
+    const slash = path.lastIndexOf("/");
+    try {
+      const listed = await this.app.vault.adapter.list(normalizePath(slash < 0 ? "/" : path.slice(0, slash)));
+      for (const entry of listed.files) {
+        const candidate = entry.replace(/\\/g, "/").replace(/^\/+/, "");
+        if (isConflictCopyOf(candidate, path)) found.add(candidate);
+      }
+    } catch { /* a folder that cannot be listed adds nothing */ }
+    return [...found].sort();
+  }
+
+  /**
+   * Keep the Nextcloud version of `path` beside it. Returns whether that version is now held locally.
+   *
+   * The same conflict comes back on every run until the note is resolved, so a version already kept is not
+   * written again, and a note never gets more than MAX_CONFLICT_COPIES copies.
+   */
+  private async preserveConflict(path: string, remoteData: ArrayBuffer, summary: SyncSummary, reason: string): Promise<boolean> {
+    const remoteHash = await sha256Hex(remoteData);
+    const copies = await this.conflictCopies(path);
+    for (const copy of copies) {
+      let kept = "";
+      try { kept = await sha256Hex(await this.app.vault.adapter.readBinary(normalizePath(copy))); } catch { continue; }
+      if (kept === remoteHash) {
+        summary.conflicts.push(`${path} (${reason}; this Nextcloud version is already saved as ${copy})`);
+        return true;
+      }
+    }
+    if (copies.length >= MAX_CONFLICT_COPIES) {
+      summary.conflicts.push(`${path} (${reason}; left as it is on both sides: ${copies.length} conflict copies of it exist already. Settle the note, then delete the copies)`);
+      return false;
+    }
+    const conflictPath = conflictCopyPath(path, new Date());
     await this.ensureLocalParent(conflictPath);
     await this.app.vault.adapter.writeBinary(normalizePath(conflictPath), remoteData);
     summary.conflicts.push(`${path} (${reason}; Nextcloud copy saved as ${conflictPath})`);
+    return true;
   }
 }

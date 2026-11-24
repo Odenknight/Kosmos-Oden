@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  MAX_CONFLICT_COPIES,
   buildNextcloudDavRoot,
+  conflictCopyPath,
   effectiveSyncExcludes,
+  isConflictCopyOf,
+  isConflictCopyPath,
   isExcluded,
   migrateNextcloudSettings,
   migrateNextcloudState,
@@ -143,4 +147,26 @@ test("plain HTTP is refused for a hostname that only looks like a private addres
   for (const url of ["http://10.0.0.5", "http://192.168.1.20:8080", "http://172.20.0.2", "http://127.0.0.1", "http://localhost", "http://[::1]", "http://[fd00::1]"]) {
     assert.ok(buildNextcloudDavRoot(url, "ada", "Vault").startsWith("http://"), url);
   }
+});
+
+test("conflict copies are named after the note, recognised, and matched to their own note only", () => {
+  const at = new Date("2026-11-13T05:14:44.594Z");
+  assert.equal(conflictCopyPath("Notes/Plan.md", at), "Notes/Plan.nextcloud-conflict-2026-11-13T05-14-44-594Z.md");
+  assert.equal(conflictCopyPath("Notes.d/README", at), "Notes.d/README.nextcloud-conflict-2026-11-13T05-14-44-594Z");
+  assert.equal(conflictCopyPath("archive.tar.gz", at), "archive.tar.nextcloud-conflict-2026-11-13T05-14-44-594Z.gz");
+  for (const path of ["Notes/Plan.md", "Notes.d/README", "archive.tar.gz", "Index_Master_MOC.md"]) {
+    const copy = conflictCopyPath(path, at);
+    assert.equal(isConflictCopyPath(copy), true, copy);
+    assert.equal(isConflictCopyOf(copy, path), true, copy);
+    assert.equal(isConflictCopyPath(path), false, path);
+  }
+  // A note that only mentions the words, or carries no timestamp, is an ordinary note and is synced.
+  for (const path of ["About nextcloud-conflict files.md", "Plan.nextcloud-conflict-.md", "Plan.nextcloud-conflict-2026-11-13.md", "Plan.nextcloud-conflict-2026-11-13T05-14-44-594Z/inside.md"]) {
+    assert.equal(isConflictCopyPath(path), false, path);
+  }
+  const copy = "Notes/Plan.nextcloud-conflict-2026-11-13T05-14-44-594Z.md";
+  for (const other of ["Notes/Plan B.md", "Notes/Plan.txt", "Plan.md", "Other/Plan.md", "Notes/Pla.md", "Notes/Plan.nextcloud-conflict-2026-11-13T05-14-44-594Z.md"]) {
+    assert.equal(isConflictCopyOf(copy, other), false, other);
+  }
+  assert.equal(MAX_CONFLICT_COPIES, 5);
 });
