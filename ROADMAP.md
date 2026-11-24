@@ -88,3 +88,7 @@ measurements on a larger corpus require it).
 - A second copy of the canonical active engine.
 - Treating product release status as GKOS certification.
 - New feature work in the frozen Kosmos-Oden Lite line.
+
+## Proposed managed identity integration — November 17, 2026
+
+[Coordinated IAM proposal](docs/plans/MANAGED-IDENTITY-ENGINE-INTEGRATION-2026-11-17.md) adds named people/agent/service principals, individually assigned credentials, ownership and delegation, record grants, OIDC SSO, LDAP/AD federation through an identity provider, and bounded provisioning/revocation. This is proposed work for both Engine lines and the Observatory/Kosmos consumers; it is not implemented or qualified by this documentation. Existing frozen contracts, source/release gates and explicit Effects authority remain in force.
