@@ -110,6 +110,28 @@ export function planSync(local: Record<string, LocalEntry>, remote: Record<strin
   }
   return actions;
 }
+/** Most conflict copies kept beside one note. A note that conflicts on every run (another program rewrites it
+ *  between runs) stops here instead of filling the folder. */
+export const MAX_CONFLICT_COPIES = 5;
+const CONFLICT_MARK = ".nextcloud-conflict-";
+const CONFLICT_STAMP = "\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}-\\d{3}Z";
+const CONFLICT_COPY = new RegExp(`\\.nextcloud-conflict-${CONFLICT_STAMP}(?:\\.[^./]+)?$`);
+function splitExtension(path: string): [string, string] {
+  const dot = path.lastIndexOf("."); return dot > path.lastIndexOf("/") ? [path.slice(0, dot), path.slice(dot)] : [path, ""];
+}
+/** Where the Nextcloud version of `path` is kept when the two sides disagree: `note.nextcloud-conflict-<UTC time>.md`. */
+export function conflictCopyPath(path: string, at: Date): string {
+  const [stem, ext] = splitExtension(path);
+  return `${stem}${CONFLICT_MARK}${at.toISOString().replace(/[:.]/g, "-")}${ext}`;
+}
+/** A conflict copy is a local safety copy. It is never synced: uploaded, it would be compared and copied again. */
+export function isConflictCopyPath(path: string): boolean { return CONFLICT_COPY.test(path); }
+/** Whether `candidate` is a conflict copy of exactly `path` (same folder, same name, same extension). */
+export function isConflictCopyOf(candidate: string, path: string): boolean {
+  const [stem, ext] = splitExtension(path);
+  if (!candidate.startsWith(stem + CONFLICT_MARK) || !candidate.endsWith(ext)) return false;
+  return new RegExp(`^${CONFLICT_STAMP}$`).test(candidate.slice(stem.length + CONFLICT_MARK.length, candidate.length - ext.length));
+}
 export function encodePath(path: string): string { return path.split("/").filter(Boolean).map(encodeURIComponent).join("/"); }
 export function buildNextcloudDavRoot(serverUrl: string, username: string, remoteFolder: string): string {
   const parsed = new URL(serverUrl.trim()); validateTransport(parsed); parsed.hash = ""; parsed.search = "";

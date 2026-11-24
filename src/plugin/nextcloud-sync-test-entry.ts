@@ -1,8 +1,12 @@
 /** DOM/Obsidian-free public surface used by the sync planner tests. */
 export {
+  MAX_CONFLICT_COPIES,
   buildNextcloudDavRoot,
+  conflictCopyPath,
   effectiveSyncExcludes,
   emptyNextcloudState,
+  isConflictCopyOf,
+  isConflictCopyPath,
   isExcluded,
   migrateNextcloudSettings,
   migrateNextcloudState,
