@@ -26,8 +26,9 @@ const { NextcloudSyncEngine } = await import(`data:text/javascript;base64,${Buff
 // The engine reads PROPFIND answers with DOMParser. Node has none; this one reads the answers the server below writes.
 globalThis.DOMParser = class {
   parseFromString(xml) {
+    // Only the innermost elements carry text here, so no markup has to be taken out of it.
     const element = (text) => ({
-      textContent: text.replace(/<[^>]+>/g, ""),
+      textContent: text.includes("<") ? "" : text,
       getElementsByTagNameNS: (_ns, name) => [...text.matchAll(new RegExp(`<d:${name}(?:/>|>([\\s\\S]*?)</d:${name}>)`, "g"))].map((m) => element(m[1] ?? "")),
     });
     return { querySelector: () => null, getElementsByTagNameNS: (ns, name) => element(xml).getElementsByTagNameNS(ns, name) };
